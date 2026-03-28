@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Build
+dist/
+build/
+dist-ssr/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Backend data & uploads
+backend/data/avatars/*
+backend/data/products/*
+backend/tmp/*
+!backend/data/brands.json
+
+# Project specific
+.agent/
+.agents/
+.interface-design/
+skills-lock.json
+videoref/
+
+# Keep empty directories with .gitkeep
+!backend/data/avatars/.gitkeep
+!backend/data/products/.gitkeep
+!backend/tmp/.gitkeep

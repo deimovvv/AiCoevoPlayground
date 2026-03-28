@@ -1,0 +1,30 @@
+{
+    "id": "clip_generator",
+    "name": "Clip Generator",
+    "category": "video",
+    "description": "Generate short video clips from a script + avatar using the full UGC pipeline.",
+    "icon": "film",
+    "version": "1.0",
+    "params": [
+        {
+            "key": "script_text",
+            "type": "textarea",
+            "label": "Script",
+            "required": true,
+            "placeholder": "Write or paste your video script..."
+        },
+        {
+            "key": "avatar_id",
+            "type": "text",
+            "label": "Avatar ID",
+            "required": true
+        },
+        {
+            "key": "voice_id",
+            "type": "text",
+            "label": "Voice ID",
+            "required": false
+        }
+    ],
+    "script": "run.py"
+}

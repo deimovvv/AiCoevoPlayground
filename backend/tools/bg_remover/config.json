@@ -1,0 +1,18 @@
+{
+    "id": "bg_remover",
+    "name": "Background Remover",
+    "category": "images",
+    "description": "Remove background from product photos for clean cutouts.",
+    "icon": "eraser",
+    "version": "1.0",
+    "params": [
+        {
+            "key": "photo",
+            "type": "file",
+            "label": "Photo",
+            "accept": "image/*",
+            "required": true
+        }
+    ],
+    "script": "run.py"
+}

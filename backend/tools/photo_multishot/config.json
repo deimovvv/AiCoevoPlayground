@@ -1,0 +1,66 @@
+{
+    "id": "photo_multishot",
+    "name": "Photo → Multi-Shot",
+    "category": "images",
+    "description": "Upload a product photo. Gemini analyzes it and generates multiple creative prompts. Each prompt is sent to an image generation API to produce unique shots/angles.",
+    "icon": "sparkles",
+    "version": "1.0",
+    "params": [
+        {
+            "key": "photo",
+            "type": "file",
+            "label": "Product Photo",
+            "accept": "image/*",
+            "required": true,
+            "helpText": "Upload the base product photo to generate variations from."
+        },
+        {
+            "key": "prompt_count",
+            "type": "number",
+            "label": "Number of Shots",
+            "default": 4,
+            "min": 1,
+            "max": 10,
+            "required": false,
+            "helpText": "How many creative variations to generate."
+        },
+        {
+            "key": "style",
+            "type": "select",
+            "label": "Visual Style",
+            "default": "editorial",
+            "options": [
+                {
+                    "value": "editorial",
+                    "label": "Editorial"
+                },
+                {
+                    "value": "cinematic",
+                    "label": "Cinematic"
+                },
+                {
+                    "value": "product",
+                    "label": "Product / Clean"
+                },
+                {
+                    "value": "lifestyle",
+                    "label": "Lifestyle"
+                },
+                {
+                    "value": "minimal",
+                    "label": "Minimal"
+                }
+            ],
+            "required": false
+        },
+        {
+            "key": "brand_context",
+            "type": "textarea",
+            "label": "Brand Context",
+            "placeholder": "Optional brand description to guide the prompts...",
+            "required": false,
+            "helpText": "Helps Gemini tailor the prompts to your brand's aesthetic."
+        }
+    ],
+    "script": "run.py"
+}

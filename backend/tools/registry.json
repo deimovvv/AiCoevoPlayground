@@ -1,0 +1,26 @@
+[
+    {
+        "id": "photo_multishot",
+        "name": "Photo → Multi-Shot",
+        "category": "images",
+        "description": "Upload a product photo, Gemini generates creative prompts, then batch-generates multiple shots.",
+        "icon": "sparkles",
+        "status": "active"
+    },
+    {
+        "id": "bg_remover",
+        "name": "Background Remover",
+        "category": "images",
+        "description": "Remove background from product photos using AI segmentation.",
+        "icon": "eraser",
+        "status": "coming_soon"
+    },
+    {
+        "id": "clip_generator",
+        "name": "Clip Generator",
+        "category": "video",
+        "description": "Generate short video clips from a script + avatar using the UGC pipeline.",
+        "icon": "film",
+        "status": "coming_soon"
+    }
+]
