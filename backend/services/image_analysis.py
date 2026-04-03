@@ -85,24 +85,50 @@ async def extract_visual_guide(
 
     reference_images: list of (image_bytes, mime_type) tuples
     """
-    prompt = f"""You are a brand strategist analyzing visual references for an advertising campaign.
+    prompt = f"""You are an expert art director analyzing reference images to create a detailed visual production guide.
 
-Analyze ALL the provided reference images and create a VISUAL GUIDE that captures the brand's visual identity.
+Study EVERY reference image carefully. Extract the EXACT visual DNA — not generic descriptions, but specific, actionable details that an AI image generator needs to recreate this exact style.
 
 {f'Brand context: {brand_context}' if brand_context else ''}
 
-Your visual guide must include:
+For EACH of these categories, provide SPECIFIC details (not vague words like "modern" or "clean"):
 
-1. COLOR PALETTE: The dominant colors, accent colors, and how they're used (warm/cool, saturated/muted)
-2. LIGHTING STYLE: Natural/studio, direction, mood, shadows, color temperature
-3. COMPOSITION: Framing patterns, use of space, subject placement, angles
-4. TEXTURE & MATERIAL: Surface qualities, fabric behavior, product presentation
-5. MOOD & TONE: The overall feeling — luxury, casual, editorial, street, minimal, bold
-6. TYPOGRAPHY HINTS: If visible — serif/sans, weight, placement
-7. RECURRING ELEMENTS: Patterns, props, backgrounds, color blocking
+COLOR PALETTE:
+- List exact colors you see (e.g., "desaturated sage green #8B9B7A", "warm cream #F5E6D3")
+- How are colors distributed? (dominant vs accent, percentage)
+- Color temperature: warm/cool/neutral, and how consistent across images
+- Any color grading or film look? (matte, faded blacks, crushed shadows, lifted highlights)
 
-Write this as a concise creative brief (1 paragraph per section, no bullet points).
-This guide will be used to generate NEW images that match this exact visual style.
+LIGHTING:
+- Light source: window, studio softbox, golden hour, overcast, mixed?
+- Direction: front, side, back, overhead, 45-degree?
+- Quality: hard shadows or soft diffused? Contrast ratio?
+- Special: rim light, hair light, practical lights, neon, reflected light?
+- Color of light: warm tungsten, cool daylight, mixed?
+
+CAMERA & COMPOSITION:
+- Common focal lengths: wide (24mm), normal (50mm), telephoto (85mm+)?
+- Depth of field: deep (everything sharp) or shallow (blurred background)?
+- Framing: centered, rule of thirds, tight crop, lots of negative space?
+- Angles: eye level, slightly above, low angle, overhead?
+- Any distinctive composition patterns across images?
+
+TEXTURES & MATERIALS:
+- Surface quality of products/garments: matte, glossy, textured, smooth?
+- How does fabric behave: structured, flowing, wrinkled, pressed?
+- Background surfaces: concrete, wood, fabric, seamless paper?
+
+MOOD & ATMOSPHERE:
+- One sentence: what feeling do ALL these images share?
+- Is it aspirational, raw, editorial, street, cozy, luxurious, minimal?
+- Energy level: calm/static or dynamic/movement?
+
+ENVIRONMENT:
+- Indoor/outdoor/studio?
+- Specific setting elements that repeat
+- Props, set dressing, background elements
+
+Write each section as 2-3 specific sentences. Be PRECISE — this guide will directly control how new images are generated. Vague descriptions produce vague images.
 
 Respond in English."""
 
@@ -122,7 +148,7 @@ async def _call_vision(prompt: str, images: list[tuple[bytes, str]]) -> str:
         "contents": [{"role": "user", "parts": parts}],
         "generationConfig": {
             "temperature": 0.4,
-            "maxOutputTokens": 2000,
+            "maxOutputTokens": 4000,
         },
     }
 

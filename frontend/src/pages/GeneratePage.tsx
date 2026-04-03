@@ -35,6 +35,51 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   share: <Share2 size={20} />,
   film: <Film size={20} />,
   eraser: <Eraser size={20} />,
+  sparkles: <Sparkles size={20} />,
+};
+
+// What each tool produces — shown on hover
+const TOOL_PREVIEWS: Record<string, { what: string; inputs: string; output: string }> = {
+  ugc_creator: {
+    what: "UGC talking-to-camera videos for social media ads",
+    inputs: "Avatar + Product + Clothing + Voice + Objective",
+    output: "4-scene video with lip-sync, subtitles, and voiceover",
+  },
+  ad_creative_lab: {
+    what: "Multiple ad creatives from brand reference images",
+    inputs: "Reference images + Product/Garments + Creative direction",
+    output: "N variations with different angles, styles, and compositions",
+  },
+  product_spotlight: {
+    what: "Professional product photography in context",
+    inputs: "Product + Setting description",
+    output: "Hero shot + variations with different angles",
+  },
+  fashion_editorial: {
+    what: "High-end fashion editorial photography",
+    inputs: "Model + Garments + Pose direction + Style reference",
+    output: "Editorial photo + variations",
+  },
+  fashion_reels: {
+    what: "Outfit-transition reels for Instagram/TikTok",
+    inputs: "Model + Multiple outfits + Direction",
+    output: "Animated reel with outfit changes",
+  },
+  photo_multishot: {
+    what: "Multiple product photo variations",
+    inputs: "Product + Photo brief",
+    output: "Multiple angles and styles of the same product",
+  },
+  ad_creative: {
+    what: "Ad creative with copy and visuals",
+    inputs: "Product + Campaign brief + Platform",
+    output: "Ad image with headline and copy",
+  },
+  social_post: {
+    what: "Social media post with caption",
+    inputs: "Product + Post brief + Platform",
+    output: "Post image + caption text",
+  },
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -154,13 +199,14 @@ function ToolCard({
   onClick: () => void;
 }) {
   const isComingSoon = tool.status === "coming_soon";
+  const preview = TOOL_PREVIEWS[tool.id];
 
   return (
     <button
       onClick={onClick}
       disabled={disabled || isComingSoon}
       className={cn(
-        "group text-left border border-edge rounded-[var(--radius-md)] p-5 transition-all duration-150 cursor-pointer",
+        "group text-left border border-edge rounded-[var(--radius-md)] p-5 transition-all duration-150 cursor-pointer relative",
         disabled || isComingSoon
           ? "bg-surface-0 opacity-50 cursor-not-allowed"
           : "bg-surface-0 hover:bg-surface-1 hover:border-[var(--color-edge-strong)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
@@ -190,11 +236,11 @@ function ToolCard({
 
       {/* Name + description */}
       <h3 className="text-[15px] font-semibold text-fg mb-1.5">{tool.name}</h3>
-      <p className="text-[12px] text-fg-muted leading-relaxed mb-4">
+      <p className="text-[12px] text-fg-muted leading-relaxed mb-3">
         {tool.description}
       </p>
 
-      {/* Pipeline steps preview */}
+      {/* Pipeline steps */}
       <div className="flex items-center gap-1.5 flex-wrap">
         {tool.pipeline.map((step, i) => (
           <span key={step} className="flex items-center gap-1">

@@ -221,6 +221,7 @@ interface ToolConfig {
   subtitleEngine: "auto" | "remotion" | "ffmpeg" | "none";
   referenceImages: File[];
   allowFaces: boolean;
+  adStyle: string;
 }
 
 const DEFAULT_CONFIG: ToolConfig = {
@@ -243,6 +244,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   subtitleEngine: "auto",
   referenceImages: [],
   allowFaces: true,
+  adStyle: "photorealistic",
 };
 
 // ── Mock data for preview ─────────────────────────────────
@@ -1628,6 +1630,38 @@ function ConfigPanel({
         )}
       </div>
 
+      {/* Style selector (Video Ad Creator) */}
+      {tool.id === "video_ad_creator" && (
+        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+          <label className="text-[12px] font-semibold text-fg-secondary">Visual Style</label>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { id: "photorealistic", label: "Photorealistic" },
+              { id: "claymation", label: "Claymation" },
+              { id: "2d_cartoon", label: "2D Cartoon" },
+              { id: "3d_render", label: "3D Render" },
+              { id: "cinematic", label: "Cinematic" },
+              { id: "minimal", label: "Minimal" },
+              { id: "retro", label: "Retro" },
+              { id: "custom", label: "Custom" },
+            ].map((style) => (
+              <button
+                key={style.id}
+                onClick={() => setConfig((p) => ({ ...p, adStyle: style.id }))}
+                className={cn(
+                  "px-3 py-2 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer text-center",
+                  config.adStyle === style.id
+                    ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                    : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
+                )}
+              >
+                {style.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Reference images uploader (Ad Creative Lab) */}
       {tool.id === "ad_creative_lab" && (
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
@@ -2598,6 +2632,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   const [editText, setEditText] = useState("");
   const [selectedRefIdx, setSelectedRefIdx] = useState<number | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   // Script step — show script text + brief, only first image prompt
   if (stepId === "script" && result) {
@@ -3292,22 +3327,33 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
     // Get references from visual_guide step
     const vgResult = allSteps.find((s) => s.id === "visual_guide")?.result as {
       referenceUrls?: string[];
-      referenceBlobs?: Blob[];
     } | undefined;
     const refUrls = vgResult?.referenceUrls || [];
-    const refBlobs = vgResult?.referenceBlobs || [];
 
-    // Apply a reference style to a creative
+    // Get brand reference images (avatar + clothing + product) for consistency
+    const getBrandRefs = (): string[] => {
+      if (!activeBrand) return [];
+      const refs: string[] = [];
+      const avatar = activeBrand.avatars?.find((a) => a.id === config?.selectedAvatarId);
+      if (avatar?.imageUrl) refs.push(avatar.imageUrl);
+      const clothing = (activeBrand.clothing || []).filter((c) => (config?.selectedClothingIds || []).includes(c.id));
+      clothing.forEach((c) => { if (c.imageUrl) refs.push(c.imageUrl); });
+      const product = (activeBrand.products || []).find((p) => p.id === config?.selectedProductId);
+      if (product?.imageUrl) refs.push(product.imageUrl);
+      return refs;
+    };
+
+    // Apply a reference's mood/style to a creative — keep product/person consistent
     const handleApplyRef = async (creative: typeof data.creatives[0], refIdx: number) => {
-      const refBlob = refBlobs[refIdx];
-      if (!refBlob) return;
+      const refUrl = refUrls[refIdx];
+      if (!refUrl) return;
       setActionLoading(creative.id);
       try {
-        // Upload ref to Fal, then use as reference + creative's prompt
-        const refUrl = refUrls[refIdx];
+        // Pass: creative (to keep) + brand refs (for consistency) + style reference (for mood)
+        const refs = [creative.url, ...getBrandRefs(), refUrl];
         const job = await createImageEdit(
-          [creative.url, refUrl].filter(Boolean),
-          `Apply the visual style, color palette, and mood from the second reference image to this creative. Keep the subject and composition. ${creative.prompt}`,
+          refs,
+          `Keep the EXACT same person, product, and garments from the first image. Only change the mood, lighting, color grading, and atmosphere to match the style of the last reference image. Do NOT change what the person looks like, what they wear, or what they hold. ${creative.prompt}`,
           config?.aspectRatio || "9:16",
           config?.resolution || "1K",
         );
@@ -3319,11 +3365,12 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       }
     };
 
-    // Regenerate a creative with its original prompt
+    // Regenerate with original prompt + brand reference images for consistency
     const handleRegen = async (creative: typeof data.creatives[0]) => {
       setActionLoading(creative.id);
       try {
-        const job = await createImageEdit([], creative.prompt, config?.aspectRatio || "9:16", config?.resolution || "1K");
+        const refs = getBrandRefs();
+        const job = await createImageEdit(refs, creative.prompt, config?.aspectRatio || "9:16", config?.resolution || "1K");
         const regenResult = await pollImageGen(job.request_id);
         if (regenResult.image_url) creative.url = regenResult.image_url;
       } catch { /* silent */ } finally {
@@ -3331,12 +3378,13 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       }
     };
 
-    // Edit a creative with custom instructions
+    // Edit with brand refs for consistency
     const handleEditCreative = async (creative: typeof data.creatives[0]) => {
       if (!editText.trim()) return;
       setEditLoading(true);
       try {
-        const job = await createImageEdit([creative.url], editText.trim());
+        const refs = [creative.url, ...getBrandRefs()];
+        const job = await createImageEdit(refs, editText.trim(), config?.aspectRatio || "9:16", config?.resolution || "1K");
         const editResult = await pollImageGen(job.request_id);
         if (editResult.image_url) creative.url = editResult.image_url;
       } catch { /* silent */ } finally {
@@ -3382,7 +3430,10 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         <div className="grid grid-cols-3 gap-3">
           {data.creatives.filter((c) => c.url).map((creative) => (
             <div key={creative.id} className="space-y-1.5">
-              <div className="relative rounded-[var(--radius-sm)] overflow-hidden border border-edge group">
+              <div
+                onClick={() => !actionLoading && creative.url && setLightboxUrl(creative.url)}
+                className="relative rounded-[var(--radius-sm)] overflow-hidden border border-edge group cursor-pointer hover:border-[var(--color-warm)] transition-colors"
+              >
                 <div className="aspect-square">
                   {actionLoading === creative.id ? (
                     <div className="w-full h-full bg-surface-2 flex flex-col items-center justify-center gap-2">
@@ -3395,6 +3446,9 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 </div>
                 <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-2">
                   <span className="text-[9px] text-white font-medium">{creative.style} · {creative.angle}</span>
+                </div>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <Eye size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </div>
 
@@ -3469,6 +3523,43 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
               <Film size={14} />
               Download All ({data.creatives.filter((c) => c.url).length})
             </a>
+            <button
+              onClick={async () => {
+                if (!activeBrand) return;
+                const successful = data.creatives.filter((c) => c.url);
+                try {
+                  await saveGeneration({
+                    brandId: activeBrand.id,
+                    toolId: "ad_creative_lab",
+                    title: `Ad Creatives — ${new Date().toLocaleDateString()}`,
+                    type: "image",
+                    thumbnailUrl: successful[0]?.url,
+                    scenes: successful.map((c) => ({ id: c.id, title: c.style, imageUrl: c.url })),
+                    metadata: { numCreatives: successful.length },
+                  });
+                  alert("Saved to Content!");
+                } catch { /* silent */ }
+              }}
+              className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-fg-muted bg-surface-2 border border-edge rounded-[var(--radius-sm)] hover:text-fg hover:bg-surface-3 transition-colors cursor-pointer"
+            >
+              <Check size={14} />
+              Save to Content
+            </button>
+          </div>
+        )}
+
+        {/* Lightbox */}
+        {lightboxUrl && (
+          <div
+            className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8 cursor-pointer"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <img
+              src={lightboxUrl}
+              alt="Full size"
+              className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         )}
       </div>

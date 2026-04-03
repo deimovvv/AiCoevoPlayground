@@ -684,6 +684,23 @@ async def upload_product(
     return product
 
 
+@app.patch("/api/brands/{brand_id}/products/{product_id}")
+def update_product(brand_id: str, product_id: str, req: dict):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    product = next((p for p in brand.get("products", []) if p["id"] == product_id), None)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    if "name" in req:
+        product["name"] = req["name"]
+    if "description" in req:
+        product["description"] = req["description"]
+    brands.save_brands(all_brands)
+    return product
+
+
 @app.delete("/api/brands/{brand_id}/products/{product_id}")
 def delete_product(brand_id: str, product_id: str):
     all_brands = brands.load_brands()
@@ -1210,6 +1227,84 @@ async def heygen_avatar4_result(request_id: str):
 #  Kling V2.6 Image-to-Video Routes (via Fal)
 # ══════════════════════════════════════════════════════════════
 
+class KlingFrameToFrameRequest(BaseModel):
+    start_image_url: str
+    end_image_url: str
+    prompt: str = ""
+    duration: str = "5"
+    aspect_ratio: str = "9:16"
+
+
+@app.post("/api/kling/frame-to-frame")
+async def kling_frame_to_frame(req: KlingFrameToFrameRequest):
+    """Kling frame-to-frame: animate from start image to end image."""
+    if not kling_video.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    try:
+        # Resolve local URLs
+        resolved_start = req.start_image_url
+        resolved_end = req.end_image_url
+
+        static_dirs = {
+            "/static/avatars/": brands.get_avatars_dir(),
+            "/static/products/": brands.get_products_dir(),
+            "/static/clothing/": brands.get_clothing_dir(),
+            "/static/backgrounds/": brands.get_backgrounds_dir(),
+        }
+
+        for url_attr in ["start", "end"]:
+            url = resolved_start if url_attr == "start" else resolved_end
+            if url.startswith("/static/"):
+                for prefix, directory in static_dirs.items():
+                    if prefix in url:
+                        filename = url.split(prefix)[-1]
+                        local_path = directory / filename
+                        if local_path.exists():
+                            with open(local_path, "rb") as f:
+                                img_bytes = f.read()
+                            ext = local_path.suffix.lower()
+                            ct_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
+                            fal_url = await kling_video.upload_image(img_bytes, local_path.name, ct_map.get(ext, "image/jpeg"))
+                            if url_attr == "start":
+                                resolved_start = fal_url
+                            else:
+                                resolved_end = fal_url
+                        break
+
+        # Submit to Kling V3 Pro with start + end frames
+        payload = {
+            "prompt": req.prompt,
+            "start_image_url": resolved_start,
+            "end_image_url": resolved_end,
+            "duration": req.duration,
+            "negative_prompt": "blur, distort, and low quality",
+            "generate_audio": False,
+            "cfg_scale": 0.5,
+        }
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            res = await client.post(
+                f"https://queue.fal.run/fal-ai/kling-video/v3/pro/image-to-video",
+                headers={"Authorization": f"Key {kling_video._get_key()}", "Content-Type": "application/json"},
+                json=payload,
+            )
+
+        if res.status_code not in (200, 201):
+            raise Exception(f"Kling submit failed ({res.status_code}): {res.text[:400]}")
+
+        data = res.json()
+        request_id = data.get("request_id")
+        if not request_id:
+            video_data = data.get("video", {})
+            if video_data.get("url"):
+                return {"request_id": f"SYNC:{video_data['url']}", "status": "completed"}
+            raise Exception(f"No request_id: {data}")
+
+        return {"request_id": request_id, "status": "pending"}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 @app.post("/api/kling/image-to-video")
 async def kling_create_video(
     image_url: str = Form(None),
@@ -1639,10 +1734,18 @@ async def generate_tool_prompt(req: ToolPromptRequest):
         content = await copy_gen._call_gemini(built_prompt, user_msg)
 
         # Clean markdown wrappers
+        content = content.strip()
         if content.startswith("```json"):
             content = content.replace("```json", "").replace("```", "").strip()
         elif content.startswith("```"):
             content = content.replace("```", "").strip()
+
+        # Try to find JSON array if not starting with [
+        if not content.startswith("[") and not content.startswith("{"):
+            start = content.find("[")
+            end = content.rfind("]")
+            if start != -1 and end > start:
+                content = content[start:end + 1]
 
         result = json.loads(content)
         return {"result": result, "model": "gemini-2.5-flash"}

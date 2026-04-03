@@ -49,6 +49,9 @@ export interface ToolConfig {
   aspectRatio: string;
   resolution: string;
   subtitleEngine: "auto" | "remotion" | "ffmpeg" | "none";
+  adStyle: string;
+  referenceImages: File[];
+  allowFaces: boolean;
 }
 
 export const DEFAULT_CONFIG: ToolConfig = {

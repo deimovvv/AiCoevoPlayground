@@ -60,5 +60,21 @@
     "brandContext": "",
     "avatars": [],
     "voicePresets": []
+  },
+  {
+    "id": "american-fresh",
+    "name": "American Fresh",
+    "brandContext": "",
+    "avatars": [],
+    "voicePresets": [],
+    "products": [
+      {
+        "id": "b0d8029b",
+        "name": "Product",
+        "description": "This product is an orange plastic bottle of laundry detergent, displayed upright against a white background. The bottle has an ergonomic, slightly hourglass silhouette with an integrated handle on the right side and a clear, faceted plastic measuring cap. Its smooth, glossy surface features a prominent label on the front, displaying \"AMERICA FRESH\" in blue text over a blue wave graphic, surrounded by orange and red bubbles. Small icons like \"32\" and \"HE,\" along with \"Original\" and \"CONT. 2L,\" are also visible on the label.",
+        "filename": "american-fresh_prod_b0d8029b.webp",
+        "imageUrl": "/static/products/american-fresh_prod_b0d8029b.webp"
+      }
+    ]
   }
 ]

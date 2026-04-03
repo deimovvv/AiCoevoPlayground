@@ -372,18 +372,57 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                         </div>
                     )}
 
-                    {/* Scenes */}
+                    {/* Scenes / Creatives */}
                     {gen.scenes && gen.scenes.length > 0 && (
                         <div className="space-y-2">
-                            <h3 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider">Scenes</h3>
-                            {gen.scenes.map((scene, i) => (
-                                <div key={scene.id || i} className="bg-surface-1 rounded-[var(--radius-sm)] px-4 py-3">
-                                    <div className="text-[12px] text-fg font-medium">{scene.title || `Scene ${i + 1}`}</div>
-                                    {scene.script && (
-                                        <p className="text-[11px] text-fg-muted mt-1 leading-relaxed">{`${scene.script}`}</p>
-                                    )}
+                            <h3 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider">
+                                {gen.type === "image" ? "Creatives" : "Scenes"} ({gen.scenes.length})
+                            </h3>
+                            {gen.scenes.some((s) => s.imageUrl) ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                    {gen.scenes.map((scene, i) => (
+                                        <div key={scene.id || i} className="space-y-1 group/img">
+                                            {scene.imageUrl && (
+                                                <div className="aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge relative cursor-pointer"
+                                                    onClick={() => window.open(scene.imageUrl as string, "_blank")}
+                                                >
+                                                    <img src={`${scene.imageUrl}`} alt={scene.title || `${i + 1}`} className="w-full h-full object-cover" />
+                                                    <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/30 transition-colors flex items-center justify-center gap-2">
+                                                        <button
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                try {
+                                                                    const res = await fetch(scene.imageUrl as string);
+                                                                    const blob = await res.blob();
+                                                                    const url = URL.createObjectURL(blob);
+                                                                    const a = document.createElement("a");
+                                                                    a.href = url;
+                                                                    a.download = `creative_${i + 1}.png`;
+                                                                    a.click();
+                                                                    URL.revokeObjectURL(url);
+                                                                } catch { /* silent */ }
+                                                            }}
+                                                            className="opacity-0 group-hover/img:opacity-100 p-1.5 bg-white/20 rounded-full hover:bg-white/40 transition-all cursor-pointer"
+                                                        >
+                                                            <Download size={12} className="text-white" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <p className="text-[10px] text-fg-muted text-center">{scene.title || `Scene ${i + 1}`}</p>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
+                            ) : (
+                                gen.scenes.map((scene, i) => (
+                                    <div key={scene.id || i} className="bg-surface-1 rounded-[var(--radius-sm)] px-4 py-3">
+                                        <div className="text-[12px] text-fg font-medium">{scene.title || `Scene ${i + 1}`}</div>
+                                        {scene.script && (
+                                            <p className="text-[11px] text-fg-muted mt-1 leading-relaxed">{`${scene.script}`}</p>
+                                        )}
+                                    </div>
+                                ))
+                            )}
                         </div>
                     )}
 

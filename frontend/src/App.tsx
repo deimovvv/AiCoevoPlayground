@@ -52,7 +52,7 @@ function App() {
           </BrandProvider>
         }
       >
-        <Route index element={<Workspace />} />
+        <Route index element={<BrandSettings />} />
         <Route path="content" element={<ContentPage />} />
         <Route path="brand" element={<BrandSettings />} />
         <Route path="integrations" element={<IntegrationsPage />} />
@@ -60,7 +60,7 @@ function App() {
         <Route path="performance/organic" element={<PerformancePage tab="organic" />} />
         <Route path="performance/ads" element={<PerformancePage tab="ads" />} />
         <Route path="brands" element={<Dashboard />} />
-        <Route path="brands/:brandId" element={<BrandWorkspace />} />
+        <Route path="brands/:brandId" element={<BrandSettings />} />
         <Route path="brands/:brandId/generate" element={<GenerationPipeline />} />
         <Route path="generate" element={<GeneratePage />} />
         <Route path="generate/:toolId" element={<ErrorBoundary><ToolRunPage /></ErrorBoundary>} />

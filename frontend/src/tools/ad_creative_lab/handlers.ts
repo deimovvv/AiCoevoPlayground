@@ -74,15 +74,22 @@ export const handleVisualGuide: StepHandler = async (ctx) => {
 
   const data = await res.json();
 
+  // Convert blobs to data URLs so they persist across step transitions
+  const refDataUrls: string[] = [];
+  for (const img of imageBlobs) {
+    const dataUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(img.blob);
+    });
+    refDataUrls.push(dataUrl);
+  }
+
   return {
     result: {
       visualGuide: data.visual_guide,
       numReferences: imageBlobs.length,
-      // Store reference preview URLs for the review step
-      referenceUrls: refFiles.length > 0
-        ? refFiles.map((f) => URL.createObjectURL(f))
-        : imageBlobs.map((b) => URL.createObjectURL(b.blob)),
-      referenceBlobs: imageBlobs.map((b) => b.blob),
+      referenceUrls: refDataUrls,
     },
     needsApproval: true,
   };
@@ -156,23 +163,44 @@ export const handlePrompts: StepHandler = async (ctx) => {
 
   const { result } = await generateToolPrompt(activeBrand.id, "ad_creative_lab", userMsg, extraVars);
 
-  // Parse: result should be an array of { prompt, style, angle }
+  // Parse: result could be array, object with array, or string
   let prompts: Array<{ prompt: string; style: string; angle: string }> = [];
-  if (Array.isArray(result)) {
-    prompts = result as Array<{ prompt: string; style: string; angle: string }>;
-  } else if (typeof result === "object" && result !== null) {
-    // Gemini might wrap it
-    const r = result as Record<string, unknown>;
-    if (Array.isArray(r.prompts)) prompts = r.prompts as Array<{ prompt: string; style: string; angle: string }>;
-  }
+
+  console.log("[ad-creative-lab] Raw result type:", typeof result, Array.isArray(result));
+  console.log("[ad-creative-lab] Raw result:", JSON.stringify(result)?.slice(0, 300));
+
+  // Find the array of prompts wherever Gemini put it
+  const findArray = (obj: unknown): Array<Record<string, string>> => {
+    if (Array.isArray(obj)) return obj;
+    if (typeof obj === "object" && obj !== null) {
+      for (const val of Object.values(obj as Record<string, unknown>)) {
+        if (Array.isArray(val)) return val;
+      }
+    }
+    if (typeof obj === "string") {
+      try { const p = JSON.parse(obj); if (Array.isArray(p)) return p; } catch { /* */ }
+    }
+    return [];
+  };
+
+  const rawPrompts = findArray(result);
+  prompts = rawPrompts
+    .map((p) => {
+      // Handle both string items and object items
+      if (typeof p === "string") return { prompt: p, style: "creative", angle: "eye-level" };
+      if (p.prompt) return { prompt: p.prompt, style: p.style || p.campaign_type || "creative", angle: p.angle || "eye-level" };
+      return null;
+    })
+    .filter((p): p is { prompt: string; style: string; angle: string } => p !== null && p.prompt.length > 10);
 
   if (prompts.length === 0) {
-    throw new Error("No prompts generated. Try a different creative direction.");
+    throw new Error(`No prompts generated. Result: ${JSON.stringify(result)?.slice(0, 200)}`);
   }
 
   return {
     result: { prompts, visualGuide: visualGuideData.visualGuide },
-    needsApproval: true,
+    needsApproval: false,
+    autoRunNext: true,
   };
 };
 
@@ -253,7 +281,7 @@ export const handleGenerateBatch: StepHandler = async (ctx) => {
 
   return {
     result: { creatives: results, totalGenerated: results.length, successful: successful.length },
-    needsApproval: true,
+    needsApproval: false,
   };
 };
 

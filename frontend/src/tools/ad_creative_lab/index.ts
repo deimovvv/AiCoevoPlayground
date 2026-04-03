@@ -21,8 +21,8 @@ export const adCreativeLab: ToolDefinition = {
     showPlatform: false,
     showLanguage: false,
     showVariations: true,
-    objectiveLabel: "Creative Direction",
-    objectivePlaceholder: "Describe the campaign direction. E.g., 'minimal product photography, earthy tones' or 'fashion editorial, street style, confident poses'...",
+    objectiveLabel: "Creative Direction (optional)",
+    objectivePlaceholder: "Optional — leave empty to let the references guide the style. Or add direction like 'street style for summer', 'editorial minimal', 'luxury lookbook'...",
     showNotes: false,
   },
   stepHandlers: {
@@ -31,6 +31,6 @@ export const adCreativeLab: ToolDefinition = {
     generate_batch: handleGenerateBatch,
     review: handleReview,
   },
-  approvalSteps: ["visual_guide", "prompts", "generate_batch"],
-  autoRunSteps: ["prompts"],
+  approvalSteps: ["visual_guide"],
+  autoRunSteps: ["prompts", "generate_batch"],
 };

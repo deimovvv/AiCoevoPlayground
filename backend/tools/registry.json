@@ -9,13 +9,22 @@
         "pipeline": ["script", "base_image", "multishot", "curation", "voice", "lipsync", "render"]
     },
     {
+        "id": "video_ad_creator",
+        "name": "Video Ad Creator",
+        "category": "video",
+        "description": "Create cinematic video ads: storyboard, 10 keyframes, frame-to-frame animation with Kling, voiceover, music, and final render.",
+        "icon": "film",
+        "status": "active",
+        "pipeline": ["script", "images", "review_images", "voice", "animate", "render"]
+    },
+    {
         "id": "ad_creative_lab",
         "name": "Ad Creative Lab",
         "category": "images",
         "description": "Generate brand-consistent ad creatives from reference images. Upload references, analyze visual style, generate multiple variations, iterate.",
         "icon": "sparkles",
         "status": "active",
-        "pipeline": ["visual_guide", "prompts", "generate_batch", "review"]
+        "pipeline": ["visual_guide", "prompts", "generate_batch"]
     },
     {
         "id": "product_spotlight",

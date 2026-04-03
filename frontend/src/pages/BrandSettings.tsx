@@ -18,6 +18,7 @@ import {
   Play,
   Square,
   Mountain,
+  Sparkles,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
@@ -544,13 +545,37 @@ function ProductsCard() {
             placeholder="Product name"
             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
           />
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (e.g. Remera oversize de algodón orgánico, color negro, cuello redondo, logo bordado)"
-            rows={3}
-            className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none resize-none focus:border-[var(--color-edge-focus)] transition-colors"
-          />
+          <div className="space-y-1">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Description — or click 'AI Describe' after selecting an image"
+              rows={2}
+              className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none resize-none focus:border-[var(--color-edge-focus)] transition-colors"
+            />
+            {file && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const formData = new FormData();
+                    formData.append("image", file);
+                    formData.append("type", "product");
+                    formData.append("name", name);
+                    const res = await fetch("http://localhost:8000/api/analyze/image", { method: "POST", body: formData });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setDescription(data.description || "");
+                    }
+                  } catch { /* silent */ }
+                }}
+                className="flex items-center gap-1.5 text-[11px] text-[var(--color-warm)] hover:underline cursor-pointer"
+              >
+                <Sparkles size={11} />
+                AI Describe
+              </button>
+            )}
+          </div>
           <div
             onClick={() => fileRef.current?.click()}
             className={cn(
@@ -609,6 +634,16 @@ function ProductsCard() {
               product={p}
               deleting={deleting === p.id}
               onDelete={() => handleDelete(p.id)}
+              onUpdate={async (newName, newDesc) => {
+                try {
+                  await fetch(`http://localhost:8000/api/brands/${activeBrand.id}/products/${p.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name: newName, description: newDesc }),
+                  });
+                  await refreshBrands();
+                } catch { /* silent */ }
+              }}
             />
           ))}
         </div>
@@ -621,33 +656,89 @@ function ProductTile({
   product,
   deleting,
   onDelete,
+  onUpdate,
 }: {
   product: Product;
   deleting: boolean;
   onDelete: () => void;
+  onUpdate: (name: string, description: string) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(product.name);
+  const [editDesc, setEditDesc] = useState(product.description || "");
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const handleSave = () => {
+    onUpdate(editName, editDesc);
+    setEditing(false);
+  };
+
+  const handleAiDescribe = async () => {
+    setAiLoading(true);
+    try {
+      const imgUrl = productImageUrl(product.imageUrl);
+      const res = await fetch(imgUrl);
+      const blob = await res.blob();
+      const formData = new FormData();
+      formData.append("image", blob, "product.jpg");
+      formData.append("type", "product");
+      formData.append("name", editName);
+      const analyzeRes = await fetch("http://localhost:8000/api/analyze/image", { method: "POST", body: formData });
+      if (analyzeRes.ok) {
+        const data = await analyzeRes.json();
+        setEditDesc(data.description || "");
+      }
+    } catch { /* silent */ } finally {
+      setAiLoading(false);
+    }
+  };
+
   return (
     <div className="group relative rounded-[var(--radius-sm)] bg-surface-2 overflow-hidden">
       <div className="aspect-square">
-        <img
-          src={productImageUrl(product.imageUrl)}
-          alt={product.name}
-          className="w-full h-full object-cover"
-        />
+        <img src={productImageUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
       </div>
       <div className="p-2 space-y-0.5">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] text-fg font-medium truncate">{product.name}</span>
-          <button
-            onClick={onDelete}
-            disabled={deleting}
-            className="p-0.5 rounded text-fg-faint hover:text-red-400 transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
-          >
-            {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
-          </button>
-        </div>
-        {product.description && (
-          <p className="text-[10px] text-fg-faint leading-tight line-clamp-2">{product.description}</p>
+        {editing ? (
+          <div className="space-y-1.5">
+            <input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full h-6 px-1.5 rounded border border-edge bg-surface-1 text-[11px] text-fg outline-none"
+            />
+            <textarea
+              value={editDesc}
+              onChange={(e) => setEditDesc(e.target.value)}
+              rows={2}
+              className="w-full px-1.5 py-1 rounded border border-edge bg-surface-1 text-[10px] text-fg outline-none resize-none"
+            />
+            <div className="flex gap-1">
+              <button onClick={handleAiDescribe} disabled={aiLoading} className="flex items-center gap-1 text-[9px] text-[var(--color-warm)] cursor-pointer">
+                {aiLoading ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
+                AI
+              </button>
+              <div className="flex-1" />
+              <button onClick={() => setEditing(false)} className="text-[9px] text-fg-faint cursor-pointer">Cancel</button>
+              <button onClick={handleSave} className="text-[9px] text-[var(--color-warm)] font-medium cursor-pointer">Save</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-fg font-medium truncate">{product.name}</span>
+              <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => setEditing(true)} className="p-0.5 rounded text-fg-faint hover:text-fg cursor-pointer">
+                  <Pencil size={10} />
+                </button>
+                <button onClick={onDelete} disabled={deleting} className="p-0.5 rounded text-fg-faint hover:text-red-400 cursor-pointer">
+                  {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
+                </button>
+              </div>
+            </div>
+            {product.description && (
+              <p className="text-[10px] text-fg-faint leading-tight line-clamp-2">{product.description}</p>
+            )}
+          </>
         )}
       </div>
     </div>
