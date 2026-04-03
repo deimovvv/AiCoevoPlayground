@@ -26,7 +26,7 @@ export const videoAdCreator: ToolDefinition = {
     showVariations: false,
     objectiveLabel: "Creative Direction",
     objectivePlaceholder: "Describe the ad concept. E.g., 'luxury product reveal, dramatic lighting, premium feel' or 'fun casual ad, bright colors, young audience'...",
-    showNotes: true,
+    showNotes: false,
   },
   stepHandlers: {
     script: handleScript,

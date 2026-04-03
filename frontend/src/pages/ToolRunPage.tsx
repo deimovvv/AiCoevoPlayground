@@ -1665,6 +1665,14 @@ function ConfigPanel({
               </button>
             ))}
           </div>
+          {config.adStyle === "custom" && (
+            <input
+              value={config.notes}
+              onChange={(e) => setConfig((p) => ({ ...p, notes: e.target.value }))}
+              placeholder="Describe your custom style. E.g., 'watercolor illustration, pastel tones, hand-drawn textures'..."
+              className="w-full h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
+            />
+          )}
         </div>
       )}
 
