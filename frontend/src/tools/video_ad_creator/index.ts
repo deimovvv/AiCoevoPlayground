@@ -37,5 +37,5 @@ export const videoAdCreator: ToolDefinition = {
     render: handleRender,
   },
   approvalSteps: ["script", "images"],
-  autoRunSteps: ["images", "voice", "animate", "render"],
+  autoRunSteps: ["voice", "animate", "render"],
 };

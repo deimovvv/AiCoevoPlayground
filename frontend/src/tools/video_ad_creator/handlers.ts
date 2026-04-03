@@ -70,16 +70,22 @@ export const handleScript: StepHandler = async (ctx) => {
     return [];
   };
 
-  const rawFrames = findArray(result);
-  const frames = rawFrames.map((f, i) => ({
-    frame: Number(f.frame) || i + 1,
-    prompt: String(f.prompt || ""),
-    scene_type: String(f.scene_type || f.type || "story"),
-    script: String(f.script || f.voiceover || f.speech || f.text || ""),
-    transition: String(f.transition || "fade"),
-  }));
+  console.log("[video-ad] Raw result:", JSON.stringify(result)?.slice(0, 500));
 
-  if (frames.length === 0) throw new Error(`No frames generated. Result: ${JSON.stringify(result)?.slice(0, 200)}`);
+  const rawFrames = findArray(result);
+  console.log("[video-ad] Found array with", rawFrames.length, "items. First item keys:", rawFrames[0] ? Object.keys(rawFrames[0]) : "none");
+
+  const frames = rawFrames
+    .map((f, i) => ({
+      frame: Number(f.frame || f.scene || f.number) || i + 1,
+      prompt: String(f.prompt || f.image_prompt || f.description || ""),
+      scene_type: String(f.scene_type || f.type || f.category || "story"),
+      script: String(f.script || f.voiceover || f.speech || f.text || f.narration || ""),
+      transition: String(f.transition || f.movement || "fade"),
+    }))
+    .filter((f) => f.prompt.length > 5);
+
+  if (frames.length === 0) throw new Error(`No frames generated. Raw: ${JSON.stringify(result)?.slice(0, 300)}`);
 
   return { result: { frames, style: styleLabel, numScenes }, needsApproval: true };
 };
