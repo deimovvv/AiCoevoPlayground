@@ -38,6 +38,7 @@ import {
 } from "../lib/api";
 import { cn } from "../lib/utils";
 import { UGCPlayer } from "../remotion/UGCPlayer";
+import { TOOL_DEFINITIONS } from "../tools/registry";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -218,6 +219,8 @@ interface ToolConfig {
   aspectRatio: string;
   resolution: string;
   subtitleEngine: "auto" | "remotion" | "ffmpeg" | "none";
+  referenceImages: File[];
+  allowFaces: boolean;
 }
 
 const DEFAULT_CONFIG: ToolConfig = {
@@ -238,6 +241,8 @@ const DEFAULT_CONFIG: ToolConfig = {
   aspectRatio: "9:16",
   resolution: "1K",
   subtitleEngine: "auto",
+  referenceImages: [],
+  allowFaces: true,
 };
 
 // ── Mock data for preview ─────────────────────────────────
@@ -613,8 +618,49 @@ export function ToolRunPage() {
 
   const handleRunStep = async (stepIndex: number) => {
     const step = steps[stepIndex];
-    if (!activeBrand) return;
+    if (!activeBrand || !tool) return;
 
+    // ── Registry-based handler lookup ──
+    const toolDef = TOOL_DEFINITIONS[tool.id];
+    const handler = toolDef?.stepHandlers[step.id];
+
+    if (handler) {
+      setStepRunning(stepIndex);
+      try {
+        const ctx = {
+          activeBrand,
+          config,
+          tool,
+          getStepResult,
+          getScriptScenes,
+          audioCache,
+          setAudioCache: (sceneId: string, entry: { url: string; blob: Blob }) => {
+            setAudioCache((p: Record<string, { url: string; blob: Blob }>) => ({ ...p, [sceneId]: entry }));
+          },
+        };
+        const { result, needsApproval, autoRunNext } = await handler(ctx);
+
+        if (step.id === "curation") {
+          // Curation is manual — don't advance
+          return;
+        }
+
+        advanceStep(stepIndex, result, { needsApproval });
+
+        // Auto-run next step if configured
+        if (autoRunNext || toolDef?.autoRunSteps?.includes(steps[stepIndex + 1]?.id)) {
+          setTimeout(() => handleRunStep(stepIndex + 1), 200);
+        }
+      } catch (err) {
+        failStep(stepIndex, err instanceof Error ? err.message : "Step failed");
+      }
+      return;
+    }
+
+    // ── Fallback: no handler found, just advance ──
+    advanceStep(stepIndex);
+
+    // ── LEGACY: inline handlers below (will be removed after full migration) ──
     const selectedProduct = (activeBrand.products || []).find(
       (p) => p.id === config.selectedProductId
     );
@@ -1537,7 +1583,7 @@ function ConfigPanel({
   onMockPreview: () => void;
 }) {
   const { activeBrand, refreshBrands } = useBrand();
-  const schema = TOOL_SCHEMAS[tool.id] ?? DEFAULT_SCHEMA;
+  const schema = TOOL_DEFINITIONS[tool.id]?.schema ?? TOOL_SCHEMAS[tool.id] ?? DEFAULT_SCHEMA;
 
   if (!activeBrand) {
     return (
@@ -1581,6 +1627,81 @@ function ConfigPanel({
           </div>
         )}
       </div>
+
+      {/* Reference images uploader (Ad Creative Lab) */}
+      {tool.id === "ad_creative_lab" && (
+        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-[12px] font-semibold text-fg-secondary">
+              Reference Images
+              <span className="text-fg-faint font-normal ml-1">(campaign style references)</span>
+            </label>
+            <span className="text-[10px] text-fg-faint">{config.referenceImages.length} uploaded</span>
+          </div>
+
+          {config.referenceImages.length > 0 && (
+            <div className="grid grid-cols-4 gap-2">
+              {config.referenceImages.map((file, i) => (
+                <div key={i} className="relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge group">
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt={file.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    onClick={() => setConfig((p) => ({
+                      ...p,
+                      referenceImages: p.referenceImages.filter((_, j) => j !== i),
+                    }))}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                    <span className="text-white text-[10px]">×</span>
+                  </button>
+                  <div className="absolute bottom-0 inset-x-0 bg-black/50 px-1.5 py-0.5">
+                    <span className="text-[8px] text-white truncate block">{file.name}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <label className={cn(
+            "flex items-center justify-center gap-2 py-3 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[11px] transition-all",
+            "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
+          )}>
+            <Plus size={13} /> Add reference images
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                if (files.length > 0) {
+                  setConfig((p) => ({
+                    ...p,
+                    referenceImages: [...p.referenceImages, ...files].slice(0, 10),
+                  }));
+                }
+                e.target.value = "";
+              }}
+            />
+          </label>
+          <p className="text-[10px] text-fg-faint">Upload 3-10 images that represent the visual style you want. Gemini will analyze them to extract a visual guide.</p>
+
+          <label className="flex items-center gap-2 mt-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.allowFaces}
+              onChange={(e) => setConfig((p) => ({ ...p, allowFaces: e.target.checked }))}
+              className="accent-[var(--color-warm)]"
+            />
+            <span className="text-[12px] text-fg-muted">
+              Allow faces / people in generated images
+            </span>
+          </label>
+        </div>
+      )}
 
       {/* Asset selection — only what this tool needs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1812,19 +1933,21 @@ function ConfigPanel({
               <option value="4K">4K (production)</option>
             </select>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-fg-faint">Subtitles</label>
-            <select
-              value={config.subtitleEngine}
-              onChange={(e) => setConfig((p) => ({ ...p, subtitleEngine: e.target.value as ToolConfig["subtitleEngine"] }))}
-              className="w-full h-8 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg outline-none focus:border-[var(--color-edge-focus)]"
-            >
-              <option value="auto">Auto (best available)</option>
-              <option value="remotion">Remotion (animated)</option>
-              <option value="ffmpeg">FFmpeg (simple)</option>
-              <option value="none">No subtitles</option>
-            </select>
-          </div>
+          {tool.category === "video" && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-fg-faint">Subtitles</label>
+              <select
+                value={config.subtitleEngine}
+                onChange={(e) => setConfig((p) => ({ ...p, subtitleEngine: e.target.value as ToolConfig["subtitleEngine"] }))}
+                className="w-full h-8 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg outline-none focus:border-[var(--color-edge-focus)]"
+              >
+                <option value="auto">Auto (best available)</option>
+                <option value="remotion">Remotion (animated)</option>
+                <option value="ffmpeg">FFmpeg (simple)</option>
+                <option value="none">No subtitles</option>
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Objective / brief */}
@@ -2041,17 +2164,17 @@ function StepPanel({
             voiceId={config.selectedVoiceId}
           />
         ) : step.status === "review" ? (
-          <DoneStep stepId={step.id} result={step.result} audioCache={audioCache} config={config}
+          <DoneStep stepId={step.id} result={step.result} audioCache={audioCache} config={config} allSteps={allSteps}
             getScriptScenes={() => {
-              const sr = allSteps.find((s) => s.id === "script")?.result as Record<string, unknown> | undefined;
+              const sr = allSteps.find((s: StepState) => s.id === "script")?.result as Record<string, unknown> | undefined;
               if (!sr?.scenes) return [];
               const arr = (sr.scenes as Array<Array<Record<string, string>>>)[0] || [];
               return arr.map((s, i) => ({ id: s.id || `act_${i+1}`, title: s.title || s.act || `Scene ${i+1}`, script: s.script || s.speech || s.text || "", image_prompt: s.image_prompt || "" }));
             }} />
         ) : step.status === "done" ? (
-          <DoneStep stepId={step.id} result={step.result} audioCache={audioCache} config={config}
+          <DoneStep stepId={step.id} result={step.result} audioCache={audioCache} config={config} allSteps={allSteps}
             getScriptScenes={() => {
-              const sr = allSteps.find((s) => s.id === "script")?.result as Record<string, unknown> | undefined;
+              const sr = allSteps.find((s: StepState) => s.id === "script")?.result as Record<string, unknown> | undefined;
               if (!sr?.scenes) return [];
               const arr = (sr.scenes as Array<Array<Record<string, string>>>)[0] || [];
               return arr.map((s, i) => ({ id: s.id || `act_${i+1}`, title: s.title || s.act || `Scene ${i+1}`, script: s.script || s.speech || s.text || "", image_prompt: s.image_prompt || "" }));
@@ -2448,12 +2571,13 @@ function ActiveStep({
 
 // ── Done step ──────────────────────────────────────────────
 
-function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes, config }: {
+function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes, config, allSteps = [] }: {
   stepId: string;
   result?: unknown;
   audioCache?: Record<string, { url: string; blob: Blob }>;
   getScriptScenes?: () => Array<{ id: string; title: string; script: string; image_prompt: string }>;
   config?: ToolConfig;
+  allSteps?: StepState[];
 }) {
   const meta = STEP_META[stepId];
   const { activeBrand } = useBrand();
@@ -2470,6 +2594,10 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   const [playingAudio, setPlayingAudio] = useState(false);
   const testAudioRef = useRef<HTMLAudioElement | null>(null);
   const [regenSceneId, setRegenSceneId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [selectedRefIdx, setSelectedRefIdx] = useState<number | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Script step — show script text + brief, only first image prompt
   if (stepId === "script" && result) {
@@ -3105,6 +3233,244 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             </a>
           )}
         </div>
+      </div>
+    );
+  }
+
+  // Visual Guide step — show extracted style guide
+  if (stepId === "visual_guide" && result) {
+    const data = result as { visualGuide: string; numReferences: number };
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">
+            Visual guide extracted from {data.numReferences} reference images
+          </span>
+        </div>
+        <div className="bg-surface-2 border border-edge rounded-[var(--radius-md)] p-5">
+          <h4 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider mb-3">Brand Visual Guide</h4>
+          <pre className="text-[12px] text-fg-muted whitespace-pre-wrap font-mono leading-relaxed">{data.visualGuide}</pre>
+        </div>
+      </div>
+    );
+  }
+
+  // Prompts step — show generated creative prompts
+  if (stepId === "prompts" && result) {
+    const data = result as { prompts: Array<{ prompt: string; style: string; angle: string }> };
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">
+            {data.prompts.length} creative prompts generated
+          </span>
+        </div>
+        <div className="space-y-2">
+          {data.prompts.map((p, i) => (
+            <div key={i} className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] p-3">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[10px] font-medium text-fg-faint bg-surface-2 px-1.5 py-0.5 rounded">{p.style}</span>
+                <span className="text-[10px] text-fg-faint">{p.angle}</span>
+              </div>
+              <p className="text-[12px] text-fg-muted leading-relaxed">{p.prompt}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Generate Batch step — creatives grid with edit/regen/apply reference/iterate
+  if (stepId === "generate_batch" && result) {
+    const data = result as {
+      creatives: Array<{ id: string; url: string; prompt: string; style: string; angle: string; status: string }>;
+      successful: number; totalGenerated: number;
+    };
+
+    // Get references from visual_guide step
+    const vgResult = allSteps.find((s) => s.id === "visual_guide")?.result as {
+      referenceUrls?: string[];
+      referenceBlobs?: Blob[];
+    } | undefined;
+    const refUrls = vgResult?.referenceUrls || [];
+    const refBlobs = vgResult?.referenceBlobs || [];
+
+    // Apply a reference style to a creative
+    const handleApplyRef = async (creative: typeof data.creatives[0], refIdx: number) => {
+      const refBlob = refBlobs[refIdx];
+      if (!refBlob) return;
+      setActionLoading(creative.id);
+      try {
+        // Upload ref to Fal, then use as reference + creative's prompt
+        const refUrl = refUrls[refIdx];
+        const job = await createImageEdit(
+          [creative.url, refUrl].filter(Boolean),
+          `Apply the visual style, color palette, and mood from the second reference image to this creative. Keep the subject and composition. ${creative.prompt}`,
+          config?.aspectRatio || "9:16",
+          config?.resolution || "1K",
+        );
+        const editResult = await pollImageGen(job.request_id);
+        if (editResult.image_url) creative.url = editResult.image_url;
+      } catch { /* silent */ } finally {
+        setActionLoading(null);
+        setSelectedRefIdx(null);
+      }
+    };
+
+    // Regenerate a creative with its original prompt
+    const handleRegen = async (creative: typeof data.creatives[0]) => {
+      setActionLoading(creative.id);
+      try {
+        const job = await createImageEdit([], creative.prompt, config?.aspectRatio || "9:16", config?.resolution || "1K");
+        const regenResult = await pollImageGen(job.request_id);
+        if (regenResult.image_url) creative.url = regenResult.image_url;
+      } catch { /* silent */ } finally {
+        setActionLoading(null);
+      }
+    };
+
+    // Edit a creative with custom instructions
+    const handleEditCreative = async (creative: typeof data.creatives[0]) => {
+      if (!editText.trim()) return;
+      setEditLoading(true);
+      try {
+        const job = await createImageEdit([creative.url], editText.trim());
+        const editResult = await pollImageGen(job.request_id);
+        if (editResult.image_url) creative.url = editResult.image_url;
+      } catch { /* silent */ } finally {
+        setEditLoading(false);
+        setEditingId(null);
+        setEditText("");
+      }
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">
+            {data.successful}/{data.totalGenerated} creatives generated
+          </span>
+        </div>
+
+        {/* Reference images strip — click to select one for applying */}
+        {refUrls.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[10px] text-fg-faint">Click a reference, then click "Apply Style" on a creative to transfer that visual style.</p>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {refUrls.map((url, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelectedRefIdx(selectedRefIdx === i ? null : i)}
+                  className={cn(
+                    "shrink-0 w-14 h-14 rounded-[var(--radius-sm)] overflow-hidden border-2 transition-all cursor-pointer",
+                    selectedRefIdx === i
+                      ? "border-[var(--color-warm)] ring-2 ring-[var(--color-warm)]/30"
+                      : "border-edge hover:border-fg-muted"
+                  )}
+                >
+                  <img src={url} alt={`Ref ${i + 1}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Creatives grid */}
+        <div className="grid grid-cols-3 gap-3">
+          {data.creatives.filter((c) => c.url).map((creative) => (
+            <div key={creative.id} className="space-y-1.5">
+              <div className="relative rounded-[var(--radius-sm)] overflow-hidden border border-edge group">
+                <div className="aspect-square">
+                  {actionLoading === creative.id ? (
+                    <div className="w-full h-full bg-surface-2 flex flex-col items-center justify-center gap-2">
+                      <Loader2 size={16} className="animate-spin text-fg-muted" />
+                      <span className="text-[9px] text-fg-faint">Processing...</span>
+                    </div>
+                  ) : (
+                    <img src={creative.url} alt={creative.style} className="w-full h-full object-cover" />
+                  )}
+                </div>
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                  <span className="text-[9px] text-white font-medium">{creative.style} · {creative.angle}</span>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-1">
+                <button
+                  onClick={() => handleRegen(creative)}
+                  disabled={!!actionLoading}
+                  className="flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 transition-colors cursor-pointer"
+                >
+                  <RotateCcw size={9} />
+                  Regen
+                </button>
+                <button
+                  onClick={() => setEditingId(editingId === creative.id ? null : creative.id)}
+                  className="flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 transition-colors cursor-pointer"
+                >
+                  <Pencil size={9} />
+                  Edit
+                </button>
+                {selectedRefIdx !== null && (
+                  <button
+                    onClick={() => handleApplyRef(creative, selectedRefIdx)}
+                    disabled={!!actionLoading}
+                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-[var(--color-warm-muted)] text-[var(--color-warm)] hover:opacity-80 transition-colors cursor-pointer"
+                  >
+                    <Sparkles size={9} />
+                    Apply Style
+                  </button>
+                )}
+              </div>
+
+              {/* Edit input */}
+              {editingId === creative.id && (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    placeholder="E.g., warmer tones, remove clutter..."
+                    className="flex-1 h-7 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[11px] text-fg outline-none"
+                    onKeyDown={(e) => e.key === "Enter" && handleEditCreative(creative)}
+                  />
+                  <button
+                    onClick={() => handleEditCreative(creative)}
+                    disabled={editLoading}
+                    className="px-2 py-1 text-[10px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] cursor-pointer"
+                  >
+                    {editLoading ? <Loader2 size={10} className="animate-spin" /> : "Apply"}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Download all */}
+        {data.creatives.some((c) => c.url) && (
+          <div className="flex justify-center pt-2">
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                data.creatives.filter((c) => c.url).forEach((c, i) => {
+                  const link = document.createElement("a");
+                  link.href = c.url;
+                  link.download = `creative_${i + 1}_${c.style}.png`;
+                  link.click();
+                });
+              }}
+              className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+            >
+              <Film size={14} />
+              Download All ({data.creatives.filter((c) => c.url).length})
+            </a>
+          </div>
+        )}
       </div>
     );
   }

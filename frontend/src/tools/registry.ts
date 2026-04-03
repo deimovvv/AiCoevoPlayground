@@ -10,14 +10,14 @@ import { ugcCreator } from "./ugc_creator";
 import { productSpotlight } from "./product_spotlight";
 import { fashionEditorial } from "./fashion_editorial";
 import { fashionReels } from "./fashion_reels";
-// import { adCreativeLab } from "./ad_creative_lab";
+import { adCreativeLab } from "./ad_creative_lab";
 
 export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   ugc_creator: ugcCreator,
   product_spotlight: productSpotlight,
   fashion_editorial: fashionEditorial,
   fashion_reels: fashionReels,
-  // ad_creative_lab: adCreativeLab,
+  ad_creative_lab: adCreativeLab,
 
   // Tools that reuse product_spotlight handlers with different schemas
   photo_multishot: productSpotlight,
