@@ -33,7 +33,7 @@ import {
   generateCopy, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen,
   createFalLipSync, pollFalLipSync, concatVideos, saveGeneration,
   generateToolPrompt, createKlingVideo, pollKlingVideo,
-  uploadClothing, uploadBackground,
+  uploadAvatar, uploadClothing, uploadBackground,
   createHeyGenAvatar4, pollHeyGenAvatar4,
   fetchSystemVoices,
 } from "../lib/api";
@@ -1757,7 +1757,7 @@ function ConfigPanel({
           <AssetSelector
             label={schema.avatarLabel || "Avatar"}
             sublabel={schema.avatarSublabel || "Who appears in the content"}
-            emptyText="Upload avatars in Brand Kit"
+            emptyText="Upload an avatar or add from here"
             items={(activeBrand.avatars || []).map((av) => ({
               id: av.id,
               name: av.name,
@@ -1768,6 +1768,11 @@ function ConfigPanel({
             onSelect={(id) =>
               setConfig((p) => ({ ...p, selectedAvatarId: p.selectedAvatarId === id ? null : id }))
             }
+            onUpload={async (file, name) => {
+              const item = await uploadAvatar(activeBrand.id, name, file);
+              await refreshBrands();
+              setConfig((p) => ({ ...p, selectedAvatarId: item.id }));
+            }}
           />
         )}
 
@@ -1874,27 +1879,45 @@ function ConfigPanel({
             {schema.showVoice && (
               <div className="space-y-1.5">
                 <label className="text-[11px] font-medium text-fg-faint">Voice</label>
-                <select
-                  value={config.selectedVoiceId || ""}
-                  onChange={(e) => setConfig((p) => ({ ...p, selectedVoiceId: e.target.value || null }))}
-                  className="w-full h-8 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg outline-none focus:border-[var(--color-edge-focus)]"
-                >
-                  <option value="">Select voice...</option>
-                  {(activeBrand?.voicePresets || []).length > 0 && (
-                    <optgroup label="Brand Voices">
-                      {activeBrand.voicePresets.map((v) => (
-                        <option key={v.id} value={v.id}>{v.name}</option>
-                      ))}
-                    </optgroup>
+                <div className="flex gap-1.5">
+                  <select
+                    value={config.selectedVoiceId || ""}
+                    onChange={(e) => setConfig((p) => ({ ...p, selectedVoiceId: e.target.value || null }))}
+                    className="flex-1 h-8 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg outline-none focus:border-[var(--color-edge-focus)]"
+                  >
+                    <option value="">Select voice...</option>
+                    {(activeBrand?.voicePresets || []).length > 0 && (
+                      <optgroup label="Brand Voices">
+                        {activeBrand.voicePresets.map((v) => (
+                          <option key={v.id} value={v.id}>{v.name}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {systemVoices.length > 0 && (
+                      <optgroup label="System Voices">
+                        {systemVoices.map((v) => (
+                          <option key={v.id} value={v.id}>{v.name}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                  {config.selectedVoiceId && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const result = await generateTTS({ text: "Hola, esta es una muestra de mi voz.", voice_id: config.selectedVoiceId! });
+                          const audio = new Audio(result.audioUrl);
+                          audio.play();
+                        } catch { /* silent */ }
+                      }}
+                      className="h-8 w-8 shrink-0 flex items-center justify-center rounded-[var(--radius-sm)] bg-surface-2 border border-edge text-fg-muted hover:text-fg hover:bg-surface-3 transition-colors cursor-pointer"
+                      title="Preview voice"
+                    >
+                      <Play size={12} />
+                    </button>
                   )}
-                  {systemVoices.length > 0 && (
-                    <optgroup label="System Voices">
-                      {systemVoices.map((v) => (
-                        <option key={v.id} value={v.id}>{v.name}</option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
+                </div>
               </div>
             )}
 
