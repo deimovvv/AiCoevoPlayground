@@ -17,7 +17,7 @@ export const videoAdCreator: ToolDefinition = {
   schema: {
     showAvatar: true, avatarLabel: "Character", avatarSublabel: "optional — include talent in the ad",
     showProduct: true, productLabel: "Product",
-    showClothing: false,
+    showClothing: true, clothingLabel: "Garments", clothingSublabel: "what the character wears",
     showBackground: false,
     showVoice: true,
     showTone: false,

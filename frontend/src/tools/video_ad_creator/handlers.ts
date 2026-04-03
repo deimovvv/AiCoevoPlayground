@@ -30,6 +30,7 @@ export const handleScript: StepHandler = async (ctx) => {
   const { activeBrand, config, tool } = ctx;
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
+  const selectedClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
 
   const numScenes = 10;
   const duration = 40;
@@ -46,10 +47,14 @@ export const handleScript: StepHandler = async (ctx) => {
   if (selectedProduct?.description) extraVars.product_description = selectedProduct.description;
   if (config.objective) extraVars.creative_direction = config.objective;
   if (config.notes) extraVars.user_notes = config.notes;
+  if (selectedClothing.length > 0) {
+    extraVars.selected_clothing = selectedClothing.map((c) => `- ${c.name}${c.description ? `: ${c.description}` : ""}`).join("\n");
+  }
 
   let userMsg = `Generate a ${duration}-second video ad storyboard with ${numScenes} frames in ${styleLabel} style.`;
   if (selectedProduct) userMsg += `\nProduct: ${selectedProduct.name}`;
   if (selectedAvatar) userMsg += `\nCharacter: ${selectedAvatar.name}${selectedAvatar.description ? ` — ${selectedAvatar.description}` : ""}`;
+  if (selectedClothing.length > 0) userMsg += `\nThe character wears: ${selectedClothing.map((c) => c.name).join(", ")}`;
   if (config.objective) userMsg += `\nDirection: ${config.objective}`;
 
   const { result } = await generateToolPrompt(activeBrand.id, "video_ad_creator", userMsg, extraVars);
@@ -88,9 +93,11 @@ export const handleImages: StepHandler = async (ctx) => {
 
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
+  const selectedClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
 
   const referenceUrls: string[] = [];
   if (selectedAvatar?.imageUrl) referenceUrls.push(selectedAvatar.imageUrl);
+  selectedClothing.forEach((c) => { if (c.imageUrl) referenceUrls.push(c.imageUrl); });
   if (selectedProduct?.imageUrl) referenceUrls.push(selectedProduct.imageUrl);
 
   const images = await Promise.all(
