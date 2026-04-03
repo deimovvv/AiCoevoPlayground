@@ -1156,6 +1156,24 @@ export async function pollHeyGenAvatar4(requestId: string): Promise<{
 }
 
 // ══════════════════════════════════════════════════════════════
+//  System Voices
+// ══════════════════════════════════════════════════════════════
+
+export interface SystemVoice {
+    id: string;
+    name: string;
+    language: string;
+    gender: string;
+}
+
+export async function fetchSystemVoices(): Promise<SystemVoice[]> {
+    const res = await fetch(`${API_BASE}/api/voices/system`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.voices || [];
+}
+
+// ══════════════════════════════════════════════════════════════
 //  Health check
 // ══════════════════════════════════════════════════════════════
 

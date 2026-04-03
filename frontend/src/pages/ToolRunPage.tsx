@@ -35,6 +35,7 @@ import {
   generateToolPrompt, createKlingVideo, pollKlingVideo,
   uploadClothing, uploadBackground,
   createHeyGenAvatar4, pollHeyGenAvatar4,
+  fetchSystemVoices,
 } from "../lib/api";
 import { cn } from "../lib/utils";
 import { UGCPlayer } from "../remotion/UGCPlayer";
@@ -1586,6 +1587,11 @@ function ConfigPanel({
 }) {
   const { activeBrand, refreshBrands } = useBrand();
   const schema = TOOL_DEFINITIONS[tool.id]?.schema ?? TOOL_SCHEMAS[tool.id] ?? DEFAULT_SCHEMA;
+  const [systemVoices, setSystemVoices] = useState<Array<{ id: string; name: string; language: string }>>([]);
+
+  useEffect(() => {
+    fetchSystemVoices().then(setSystemVoices).catch(() => {});
+  }, []);
 
   if (!activeBrand) {
     return (
@@ -1865,12 +1871,20 @@ function ConfigPanel({
                   onChange={(e) => setConfig((p) => ({ ...p, selectedVoiceId: e.target.value || null }))}
                   className="w-full h-8 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg outline-none focus:border-[var(--color-edge-focus)]"
                 >
-                  {(activeBrand?.voicePresets || []).length === 0 ? (
-                    <option value="">No voices</option>
-                  ) : (
-                    (activeBrand?.voicePresets || []).map((v) => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))
+                  <option value="">Select voice...</option>
+                  {(activeBrand?.voicePresets || []).length > 0 && (
+                    <optgroup label="Brand Voices">
+                      {activeBrand.voicePresets.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {systemVoices.length > 0 && (
+                    <optgroup label="System Voices">
+                      {systemVoices.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </optgroup>
                   )}
                 </select>
               </div>

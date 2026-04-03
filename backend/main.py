@@ -886,6 +886,16 @@ class AddVoiceRequest(BaseModel):
     voice_id: str
 
 
+@app.get("/api/voices/system")
+def list_system_voices():
+    """Return system-level generic voices available to all brands."""
+    voices_file = DATA_DIR / "system_voices.json"
+    if voices_file.exists():
+        import json
+        return {"voices": json.loads(voices_file.read_text())}
+    return {"voices": []}
+
+
 @app.get("/api/brands/{brand_id}/voices")
 def list_voices(brand_id: str):
     all_brands = brands.load_brands()
