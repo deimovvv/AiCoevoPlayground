@@ -10,6 +10,7 @@ Handles all HeyGen API interactions:
 
 import os
 import httpx
+from typing import List
 
 HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY")
 HEYGEN_BASE = "https://api.heygen.com"
@@ -193,7 +194,7 @@ async def get_video_status(video_id: str) -> dict:
 #  List Talking Photos
 # ══════════════════════════════════════════════════════════════
 
-async def list_talking_photos() -> list[dict]:
+async def list_talking_photos() -> List[dict]:
     """
     List all available talking photos from HeyGen.
     Returns list of {id, name, preview}.

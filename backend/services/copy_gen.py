@@ -2,7 +2,6 @@
 Gemini Script Generation Service
 ─────────────────────────────────
 Generates UGC video scripts using Gemini with brand context.
-Also can auto-generate "Video Objectives" from brand + product info.
 """
 
 import os
@@ -10,7 +9,7 @@ import json
 import httpx
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
@@ -27,14 +26,28 @@ async def _call_gemini(system_prompt: str, user_msg: str) -> str:
     if not GEMINI_API_KEY:
         raise RuntimeError("Gemini API key not configured. Add GEMINI_API_KEY to your .env file.")
 
+    # Truncate very long prompts to avoid Gemini content filters on scraped web content
+    if len(system_prompt) > 4000:
+        system_prompt = system_prompt[:4000] + "\n\n[... truncated for length ...]"
+
+    full_text = f"{system_prompt}\n\n---\n\n{user_msg}"
+    print(f"[gemini] Sending prompt ({len(full_text)} chars)")
+
     payload = {
         "contents": [
             {"role": "user", "parts": [{"text": f"{system_prompt}\n\n---\n\n{user_msg}"}]}
         ],
         "generationConfig": {
             "temperature": 0.8,
-            "maxOutputTokens": 2000,
-        }
+            "maxOutputTokens": 8000,
+            "responseMimeType": "application/json",
+        },
+        "safetySettings": [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"},
+        ],
     }
 
     async with httpx.AsyncClient(timeout=60) as client:
@@ -65,10 +78,6 @@ async def suggest_objective(
     product_name: str = "",
     language: str = "es",
 ) -> str:
-    """
-    Auto-generate a 'Video Objective' paragraph based on brand + product.
-    The user can then edit it before generating the full script.
-    """
     lang_instruction = "Responde en español." if language == "es" else "Respond in English."
 
     system_prompt = f"""You are a creative strategist for UGC (User Generated Content) video campaigns.
@@ -93,7 +102,7 @@ Return ONLY the objective paragraph, nothing else."""
 
 
 # ══════════════════════════════════════════════════════════════
-#  Generate Script (3-4 scenes with image prompts)
+#  Generate Script (4 scenes with pro image prompts)
 # ══════════════════════════════════════════════════════════════
 
 async def generate_scripts(
@@ -103,55 +112,51 @@ async def generate_scripts(
     tone: str = "engaging",
     platform: str = "tiktok",
     language: str = "es",
+    prompt_override: str = "",
 ) -> list[dict]:
     """
-    Generate a UGC video script with 3-4 scenes using Gemini.
+    Generate a UGC video script with 4 scenes using Gemini.
+    If prompt_override is provided (from PromptBuilder), use that as the system prompt.
     Returns a list containing the parsed JSON scenes array.
     """
-    lang_instruction = "Responde en español." if language == "es" else "Respond in English."
+    if prompt_override:
+        system_prompt = prompt_override
+    else:
+        lang_instruction = "Write the 'script' field in Spanish." if language == "es" else "Write the 'script' field in English."
+        system_prompt = f"""You are an expert UGC video director.
 
-    system_prompt = f"""You are an expert UGC (User Generated Content) video director for short-form platforms.
-
-BRAND CONTEXT (Use this to shape tone, vocabulary, messaging, and visual aesthetics):
+BRAND CONTEXT:
 ---
 {brand_context}
 ---
 
-RULES:
-- Outline a UGC video in 3 or 4 distinct scenes/acts.
-- Keep the script short, natural, and highly engaging.
-- Ensure the final scene includes a clear Call to Action (CTA) as requested.
-- Strictly follow the user's VIDEO OBJECTIVE below.
-- {lang_instruction}
-- Tone: {tone}
+Create EXACTLY 4 scenes: Hook, Story 1, Story 2, CTA.
+{lang_instruction} Tone: {tone}. Platform: {platform}.
+Return ONLY a valid JSON array. Keys: "id", "title", "script", "image_prompt"."""
 
-OUTPUT FORMAT:
-Return ONLY a valid JSON array of objects representing the scenes (3 or 4 scenes total). Do not return markdown blocks like ```json.
-Each object must have:
-- "id": string (e.g. "scene_1")
-- "title": string (e.g. "Acto 1: Hook")
-- "script": string (The exact spoken text, 1-2 sentences)
-- "image_prompt": string (A highly detailed image generation prompt to create the scene visually. Incorporate brand context and product details).
-
-Example:
-[
-  {{"id": "scene_1", "title": "Acto 1: Hook", "script": "...", "image_prompt": "..."}},
-  ...
-]"""
-
-    user_msg = f"Write a 3-4 act UGC script."
+    user_msg = "Generate the UGC video script now. Respond with ONLY a JSON array, nothing else."
     if product_name:
-        user_msg += f" \nProduct: {product_name}"
+        user_msg += f"\nProduct: {product_name}"
     if video_objective:
-        user_msg += f"\nVIDEO OBJECTIVE / NARRATIVE PURPOSE:\n{video_objective}"
+        user_msg += f"\nVIDEO OBJECTIVE:\n{video_objective}"
+    user_msg += "\n\nREMINDER: Your response must be ONLY a JSON array starting with [ and ending with ]. No text before or after."
 
     content = await _call_gemini(system_prompt, user_msg)
 
-    # Clean up possible markdown wrappers
+    # Clean up — extract JSON array from whatever Gemini returns
+    # Remove markdown wrappers
+    content = content.strip()
     if content.startswith("```json"):
         content = content.replace("```json", "").replace("```", "").strip()
     elif content.startswith("```"):
         content = content.replace("```", "").strip()
+
+    # If Gemini returned markdown/text instead of JSON, try to find JSON array inside
+    if not content.startswith("["):
+        start = content.find("[")
+        end = content.rfind("]")
+        if start != -1 and end != -1 and end > start:
+            content = content[start:end + 1]
 
     try:
         scenes = json.loads(content)

@@ -7,20 +7,25 @@ JSON-based storage for brands, avatars, and voice presets.
 import json
 import re
 from pathlib import Path
+from typing import List, Optional, Dict
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 BRANDS_FILE = DATA_DIR / "brands.json"
 AVATARS_DIR = DATA_DIR / "avatars"
 
 PRODUCTS_DIR = DATA_DIR / "products"
+CLOTHING_DIR = DATA_DIR / "clothing"
+BACKGROUNDS_DIR = DATA_DIR / "backgrounds"
 
 # Ensure directories exist
 DATA_DIR.mkdir(exist_ok=True)
 AVATARS_DIR.mkdir(exist_ok=True)
 PRODUCTS_DIR.mkdir(exist_ok=True)
+CLOTHING_DIR.mkdir(exist_ok=True)
+BACKGROUNDS_DIR.mkdir(exist_ok=True)
 
 
-def load_brands() -> list[dict]:
+def load_brands() -> List[dict]:
     """Load brands from JSON file. Seeds with default if empty."""
     if not BRANDS_FILE.exists():
         default = [{
@@ -38,13 +43,13 @@ def load_brands() -> list[dict]:
         return json.load(f)
 
 
-def save_brands(brands: list[dict]):
+def save_brands(brands: List[dict]):
     """Save brands to JSON file."""
     with open(BRANDS_FILE, "w", encoding="utf-8") as f:
         json.dump(brands, f, indent=2, ensure_ascii=False)
 
 
-def find_brand(brands: list[dict], brand_id: str) -> dict | None:
+def find_brand(brands: List[dict], brand_id: str) -> Optional[dict]:
     return next((b for b in brands if b["id"] == brand_id), None)
 
 
@@ -63,3 +68,11 @@ def get_avatars_dir() -> Path:
 
 def get_products_dir() -> Path:
     return PRODUCTS_DIR
+
+
+def get_clothing_dir() -> Path:
+    return CLOTHING_DIR
+
+
+def get_backgrounds_dir() -> Path:
+    return BACKGROUNDS_DIR

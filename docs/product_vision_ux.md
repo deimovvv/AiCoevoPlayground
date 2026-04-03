@@ -1,479 +1,173 @@
 # Coevo Creative OS — Product Vision & UX
 
-**Coevo Creative OS** es la herramienta interna de Coevo (agencia) para gestionar la creación de contenido publicitario y marketing para múltiples marcas cliente.
+**Coevo Creative OS** es la herramienta interna de Coevo (agencia) para gestionar la creacion de contenido publicitario y marketing para multiples marcas cliente.
 
 ---
 
-## Propósito Core
+## Proposito Core
 
 Transformar a Coevo en una **agencia potenciada por IA** donde:
-- Los creativos se enfocan en estrategia y dirección
-- La IA ejecuta la producción técnica (generación de imágenes, videos, scripts)
-- El equipo revisa y aprueba contenido de alta calidad en minutos (no horas/días)
+- Los creativos se enfocan en estrategia y direccion
+- La IA ejecuta la produccion tecnica (generacion de imagenes, videos, scripts)
+- El equipo revisa y aprueba contenido de alta calidad en minutos (no horas/dias)
 - Cada marca tiene su propio "contexto" que hace que las herramientas generen contenido consistente
 
 ---
 
-## Filosofía de Producto
+## Filosofia de Producto
 
 ### 1. Context-Aware Everything
-**Principio**: No más copy-paste de prompts ni configuración manual repetitiva.
-
-Cuando trabajas dentro de "Taller Santa Clara", **todo** conoce el contexto:
+Cuando trabajas dentro de una marca, **todo** conoce el contexto:
 - Brand guidance (tono, estilo, target)
-- Assets disponibles (avatars, productos, ropa, fondos)
-- Briefs activos de campañas
+- Assets disponibles (avatars, productos, ropa)
 - Prompts customizados por herramienta
+- Voice presets
 
-**Resultado**: Click → select assets → generate → review. Listo.
+**Resultado**: Seleccionar assets -> generar -> revisar. Listo.
 
 ### 2. Asset Library como Single Source of Truth
-**Principio**: Subir asset una vez, usar en todas las herramientas.
-
-Cada marca tiene su biblioteca de assets:
+Subir asset una vez, usar en todas las herramientas:
 - **Avatars**: Personas/modelos con descripciones detalladas
-- **Products**: Productos con PNG transparente
+- **Products**: Productos con imagenes
 - **Clothing**: Wardrobe options para avatars
-- **Backgrounds**: Escenas y fondos pre-aprobados
-
-**Beneficio**: Consistency automática + reutilización eficiente.
+- **Voices**: Voice presets de ElevenLabs
 
 ### 3. Prompts as Templates, Not Hardcode
-**Principio**: Los prompts son plantillas editables con variables.
-
+Los prompts son plantillas editables con variables:
 ```
-Default prompt:
-"Generate a UGC video for {brand_name} featuring {product_name}..."
-
-Custom override (por marca):
-"Creá un video UGC bien argento para {brand_name}. Vas a hablar del {product_name}..."
+Default: "Generate a UGC video for {brand_name} featuring {product_name}..."
+Override: "Crea un video UGC bien argento para {brand_name}..."
 ```
-
-**Beneficio**: Cada marca puede customizar el "lenguaje" de la IA sin tocar código.
+Cada marca puede customizar el "lenguaje" de la IA sin tocar codigo.
 
 ### 4. Multishot Before Animation
-**Principio**: Generar opciones, curar la mejor, y solo después animar.
-
-Pipeline tradicional (caro):
+Generar opciones, curar la mejor, y solo despues animar:
 ```
-Generate 1 video → Review → Si está mal, regenerar todo
+Generate 5 imagenes -> AI + Human curan la mejor -> Animar solo esa
 ```
+Ahorro: ~60-70% en costos de animacion.
 
-Pipeline Coevo (eficiente):
-```
-Generate 5 imágenes → AI + Human curan la mejor → Animar solo esa
-```
-
-**Ahorro**: ~60-70% en costos de animación.
-
-### 5. Human-in-the-Loop, Not Full Automation
-**Principio**: La IA propone, el humano decide.
-
-Checkpoints humanos:
-- ✅ Aprobar guión generado
-- ✅ Elegir mejor toma (multishot curation)
-- ✅ Aprobar audio
-- ✅ Aprobar video final
-
-**Beneficio**: Control de calidad + aprendizaje continuo del equipo.
+### 5. Human-in-the-Loop
+La IA propone, el humano decide. Checkpoints en cada fase del pipeline.
 
 ---
 
-## User Flows
+## User Flows Actuales
 
-### Flow 1: Onboarding de Nueva Marca
-
-```
-1. Dashboard → "Nueva Marca"
-2. Ingresa nombre: "Taller Santa Clara"
-3. Sube logo (opcional)
-4. Pega URL de website (opcional, para auto-extract brand guidance)
-5. O escribe brand guidance manualmente:
-   "Marca de ropa artesanal argentina, tono cercano..."
-6. Sistema crea:
-   - Brand ID (slug)
-   - Carpeta de assets
-   - Prompts default para todas las tools
-7. → Redirect a Brand Workspace (empty state)
-```
-
-### Flow 2: Gestión de Assets
+### Flow 1: Dashboard -> Brand Management
 
 ```
-Brand Workspace → Tab "Assets"
-
-├── Avatars
-│   ├── [Empty state] "Sube tu primer avatar"
-│   ├── Click "Upload"
-│   ├── Select image (PNG/JPG)
-│   ├── Form:
-│   │   - Nombre del avatar: "Elías"
-│   │   - Descripción: "Hombre de 32 años, argentino, casual urbano..."
-│   │   - Tags: masculino, 30s, casual
-│   ├── Save
-│   └── Avatar aparece en galería
-
-├── Products
-│   └── [Similar flow, pero más simple: nombre + imagen]
-
-├── Clothing
-│   └── [Similar: descripción del outfit]
-
-└── Backgrounds
-    └── [Similar: descripción de la escena + mood + lighting]
+/ (Home) -> /dashboard (Workspace con Chat)
+         -> /dashboard/brands (lista de marcas)
+         -> Click marca -> /dashboard/brands/:id (BrandWorkspace)
 ```
 
-### Flow 3: Crear Contenido Static (Quick Example)
+Dashboard muestra cards de marcas con conteo de avatars y voces. CRUD completo (crear, editar, eliminar). Brand switcher en sidebar para cambio rapido.
+
+### Flow 2: AI Chat Assistant
 
 ```
-Brand Workspace → "Nueva Generación" → "Static Content"
-
-Form:
-├── Select Avatar: [Grid de avatars de la marca]
-├── Select Product: [Grid de productos]
-├── Clothing (optional): [Dropdown o ninguno]
-├── Background (optional): [Grid o ninguno]
-├── Additional notes: "Foto lifestyle, outdoor, luz natural"
-└── [Generate]
-
-Backend:
-1. Load brand guidance
-2. Load tool prompt (static_content)
-3. Gemini builds final prompt con todas las variables
-4. Nano Banana 2 generates image
-5. Job ID → Frontend polls status
-
-Result:
-├── Image preview
-├── [Download] button
-└── [Regenerate] button
+/dashboard (Workspace) -> ChatPanel
 ```
 
-### Flow 4: Crear UGC Video (Full Pipeline)
+- Chat multi-turn con Gemini 2.5 Flash
+- Contexto de marca inyectado automaticamente (avatars, productos, voces, brand guidance)
+- Asset chips colapsables debajo del input (avatars, products, voices)
+  - Maximo 3 visibles, "+N more" para expandir
+  - Click inserta `[avatar: Name]` en el mensaje
+- Tool quick actions: UGC Creator, Ad Creative, Social Post, All Tools
+- Historial de chats por marca (localStorage)
+
+### Flow 3: Brand Configuration
 
 ```
-Brand Workspace → "Nueva Generación" → "UGC Video"
-
-Wizard Step 1 - Setup:
-├── Select Avatar
-├── Select Product
-├── Clothing (optional)
-├── Duration: 20s / 30s / 45s
-├── Campaign brief (optional textarea)
-└── [Start Pipeline]
-
-Step 2 - Script Review (after ~10s):
-├── Shows generated 5-act script
-├── User can edit cada línea
-├── [Approve & Continue] → goes to multishot
-
-Step 3 - Multishot Generation (after ~2 min):
-├── Shows 3-5 variations per scene
-├── AI recommendation highlighted
-├── User can:
-│   ├── Click otra variación to select
-│   ├── [Regenerate Scene] solo esa escena
-│   └── [Approve All] to continue
-└── [Continue to Audio]
-
-Step 4 - Audio Review (after ~30s):
-├── Audio player per scene
-├── [Play] buttons
-└── [Approve & Animate] (caro, confirmar)
-
-Step 5 - Lip-Sync Animation (after ~5 min):
-├── Progress bar
-├── When done: video preview per scene
-└── [Render Final Video]
-
-Step 6 - Final Result:
-├── Full video preview
-├── [Download MP4]
-├── [Share Link]
-└── Save to brand's generation history
+/dashboard/brand -> BrandSettings
 ```
 
-### Flow 5: Editar Prompts de Tools
+- Editar brand context (textarea)
+- Subir brand guidance desde URL o PDF
+- Gestionar avatars (subir imagen, nombre, descripcion, sync HeyGen)
+- Gestionar productos (subir imagen, nombre, descripcion)
+- Gestionar clothing items
+- Voice presets con preview (play button para escuchar sample TTS)
+- Prompt overrides por herramienta (PromptsCard)
+
+### Flow 4: Content Generation
 
 ```
-Brand Workspace → Tab "Prompts"
-
-List de tools:
-├── Static Content
-│   ├── Status: Using default prompt
-│   └── [Edit]
-├── Video Reels
-│   ├── Status: Custom override active
-│   └── [Edit]
-└── UGC Video
-    ├── Status: Using default prompt
-    └── [Edit]
-
-Click [Edit] → Opens Prompt Editor:
-├── Monaco editor (syntax highlighting)
-├── Available variables panel:
-│   - {brand_name}
-│   - {avatar_description}
-│   - {product_name}
-│   - etc.
-├── [Preview] button (shows interpolated example)
-├── [Reset to Default] button
-└── [Save] button
+/dashboard/generate -> GeneratePage (tool registry)
+                    -> Click tool -> /dashboard/generate/:toolId (ToolRunPage)
 ```
 
-### Flow 6: AI Chat Assistant (Future)
+**GeneratePage**: Grid de tools con filtro por categoria (images, video, copy). Status badges (active, coming_soon).
+
+**ToolRunPage** (step-by-step pipeline):
+1. ConfigPanel: seleccionar avatar, producto, voz, parametros
+2. Steps verticales con progresion automatica
+3. Cada step muestra estado (idle, running, done, error)
+4. Resultados ricos por tipo (imagenes, audio waveforms, video players)
+5. Mock Preview disponible para visualizar sin APIs
+
+### Flow 5: Prompt Editing
 
 ```
-Global sidebar → Chat icon
-
-Chat window opens:
-User: "Crea un reel para el nuevo buzo de Taller Santa Clara"
-
-AI:
-1. Detects brand context (Taller Santa Clara)
-2. Detects intent (create video reel)
-3. Loads brand assets
-4. Asks: "¿Qué avatar querés usar?" [shows avatar grid]
-5. User selects avatar
-6. AI: "Perfecto. Iniciando generación de reel..."
-7. Executes "Video Reels" tool behind the scenes
-8. Returns: "Listo! Tu reel está generándose. Te aviso cuando esté."
-9. [View Generation] button
+/dashboard/brand -> PromptsCard
 ```
 
-**Benefit**: Natural language interface para todos los workflows.
+- Ver prompts default de cada herramienta
+- Crear overrides por marca
+- Preview de prompt interpolado con variables
+- Reset a default
+
+---
+
+## Componentes Clave
+
+### ChatPanel
+- Area de mensajes con bubbles (usuario/AI)
+- Input con textarea auto-resize
+- Asset chip groups colapsables (AssetChipGroup)
+- Tool quick actions
+- Sidebar de historial de chats
+
+### ToolRunPage
+- Header con nombre de tool y acciones (Mock Preview)
+- ConfigPanel para parametros
+- Pipeline vertical de steps
+- DoneStep con resultados ricos por tipo
+
+### BrandSettings
+- Tabs: Context, Avatars, Products, Clothing, Voices, Prompts
+- Upload con preview
+- Voice preview con play/stop
+
+### GenerationBoard
+- Card-based view de generaciones
+- Status badges por fase
+- Timeline visual de progreso
 
 ---
 
 ## UI/UX Principles
 
-### 1. Dark Editorial Design
-- Pure black canvas background (#000000)
-- Neutral grays for surfaces (#141414, #1c1c1c)
-- Warm burgundy accent (#c45830) para brand identity
-- Zero blue — solo neutrales + warm accent
-
-### 2. Content-First Layout
-- Assets y outputs son lo más grande visualmente
-- Minimal chrome/UI
-- Generaciones mostradas como cards grandes con previews
-
-### 3. Clear Hierarchy
-```
-Dashboard (overview)
-  └── Brand Workspace (context hub)
-      ├── Assets (library)
-      ├── Generations (history)
-      ├── Prompts (templates editor)
-      └── Settings (brand config)
-```
-
-### 4. Progressive Disclosure
-- Empty states con clear CTAs
-- Wizards para flujos complejos (UGC video)
-- Forms simples para flujos quick (static content)
-
-### 5. Real-Time Feedback
-- Job status polling
-- Progress indicators
-- Phase-by-phase timeline
-- Error messages con retry options
-
----
-
-## Key UI Components
-
-### Brand Context Badge
-**Where**: Sidebar top, cuando estás dentro de un brand workspace
-
-```
-┌─────────────────────┐
-│ 🏢 Taller Santa Clara │
-│ ↗ Exit to Dashboard  │
-└─────────────────────┘
-```
-
-### Asset Selector Grid
-**Usage**: When selecting avatar/product/etc en tool forms
-
-```
-┌────────┬────────┬────────┐
-│ [IMG]  │ [IMG]  │ [IMG]  │
-│ Elías  │ María  │ Carlos │
-│ ✓      │        │        │
-└────────┴────────┴────────┘
-```
-
-### Generation Card
-**Usage**: Brand Workspace generations history
-
-```
-┌─────────────────────────────────┐
-│ UGC Video - Remera White        │
-│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━    │ 85% Complete
-│                                 │
-│ Script → Multishot → Curation  │
-│   ✓        ✓          ⟳        │ (live progress)
-│                                 │
-│ [View Details] [Cancel]         │
-└─────────────────────────────────┘
-```
-
-### Multishot Review Chamber
-**Usage**: AI curation step con human override
-
-```
-┌────────────────────────────────────────┐
-│ Scene 1: Hook                          │
-│ AI Recommendation: Variation 2 (94/100)│
-│                                        │
-│ ┌───────┬───────┬───────┬───────┐    │
-│ │ Var 1 │ Var 2 │ Var 3 │ Var 4 │    │
-│ │ [IMG] │ [IMG] │ [IMG] │ [IMG] │    │
-│ │ 87/100│ 94/100│ 82/100│ 79/100│    │
-│ │       │  ✓ AI │       │       │    │
-│ └───────┴───────┴───────┴───────┘    │
-│                                        │
-│ Reasoning: "Mejor iluminación facial, │
-│ expresión natural, producto visible"   │
-│                                        │
-│ [Use AI Pick] [Override →]             │
-│ [Regenerate Scene]                     │
-└────────────────────────────────────────┘
-```
-
-### Prompt Editor
-**Usage**: Brand workspace → Prompts tab
-
-```
-┌──────────────────────────────────────┐
-│ UGC Video Prompt Template            │
-│ Status: Using default                │
-│ ──────────────────────────────────── │
-│                                      │
-│ [Monaco Editor]                      │
-│ You are creating a UGC video for    │
-│ {brand_name}.                        │
-│                                      │
-│ BRAND CONTEXT:                       │
-│ {brand_guidance}                     │
-│ ...                                  │
-│                                      │
-│ ──────────────────────────────────── │
-│ Available Variables:                 │
-│ • {brand_name}                       │
-│ • {avatar_description}               │
-│ • {product_name}                     │
-│ • {duration}                         │
-│ ...                                  │
-│                                      │
-│ [Preview] [Reset to Default] [Save] │
-└──────────────────────────────────────┘
-```
-
----
-
-## Empty States
-
-### Brand Workspace - No Assets
-```
-┌────────────────────────────────┐
-│         📦                      │
-│   No assets uploaded yet       │
-│                                │
-│ Upload your first avatar or    │
-│ product to start generating    │
-│ content.                       │
-│                                │
-│   [Upload Avatar]              │
-│   [Upload Product]             │
-└────────────────────────────────┘
-```
-
-### Brand Workspace - No Generations
-```
-┌────────────────────────────────┐
-│         🎬                      │
-│   No content generated yet     │
-│                                │
-│ Start by creating your first   │
-│ static image or video.         │
-│                                │
-│   [Static Content]             │
-│   [Video Reel]                 │
-│   [UGC Video]                  │
-└────────────────────────────────┘
-```
-
----
-
-## Mobile Experience
-
-**Strategy**: Desktop-first, mobile secondary.
-
-Mobile layout (future):
-- Sidebar collapses to hamburger menu
-- Asset grids become single column
-- Generation cards stack vertically
-- Multishot review shows one variation at a time (swipe)
+1. **Dark Editorial** — Pure black canvas, neutral grays, warm burgundy accent
+2. **Content-First** — Assets y outputs son lo mas grande visualmente
+3. **Progressive Disclosure** — Empty states con CTAs claros, wizards para flujos complejos
+4. **Real-Time Feedback** — Spinners, progress indicators, phase timelines
+5. **Collapsible Sections** — Para listas largas (asset chips, sidebar navigation)
 
 ---
 
 ## Performance Considerations
 
-### Asset Loading
-- Lazy load images in grids
-- Thumbnail previews (200x200) for asset selectors
-- Full resolution only on demand
-
-### Job Polling
-- Poll every 2s during active generation
-- Exponential backoff when idle
-- WebSocket upgrade in future phases
-
-### Caching
-- Cache brand context in session storage
-- Cache asset metadata in IndexedDB (future)
-- Cache generation history (paginated)
+- Lazy load de imagenes en grids
+- Job polling cada 2s durante generacion activa
+- Brand context cacheado en BrandProvider (React Context)
+- Chat history en localStorage
+- Async job pattern: submit -> poll status -> fetch result
 
 ---
 
-## Accessibility
+## Mobile Support
 
-- Keyboard navigation for all workflows
-- ARIA labels para asset grids
-- Alt text for all generated content
-- High contrast mode compatible (dark theme already high contrast)
-
----
-
-## Metrics & Analytics (Future)
-
-Track:
-- Generation success rate por tool
-- Average time per phase
-- Most used assets per brand
-- Cost per generation (API usage)
-- Human override rate en AI curation
-
----
-
-## Next Phase Features
-
-### Phase 2
-- Real-time collaboration (multiple users en brand workspace)
-- Comments on generations
-- Approval workflows
-- Version history
-
-### Phase 3
-- Batch generation (multiple videos at once)
-- Scheduling & auto-publish
-- A/B testing de variations
-- Analytics dashboard per brand
-
-### Phase 4
-- API pública para clientes
-- White-label brand dashboard
-- Marketplace de prompts y assets
-- Team permissions & roles
+Desktop-first. Mobile no es prioridad para Phase 1.

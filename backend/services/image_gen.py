@@ -14,7 +14,8 @@ import os
 import httpx
 
 FAL_BASE = "https://queue.fal.run"
-FAL_MODEL = "fal-ai/nano-banana-2/edit"
+FAL_MODEL = "fal-ai/nano-banana-2/edit"       # Submit endpoint (with /edit)
+FAL_MODEL_BASE = "fal-ai/nano-banana-2"       # Status/result endpoint (without /edit)
 
 
 def _get_key() -> str:
@@ -108,8 +109,8 @@ async def get_status(request_id: str) -> dict:
             "error": None,
         }
 
-    # nano-banana-2 uses the edit subpath for status too
-    url = f"{FAL_BASE}/{FAL_MODEL}/requests/{request_id}/status"
+    # Status uses the base model path (without /edit)
+    url = f"{FAL_BASE}/{FAL_MODEL_BASE}/requests/{request_id}/status"
     print(f"[image-gen] Checking status: {url}")
 
     async with httpx.AsyncClient(timeout=15) as client:
@@ -159,7 +160,7 @@ async def get_result(request_id: str) -> dict:
 
     async with httpx.AsyncClient(timeout=30) as client:
         res = await client.get(
-            f"{FAL_BASE}/{FAL_MODEL}/requests/{request_id}",
+            f"{FAL_BASE}/{FAL_MODEL_BASE}/requests/{request_id}",
             headers=_headers(),
         )
 

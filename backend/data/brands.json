@@ -5,12 +5,13 @@
     "brandContext": "Taller Santa Clara es una marca de ropa artesanal argentina. Fabrican remeras, polos y prendas básicas con algodón orgánico de alta calidad. Su tono es cercano, auténtico y aspiracional. Target: hombres 25-40, urbanos, que valoran la calidad y el diseño simple. Estilo de comunicación: directo, cálido, con un toque de craft/artesanal. Usan español rioplatense.",
     "avatars": [
       {
-        "id": "86fecd00",
-        "name": "Elias buzo",
-        "filename": "taller-santa-clara_86fecd00.jpeg",
-        "imageUrl": "/static/avatars/taller-santa-clara_86fecd00.jpeg",
-        "talkingPhotoId": "e5ec687d23624e0cb716c6729a9961c8",
-        "heygenStatus": "ready"
+        "id": "0ac9f3f1",
+        "name": "Elias",
+        "description": "",
+        "filename": "taller-santa-clara_0ac9f3f1.jpeg",
+        "imageUrl": "/static/avatars/taller-santa-clara_0ac9f3f1.jpeg",
+        "talkingPhotoId": null,
+        "heygenStatus": "skipped"
       }
     ],
     "voicePresets": [
@@ -21,16 +22,41 @@
     ],
     "products": [
       {
-        "id": "35d7d6ec",
-        "name": "a",
-        "filename": "taller-santa-clara_prod_35d7d6ec.jpeg",
-        "imageUrl": "/static/products/taller-santa-clara_prod_35d7d6ec.jpeg"
+        "id": "c4aa18c2",
+        "name": "Hoodie Chocolote",
+        "description": "",
+        "filename": "taller-santa-clara_prod_c4aa18c2.jpeg",
+        "imageUrl": "/static/products/taller-santa-clara_prod_c4aa18c2.jpeg"
+      }
+    ],
+    "clothing": [
+      {
+        "id": "e2d5fbcb",
+        "name": "BUZOS_Mesa de trabajo 1 copia 2",
+        "description": "",
+        "tags": [],
+        "filename": "taller-santa-clara_cloth_e2d5fbcb.jpg",
+        "imageUrl": "/static/clothing/taller-santa-clara_cloth_e2d5fbcb.jpg"
       }
     ]
   },
   {
     "id": "cocucci",
     "name": "Cocucci",
+    "brandContext": "",
+    "avatars": [],
+    "voicePresets": []
+  },
+  {
+    "id": "oxidian",
+    "name": "Oxidian",
+    "brandContext": "",
+    "avatars": [],
+    "voicePresets": []
+  },
+  {
+    "id": "personal",
+    "name": "Personal",
     "brandContext": "",
     "avatars": [],
     "voicePresets": []

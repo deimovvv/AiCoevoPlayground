@@ -4,3 +4,4 @@ from .copy_gen import generate_scripts
 from .brands import load_brands, save_brands, find_brand, slugify
 from . import fal_lipsync
 from . import kling_video
+from . import prompt_builder

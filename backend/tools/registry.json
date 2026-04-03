@@ -1,11 +1,84 @@
 [
     {
-        "id": "photo_multishot",
-        "name": "Photo → Multi-Shot",
+        "id": "ugc_creator",
+        "name": "UGC Creator",
+        "category": "video",
+        "description": "Create complete UGC videos: script, base image, multishot variations, voice, lip-sync, subtitles.",
+        "icon": "video",
+        "status": "active",
+        "pipeline": ["script", "base_image", "multishot", "curation", "voice", "lipsync", "render"]
+    },
+    {
+        "id": "ad_creative_lab",
+        "name": "Ad Creative Lab",
         "category": "images",
-        "description": "Upload a product photo, Gemini generates creative prompts, then batch-generates multiple shots.",
+        "description": "Generate brand-consistent ad creatives from reference images. Upload references, analyze visual style, generate multiple variations, iterate.",
         "icon": "sparkles",
-        "status": "active"
+        "status": "active",
+        "pipeline": ["visual_guide", "prompts", "generate_batch", "review"]
+    },
+    {
+        "id": "product_spotlight",
+        "name": "Product Spotlight",
+        "category": "images",
+        "description": "Professional product photography in context. Place your product in any setting with studio-quality lighting and composition.",
+        "icon": "camera",
+        "status": "active",
+        "pipeline": ["prompt", "generate", "variations"]
+    },
+    {
+        "id": "fashion_editorial",
+        "name": "Fashion Editorial",
+        "category": "images",
+        "description": "High-end fashion editorial photography. Avatar + garments + pose direction with professional lighting and styling.",
+        "icon": "sparkles",
+        "status": "active",
+        "pipeline": ["prompt", "generate", "variations"]
+    },
+    {
+        "id": "fashion_reels",
+        "name": "Fashion Reels",
+        "category": "video",
+        "description": "Outfit-transition reels: same model, same spot, multiple looks. Multishot generation + Kling animation for fashion content.",
+        "icon": "film",
+        "status": "active",
+        "pipeline": ["script", "base_image", "multishot", "curation", "animate"]
+    },
+    {
+        "id": "photo_multishot",
+        "name": "Product Photos",
+        "category": "images",
+        "description": "Generate multiple creative product photo variations from a base image.",
+        "icon": "camera",
+        "status": "active",
+        "pipeline": ["prompt", "generate"]
+    },
+    {
+        "id": "ad_creative",
+        "name": "Ad Creative",
+        "category": "images",
+        "description": "Generate ad creatives with copy, images, and brand composition.",
+        "icon": "megaphone",
+        "status": "active",
+        "pipeline": ["prompt", "generate"]
+    },
+    {
+        "id": "social_post",
+        "name": "Social Post",
+        "category": "copy",
+        "description": "Generate captions and images for social media posts.",
+        "icon": "share",
+        "status": "active",
+        "pipeline": ["caption", "image"]
+    },
+    {
+        "id": "reel_creator",
+        "name": "Reel Creator",
+        "category": "video",
+        "description": "Create short-form video reels with scenes, music, and subtitles.",
+        "icon": "film",
+        "status": "coming_soon",
+        "pipeline": ["script", "scenes", "music", "subtitles", "render"]
     },
     {
         "id": "bg_remover",
@@ -13,14 +86,7 @@
         "category": "images",
         "description": "Remove background from product photos using AI segmentation.",
         "icon": "eraser",
-        "status": "coming_soon"
-    },
-    {
-        "id": "clip_generator",
-        "name": "Clip Generator",
-        "category": "video",
-        "description": "Generate short video clips from a script + avatar using the UGC pipeline.",
-        "icon": "film",
-        "status": "coming_soon"
+        "status": "coming_soon",
+        "pipeline": ["remove"]
     }
 ]

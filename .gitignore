@@ -36,6 +36,10 @@ lerna-debug.log*
 # Backend data & uploads
 backend/data/avatars/*
 backend/data/products/*
+backend/data/clothing/*
+backend/data/backgrounds/*
+backend/data/renders/*
+backend/data/generations.json
 backend/tmp/*
 !backend/data/brands.json
 

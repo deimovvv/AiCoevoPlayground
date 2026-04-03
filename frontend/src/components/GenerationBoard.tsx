@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { Film, Plus, FileText, User as UserIcon, Image, Video, Send, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
-import { type Generation, type Phase } from "./GenerationCard";
+import { type Generation } from "./GenerationCard";
 import { GenerationDetailDrawer } from "./GenerationDetailDrawer";
 import { Button } from "./ui/button";
 

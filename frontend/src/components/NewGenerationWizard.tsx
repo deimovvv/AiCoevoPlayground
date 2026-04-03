@@ -5,7 +5,7 @@
  * Step 3: Generate Scene Image (avatar + product → auto-generated with nano-banana-2)
  * Step 4: Video Objective (auto-generated or manual) → Launches the pipeline
  */
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import {
     X, User, Package, Sparkles, ChevronRight, ChevronLeft, Loader2,
     Zap, Plus, Upload, Image, RotateCcw, CheckCircle2, AlertCircle,

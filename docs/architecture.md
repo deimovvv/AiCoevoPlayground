@@ -9,45 +9,58 @@ The system provides context-aware AI tools that adapt dynamically to each brand'
 ## System Overview
 
 ```
-Frontend (React + Vite)
-    ↓ HTTP/REST
-Backend (FastAPI)
-    ├── Brand Context Management
-    │   ├── Brand Guidance Documents
-    │   ├── Briefs & Campaign Context
-    │   └── Dynamic Prompt Library
-    ├── Asset Library (per brand)
-    │   ├── Avatars/Characters (with descriptions)
-    │   ├── Products
-    │   ├── Clothing/Wardrobe
-    │   └── Backgrounds/Scenes
-    ├── Tools System (context-aware)
-    │   ├── Static Content Generation
-    │   ├── Video Reels
-    │   ├── UGC Videos
-    │   └── Custom Tools
-    ├── AI Chat Assistant
-    │   └── Tool orchestration & context retrieval
-    └── AI Services
-        ├── Gemini 2.5 Flash (prompt gen, brief interpretation, scripts)
-        ├── Nano Banana 2 (image generation/editing)
-        ├── Kling (video generation)
-        ├── ElevenLabs (TTS / voice cloning)
-        └── HeyGen / Fal Fabric 1.0 (talking photo lip-sync)
+Frontend (React 19 + Vite 8)
+    | HTTP/REST
+Backend (FastAPI + Python 3.11+)
+    |-- Brand Context Management
+    |   |-- Brand Guidance Documents (text, URL scraping, PDF upload)
+    |   |-- Dynamic Prompt Library (3-layer system)
+    |   +-- PromptBuilder Service (template + variables)
+    |-- Asset Library (per brand)
+    |   |-- Avatars/Characters (with descriptions + HeyGen sync)
+    |   |-- Products
+    |   |-- Clothing/Wardrobe
+    |   +-- Backgrounds/Scenes (planned)
+    |-- Tools System (context-aware, registry-based)
+    |   |-- UGC Creator (8-phase video pipeline)
+    |   |-- Ad Creative
+    |   |-- Social Post
+    |   |-- Product Photos (Multishot)
+    |   |-- Reel Creator (coming soon)
+    |   +-- Background Remover (coming soon)
+    |-- AI Chat Assistant
+    |   +-- Multi-turn Gemini chat with brand context
+    +-- AI Services
+        |-- Gemini 2.5 Flash (scripts, chat, curation)
+        |-- Nano Banana 2 via Fal (image generation/editing)
+        |-- Kling V2.6 via Fal (image-to-video)
+        |-- ElevenLabs (TTS / voice cloning)
+        |-- Fal Fabric 1.0 (lip-sync from static images)
+        |-- HeyGen (legacy talking photo lip-sync)
+        +-- FFmpeg (video concatenation)
 ```
 
 ---
 
 ## Core Concept: Context-Aware Architecture
 
-**Every tool automatically inherits the selected brand's context.** When working within "Taller Santa Clara", all tools have access to:
+**Every tool automatically inherits the selected brand's context.** When working within a brand, all tools have access to:
 - Brand guidance documents
-- Campaign briefs
-- Asset library (avatars, products, clothing, backgrounds)
-- Brand-specific prompt templates
-- Voice and visual style presets
+- Asset library (avatars, products, clothing)
+- Brand-specific prompt templates (or defaults)
+- Voice presets (ElevenLabs)
 
 This eliminates manual re-configuration and ensures brand consistency across all generated content.
+
+### Three-Layer Prompt System
+
+The `PromptBuilder` service resolves prompts via:
+
+1. **Layer 1 — Tool Default Template**: `backend/tools/{tool_id}/default_prompt.txt`
+2. **Layer 2 — Brand Override**: stored per brand (optional)
+3. **Layer 3 — Dynamic Variables**: injected from brand assets/config
+
+Template variables include: `{brand_name}`, `{brand_guidance}`, `{avatars}`, `{products}`, `{clothing}`, `{voices}`, and custom per-tool variables. Conditional blocks via `{?var}...{/var}` syntax.
 
 ---
 
@@ -55,118 +68,146 @@ This eliminates manual re-configuration and ensures brand consistency across all
 
 ### Pages & Routes
 
-| Route                              | Component            | Purpose                          |
-|------------------------------------|----------------------|----------------------------------|
-| `/`                                | `Home`               | Landing page                     |
-| `/dashboard`                       | `DashboardOverview`  | Agency overview + brand stats    |
-| `/dashboard/brands`                | `Dashboard`          | Brand list + CRUD                |
-| `/dashboard/brands/:brandId`       | `BrandWorkspace`     | **Brand context hub** (main workspace) |
-| `/dashboard/brands/:brandId/assets` | `AssetManager`      | Upload & manage brand assets     |
-| `/dashboard/brands/:brandId/prompts` | `PromptEditor`     | Edit tool prompts for this brand |
-| `/dashboard/brands/:brandId/tools` | `BrandTools`         | Access tools in brand context    |
-| `/dashboard/chat`                  | `ChatAssistant`      | AI chat with tool capabilities   |
+| Route | Component | Purpose |
+|-------|-----------|---------|
+| `/` | `Home` | Landing page |
+| `/dashboard` | `Workspace` | Main workspace with ChatPanel |
+| `/dashboard/brands` | `Dashboard` | Brand list + CRUD |
+| `/dashboard/brands/:brandId` | `BrandWorkspace` | Brand detail (avatars, scripts, generation board) |
+| `/dashboard/brand` | `BrandSettings` | Brand configuration (context, assets, voices, prompts) |
+| `/dashboard/generate` | `GeneratePage` | Tool registry with category filters |
+| `/dashboard/generate/:toolId` | `ToolRunPage` | Tool execution with step-by-step pipeline |
+| `/dashboard/content` | `ContentPage` | Content library (generated assets) |
+| `/dashboard/integrations` | `IntegrationsPage` | Platform connections (Meta, TikTok, etc.) |
+| `/dashboard/automations` | `AutomationsPage` | Workflow automation builder |
+| `/dashboard/performance/organic` | `PerformancePage` | Social metrics dashboard |
+| `/dashboard/performance/ads` | `PerformancePage` | Ads campaign ROI |
+| `/dashboard/pipeline` | `PipelineConfigPage` | Admin pipeline configuration |
+| `/dashboard/tools/images` | `ToolsPage` | Image tools browser |
+| `/dashboard/tools/video` | `ToolsPage` | Video tools browser |
 
 ### Layout
 
 - `AppLayout` wraps all `/dashboard/*` routes with sidebar + content area
-- `Sidebar` shows current brand context at the top when inside a brand workspace
-- Brand context badge displays current brand name/logo throughout the workflow
+- `Sidebar` shows navigation sections: Chat/Generate/Content, Brand/Settings/Integrations, Performance
+- `BrandSwitcher` dropdown in sidebar for switching between brands
+- `BrandProvider` context provides global brand state with `refreshBrands()`
 
 ### Key Libraries
 
 - React 19 + React Router 7
 - Tailwind CSS v4
 - Lucide React (icons)
+- Remotion (video player components)
 - Custom design token system (`index.css`)
 
 ---
 
 ## Backend Architecture
 
-### API Layer (FastAPI)
+### Services Layer (`backend/services/`)
 
-FastAPI application at `backend/main.py` exposing:
+| Service | File | Purpose |
+|---------|------|---------|
+| Brands | `brands.py` | Brand CRUD, avatar/product/clothing persistence (JSON-based) |
+| Chat | `chat.py` | Multi-turn Gemini chat with brand context |
+| Script Gen | `copy_gen.py` | UGC script generation + video objective suggestions |
+| PromptBuilder | `prompt_builder.py` | 3-layer prompt assembly with template variables |
+| TTS | `tts.py` | ElevenLabs text-to-speech |
+| Image Gen | `image_gen.py` | Nano Banana 2 image generation/editing via Fal |
+| Kling Video | `kling_video.py` | Kling V2.6 image-to-video via Fal |
+| Fal Lip-sync | `fal_lipsync.py` | Fal Fabric 1.0 lip-sync (video + audio) |
+| HeyGen | `heygen.py` | Legacy HeyGen talking photo integration |
+| Video Concat | `video_concat.py` | FFmpeg video concatenation |
 
-#### Brand Endpoints
+### API Endpoints (51 total)
 
-| Method | Endpoint                        | Purpose                          |
-|--------|---------------------------------|----------------------------------|
-| GET    | `/api/brands`                   | List all brands                  |
-| POST   | `/api/brands`                   | Create brand                     |
-| GET    | `/api/brands/{id}`              | Get brand details + all context  |
-| PUT    | `/api/brands/{id}`              | Update brand settings            |
-| DELETE | `/api/brands/{id}`              | Delete brand                     |
-| GET    | `/api/brands/{id}/context`      | Get full brand context (guidance, briefs) |
-| PUT    | `/api/brands/{id}/context`      | Update brand guidance documents  |
+#### Brand Management
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/brands` | List all brands |
+| POST | `/api/brands` | Create brand |
+| GET | `/api/brands/{id}` | Get brand details |
+| PATCH | `/api/brands/{id}` | Update brand (name, context, voices) |
+| DELETE | `/api/brands/{id}` | Delete brand |
+| POST | `/api/brands/{id}/guidance/url` | Scrape URL for brand guidance |
+| POST | `/api/brands/{id}/guidance/pdf` | Upload PDF for brand guidance |
 
-#### Asset Management Endpoints
+#### Asset Management
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/brands/{id}/avatars` | List avatars |
+| POST | `/api/brands/{id}/avatars` | Upload avatar image |
+| POST | `/api/brands/{id}/avatars/heygen` | Add HeyGen talking photo |
+| DELETE | `/api/brands/{id}/avatars/{avatar_id}` | Delete avatar |
+| POST | `/api/brands/{id}/avatars/{avatar_id}/retry-heygen` | Retry HeyGen upload |
+| GET/POST/DELETE | `/api/brands/{id}/products/...` | Product CRUD |
+| GET/POST/DELETE | `/api/brands/{id}/clothing/...` | Clothing CRUD |
 
-| Method | Endpoint                                      | Purpose                          |
-|--------|-----------------------------------------------|----------------------------------|
-| GET    | `/api/brands/{id}/assets`                     | List all assets for brand        |
-| POST   | `/api/brands/{id}/assets/avatars`             | Upload avatar with description   |
-| POST   | `/api/brands/{id}/assets/products`            | Upload product image             |
-| POST   | `/api/brands/{id}/assets/clothing`            | Upload clothing/wardrobe item    |
-| POST   | `/api/brands/{id}/assets/backgrounds`         | Upload background/scene          |
-| PUT    | `/api/brands/{id}/assets/{type}/{asset_id}`   | Update asset metadata            |
-| DELETE | `/api/brands/{id}/assets/{type}/{asset_id}`   | Delete asset                     |
+#### Tool System
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/tools` | List all tools from registry |
+| GET | `/api/tools/{tool_id}` | Get tool details |
+| POST | `/api/tools/{tool_id}/run` | Execute tool (returns job_id) |
+| GET | `/api/tools/jobs/{job_id}` | Check job status |
 
-#### Prompt Management Endpoints
+#### Prompt Management
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/prompts/templates` | List all tool templates |
+| GET | `/api/prompts/templates/{tool_id}` | Get template for tool |
+| GET | `/api/brands/{id}/prompts` | Get brand overrides |
+| PUT | `/api/brands/{id}/prompts/{tool_id}` | Set prompt override |
+| DELETE | `/api/brands/{id}/prompts/{tool_id}` | Remove override |
+| POST | `/api/brands/{id}/prompts/{tool_id}/preview` | Preview interpolated prompt |
 
-| Method | Endpoint                                      | Purpose                          |
-|--------|-----------------------------------------------|----------------------------------|
-| GET    | `/api/brands/{id}/prompts`                    | List all tool prompts for brand  |
-| GET    | `/api/brands/{id}/prompts/{tool_id}`          | Get prompt template for tool     |
-| PUT    | `/api/brands/{id}/prompts/{tool_id}`          | Update prompt template           |
-| POST   | `/api/brands/{id}/prompts/{tool_id}/reset`    | Reset to default prompt          |
+#### AI Services
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/chat` | Gemini chat with brand context |
+| POST | `/api/tts` | Generate speech (streaming audio) |
+| POST | `/api/tts/generate-file` | Generate TTS to temp file |
+| POST | `/api/image-gen/edit` | Nano Banana 2 image generation |
+| GET | `/api/image-gen/status/{id}` | Check image gen status |
+| GET | `/api/image-gen/result/{id}` | Get image result |
+| POST | `/api/kling/image-to-video` | Kling video generation |
+| GET | `/api/kling/status/{id}` | Check Kling status |
+| GET | `/api/kling/result/{id}` | Get Kling result |
+| POST | `/api/fal/lipsync` | Fal lip-sync job |
+| GET | `/api/fal/lipsync/{id}/status` | Check Fal status |
+| GET | `/api/fal/lipsync/{id}/result` | Get Fal result |
+| POST | `/api/video/concat` | FFmpeg video concatenation |
+| GET | `/api/video/concat/check` | Check FFmpeg availability |
 
-#### Tool Execution Endpoints
+#### Copy Generation
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/brands/{id}/generate-copy` | Generate UGC scripts |
+| POST | `/api/brands/{id}/suggest-objective` | Auto-generate video objective |
 
-| Method | Endpoint                                      | Purpose                          |
-|--------|-----------------------------------------------|----------------------------------|
-| GET    | `/api/tools`                                  | List all available tools         |
-| GET    | `/api/tools/{tool_id}`                        | Get tool configuration           |
-| POST   | `/api/brands/{brand_id}/tools/{tool_id}/run`  | Execute tool with brand context  |
-| GET    | `/api/jobs/{job_id}`                          | Check job status & results       |
-
-#### AI Chat Endpoints
-
-| Method | Endpoint                                      | Purpose                          |
-|--------|-----------------------------------------------|----------------------------------|
-| POST   | `/api/chat`                                   | Send message to AI assistant     |
-| POST   | `/api/chat/brands/{brand_id}`                 | Chat with brand context          |
-| GET    | `/api/chat/sessions`                          | List chat sessions               |
+#### HeyGen (Legacy)
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/heygen/talking-photos` | List talking photos |
+| POST | `/api/heygen/upload-talking-photo` | Upload talking photo |
+| POST | `/api/heygen/generate-video` | Generate HeyGen video |
+| GET | `/api/heygen/video-status/{id}` | Check video status |
+| POST | `/api/lipsync` | Create lip-sync via HeyGen |
 
 ---
 
 ## Data Persistence
 
-### Brand Context Storage
+### Current (Phase 1) — JSON File Storage
 
 ```
-backend/data/brands/{brand-id}/
-├── brand.json                  ← Core brand config
-├── context/
-│   ├── brand_guidance.md       ← Brand guidelines document
-│   ├── briefs/                 ← Campaign briefs
-│   │   ├── brief_2024_q1.md
-│   │   └── brief_2024_q2.md
-│   └── prompts/                ← Tool-specific prompt overrides
-│       ├── ugc_video.txt
-│       ├── static_content.txt
-│       └── video_reels.txt
-├── assets/
-│   ├── avatars/                ← Avatar images
-│   │   ├── avatar_001.png
-│   │   └── avatar_001.json     ← Metadata: description, tags
-│   ├── products/               ← Product images
-│   ├── clothing/               ← Wardrobe items
-│   └── backgrounds/            ← Scene backgrounds
-└── generations/                ← Generated content history
-    └── gen_abc123/
-        ├── metadata.json
-        ├── outputs/
-        └── logs/
+backend/data/
+  brands.json              <- All brands data (flat JSON array)
+  avatars/                 <- Avatar image files
+  products/                <- Product image files
+  clothing/                <- Clothing image files
+  renders/                 <- Generated render outputs
 ```
 
 ### Brand Data Structure
@@ -176,172 +217,79 @@ backend/data/brands/{brand-id}/
   "id": "taller-santa-clara",
   "name": "Taller Santa Clara",
   "brandContext": "Marca de ropa artesanal argentina...",
-  "assets": {
-    "avatars": [
-      {
-        "id": "avatar_001",
-        "filename": "avatar_001.png",
-        "description": "Modelo masculino 30 años, estilo casual urbano",
-        "tags": ["masculino", "casual", "30s"],
-        "imageUrl": "/static/brands/taller-santa-clara/avatars/avatar_001.png"
-      }
-    ],
-    "products": [...],
-    "clothing": [...],
-    "backgrounds": [...]
-  },
-  "voicePresets": [...],
-  "defaultPrompts": {
-    "ugc_video": "custom override or null for default",
-    "static_content": null,
-    "video_reels": "custom override..."
-  }
+  "avatars": [
+    {
+      "id": "unique-id",
+      "name": "Elias",
+      "description": "Hombre de 32 anos...",
+      "filename": "stored-filename.jpeg",
+      "imageUrl": "/static/avatars/filename.jpeg",
+      "talkingPhotoId": "heygen-id or null",
+      "heygenStatus": "skipped|pending|completed|failed"
+    }
+  ],
+  "voicePresets": [
+    { "id": "elevenlabs-voice-id", "name": "Voice Name" }
+  ],
+  "products": [
+    {
+      "id": "unique-id",
+      "name": "Product Name",
+      "description": "...",
+      "filename": "stored-filename.jpeg",
+      "imageUrl": "/static/products/filename.jpeg"
+    }
+  ],
+  "clothing": []
 }
 ```
 
 ---
 
-## Tools System Architecture
+## Tools System
 
-### Tool Types
+### Registry (`backend/tools/registry.json`)
 
-1. **Static Content Generation** (Nano Banana 2)
-   - Inputs: Avatar, product, background (optional), clothing (optional)
-   - Output: High-quality static images for ads/posts
+| Tool ID | Name | Category | Status | Pipeline |
+|---------|------|----------|--------|----------|
+| `ugc_creator` | UGC Creator | video | active | script -> base_image -> multishot -> curation -> voice -> lipsync -> subtitles -> render |
+| `photo_multishot` | Product Photos | images | active | prompt -> generate |
+| `ad_creative` | Ad Creative | images | active | copy -> image -> compose |
+| `social_post` | Social Post | copy | active | caption -> image |
+| `reel_creator` | Reel Creator | video | coming_soon | script -> scenes -> music -> subtitles -> render |
+| `bg_remover` | Background Remover | images | coming_soon | remove |
 
-2. **Video Reels** (Kling + composition)
-   - Inputs: Avatar, product, scene description
-   - Output: Short-form video content
+### Tool Prompt Templates
 
-3. **UGC Videos** (Full pipeline: Gemini → Nano Banana → Fabric → FFmpeg)
-   - Inputs: Avatar, clothing (optional), product, background (optional)
-   - Phases: Script → Multishot → Curation → Audio → Lip-sync → Render
-   - Output: Talking-head UGC video
+Each tool can have:
+- Default template: `backend/tools/{tool_id}/default_prompt.txt`
+- Brand override: stored in brand data
 
-### Tool Execution Flow
-
-```
-User selects tool within Brand Workspace
-    ↓
-Tool UI presents dynamic form:
-    - Avatar selector (from brand's avatars)
-    - Product selector (from brand's products)
-    - Clothing selector (optional, from brand's wardrobe)
-    - Background selector (optional, from brand's backgrounds)
-    ↓
-Backend loads brand context:
-    - Brand guidance
-    - Tool-specific prompt template (or default)
-    - Selected assets
-    ↓
-Gemini generates final prompt using:
-    - Tool prompt template
-    - Brand context
-    - Asset descriptions
-    - User parameters
-    ↓
-Execute tool with generated prompt
-    ↓
-Return job ID → frontend polls for results
-```
-
-### Dynamic Prompt Generation
-
-Instead of hardcoded prompts, each tool uses a **template + brand context** approach:
-
-**Example: UGC Video Tool Prompt Template**
-```
-You are creating a UGC video for {brand_name}.
-
-Brand Context:
-{brand_guidance}
-
-Available Assets:
-- Avatar: {avatar_description}
-- Product: {product_name}
-- Clothing: {clothing_description}
-- Background: {background_description}
-
-Campaign Brief:
-{active_brief}
-
-Generate a 5-act script following the Morfeo structure...
-```
-
----
-
-## AI Chat Assistant
-
-### Purpose
-- Natural language interface for tool execution
-- Can reference and orchestrate multiple tools
-- Understands brand context automatically
-
-### Example Interactions
-
-**User**: "Crea un reel para el nuevo buzo de Taller Santa Clara"
-
-**Assistant**:
-1. Detects brand context (Taller Santa Clara)
-2. Loads brand guidance + product catalog
-3. Identifies "Video Reels" tool
-4. Asks: "¿Qué avatar quieres usar?" (shows avatars)
-5. Executes tool with context
-6. Returns result with preview
-
----
-
-## Generation Pipeline (UGC Videos)
-
-Enhanced Morfeo pipeline with brand context:
-
-1. **Script Generation** (Gemini 2.5)
-   - Uses brand guidance + brief + product info
-   - Generates 5-act structure
-
-2. **Multishot Image Generation** (Nano Banana 2)
-   - For each scene: generate 3+ variations
-   - Uses avatar description + clothing + product + background
-   - Dynamic composition based on brand style
-
-3. **AI Curation** (Gemini Vision)
-   - Analyzes all shots
-   - Selects best option per scene
-   - Human review checkpoint
-
-4. **Audio Generation** (ElevenLabs)
-   - Uses brand's voice presets
-   - Generates audio per scene
-
-5. **Lip-sync Animation** (Fal Fabric 1.0)
-   - Takes curated static image + audio
-   - Generates talking video
-
-6. **Final Render** (FFmpeg)
-   - Combines all scenes
-   - Adds transitions/effects
+Current tools with templates: `ugc_creator`, `ugc_multishot`, `ad_creative`, `social_post`, `reel_creator`, `chat`, `photo_multishot`
 
 ---
 
 ## Environment Variables
 
-| Variable              | Service         |
-|-----------------------|-----------------|
-| `GEMINI_API_KEY`      | Gemini          |
-| `NANO_BANANA_API_KEY` | Nano Banana 2   |
-| `ELEVENLABS_API_KEY`  | ElevenLabs      |
-| `HEYGEN_API_KEY`      | HeyGen          |
-| `FAL_KEY`             | Fal AI (Fabric) |
-| `KLING_API_KEY`       | Kling           |
+All API keys in `backend/.env`:
+
+| Variable | Service |
+|----------|---------|
+| `GEMINI_API_KEY` | Google Gemini 2.5 Flash |
+| `ELEVENLABS_API_KEY` | ElevenLabs TTS |
+| `FAL_KEY` | Fal AI (Nano Banana, Kling, Fabric) |
+| `HEYGEN_API_KEY` | HeyGen (legacy) |
+| `KLING_API_KEY` | Kling (if direct, not via Fal) |
 
 ---
 
 ## Scalability Strategy
 
 ### Current (Phase 1)
-- Single-process FastAPI
+- Single-process FastAPI with uvicorn
 - JSON file-based storage
 - In-memory job tracking
+- Local FFmpeg for video concat
 
 ### Future (Phase 2-3)
 - Redis queue for job management
@@ -349,4 +297,3 @@ Enhanced Morfeo pipeline with brand context:
 - S3-compatible storage for media
 - PostgreSQL for structured data + prompt versioning
 - WebSocket for real-time updates
-- Vector database for semantic search of briefs/assets

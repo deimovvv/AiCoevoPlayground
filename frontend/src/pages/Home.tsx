@@ -13,7 +13,7 @@ export function Home() {
             <nav className="home-nav">
                 <div className="home-nav-brand">
                     <div className="home-nav-icon">◆</div>
-                    <span>Morph</span>
+                    <span>Coevo Studio</span>
                 </div>
                 <button onClick={() => navigate("/dashboard")} className="home-nav-cta">
                     Open Dashboard <ArrowRight size={14} />
@@ -24,21 +24,21 @@ export function Home() {
             <section className="home-hero">
                 <div className="home-badge">
                     <span className="home-badge-dot" />
-                    MORPH · AI Pipeline
+                    COEVO STUDIO
                 </div>
 
                 <h1 className="home-title">
-                    <span className="home-title-light">Multi-Agent</span>
+                    <span className="home-title-light">AI-Powered</span>
                     <br />
-                    <span className="home-title-bold">Creative Pipeline</span>
+                    <span className="home-title-bold">Content Factory</span>
                     <br />
-                    <span className="home-title-serif">for AI Avatars</span>
+                    <span className="home-title-serif">for Brands & Agencies</span>
                 </h1>
 
                 <p className="home-subtitle">
-                    From brand brief to lip-synced avatar video in minutes.
+                    From brand brief to ready-to-publish UGC video in minutes.
                     <br />
-                    AI writes the script, clones the voice, and renders the final cut.
+                    AI writes the script, generates the visuals, clones the voice, and renders the final cut.
                 </p>
 
                 <div className="home-cta-row">
@@ -46,7 +46,7 @@ export function Home() {
                         Start Creating <ArrowRight size={15} />
                     </button>
                     <button className="home-btn-outline">
-                        Watch Demo
+                        Explore Tools
                         <Sparkles size={13} />
                     </button>
                 </div>
@@ -55,10 +55,10 @@ export function Home() {
             {/* ── Features strip ── */}
             <section className="home-features">
                 {[
-                    { icon: <Brain size={20} />, title: "Brand DNA", desc: "Internal AI prompt per brand" },
-                    { icon: <Mic size={20} />, title: "Voice Clone", desc: "ElevenLabs TTS integration" },
-                    { icon: <Video size={20} />, title: "Lip Sync", desc: "HeyGen talking photo avatars" },
-                    { icon: <Layers size={20} />, title: "Multi-Segment", desc: "Split & stitch pipeline" },
+                    { icon: <Brain size={20} />, title: "Brand Context", desc: "Every tool adapts to your brand" },
+                    { icon: <Mic size={20} />, title: "Voice Cloning", desc: "ElevenLabs TTS with your voice" },
+                    { icon: <Video size={20} />, title: "Avatar Videos", desc: "HeyGen lip-sync from photos" },
+                    { icon: <Layers size={20} />, title: "Multi-Tool", desc: "UGC, editorial, reels, ads" },
                 ].map((f) => (
                     <div key={f.title} className="home-feature-card">
                         <div className="home-feature-icon">{f.icon}</div>
@@ -70,9 +70,9 @@ export function Home() {
 
             {/* ── Footer ── */}
             <footer className="home-footer">
-                <span>Morph</span>
+                <span>Coevo Studio</span>
                 <span className="home-footer-dot">·</span>
-                <span>AI Creative Suite</span>
+                <span>AI Content Platform</span>
             </footer>
         </div>
     );

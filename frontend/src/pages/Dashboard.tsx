@@ -8,9 +8,11 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router";
 import { fetchBrands, createBrand, deleteBrand, type Brand } from "../lib/api";
+import { useBrand } from "../lib/BrandContext";
 
 export function Dashboard() {
     const navigate = useNavigate();
+    const { refreshBrands } = useBrand();
     const [brands, setBrands] = useState<Brand[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -58,6 +60,7 @@ export function Dashboard() {
             setShowAddModal(false);
             setNewBrandName("");
             await loadBrands();
+            await refreshBrands();
         } catch (err: any) {
             setCreateError(err.message || "Failed to create brand");
         } finally {
@@ -71,6 +74,7 @@ export function Dashboard() {
             await deleteBrand(brandId);
             setDeleteTarget(null);
             await loadBrands();
+            await refreshBrands();
         } catch (err: any) {
             setError(err.message || "Failed to delete brand");
         } finally {

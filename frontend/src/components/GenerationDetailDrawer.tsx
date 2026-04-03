@@ -6,9 +6,8 @@
  */
 import { useState, useEffect } from "react";
 import {
-    X, RefreshCw, Save, User, Package, Mic, Play, Pause,
-    CheckCircle2, Loader2, AlertCircle, ChevronRight,
-    Sparkles, FileText, Image, Video, Volume2,
+    X, RefreshCw, Save, User, Package, Play,
+    AlertCircle,
 } from "lucide-react";
 import { type Generation } from "./GenerationCard";
 import { Button } from "./ui/button";
@@ -52,8 +51,6 @@ export function GenerationDetailDrawer({ generation, isOpen, onClose, onSaveCont
     if (!isOpen || !generation) return null;
 
     const gen = generation;
-    const scriptPhase = gen.phases.find(p => p.id === "script");
-    const scenePhase = gen.phases.find(p => p.id === "scene");
     const audioPhase = gen.phases.find(p => p.id === "audio");
     const lipsyncPhase = gen.phases.find(p => p.id === "lipsync");
 

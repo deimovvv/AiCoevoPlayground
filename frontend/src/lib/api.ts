@@ -10,6 +10,7 @@ const API_BASE = "http://localhost:8000";
 export interface Avatar {
     id: string;
     name: string;
+    description?: string;
     filename: string;
     imageUrl: string;
     talkingPhotoId: string | null;
@@ -25,6 +26,25 @@ export interface VoicePreset {
 export interface Product {
     id: string;
     name: string;
+    description?: string;
+    filename: string;
+    imageUrl: string;
+}
+
+export interface ClothingItem {
+    id: string;
+    name: string;
+    description?: string;
+    tags?: string[];
+    filename: string;
+    imageUrl: string;
+}
+
+export interface BackgroundItem {
+    id: string;
+    name: string;
+    description?: string;
+    tags?: string[];
     filename: string;
     imageUrl: string;
 }
@@ -36,6 +56,30 @@ export interface Brand {
     avatars: Avatar[];
     voicePresets: VoicePreset[];
     products?: Product[];
+    clothing?: ClothingItem[];
+    backgrounds?: BackgroundItem[];
+}
+
+export interface ChatMessage {
+    role: "user" | "assistant";
+    content: string;
+}
+
+export async function sendChatMessage(
+    brandId: string,
+    messages: ChatMessage[],
+): Promise<string> {
+    const res = await fetch(`${API_BASE}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandId, messages }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Chat request failed" }));
+        throw new Error(err.detail || "Chat request failed");
+    }
+    const data = await res.json();
+    return data.reply;
 }
 
 export async function fetchBrands(): Promise<Brand[]> {
@@ -85,6 +129,37 @@ export async function updateBrand(brandId: string, updates: { name?: string; bra
 }
 
 // ══════════════════════════════════════════════════════════════
+//  Brand Guidance (URL + PDF)
+// ══════════════════════════════════════════════════════════════
+
+export async function addGuidanceFromUrl(brandId: string, url: string): Promise<{ added_chars: number; brand: Brand }> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/guidance/url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Failed to fetch URL" }));
+        throw new Error(err.detail || "Failed to fetch URL");
+    }
+    return res.json();
+}
+
+export async function addGuidanceFromPdf(brandId: string, file: File): Promise<{ added_chars: number; pages: number; brand: Brand }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/guidance/pdf`, {
+        method: "POST",
+        body: formData,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Failed to parse PDF" }));
+        throw new Error(err.detail || "Failed to parse PDF");
+    }
+    return res.json();
+}
+
+// ══════════════════════════════════════════════════════════════
 //  Copy Generation
 // ══════════════════════════════════════════════════════════════
 
@@ -100,6 +175,7 @@ export interface GenerateCopyRequest {
 export interface GenerateCopyResult {
     scripts: string[];
     model: string;
+    brief?: string;
 }
 
 export async function generateCopy(brandId: string, req: GenerateCopyRequest): Promise<GenerateCopyResult> {
@@ -124,9 +200,11 @@ export async function uploadAvatar(
     name: string,
     imageFile: File,
     uploadToHeygen = true,
+    description = "",
 ): Promise<Avatar> {
     const formData = new FormData();
     formData.append("name", name);
+    formData.append("description", description);
     formData.append("image", imageFile);
     formData.append("upload_to_heygen", String(uploadToHeygen));
 
@@ -194,9 +272,11 @@ export async function uploadProduct(
     brandId: string,
     name: string,
     imageFile: File,
+    description = "",
 ): Promise<Product> {
     const formData = new FormData();
     formData.append("name", name);
+    formData.append("description", description);
     formData.append("image", imageFile);
 
     const res = await fetch(`${API_BASE}/api/brands/${brandId}/products`, {
@@ -222,6 +302,173 @@ export async function deleteProduct(brandId: string, productId: string): Promise
 export function productImageUrl(relativeUrl: string): string {
     if (relativeUrl.startsWith("http")) return relativeUrl;
     return `${API_BASE}${relativeUrl}`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Clothing API
+// ══════════════════════════════════════════════════════════════
+
+export async function uploadClothing(
+    brandId: string,
+    name: string,
+    imageFile: File,
+    description = "",
+    tags = "",
+): Promise<ClothingItem> {
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("description", description);
+    formData.append("tags", tags);
+    formData.append("image", imageFile);
+
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/clothing`, {
+        method: "POST",
+        body: formData,
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(err.detail || `Failed to upload clothing (${res.status})`);
+    }
+
+    return res.json();
+}
+
+export async function deleteClothing(brandId: string, itemId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/clothing/${itemId}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete clothing item");
+}
+
+export function clothingImageUrl(relativeUrl: string): string {
+    if (relativeUrl.startsWith("http")) return relativeUrl;
+    return `${API_BASE}${relativeUrl}`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Backgrounds API
+// ══════════════════════════════════════════════════════════════
+
+export async function uploadBackground(
+    brandId: string,
+    name: string,
+    imageFile: File,
+    description = "",
+    tags = "",
+): Promise<BackgroundItem> {
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("description", description);
+    formData.append("tags", tags);
+    formData.append("image", imageFile);
+
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/backgrounds`, {
+        method: "POST",
+        body: formData,
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(err.detail || `Failed to upload background (${res.status})`);
+    }
+
+    return res.json();
+}
+
+export async function deleteBackground(brandId: string, itemId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/backgrounds/${itemId}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete background");
+}
+
+export function backgroundImageUrl(relativeUrl: string): string {
+    if (relativeUrl.startsWith("http")) return relativeUrl;
+    return `${API_BASE}${relativeUrl}`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Voice Presets API
+// ══════════════════════════════════════════════════════════════
+
+export async function addVoicePreset(
+    brandId: string,
+    name: string,
+    voiceId: string,
+): Promise<VoicePreset> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/voices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, voice_id: voiceId }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(err.detail || `Failed to add voice (${res.status})`);
+    }
+    return res.json();
+}
+
+export async function deleteVoicePreset(brandId: string, voiceId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/voices/${voiceId}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete voice");
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Generations API
+// ══════════════════════════════════════════════════════════════
+
+export interface Generation {
+    id: string;
+    brandId: string;
+    toolId: string;
+    title: string;
+    type: "video" | "image" | "copy";
+    status: string;
+    thumbnailUrl?: string;
+    outputUrl?: string;
+    scenes?: Array<{ id: string; title: string; script?: string; imageUrl?: string; videoUrl?: string }>;
+    metadata?: Record<string, unknown>;
+    createdAt: string;
+}
+
+export async function fetchGenerations(brandId?: string): Promise<Generation[]> {
+    const url = brandId
+        ? `${API_BASE}/api/generations?brandId=${brandId}`
+        : `${API_BASE}/api/generations`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to fetch generations");
+    const data = await res.json();
+    return data.generations;
+}
+
+export async function saveGeneration(gen: {
+    brandId: string;
+    toolId: string;
+    title: string;
+    type: "video" | "image" | "copy";
+    status?: string;
+    thumbnailUrl?: string;
+    outputUrl?: string;
+    scenes?: Array<Record<string, unknown>>;
+    metadata?: Record<string, unknown>;
+}): Promise<Generation> {
+    const res = await fetch(`${API_BASE}/api/generations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(gen),
+    });
+    if (!res.ok) throw new Error("Failed to save generation");
+    return res.json();
+}
+
+export async function deleteGeneration(genId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/generations/${genId}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete generation");
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -259,6 +506,23 @@ export async function generateTTS(req: TTSRequest): Promise<TTSResult> {
     const blob = await res.blob();
     const audioUrl = URL.createObjectURL(blob);
     return { audioUrl, audioBlob: blob };
+}
+
+/**
+ * Generate TTS and upload audio to Fal Storage in one step.
+ * Returns the Fal URL ready to pass to HeyGen.
+ */
+export async function generateTTSAndUpload(req: TTSRequest): Promise<{ fal_url: string }> {
+    const res = await fetch(`${API_BASE}/api/tts/generate-and-upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(err.detail || `TTS+Upload failed (${res.status})`);
+    }
+    return res.json();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -714,6 +978,181 @@ export async function pollFalLipSync(
         await new Promise((r) => setTimeout(r, intervalMs));
     }
     throw new Error("Fal lip sync timed out");
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Prompt Templates & Overrides
+// ══════════════════════════════════════════════════════════════
+
+export interface PromptTemplate {
+    tool_id: string;
+    path: string;
+    preview: string;
+}
+
+export async function fetchPromptTemplates(): Promise<PromptTemplate[]> {
+    const res = await fetch(`${API_BASE}/api/prompts/templates`);
+    if (!res.ok) throw new Error("Failed to fetch prompt templates");
+    const data = await res.json();
+    return data.templates;
+}
+
+export async function fetchPromptTemplate(toolId: string): Promise<string> {
+    const res = await fetch(`${API_BASE}/api/prompts/templates/${toolId}`);
+    if (!res.ok) throw new Error("Failed to fetch template");
+    const data = await res.json();
+    return data.template;
+}
+
+export async function fetchBrandPromptOverrides(brandId: string): Promise<Record<string, string>> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/prompts`);
+    if (!res.ok) throw new Error("Failed to fetch overrides");
+    const data = await res.json();
+    return data.overrides;
+}
+
+export async function setBrandPromptOverride(brandId: string, toolId: string, template: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/prompts/${toolId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template }),
+    });
+    if (!res.ok) throw new Error("Failed to save prompt override");
+}
+
+export async function deleteBrandPromptOverride(brandId: string, toolId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/prompts/${toolId}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete prompt override");
+}
+
+export async function previewPrompt(brandId: string, toolId: string, extraVariables?: Record<string, string>): Promise<string> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/prompts/${toolId}/preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extra_variables: extraVariables || {} }),
+    });
+    if (!res.ok) throw new Error("Failed to preview prompt");
+    const data = await res.json();
+    return data.prompt;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Generic Tool Prompt Execution
+// ══════════════════════════════════════════════════════════════
+
+export async function generateToolPrompt(
+    brandId: string,
+    toolId: string,
+    userMessage?: string,
+    extraVariables?: Record<string, string>,
+): Promise<{ result: unknown; raw?: boolean }> {
+    const res = await fetch(`${API_BASE}/api/tools/generate-prompt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            brandId,
+            toolId,
+            userMessage: userMessage || "",
+            extraVariables: extraVariables || {},
+        }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(err.detail || `Prompt generation failed (${res.status})`);
+    }
+    return res.json();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Video Concat (FFmpeg)
+// ══════════════════════════════════════════════════════════════
+
+export interface ConcatResult {
+    video_url: string;
+    duration: number;
+    size_bytes: number;
+    num_segments: number;
+}
+
+export async function concatVideos(
+    videoUrls: string[],
+    scripts?: Array<{ text: string }>,
+    addSubtitles: boolean = true,
+    subtitleEngine: "auto" | "remotion" | "ffmpeg" | "none" = "auto",
+): Promise<ConcatResult> {
+    const res = await fetch(`${API_BASE}/api/video/concat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            video_urls: videoUrls,
+            scripts: scripts || null,
+            add_subtitles: addSubtitles,
+            subtitle_engine: subtitleEngine,
+        }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(err.detail || `Video concat failed (${res.status})`);
+    }
+    return res.json();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  HeyGen Avatar 4 (via Fal) — Talking Head Video
+// ══════════════════════════════════════════════════════════════
+
+export async function createHeyGenAvatar4(opts: {
+    image_url: string;
+    prompt?: string;
+    voice?: string;
+    audio_url?: string;
+    expression?: string;
+    talking_style?: string;
+    aspect_ratio?: string;
+    resolution?: string;
+}): Promise<{ request_id: string }> {
+    const res = await fetch(`${API_BASE}/api/heygen-avatar4/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(opts),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(err.detail || `HeyGen Avatar4 failed (${res.status})`);
+    }
+    return res.json();
+}
+
+export async function pollHeyGenAvatar4(requestId: string): Promise<{
+    status: string;
+    video_url?: string;
+    error?: string;
+}> {
+    const POLL_INTERVAL = 3000;
+    const MAX_POLLS = 120; // 6 minutes max
+
+    for (let i = 0; i < MAX_POLLS; i++) {
+        const statusRes = await fetch(`${API_BASE}/api/heygen-avatar4/status/${requestId}`);
+        if (!statusRes.ok) throw new Error("Failed to check HeyGen Avatar4 status");
+        const statusData = await statusRes.json();
+
+        if (statusData.status === "completed") {
+            const resultRes = await fetch(`${API_BASE}/api/heygen-avatar4/result/${requestId}`);
+            if (!resultRes.ok) throw new Error("Failed to fetch HeyGen Avatar4 result");
+            const resultData = await resultRes.json();
+            return { status: "completed", video_url: resultData.video_url };
+        }
+
+        if (statusData.status === "failed") {
+            return { status: "failed", error: statusData.error || "HeyGen Avatar4 failed" };
+        }
+
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+    }
+
+    throw new Error("HeyGen Avatar4 timed out");
 }
 
 // ══════════════════════════════════════════════════════════════

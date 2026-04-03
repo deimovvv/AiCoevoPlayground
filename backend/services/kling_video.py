@@ -13,6 +13,7 @@ REST API (Fal queue pattern):
 
 import os
 import httpx
+from typing import Optional
 
 FAL_BASE = "https://queue.fal.run"
 FAL_MODEL = "fal-ai/kling-video/v2.6/pro/image-to-video"  # Full path for submit
@@ -99,9 +100,9 @@ async def upload_image(image_bytes: bytes, filename: str, content_type: str = "i
 
 async def create_video(
     image_url: str,
-    prompt: str | None = None,
+    prompt: Optional[str] = None,
     duration: str = "10",
-    negative_prompt: str | None = None,
+    negative_prompt: Optional[str] = None,
     aspect_ratio: str = "9:16",
 ) -> str:
     """

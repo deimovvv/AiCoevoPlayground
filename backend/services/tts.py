@@ -5,12 +5,13 @@ Generates speech audio from text using the ElevenLabs API.
 """
 
 import os
+from typing import Optional
 from elevenlabs import ElevenLabs
 
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 DEFAULT_VOICE_ID = os.getenv("VOICE_ID_ELIAS", "POQuTryNv2hmgg36pjcD")
 
-_client: ElevenLabs | None = None
+_client: Optional[ElevenLabs] = None
 
 
 def _get_client() -> ElevenLabs:
@@ -24,7 +25,7 @@ def _get_client() -> ElevenLabs:
 
 def generate_audio(
     text: str,
-    voice_id: str | None = None,
+    voice_id: Optional[str] = None,
     model_id: str = "eleven_multilingual_v2",
     output_format: str = "mp3_44100_128",
 ) -> bytes:

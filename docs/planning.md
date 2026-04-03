@@ -1,102 +1,109 @@
-# Morph — Development Planning
-
-Development follows a phased approach. The goal is to build a working internal creative OS first, then evolve into a client-facing product.
+# Coevo Studio — Development Planning
 
 ---
 
-## Phase 1 — Internal MVP ✅ (Complete)
+## Phase 1 — Internal MVP (Complete)
 
-**Goal**: Create a working system to generate UGC videos for one brand.
+**Goal**: Working system to generate UGC videos for one brand.
 
-**Delivered**:
 - Brand management (create, configure, delete)
-- Script input and multi-segment splitting
 - ElevenLabs TTS integration
-- HeyGen Talking Photo lip-sync
-- Multi-segment generation pipeline with QA checkpoints
+- HeyGen Talking Photo lip-sync (legacy)
+- Multi-segment generation pipeline
 - Brand workspace with avatars and voice presets
 
-**Example brand**: Taller Santa Clara
+---
+
+## Phase 2 — Multi-Brand + Dashboard (Complete)
+
+**Goal**: Support multiple brands with proper dashboard.
+
+- Dashboard with brand cards and CRUD
+- Brand configuration (context, assets, voices, prompts)
+- Voice presets per brand with preview + upload custom voice IDs
+- Product, clothing, background asset upload
+- Dark editorial design system
+- Brand guidance from URL scraping and PDF upload
 
 ---
 
-## Phase 2 — Multi-Brand + Dashboard ✅ (Complete)
+## Phase 3 — Tools System + Context Architecture (Complete)
 
-**Goal**: Support multiple brands with a proper dashboard structure.
+**Goal**: Modular creative tools with context-aware prompt system.
 
-**Delivered**:
-- Dashboard overview with stats (Brands, Tools, Avatars)
-- Separate Brands page with full CRUD
-- Brand configuration panel
-- Voice presets per brand
-- HeyGen avatar sync per brand
-- Brand DNA (AI-generated brand context via OpenAI)
-- Dark editorial design system with warm burgundy accent
+- Tools registry (`registry.json` + prompt templates)
+- 9 registered tools (6 active, 3 coming soon)
+- PromptBuilder 3-layer system (default → brand override → dynamic vars)
+- AI Chat with Gemini, brand context, asset chips
+- Brand switcher in sidebar
+- Tool-specific form schemas (different inputs per tool)
 
 ---
 
-## Phase 3 — Tools System ✅ (In Progress)
+## Phase 4 — Full Pipeline Integration (Complete)
 
-**Goal**: Modular creative tools beyond video generation.
+**Goal**: All AI services wired end-to-end.
 
-**Delivered**:
-- Tools backend architecture (registry, configs, job execution)
-- Tools API endpoints (list, config, run, status)
-- Frontend Tools page with category filtering (Images/Video)
-- Dynamic form generation from config.json
-- Collapsible Tools sidebar navigation
+- Gemini 2.5 Flash: script generation with brand-aware prompts
+- Nano Banana 2: image generation with multi-reference (avatar + clothing + product + background)
+- ElevenLabs: TTS with custom voice IDs per brand
+- HeyGen Avatar 4 (via Fal): lip-sync video from image + audio
+- FFmpeg: video concatenation + word-by-word subtitles
+- Human-in-the-loop: script review, base image review, test video, manual curation
+- Inline asset upload from pipeline form (clothing, backgrounds)
+- Audio generation + Fal Storage upload via backend endpoint
+- Content library with real generations
 
 **Current tools**:
-| Tool               | Category | Status       |
-|--------------------|----------|--------------|
-| Photo → Multi-Shot | Images   | Active       |
-| Background Remover | Images   | Coming Soon  |
-| Clip Generator     | Video    | Coming Soon  |
+
+| Tool | Category | Status |
+|------|----------|--------|
+| UGC Creator | Video | Active (8-step pipeline) |
+| Product Spotlight | Images | Active |
+| Fashion Editorial | Images | Active |
+| Fashion Reels | Video | Active |
+| Product Photos | Images | Active |
+| Ad Creative | Images | Active |
+| Social Post | Copy | Active |
+| Reel Creator | Video | Coming Soon |
+| Background Remover | Images | Coming Soon |
+
+---
+
+## Phase 5 — Polish + Deploy (Next)
+
+**Goal**: Production-ready for internal team use.
 
 **TODO**:
-- Implement `run.py` scripts for each tool
-- Job status polling on frontend
-- Result display (image galleries, video previews)
+- End-to-end UGC pipeline test (script → render with real video output)
+- Content page: download, preview, delete generations
+- Storage abstraction (Local → Cloudflare R2) for deploy
+- Basic auth (Clerk or shared password) for team access
+- Deploy: Vercel (frontend) + Render (backend)
+- Clean up error handling and retry UX
 
 ---
 
-## Phase 4 — Batch Video Generation
+## Phase 6 — Database + Scale
 
-**Goal**: Generate multiple videos at once.
+**Goal**: Handle multiple brands, many generations, team collaboration.
 
-**Features**:
-- Script tables with batch upload
-- Batch execution with progress tracking
-- Error handling and retry
-- Weekly production workflow automation
-
-**Target**: 24+ videos per month per brand
-
----
-
-## Phase 5 — Client Dashboard
-
-**Goal**: Allow brands to self-serve.
-
-**Features**:
-- Authentication (Clerk or Supabase Auth)
-- Brand-specific dashboard
-- Script upload and management
-- Video library with downloads
-- Usage analytics
+- PostgreSQL in Docker (replace JSON files)
+- Alembic migrations
+- Redis job queues for background processing
+- Batch generation (multiple videos at once)
+- Generation search/filter/pagination
+- Usage analytics per brand
 
 ---
 
-## Phase 6 — Automation & Scaling
+## Phase 7 — Client Dashboard + Automation
 
-**Goal**: Reduce manual intervention and handle volume.
+**Goal**: Allow brands to self-serve, reduce manual intervention.
 
-**Features**:
-- AI script generation from Brand DNA
-- Auto-select avatars and styles
-- Redis queue workers for parallel processing
-- S3 storage for media assets
-- PostgreSQL for structured data
+- Authentication per user/brand (Clerk or Supabase Auth)
+- Brand-specific dashboards
+- Auto-select assets from brand context
 - WebSocket real-time job updates
-
-**Deliverable**: Semi-autonomous UGC video factory.
+- Semi-autonomous content factory
+- Platform integrations (Meta, TikTok publish)

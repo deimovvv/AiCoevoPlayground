@@ -4,15 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Coevo Creative OS** is an internal agency platform for managing multi-brand advertising and marketing content creation. The system is designed as a **context-aware content factory** where AI tools dynamically adapt to each brand's assets, prompts, briefs, and brand guidelines.
+**Coevo Studio** is an internal agency platform for managing multi-brand advertising and marketing content creation. The system is designed as a **context-aware content factory** where AI tools dynamically adapt to each brand's assets, prompts, and brand guidelines.
 
 ### Core Innovation
 
-Unlike traditional creative tools that require manual prompt configuration for every generation, Coevo Creative OS uses a **context-first architecture**:
 - When you select a brand, **all tools automatically inherit** that brand's context
-- Assets (avatars, products, clothing, backgrounds) are uploaded once and reused across all tools
-- Prompts are editable templates with variables, not hardcoded
-- The "multishot curation" approach generates multiple variations and AI selects the best before expensive animation
+- Assets (avatars, products, clothing) are uploaded once and reused across all tools
+- Prompts are editable templates with variables via 3-layer PromptBuilder system
+- The "multishot curation" approach generates multiple variations and selects the best before expensive animation
 
 ## Development Commands
 
@@ -23,81 +22,105 @@ npm install                    # Install dependencies
 npm run dev                    # Start dev server (http://localhost:5173)
 npm run build                  # Build for production
 npm run lint                   # Run ESLint
-npm run preview                # Preview production build
 ```
 
 ### Backend (FastAPI + Python)
 ```bash
 cd backend
-python -m venv .venv                    # Create virtual environment (first time only)
-.venv\Scripts\activate                  # Windows activation
-source .venv/bin/activate               # macOS/Linux activation
-pip install -r requirements.txt         # Install dependencies
-python -m uvicorn main:app --reload --port 8000    # Start dev server
+python -m venv .venv
+source .venv/bin/activate               # macOS/Linux
+pip install -r requirements.txt
+python -m uvicorn main:app --reload --port 8000
 ```
 
 ## Architecture
 
 ### Tech Stack
-- **Frontend**: React 19 + TypeScript + Vite 8 Beta + Tailwind CSS v4 + React Router 7
+- **Frontend**: React 19 + TypeScript 5.9 + Vite 8 Beta + Tailwind CSS v4 + React Router 7
 - **Backend**: FastAPI + Python 3.11+ + Uvicorn
 - **AI Services**:
-  - **Gemini 2.5 Flash** (prompt generation, brief interpretation, scripts, image curation with Vision)
-  - **Nano Banana 2** (image generation & editing)
-  - **Kling** (video generation for reels)
-  - **ElevenLabs** (text-to-speech, voice cloning)
-  - **Fal AI Fabric 1.0** (advanced lip-sync from static images)
-  - **HeyGen** (legacy talking photo lip-sync)
+  - **Gemini 2.5 Flash** — scripts, chat, prompt assembly, curation (planned)
+  - **Nano Banana 2** via Fal — image generation & editing
+  - **Kling V2.6** via Fal — image-to-video generation
+  - **ElevenLabs** — text-to-speech, voice cloning
+  - **Fal AI Fabric 1.0** — lip-sync from static images + audio
+  - **HeyGen** — legacy talking photo lip-sync
+  - **FFmpeg** — video concatenation
 
 ### Data Persistence (Phase 1)
 - **No database** — JSON file-based storage
-- **Per-brand folder structure**:
+- **Storage structure**:
   ```
-  backend/data/brands/{brand-id}/
-  ├── brand.json                  # Core config
-  ├── context/
-  │   ├── brand_guidance.md       # Brand guidelines document
-  │   ├── briefs/                 # Campaign briefs
-  │   └── prompts/                # Tool-specific prompt overrides
-  ├── assets/
-  │   ├── avatars/                # Avatar images + metadata
-  │   ├── products/               # Product images
-  │   ├── clothing/               # Wardrobe items
-  │   └── backgrounds/            # Scene backgrounds
-  └── generations/                # Generated content history
+  backend/data/
+    brands.json           # All brands (flat JSON array)
+    avatars/              # Avatar image files
+    products/             # Product image files
+    clothing/             # Clothing image files
+    renders/              # Generated video outputs
   ```
 
 ### Project Structure
 ```
 frontend/src/
-├── pages/              # Route-level components
-│   ├── Dashboard.tsx           # Brand list management
-│   ├── BrandWorkspace.tsx      # Main brand context hub
-│   ├── AssetManager.tsx        # Upload & manage brand assets (TODO)
-│   ├── PromptEditor.tsx        # Edit tool prompts (TODO)
-│   └── ChatAssistant.tsx       # AI chat interface (TODO)
-├── components/
-│   ├── GenerationBoard.tsx         # Card-based generation history
-│   ├── GenerationCard.tsx          # Individual generation card
-│   ├── NewGenerationWizard.tsx     # Modal for new generations
-│   ├── PipelineMonitor.tsx         # Real-time pipeline tracker
-│   ├── layout/                     # AppLayout + Sidebar
-│   └── ui/                         # Reusable primitives
-└── lib/
-    └── api.ts                      # All backend API calls
+  pages/                    # Route-level components (14 pages)
+    Home.tsx                  # Landing page
+    Dashboard.tsx             # Brand list management
+    Workspace.tsx             # Main workspace with ChatPanel
+    BrandWorkspace.tsx        # Brand detail (avatars, scripts, gen board)
+    BrandSettings.tsx         # Brand configuration
+    GeneratePage.tsx           # Tool registry and launcher
+    ToolRunPage.tsx            # Step-by-step pipeline execution
+    ContentPage.tsx            # Content library
+    GenerationPipeline.tsx     # Pipeline view
+    ToolsPage.tsx              # Tool browser
+    PipelineConfigPage.tsx     # Admin pipeline config
+    IntegrationsPage.tsx       # Platform connections
+    AutomationsPage.tsx        # Workflow automation
+    PerformancePage.tsx        # Analytics dashboard
+  components/
+    ChatPanel.tsx              # AI chat with asset chips + tool actions
+    BrandPanel.tsx             # Brand details side panel
+    GenerationBoard.tsx        # Card-based generation history
+    GenerationCard.tsx         # Individual generation card
+    GenerationDetailDrawer.tsx # Generation detail view
+    NewGenerationWizard.tsx    # New generation modal
+    PipelineMonitor.tsx        # Real-time pipeline tracker
+    PipelineTimeline.tsx       # Timeline visualization
+    PromptsCard.tsx            # Prompt override management
+    HeygenAvatarSelector.tsx   # HeyGen avatar selector
+    ActivePipelineDrawer.tsx   # Active pipeline sidebar
+    layout/                    # AppLayout, Sidebar, BrandSwitcher
+    ui/                        # Button, Card, Input, Label, Textarea
+  lib/
+    api.ts                     # All backend API calls (40+ functions)
+    BrandContext.tsx            # Global brand state provider
+    utils.ts                   # cn() utility
 
 backend/
-├── main.py             # FastAPI app with all endpoints
-├── services/           # Modular business logic
-│   ├── brands.py       # Brand CRUD + context management
-│   ├── copy_gen.py     # Gemini script generation
-│   ├── tts.py          # ElevenLabs TTS
-│   ├── heygen.py       # HeyGen integration
-│   ├── fal_lipsync.py  # Fal Fabric lip-sync
-│   ├── kling_video.py  # Kling video generation
-│   └── image_gen.py    # Nano Banana integration (TODO)
-├── data/brands/{id}/   # Per-brand storage
-└── tools/              # Modular tools system
+  main.py                  # FastAPI app with 51 endpoints
+  services/                # 11 service modules
+    brands.py                # Brand CRUD + asset persistence
+    chat.py                  # Gemini chat with brand context
+    copy_gen.py              # Gemini script generation
+    prompt_builder.py        # 3-layer prompt assembly
+    tts.py                   # ElevenLabs TTS
+    image_gen.py             # Nano Banana 2 via Fal
+    kling_video.py           # Kling V2.6 via Fal
+    fal_lipsync.py           # Fal Fabric lip-sync
+    heygen.py                # HeyGen integration (legacy)
+    video_concat.py          # FFmpeg video concatenation
+  tools/                   # 9 tool directories
+    registry.json            # Tool registry (6 tools)
+    ugc_creator/             # 8-step UGC pipeline
+    ugc_multishot/           # Multishot image generation
+    ad_creative/             # Ad creative generation
+    social_post/             # Social media posts
+    reel_creator/            # Short-form reels
+    photo_multishot/         # Product photo variations
+    chat/                    # Chat prompt template
+    bg_remover/              # Background removal
+    clip_generator/          # Clip generation
+  data/                    # JSON storage + media files
 ```
 
 ## Core Concepts
@@ -106,79 +129,50 @@ backend/
 
 **Every tool execution** follows this flow:
 ```
-User selects tool within brand →
-Backend loads:
-  - Brand guidance document
-  - Active campaign brief (optional)
-  - Tool prompt template (custom or default)
-  - Selected assets (avatar, product, clothing, background) →
-Gemini generates final prompt using template + context →
-Execute tool (Nano Banana / Kling / etc.) →
-Return job ID → frontend polls for results
+User selects tool within brand ->
+PromptBuilder loads:
+  - Tool prompt template (brand override or default)
+  - Dynamic variables from brand (name, guidance, assets)
+  - Conditional sections based on available data ->
+Execute tool with generated prompt ->
+Return job ID -> frontend polls for results
 ```
 
-### 2. Asset Management
+### 2. PromptBuilder (3-Layer System)
 
-**Asset Types**:
-1. **Avatars**: People/models with detailed descriptions
-   - Required metadata: name, description, tags
-   - Example: "Hombre de 32 años, argentino, piel morena clara, barba corta, casual urbano"
-
-2. **Products**: Products with transparent PNGs
-   - Required metadata: name, category, description
-
-3. **Clothing/Wardrobe**: Outfit options for avatars
-   - Required metadata: description, tags
-
-4. **Backgrounds**: Scene images or backgrounds
-   - Required metadata: description, mood, lighting
-
-**Key Insight**: Assets are uploaded once per brand and available to ALL tools automatically.
-
-### 3. Prompt System
-
-**Structure**:
-- Default prompts: `backend/tools/{tool_id}/default_prompt.txt`
-- Brand overrides: `backend/data/brands/{brand_id}/context/prompts/{tool_id}.txt`
-
-**Template Variables**:
-- `{brand_name}`
-- `{brand_guidance}`
-- `{active_brief}`
-- `{avatar_description}`
-- `{product_name}`
-- `{clothing_description}`
-- `{background_description}`
-- Custom variables per tool
-
-**Example**:
 ```
-You are creating a UGC video for {brand_name}.
-
-BRAND CONTEXT:
-{brand_guidance}
-
-AVATAR:
-{avatar_description}
-
-PRODUCT:
-{product_name}
-
-Generate a 30-second UGC script...
+Layer 1: Tool Default     ->  backend/tools/{tool_id}/default_prompt.txt
+Layer 2: Brand Override   ->  brand.promptOverrides[tool_id]
+Layer 3: Dynamic Vars     ->  {brand_name}, {brand_guidance}, {avatars}, {products}, etc.
 ```
 
-### 4. Generation Pipeline (UGC Videos)
+- Template variables: `{variable_name}`
+- Conditional blocks: `{?var}...{/var}` (only included if variable is non-empty)
 
-**6-Phase Morfeo Pipeline**:
+### 3. Asset Management
 
-1. **Script Generation** (Gemini 2.5) → 5-act structure (Hook → Story → Story → Twist → CTA)
-2. **Multishot Image Gen** (Nano Banana 2) → 3-5 variations per scene
-3. **AI Curation** (Gemini Vision) → Selects best shot per scene
-4. **Audio Generation** (ElevenLabs) → TTS per scene
-5. **Lip-Sync Animation** (Fal Fabric 1.0) → Only curated images (cost optimization!)
-6. **Final Render** (FFmpeg) → Combine segments with transitions
+**Types**: Avatars (with descriptions/tags), Products, Clothing, Voice Presets
 
-**Key Optimization**: By generating multiple image variations and selecting the best BEFORE animating, we save 60-70% on expensive lip-sync costs.
+**Key**: Assets are uploaded once per brand and available to ALL tools automatically.
+
+### 4. UGC Pipeline (8 Steps)
+
+1. **Script** (Gemini 2.5 Flash) — 3-4 act structure
+2. **Base Image** (Nano Banana 2) — Avatar + prompt
+3. **Multishot** (Nano Banana 2 x N) — Parallel variations
+4. **Curation** (planned: Gemini Vision) — Select best
+5. **Voice** (ElevenLabs) — TTS per scene
+6. **Lip-Sync** (Kling + Fal Fabric) — Animate curated image
+7. **Subtitles** (planned)
+8. **Render** (FFmpeg) — Concatenate segments
+
+### 5. Async Job Pattern (Fal services)
+
+```
+POST submit -> request_id
+GET poll status -> IN_QUEUE | IN_PROGRESS | COMPLETED
+GET fetch result -> final URL
+```
 
 ## Common Development Patterns
 
@@ -194,139 +188,77 @@ All backend communication goes through `frontend/src/lib/api.ts`. Always use exp
 
 ### Adding a New Tool
 1. Create tool directory: `backend/tools/{tool_id}/`
-2. Add `config.json` with parameters definition
-3. Add `default_prompt.txt` with template
+2. Add `default_prompt.txt` with template variables
+3. Optionally add `config.json` with parameters
 4. Register in `backend/tools/registry.json`
 5. Implement execution logic in `backend/services/`
-6. Add frontend UI in tool selection flow
-
-### Adding a New Asset Type
-1. Update brand data structure in `backend/services/brands.py`
-2. Add storage directory in `backend/data/brands/{id}/assets/{type}/`
-3. Create upload endpoint in `backend/main.py`
-4. Add TypeScript types in `frontend/src/lib/api.ts`
-5. Add UI for upload + selection in `AssetManager.tsx`
 
 ## API Key Management
 
 All API keys stored in `backend/.env`:
 ```
 GEMINI_API_KEY=...
-NANO_BANANA_API_KEY=...
 ELEVENLABS_API_KEY=...
-HEYGEN_API_KEY=...
 FAL_KEY=...
-KLING_API_KEY=...
+HEYGEN_API_KEY=...     # optional
+KLING_API_KEY=...      # optional
 ```
 
 **CRITICAL**: Never commit `.env` or expose keys in code/logs.
 
-## Current State & Roadmap
+## Current State
 
-### Implemented (Phase 1)
-- ✅ Brand CRUD (create, list, delete)
-- ✅ Avatar upload + HeyGen sync
-- ✅ Product upload
-- ✅ Voice presets per brand
-- ✅ Generation Board UI (with mock data)
-- ✅ ElevenLabs TTS integration
-- ✅ HeyGen talking photo integration
-- ✅ Fal Fabric lip-sync integration
-- ✅ Kling video generation integration
-- ✅ Gemini script generation
+### Implemented
+- Brand CRUD with rich configuration (context, assets, voices, prompts)
+- Avatar, product, clothing upload with metadata
+- Voice presets with TTS preview playback
+- AI Chat (Gemini 2.5 Flash) with brand context, asset chips, tool quick actions
+- 6 registered tools (4 active: UGC Creator, Product Photos, Ad Creative, Social Post)
+- UGC Creator: 8-step pipeline with mock preview mode
+- 3-layer prompt system (defaults, brand overrides, dynamic variables)
+- All AI services integrated: Gemini, Nano Banana 2, Kling V2.6, ElevenLabs, Fal Fabric
+- FFmpeg video concatenation
+- Brand guidance from URL scraping and PDF upload
+- Brand switcher in sidebar with real-time sync
 
-### In Progress (Phase 2)
-- 🚧 Context-aware architecture refactor
-- 🚧 Asset library system (clothing, backgrounds)
-- 🚧 Prompt management system
-- 🚧 Nano Banana 2 integration
-- 🚧 Multishot generation flow
-- 🚧 AI curation (Gemini Vision)
+### In Progress
+- Gemini Vision curation (currently auto-selects first variation)
+- Subtitles pipeline step
+- Content library with real generations
+- End-to-end pipeline testing
 
-### Planned (Phase 3)
-- 📋 Asset Manager UI
-- 📋 Prompt Editor UI
-- 📋 Full UGC pipeline backend
-- 📋 Multishot Review Chamber UI
-- 📋 Real-time job status with WebSocket
-- 📋 Brief management
-- 📋 AI Chat Assistant
-
-### Future (Phase 4+)
-- 📋 Batch generation
-- 📋 Scheduling & auto-publish
-- 📋 Team collaboration
-- 📋 Analytics dashboard
-- 📋 Client-facing dashboards
+### Planned
+- Batch generation
+- Client-facing dashboards
+- Authentication
+- Redis job queues
+- PostgreSQL migration
 
 ## Important Notes
 
-- **Windows Environment**: Developed on Windows (use backslashes in some paths)
-- **No Git Repository**: Currently not initialized as git repo
+- **macOS/Linux Environment**: Primary development on macOS
 - **CORS**: Backend allows all origins for local development
-- **Static Files**: Backend serves `/static/avatars/` and `/static/products/`
-- **Async Execution**: Backend uses `asyncio` for external API calls
+- **Static Files**: Backend serves `/static/avatars/`, `/static/products/`, `/static/clothing/`, `/static/renders/`
+- **Async Execution**: Backend uses `asyncio` + `httpx` for external API calls
 - **Type Safety**: Frontend uses TypeScript strictly — maintain type definitions
 - **Dark Theme**: Pure black canvas (#000000) with warm burgundy accent (#c45830)
-
-## Design System
-
-- **Colors**: Dark editorial with neutral grays + warm burgundy accent
-- **Typography**: Inter font, sizes 11-22px
-- **Layout**: Fixed sidebar (200px) + content area (pure black canvas)
-- **Spacing**: 4px base grid
-- **Border radius**: 6px (sm), 8px (md), 12px (lg)
-
-## Testing Strategy
-
-Currently: Manual testing
-
-Future phases:
-- Unit tests for services (pytest)
-- Integration tests for pipelines
-- E2E tests for critical flows (Playwright)
-- Visual regression tests for UI components
+- **React Hooks Rule**: All `useState` calls must be before any conditional returns in components
 
 ## Documentation
 
-- **[architecture.md](docs/architecture.md)**: Full system architecture, API endpoints, data structures
-- **[stack.md](docs/stack.md)**: Tech stack details, development setup, environment variables
-- **[morfeo_pipeline.md](docs/morfeo_pipeline.md)**: Detailed pipeline flows, cost optimization, error handling
-- **[product_vision_ux.md](docs/product_vision_ux.md)**: Product philosophy, user flows, UI components
+- **[architecture.md](docs/architecture.md)**: System architecture, API endpoints, data structures
+- **[tools.md](docs/tools.md)**: All 9 tools with prompts, pipelines, inputs, and rules
+- **[stack.md](docs/stack.md)**: Tech stack, services, environment setup
+- **[pipeline.md](docs/pipeline.md)**: UGC pipeline flow, cost optimization, PromptBuilder
+- **[product_vision_ux.md](docs/product_vision_ux.md)**: UX philosophy, user flows
 - **[design.md](docs/design.md)**: Design system, color tokens, typography
-- **[planning.md](docs/planning.md)**: Development roadmap, phase breakdown
+- **[planning.md](docs/planning.md)**: Development roadmap (7 phases)
+- **[setup.md](docs/setup.md)**: How to run locally, environment variables
 
-## Quick Reference
+## Common Debugging
 
-### Typical Workflows
-
-**Create new brand**:
-1. POST `/api/brands` with name + brandContext
-2. System creates folder structure automatically
-3. Returns brand object with ID
-
-**Upload avatar**:
-1. POST `/api/brands/{id}/avatars` with image file + description
-2. Image stored in `data/brands/{id}/assets/avatars/`
-3. Metadata saved to brand.json
-4. Optional: Create HeyGen talking photo
-
-**Generate UGC video** (future):
-1. POST `/api/brands/{brand_id}/tools/ugc_video/run` with asset IDs
-2. Backend loads full context + generates prompts
-3. Executes 6-phase pipeline
-4. Returns job_id
-5. Frontend polls GET `/api/jobs/{job_id}` for status
-6. Human reviews at checkpoints
-7. Final video saved to generations/
-
-### Common Debugging
-
-**Backend not starting**: Check `.env` has all required API keys
-**Images not loading**: Verify static file mount in `main.py`
-**Generation stuck**: Check job status in backend logs
-**Prompt not working**: Verify template variables match available context
-
----
-
-**For new contributors**: Start by reading [architecture.md](docs/architecture.md) for system overview, then [product_vision_ux.md](docs/product_vision_ux.md) for UX flows.
+- **Backend not starting**: Check `.env` has required API keys, restart uvicorn
+- **Images not loading**: Verify static file mounts in `main.py`
+- **Black screen on route**: Check React hooks are before conditional returns
+- **Brand switcher not updating**: Ensure `refreshBrands()` is called after create/delete
+- **Prompt not working**: Verify template variables match `build_context_variables()` output

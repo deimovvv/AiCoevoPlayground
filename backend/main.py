@@ -11,6 +11,7 @@ import uuid
 import asyncio
 import tempfile
 from pathlib import Path
+from typing import Optional, Dict, List
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
@@ -27,6 +28,11 @@ from services import tts, heygen, copy_gen, brands
 from services import fal_lipsync
 from services import kling_video
 from services import image_gen
+from services import video_concat
+from services import chat as chat_service
+from services import prompt_builder
+from services import heygen_avatar4
+from services import image_analysis
 
 # ── Paths ────────────────────────────────────────────────────
 (Path(__file__).parent / "tmp").mkdir(exist_ok=True)
@@ -55,14 +61,14 @@ app.mount("/static/products", StaticFiles(directory=str(brands.get_products_dir(
 
 class TTSRequest(BaseModel):
     text: str
-    voice_id: str | None = None
+    voice_id: Optional[str] = None
     model_id: str = "eleven_multilingual_v2"
     output_format: str = "mp3_44100_128"
 
 
 class LipSyncRequest(BaseModel):
     talking_photo_id: str
-    audio_url: str | None = None
+    audio_url: Optional[str] = None
     title: str = "UGC Lip Sync"
 
 
@@ -72,8 +78,8 @@ class CreateBrandRequest(BaseModel):
 
 
 class UpdateBrandRequest(BaseModel):
-    name: str | None = None
-    brandContext: str | None = None
+    name: Optional[str] = None
+    brandContext: Optional[str] = None
 
 
 class GenerateCopyRequest(BaseModel):
@@ -89,6 +95,28 @@ class AddHeygenAvatarRequest(BaseModel):
     talkingPhotoId: str
     name: str
     previewUrl: str
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    brandId: str
+    messages: List[ChatMessage]
+
+
+class SaveGenerationRequest(BaseModel):
+    brandId: str
+    toolId: str
+    title: str
+    type: str  # "video" | "image" | "copy"
+    status: str = "completed"
+    thumbnailUrl: Optional[str] = None
+    outputUrl: Optional[str] = None
+    scenes: Optional[List[dict]] = None
+    metadata: Optional[dict] = None
 
 
 # ══════════════════════════════════════════════════════════════
@@ -116,10 +144,26 @@ def health():
 # ══════════════════════════════════════════════════════════════
 
 TOOLS_DIR = Path(__file__).parent / "tools"
-TOOLS_JOBS: dict[str, dict] = {}
+DATA_DIR = Path(__file__).parent / "data"
+TOOLS_JOBS: Dict[str, dict] = {}
+GENERATIONS_FILE = DATA_DIR / "generations.json"
 
 
-def _load_registry() -> list[dict]:
+def _load_generations() -> List[dict]:
+    if not GENERATIONS_FILE.exists():
+        with open(GENERATIONS_FILE, "w", encoding="utf-8") as f:
+            json.dump([], f)
+        return []
+    with open(GENERATIONS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _save_generations(gens: List[dict]):
+    with open(GENERATIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(gens, f, indent=2, ensure_ascii=False)
+
+
+def _load_registry() -> List[dict]:
     reg_path = TOOLS_DIR / "registry.json"
     if not reg_path.exists():
         return []
@@ -127,7 +171,7 @@ def _load_registry() -> list[dict]:
         return json.load(f)
 
 
-def _load_tool_config(tool_id: str) -> dict | None:
+def _load_tool_config(tool_id: str) -> Optional[dict]:
     config_path = TOOLS_DIR / tool_id / "config.json"
     if not config_path.exists():
         return None
@@ -147,10 +191,10 @@ def list_tools():
 
 @app.get("/api/tools/{tool_id}")
 def get_tool(tool_id: str):
-    config = _load_tool_config(tool_id)
-    if not config:
+    reg_entry = next((t for t in _load_registry() if t["id"] == tool_id), None)
+    if not reg_entry:
         raise HTTPException(status_code=404, detail=f"Tool '{tool_id}' not found")
-    reg_entry = next((t for t in _load_registry() if t["id"] == tool_id), {})
+    config = _load_tool_config(tool_id) or {}
     return {**reg_entry, **config}
 
 
@@ -248,6 +292,87 @@ def update_brand(brand_id: str, req: UpdateBrandRequest):
     return brand
 
 
+@app.post("/api/brands/{brand_id}/guidance/url")
+async def add_guidance_from_url(brand_id: str, req: dict):
+    """Scrape a URL and append extracted text to brand guidance."""
+    from bs4 import BeautifulSoup
+
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    url = req.get("url", "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            res = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        if res.status_code != 200:
+            raise Exception(f"HTTP {res.status_code}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch URL: {str(e)[:200]}")
+
+    soup = BeautifulSoup(res.text, "html.parser")
+    # Remove scripts, styles, nav, footer
+    for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+        tag.decompose()
+    text = soup.get_text(separator="\n", strip=True)
+    # Limit to ~8000 chars
+    text = text[:8000].strip()
+
+    if not text:
+        raise HTTPException(status_code=422, detail="No text content found at URL")
+
+    current = brand.get("brandContext", "")
+    separator = "\n\n---\n\n" if current else ""
+    brand["brandContext"] = current + separator + f"[Source: {url}]\n{text}"
+    brands.save_brands(all_brands)
+    return {"added_chars": len(text), "brand": brand}
+
+
+@app.post("/api/brands/{brand_id}/guidance/pdf")
+async def add_guidance_from_pdf(brand_id: str, file: UploadFile = File(...)):
+    """Upload a PDF and append extracted text to brand guidance."""
+    from PyPDF2 import PdfReader
+
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+
+    content = await file.read()
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="PDF too large (max 20MB)")
+
+    try:
+        reader = PdfReader(io.BytesIO(content))
+        pages_text = []
+        for page in reader.pages:
+            t = page.extract_text()
+            if t:
+                pages_text.append(t.strip())
+        text = "\n\n".join(pages_text)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Failed to parse PDF: {str(e)[:200]}")
+
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="No text content found in PDF")
+
+    # Limit to ~15000 chars
+    text = text[:15000].strip()
+
+    current = brand.get("brandContext", "")
+    separator = "\n\n---\n\n" if current else ""
+    brand["brandContext"] = current + separator + f"[Source: {file.filename}]\n{text}"
+    brands.save_brands(all_brands)
+    return {"added_chars": len(text), "pages": len(reader.pages), "brand": brand}
+
+
 @app.delete("/api/brands/{brand_id}")
 def delete_brand(brand_id: str):
     all_brands = brands.load_brands()
@@ -286,7 +411,17 @@ async def generate_copy(brand_id: str, req: GenerateCopyRequest):
     if not brand_context:
         raise HTTPException(status_code=400, detail="Brand context is empty. Add a brand description first.")
 
+    # Build full prompt using PromptBuilder (3-layer system)
+    extra_vars = {
+        "video_objective": req.additionalNotes or "",
+        "tone": req.tone,
+        "platform": req.platform,
+        "language": req.language,
+    }
+    built_prompt = prompt_builder.build_prompt("ugc_creator", brand, extra_vars)
+
     try:
+        system_prompt_used = built_prompt or ""
         scripts = await copy_gen.generate_scripts(
             brand_context=brand_context,
             product_name=req.productName,
@@ -294,8 +429,13 @@ async def generate_copy(brand_id: str, req: GenerateCopyRequest):
             platform=req.platform,
             language=req.language,
             video_objective=req.additionalNotes,
+            prompt_override=system_prompt_used,
         )
-        return {"scripts": scripts, "model": "gemini-2.0-flash"}
+        return {
+            "scripts": scripts,
+            "model": "gemini-2.5-flash",
+            "brief": system_prompt_used[:2000] if system_prompt_used else None,
+        }
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -316,6 +456,12 @@ async def suggest_objective(brand_id: str, req: SuggestObjectiveRequest):
     brand_context = brand.get("brandContext", "")
     if not brand_context:
         raise HTTPException(status_code=400, detail="Brand context is empty.")
+
+    # Enrich with brand assets
+    variables = prompt_builder.build_context_variables(brand)
+    for key in ["avatars", "products", "backgrounds", "voices"]:
+        if variables.get(key):
+            brand_context += f"\n\n{variables[key]}"
 
     try:
         objective = await copy_gen.suggest_objective(
@@ -345,6 +491,7 @@ def list_avatars(brand_id: str):
 async def upload_avatar(
     brand_id: str,
     name: str = Form(...),
+    description: str = Form(""),
     image: UploadFile = File(...),
     upload_to_heygen: bool = Form(True),
 ):
@@ -368,9 +515,20 @@ async def upload_avatar(
     with open(filepath, "wb") as f:
         f.write(image_data)
 
+    # Auto-describe with Gemini Vision if no description provided
+    auto_description = description
+    if not description.strip() and image_analysis.is_configured():
+        try:
+            ct = image.content_type or "image/jpeg"
+            auto_description = await image_analysis.describe_avatar(image_data, ct, name)
+            print(f"[avatar-upload] Auto-described: {auto_description[:80]}...")
+        except Exception as e:
+            print(f"[avatar-upload] Auto-describe failed: {e}")
+            auto_description = ""
+
     avatar = {
-        "id": avatar_id, "name": name, "filename": filename,
-        "imageUrl": f"/static/avatars/{filename}",
+        "id": avatar_id, "name": name, "description": auto_description,
+        "filename": filename, "imageUrl": f"/static/avatars/{filename}",
         "talkingPhotoId": None, "heygenStatus": "pending",
     }
 
@@ -483,6 +641,7 @@ def list_products(brand_id: str):
 async def upload_product(
     brand_id: str,
     name: str = Form(...),
+    description: str = Form(""),
     image: UploadFile = File(...),
 ):
     all_brands = brands.load_brands()
@@ -499,9 +658,21 @@ async def upload_product(
     with open(filepath, "wb") as f:
         f.write(content)
 
+    # Auto-describe with Gemini Vision if no description provided
+    auto_description = description
+    if not description.strip() and image_analysis.is_configured():
+        try:
+            ct = image.content_type or "image/jpeg"
+            auto_description = await image_analysis.describe_product(content, ct, name)
+            print(f"[product-upload] Auto-described: {auto_description[:80]}...")
+        except Exception as e:
+            print(f"[product-upload] Auto-describe failed: {e}")
+            auto_description = ""
+
     product = {
         "id": product_id,
         "name": name,
+        "description": auto_description,
         "filename": filename,
         "imageUrl": f"/static/products/{filename}",
     }
@@ -533,6 +704,218 @@ def delete_product(brand_id: str, product_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Clothing API
+# ══════════════════════════════════════════════════════════════
+
+app.mount("/static/clothing", StaticFiles(directory=str(brands.get_clothing_dir())), name="clothing")
+
+# Renders (FFmpeg output)
+_renders_dir = DATA_DIR / "renders"
+_renders_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static/renders", StaticFiles(directory=str(_renders_dir)), name="renders")
+
+
+@app.get("/api/brands/{brand_id}/clothing")
+def list_clothing(brand_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    return {"clothing": brand.get("clothing", [])}
+
+
+@app.post("/api/brands/{brand_id}/clothing")
+async def upload_clothing(
+    brand_id: str,
+    name: str = Form(...),
+    description: str = Form(""),
+    tags: str = Form(""),
+    image: UploadFile = File(...),
+):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    image_data = await image.read()
+    ext = Path(image.filename or "clothing.png").suffix or ".png"
+    item_id = str(uuid.uuid4())[:8]
+    filename = f"{brand_id}_cloth_{item_id}{ext}"
+    filepath = brands.get_clothing_dir() / filename
+
+    with open(filepath, "wb") as f:
+        f.write(image_data)
+
+    item = {
+        "id": item_id,
+        "name": name,
+        "description": description,
+        "tags": [t.strip() for t in tags.split(",") if t.strip()] if tags else [],
+        "filename": filename,
+        "imageUrl": f"/static/clothing/{filename}",
+    }
+
+    if "clothing" not in brand:
+        brand["clothing"] = []
+    brand["clothing"].append(item)
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.delete("/api/brands/{brand_id}/clothing/{item_id}")
+def delete_clothing(brand_id: str, item_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((c for c in brand.get("clothing", []) if c["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Clothing item not found")
+    filename = item.get("filename", "")
+    if filename:
+        img_path = brands.get_clothing_dir() / filename
+        if img_path.exists() and img_path.is_file():
+            img_path.unlink()
+    brand["clothing"] = [c for c in brand["clothing"] if c["id"] != item_id]
+    brands.save_brands(all_brands)
+    return {"ok": True}
+
+
+# ══════════════════════════════════════════════════════════════
+#  Backgrounds API
+# ══════════════════════════════════════════════════════════════
+
+app.mount("/static/backgrounds", StaticFiles(directory=str(brands.get_backgrounds_dir())), name="backgrounds")
+
+
+@app.get("/api/brands/{brand_id}/backgrounds")
+def list_backgrounds(brand_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    return {"backgrounds": brand.get("backgrounds", [])}
+
+
+@app.post("/api/brands/{brand_id}/backgrounds")
+async def upload_background(
+    brand_id: str,
+    name: str = Form(...),
+    description: str = Form(""),
+    tags: str = Form(""),
+    image: UploadFile = File(...),
+):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    image_data = await image.read()
+    ext = Path(image.filename or "background.png").suffix or ".png"
+    item_id = str(uuid.uuid4())[:8]
+    filename = f"{brand_id}_bg_{item_id}{ext}"
+    filepath = brands.get_backgrounds_dir() / filename
+
+    with open(filepath, "wb") as f:
+        f.write(image_data)
+
+    item = {
+        "id": item_id,
+        "name": name,
+        "description": description,
+        "tags": [t.strip() for t in tags.split(",") if t.strip()] if tags else [],
+        "filename": filename,
+        "imageUrl": f"/static/backgrounds/{filename}",
+    }
+
+    if "backgrounds" not in brand:
+        brand["backgrounds"] = []
+    brand["backgrounds"].append(item)
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.delete("/api/brands/{brand_id}/backgrounds/{item_id}")
+def delete_background(brand_id: str, item_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((b for b in brand.get("backgrounds", []) if b["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Background not found")
+    filename = item.get("filename", "")
+    if filename:
+        img_path = brands.get_backgrounds_dir() / filename
+        if img_path.exists() and img_path.is_file():
+            img_path.unlink()
+    brand["backgrounds"] = [b for b in brand["backgrounds"] if b["id"] != item_id]
+    brands.save_brands(all_brands)
+    return {"ok": True}
+
+
+# ══════════════════════════════════════════════════════════════
+#  VOICE PRESETS
+# ══════════════════════════════════════════════════════════════
+
+class AddVoiceRequest(BaseModel):
+    name: str
+    voice_id: str
+
+
+@app.get("/api/brands/{brand_id}/voices")
+def list_voices(brand_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    return {"voices": brand.get("voicePresets", [])}
+
+
+@app.post("/api/brands/{brand_id}/voices")
+def add_voice(brand_id: str, req: AddVoiceRequest):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not req.name.strip():
+        raise HTTPException(status_code=400, detail="Name is required")
+    if not req.voice_id.strip():
+        raise HTTPException(status_code=400, detail="Voice ID is required")
+
+    if "voicePresets" not in brand:
+        brand["voicePresets"] = []
+
+    # Prevent duplicate voice IDs
+    if any(v["id"] == req.voice_id.strip() for v in brand["voicePresets"]):
+        raise HTTPException(status_code=409, detail="Voice ID already exists for this brand")
+
+    voice = {"id": req.voice_id.strip(), "name": req.name.strip()}
+    brand["voicePresets"].append(voice)
+    brands.save_brands(all_brands)
+    return voice
+
+
+@app.delete("/api/brands/{brand_id}/voices/{voice_id}")
+def delete_voice(brand_id: str, voice_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not any(v["id"] == voice_id for v in brand.get("voicePresets", [])):
+        raise HTTPException(status_code=404, detail="Voice not found")
+    brand["voicePresets"] = [v for v in brand["voicePresets"] if v["id"] != voice_id]
+    brands.save_brands(all_brands)
+    return {"ok": True}
+
+
+# ══════════════════════════════════════════════════════════════
 #  TTS
 # ══════════════════════════════════════════════════════════════
 
@@ -553,6 +936,70 @@ async def text_to_speech(req: TTSRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"TTS error: {str(e)}")
+
+
+# ══════════════════════════════════════════════════════════════
+#  Image Analysis (Gemini Vision)
+# ══════════════════════════════════════════════════════════════
+
+@app.post("/api/analyze/image")
+async def analyze_image(
+    image: UploadFile = File(...),
+    type: str = Form("product"),
+    name: str = Form(""),
+):
+    """Analyze an image with Gemini Vision and return a description."""
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    try:
+        data = await image.read()
+        ct = image.content_type or "image/jpeg"
+        if type == "avatar":
+            desc = await image_analysis.describe_avatar(data, ct, name)
+        else:
+            desc = await image_analysis.describe_product(data, ct, name)
+        return {"description": desc}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/api/analyze/visual-guide")
+async def analyze_visual_guide(
+    images: list[UploadFile] = File(...),
+    brand_context: str = Form(""),
+):
+    """Analyze multiple reference images and extract a visual style guide."""
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    try:
+        refs = []
+        for img in images:
+            data = await img.read()
+            ct = img.content_type or "image/jpeg"
+            refs.append((data, ct))
+        guide = await image_analysis.extract_visual_guide(refs, brand_context)
+        return {"visual_guide": guide}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/api/tts/generate-and-upload")
+async def tts_generate_and_upload(req: TTSRequest):
+    """Generate TTS audio and upload to Fal Storage. Returns the Fal URL."""
+    try:
+        audio_bytes = tts.generate_audio(
+            text=req.text,
+            voice_id=req.voice_id,
+            model_id=req.model_id,
+            output_format=req.output_format,
+        )
+        # Upload to Fal Storage
+        fal_url = await kling_video.upload_image(
+            audio_bytes, "speech.mp3", "audio/mpeg"
+        )
+        return {"fal_url": fal_url, "size_bytes": len(audio_bytes)}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"TTS+Upload error: {str(e)}")
 
 
 @app.post("/api/tts/generate-file")
@@ -700,6 +1147,61 @@ async def fal_lipsync_result(request_id: str):
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
     try:
         return await fal_lipsync.get_result(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  HeyGen Avatar 4 (via Fal) — Talking Head Video
+# ══════════════════════════════════════════════════════════════
+
+class HeyGenAvatar4Request(BaseModel):
+    image_url: str
+    prompt: str = ""
+    voice: str = "Melissa"
+    audio_url: str = ""
+    expression: str = ""
+    talking_style: str = "expressive"
+    resolution: str = "720p"
+    aspect_ratio: str = "9:16"
+
+
+@app.post("/api/heygen-avatar4/create")
+async def heygen_avatar4_create(req: HeyGenAvatar4Request):
+    if not heygen_avatar4.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    try:
+        request_id = await heygen_avatar4.create_video(
+            image_url=req.image_url,
+            prompt=req.prompt,
+            voice=req.voice,
+            audio_url=req.audio_url,
+            expression=req.expression,
+            talking_style=req.talking_style,
+            resolution=req.resolution,
+            aspect_ratio=req.aspect_ratio,
+        )
+        return {"request_id": request_id, "status": "pending"}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/api/heygen-avatar4/status/{request_id}")
+async def heygen_avatar4_status(request_id: str):
+    if not heygen_avatar4.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    try:
+        return await heygen_avatar4.get_status(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/api/heygen-avatar4/result/{request_id}")
+async def heygen_avatar4_result(request_id: str):
+    if not heygen_avatar4.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    try:
+        return await heygen_avatar4.get_result(request_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -908,21 +1410,30 @@ async def image_gen_edit(
                         or "127.0.0.1" in url
                     )
                     if is_local:
-                        # Try to resolve local avatar path
-                        if "/static/avatars/" in url:
-                            filename = url.split("/static/avatars/")[-1]
-                            local_path = brands.get_avatars_dir() / filename
-                            if local_path.exists():
-                                with open(local_path, "rb") as f:
-                                    img_bytes = f.read()
-                                ext = local_path.suffix.lower()
-                                ct_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
-                                fal_url = await kling_video.upload_image(img_bytes, local_path.name, ct_map.get(ext, "image/jpeg"))
-                                resolved_urls.append(fal_url)
-                            else:
-                                print(f"[image-gen] Local file not found: {local_path}")
+                        # Resolve any /static/ path to local file
+                        local_path = None
+                        static_dirs = {
+                            "/static/avatars/": brands.get_avatars_dir(),
+                            "/static/products/": brands.get_products_dir(),
+                            "/static/clothing/": brands.get_clothing_dir(),
+                            "/static/backgrounds/": brands.get_backgrounds_dir(),
+                        }
+                        for prefix, directory in static_dirs.items():
+                            if prefix in url:
+                                filename = url.split(prefix)[-1]
+                                local_path = directory / filename
+                                break
+
+                        if local_path and local_path.exists():
+                            with open(local_path, "rb") as f:
+                                img_bytes = f.read()
+                            ext = local_path.suffix.lower()
+                            ct_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+                            fal_url = await kling_video.upload_image(img_bytes, local_path.name, ct_map.get(ext, "image/jpeg"))
+                            resolved_urls.append(fal_url)
+                            print(f"[image-gen] Resolved local: {url} -> uploaded to Fal")
                         else:
-                            print(f"[image-gen] Skipping unresolvable local URL: {url}")
+                            print(f"[image-gen] Local file not found or unresolvable: {url}")
                     else:
                         resolved_urls.append(url)
         except json.JSONDecodeError:
@@ -986,5 +1497,259 @@ async def image_gen_result(request_id: str):
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
     try:
         return await image_gen.get_result(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Video Concat (FFmpeg)
+# ══════════════════════════════════════════════════════════════
+
+class ConcatRequest(BaseModel):
+    video_urls: List[str]
+    scripts: Optional[List[dict]] = None  # [{"text": "spoken text"}, ...] per segment
+    add_subtitles: bool = True
+    subtitle_engine: str = "auto"  # "auto" | "remotion" | "ffmpeg" | "none"
+
+@app.post("/api/video/concat")
+async def concat_videos_endpoint(req: ConcatRequest):
+    """Concatenate video URLs + burn subtitles."""
+    if not video_concat.is_configured():
+        raise HTTPException(status_code=500, detail="FFmpeg is not installed on the server")
+    try:
+        output_dir = str(DATA_DIR / "renders")
+        result = await video_concat.concat_videos(
+            req.video_urls,
+            output_dir=output_dir,
+            scripts=req.scripts,
+            add_subtitles=req.add_subtitles,
+            subtitle_engine=req.subtitle_engine,
+        )
+        output_path = result["output_path"]
+        filename = os.path.basename(output_path)
+        return {
+            "video_url": f"/static/renders/{filename}",
+            "duration": result["duration"],
+            "size_bytes": result["size_bytes"],
+            "num_segments": result["num_segments"],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+@app.get("/api/video/concat/check")
+def check_ffmpeg():
+    """Check if FFmpeg is available."""
+    return {"available": video_concat.is_configured()}
+
+
+# ══════════════════════════════════════════════════════════════
+#  Generations CRUD
+# ══════════════════════════════════════════════════════════════
+
+@app.get("/api/generations")
+def list_generations(brandId: Optional[str] = None):
+    """List all generations, optionally filtered by brand."""
+    gens = _load_generations()
+    if brandId:
+        gens = [g for g in gens if g.get("brandId") == brandId]
+    # Sort by createdAt descending
+    gens.sort(key=lambda g: g.get("createdAt", ""), reverse=True)
+    return {"generations": gens}
+
+
+@app.get("/api/generations/{gen_id}")
+def get_generation(gen_id: str):
+    gens = _load_generations()
+    gen = next((g for g in gens if g["id"] == gen_id), None)
+    if not gen:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    return gen
+
+
+@app.post("/api/generations")
+async def create_generation(req: SaveGenerationRequest):
+    """Save a completed generation."""
+    gens = _load_generations()
+    from datetime import datetime, timezone
+
+    gen = {
+        "id": f"gen_{uuid.uuid4().hex[:8]}",
+        "brandId": req.brandId,
+        "toolId": req.toolId,
+        "title": req.title,
+        "type": req.type,
+        "status": req.status,
+        "thumbnailUrl": req.thumbnailUrl,
+        "outputUrl": req.outputUrl,
+        "scenes": req.scenes or [],
+        "metadata": req.metadata or {},
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+    gens.append(gen)
+    _save_generations(gens)
+    return gen
+
+
+@app.delete("/api/generations/{gen_id}")
+def delete_generation(gen_id: str):
+    gens = _load_generations()
+    gen = next((g for g in gens if g["id"] == gen_id), None)
+    if not gen:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    gens = [g for g in gens if g["id"] != gen_id]
+    _save_generations(gens)
+    return {"ok": True}
+
+
+# ══════════════════════════════════════════════════════════════
+#  Generic Tool Prompt Execution
+# ══════════════════════════════════════════════════════════════
+
+class ToolPromptRequest(BaseModel):
+    brandId: str
+    toolId: str
+    extraVariables: Optional[Dict[str, str]] = None
+    userMessage: str = ""
+
+
+@app.post("/api/tools/generate-prompt")
+async def generate_tool_prompt(req: ToolPromptRequest):
+    """
+    Build a prompt using PromptBuilder for any tool, send it to Gemini,
+    and return the parsed JSON result.
+    """
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, req.brandId)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    # Build prompt using 3-layer system
+    built_prompt = prompt_builder.build_prompt(
+        req.toolId, brand, req.extraVariables
+    )
+    if not built_prompt:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No prompt template found for tool '{req.toolId}'"
+        )
+
+    user_msg = req.userMessage or "Generate now."
+
+    try:
+        content = await copy_gen._call_gemini(built_prompt, user_msg)
+
+        # Clean markdown wrappers
+        if content.startswith("```json"):
+            content = content.replace("```json", "").replace("```", "").strip()
+        elif content.startswith("```"):
+            content = content.replace("```", "").strip()
+
+        result = json.loads(content)
+        return {"result": result, "model": "gemini-2.5-flash"}
+    except json.JSONDecodeError:
+        # Return raw text if not valid JSON
+        return {"result": content, "raw": True, "model": "gemini-2.5-flash"}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Prompt Templates & Overrides
+# ══════════════════════════════════════════════════════════════
+
+@app.get("/api/prompts/templates")
+def list_prompt_templates():
+    """List all tools that have default prompt templates."""
+    return {"templates": prompt_builder.list_tool_templates()}
+
+
+@app.get("/api/prompts/templates/{tool_id}")
+def get_prompt_template(tool_id: str):
+    """Get the default prompt template for a tool."""
+    from pathlib import Path as P
+    path = P(__file__).parent / "tools" / tool_id / "default_prompt.txt"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"No template for tool '{tool_id}'")
+    return {"tool_id": tool_id, "template": path.read_text(encoding="utf-8")}
+
+
+@app.get("/api/brands/{brand_id}/prompts")
+def get_brand_prompt_overrides(brand_id: str):
+    """Get all prompt overrides for a brand."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    return {"overrides": prompt_builder.get_brand_overrides(brand)}
+
+
+@app.put("/api/brands/{brand_id}/prompts/{tool_id}")
+def set_brand_prompt_override(brand_id: str, tool_id: str, req: dict):
+    """Set a prompt override for a specific tool on a brand."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    template = req.get("template", "").strip()
+    if not template:
+        raise HTTPException(status_code=400, detail="template is required")
+
+    if "promptOverrides" not in brand:
+        brand["promptOverrides"] = {}
+    brand["promptOverrides"][tool_id] = template
+    brands.save_brands(all_brands)
+    return {"ok": True, "tool_id": tool_id}
+
+
+@app.delete("/api/brands/{brand_id}/prompts/{tool_id}")
+def delete_brand_prompt_override(brand_id: str, tool_id: str):
+    """Remove a prompt override, reverting to default template."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    overrides = brand.get("promptOverrides", {})
+    if tool_id in overrides:
+        del overrides[tool_id]
+        brand["promptOverrides"] = overrides
+        brands.save_brands(all_brands)
+    return {"ok": True}
+
+
+@app.post("/api/brands/{brand_id}/prompts/{tool_id}/preview")
+def preview_prompt(brand_id: str, tool_id: str, req: Optional[dict] = None):
+    """Preview how a prompt will look after variable substitution."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    extra = req.get("extra_variables", {}) if req else {}
+    result = prompt_builder.build_prompt(tool_id, brand, extra)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"No template for tool '{tool_id}'")
+    return {"prompt": result, "tool_id": tool_id}
+
+
+# ══════════════════════════════════════════════════════════════
+#  Chat (Gemini)
+# ══════════════════════════════════════════════════════════════
+
+@app.post("/api/chat")
+async def chat_endpoint(req: ChatRequest):
+    if not chat_service.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, req.brandId)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    try:
+        messages = [{"role": m.role, "content": m.content} for m in req.messages]
+        reply = await chat_service.chat(brand, messages)
+        return {"reply": reply}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
