@@ -2690,7 +2690,19 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
     let scenes: Array<{ id: string; title: string; script: string; image_prompt: string }> = [];
     let brief: string | null = null;
 
-    if (raw.scenes) {
+    // Video Ad Creator format: { frames: [...], style, numScenes }
+    if (raw.frames && Array.isArray(raw.frames)) {
+      const frames = raw.frames as Array<Record<string, unknown>>;
+      scenes = frames.map((f, i) => ({
+        id: `frame_${i + 1}`,
+        title: `Frame ${i + 1} — ${String(f.scene_type || "scene")}`,
+        script: String(f.script || f.voiceover || ""),
+        image_prompt: String(f.prompt || ""),
+      }));
+      brief = raw.style ? `Style: ${raw.style}` : null;
+    }
+    // UGC format: { scenes: [[...]], brief }
+    else if (raw.scenes) {
       const arr = raw.scenes as Array<Array<Record<string, string>>>;
       scenes = (arr[0] || []).map((s, i) => ({
         id: s.id || `act_${i + 1}`,
