@@ -59,7 +59,8 @@
       "Bash(curl -s -X POST http://localhost:8000/api/brands/taller-santa-clara/generate-copy -H 'Content-Type: application/json' -d '{\"productName\":\"Hoodie Chocolote\",\"language\":\"es\",\"additionalNotes\":\"video ugc mostrando el producto\"}')",
       "Bash(npx remotion:*)",
       "Bash(curl -s -X POST http://localhost:8000/api/brands/taller-santa-clara/generate-copy -H 'Content-Type: application/json' -d '{\"productName\":\"Hoodie Chocolote\",\"language\":\"es\",\"additionalNotes\":\"video ugc\"}')",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)"
     ],
     "deny": [],
     "ask": []
