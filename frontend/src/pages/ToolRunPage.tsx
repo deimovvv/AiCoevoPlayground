@@ -1323,19 +1323,6 @@ export function ToolRunPage() {
           {!started && (
             <>
               <button
-                onClick={handleMockPreview}
-                disabled={!activeBrand}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium rounded-[var(--radius-sm)] transition-all",
-                  activeBrand
-                    ? "text-fg-muted bg-surface-1 border border-edge hover:bg-surface-2 hover:text-fg cursor-pointer"
-                    : "text-fg-faint bg-surface-2 cursor-not-allowed"
-                )}
-              >
-                <Eye size={14} />
-                Mock Preview
-              </button>
-              <button
                 onClick={handleStart}
                 disabled={!activeBrand}
                 className={cn(
@@ -2131,13 +2118,6 @@ function ConfigPanel({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={onMockPreview}
-              className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium text-fg-muted bg-surface-2 border border-edge rounded-[var(--radius-sm)] hover:bg-surface-1 hover:text-fg transition-colors cursor-pointer"
-            >
-              <Eye size={14} />
-              Mock Preview
-            </button>
             <button
               onClick={onStart}
               className="flex items-center gap-2 px-6 py-2.5 text-[13px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
