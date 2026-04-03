@@ -1904,12 +1904,37 @@ function ConfigPanel({
                   {config.selectedVoiceId && (
                     <button
                       type="button"
-                      onClick={async () => {
+                      onClick={async (e) => {
+                        const btn = e.currentTarget;
+                        if (btn.dataset.playing === "true") {
+                          // Stop
+                          const audio = (btn as unknown as { _audio?: HTMLAudioElement })._audio;
+                          audio?.pause();
+                          btn.dataset.playing = "false";
+                          btn.classList.remove("text-[var(--color-warm)]");
+                          btn.classList.add("text-fg-muted");
+                          return;
+                        }
+                        // Generate + play
+                        btn.dataset.playing = "loading";
+                        btn.classList.add("animate-pulse");
                         try {
-                          const result = await generateTTS({ text: "Hola, esta es una muestra de mi voz.", voice_id: config.selectedVoiceId! });
+                          const result = await generateTTS({ text: "Hola, esta es una muestra de mi voz para este proyecto.", voice_id: config.selectedVoiceId! });
                           const audio = new Audio(result.audioUrl);
+                          (btn as unknown as { _audio?: HTMLAudioElement })._audio = audio;
+                          btn.classList.remove("animate-pulse", "text-fg-muted");
+                          btn.classList.add("text-[var(--color-warm)]");
+                          btn.dataset.playing = "true";
+                          audio.onended = () => {
+                            btn.dataset.playing = "false";
+                            btn.classList.remove("text-[var(--color-warm)]");
+                            btn.classList.add("text-fg-muted");
+                          };
                           audio.play();
-                        } catch { /* silent */ }
+                        } catch {
+                          btn.classList.remove("animate-pulse");
+                          btn.dataset.playing = "false";
+                        }
                       }}
                       className="h-8 w-8 shrink-0 flex items-center justify-center rounded-[var(--radius-sm)] bg-surface-2 border border-edge text-fg-muted hover:text-fg hover:bg-surface-3 transition-colors cursor-pointer"
                       title="Preview voice"
