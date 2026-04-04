@@ -1668,9 +1668,9 @@ function ConfigPanel({
 
       {/* Reference image(s) + Graphics uploaders */}
       {(tool.id === "ad_creative_lab" || tool.id === "static_ad") && (
-        <div className="space-y-4">
+        <div className={cn("gap-4", tool.id === "static_ad" ? "grid grid-cols-2" : "space-y-4")}>
           {/* Reference Image — single for Static Ad, multiple for Ad Creative Lab */}
-          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-[12px] font-semibold text-fg-secondary">
                 {tool.id === "static_ad" ? "Reference Image" : "Reference Images"}
@@ -1682,15 +1682,15 @@ function ConfigPanel({
             </div>
 
             {config.referenceImages.length > 0 && (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex gap-1.5 flex-wrap">
                 {config.referenceImages.map((file, i) => (
-                  <div key={i} className="relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge group">
+                  <div key={i} className="relative w-12 h-12 rounded-[var(--radius-sm)] overflow-hidden border border-edge group shrink-0">
                     <img src={URL.createObjectURL(file)} alt={file.name} className="w-full h-full object-cover" />
                     <button
                       onClick={() => setConfig((p) => ({ ...p, referenceImages: p.referenceImages.filter((_, j) => j !== i) }))}
-                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      className="absolute top-0 right-0 w-4 h-4 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                     >
-                      <span className="text-white text-[10px]">×</span>
+                      <span className="text-white text-[8px]">×</span>
                     </button>
                   </div>
                 ))}
@@ -1698,10 +1698,10 @@ function ConfigPanel({
             )}
 
             <label className={cn(
-              "flex items-center justify-center gap-2 py-3 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[11px] transition-all",
+              "flex items-center justify-center gap-1.5 py-2 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[10px] transition-all",
               "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
             )}>
-              <Plus size={13} /> {tool.id === "static_ad" ? "Upload reference image" : "Add reference images"}
+              <Plus size={11} /> {tool.id === "static_ad" ? "Upload reference" : "Add references"}
               <input
                 type="file"
                 accept="image/*"
@@ -1723,7 +1723,7 @@ function ConfigPanel({
 
           {/* Graphics — logo, badges, icons (Static Ad only) */}
           {tool.id === "static_ad" && (
-            <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+            <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-[12px] font-semibold text-fg-secondary">
                   Graphics
@@ -1749,10 +1749,10 @@ function ConfigPanel({
               )}
 
               <label className={cn(
-                "flex items-center justify-center gap-2 py-2 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[11px] transition-all",
+                "flex items-center justify-center gap-1.5 py-2 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[10px] transition-all",
                 "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
               )}>
-                <Plus size={13} /> Add graphics
+                <Plus size={11} /> Add graphics
                 <input type="file" accept="image/*" multiple className="hidden"
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []);
@@ -1761,7 +1761,6 @@ function ConfigPanel({
                   }}
                 />
               </label>
-              <p className="text-[10px] text-fg-faint">Upload logo, badges, or icons to include in the ad composition.</p>
               {activeBrand.logo?.imageUrl && config.graphicAssets.length === 0 && (
                 <div className="flex items-center gap-2 bg-surface-2 rounded-[var(--radius-sm)] px-3 py-2">
                   <div className="w-8 h-8 rounded bg-white overflow-hidden flex items-center justify-center p-0.5 shrink-0">

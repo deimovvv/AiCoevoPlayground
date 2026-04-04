@@ -19,6 +19,7 @@ export function ContentPage() {
     const [loading, setLoading] = useState(true);
     const [deleting, setDeleting] = useState<string | null>(null);
     const [selectedGen, setSelectedGen] = useState<Generation | null>(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!activeBrand) return;
@@ -139,7 +140,7 @@ export function ContentPage() {
                             key={gen.id}
                             gen={gen}
                             deleting={deleting === gen.id}
-                            onDelete={() => handleDelete(gen.id)}
+                            onDelete={() => setConfirmDeleteId(gen.id)}
                             onClick={() => setSelectedGen(gen)}
                         />
                     ))}
@@ -151,7 +152,7 @@ export function ContentPage() {
                             key={gen.id}
                             gen={gen}
                             deleting={deleting === gen.id}
-                            onDelete={() => handleDelete(gen.id)}
+                            onDelete={() => setConfirmDeleteId(gen.id)}
                             onClick={() => setSelectedGen(gen)}
                         />
                     ))}
@@ -163,8 +164,44 @@ export function ContentPage() {
                 <GenerationDrawer
                     gen={selectedGen}
                     onClose={() => setSelectedGen(null)}
-                    onDelete={() => { handleDelete(selectedGen.id); setSelectedGen(null); }}
+                    onDelete={() => setConfirmDeleteId(selectedGen.id)}
                 />
+            )}
+
+            {/* Delete confirmation modal */}
+            {confirmDeleteId && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmDeleteId(null)} />
+                    <div className="relative bg-surface-0 border border-edge rounded-[var(--radius-md)] p-6 max-w-sm w-full mx-4 space-y-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
+                                <Trash2 size={18} className="text-red-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-[14px] font-semibold text-fg">Delete generation?</h3>
+                                <p className="text-[12px] text-fg-muted mt-0.5">This action cannot be undone.</p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="px-4 py-2 text-[13px] text-fg-muted hover:text-fg bg-surface-2 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    handleDelete(confirmDeleteId);
+                                    setConfirmDeleteId(null);
+                                    if (selectedGen?.id === confirmDeleteId) setSelectedGen(null);
+                                }}
+                                className="px-4 py-2 text-[13px] font-medium text-white bg-red-500 hover:bg-red-600 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
@@ -201,7 +238,7 @@ function ContentCard({ gen, deleting, onDelete, onClick }: { gen: Generation; de
                         </a>
                     )}
                     <button
-                        onClick={onDelete}
+                        onClick={(e) => { e.stopPropagation(); onDelete(); }}
                         disabled={deleting}
                         className="p-2 bg-white/20 rounded-full hover:bg-red-500/60 transition-colors cursor-pointer"
                     >
