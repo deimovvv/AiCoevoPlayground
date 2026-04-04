@@ -74,6 +74,7 @@ export function BrandSettings() {
         <AvatarsCard />
         <ClothingCard />
         <ProductsCard />
+        <LogoCard />
         <BackgroundsCard />
         <PromptsCard />
       </div>
@@ -1407,5 +1408,90 @@ function EmptyState({ onClick, label }: { onClick: () => void; label: string }) 
       <Plus size={14} />
       {label}
     </button>
+  );
+}
+
+// ── Logo Card ──────────────────────────────────────────────
+
+function LogoCard() {
+  const { activeBrand, refreshBrands } = useBrand();
+  const [uploading, setUploading] = useState(false);
+
+  if (!activeBrand) return null;
+
+  const logo = activeBrand.logo as { filename: string; imageUrl: string } | undefined;
+  const API_BASE = "http://localhost:8000";
+
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch(`${API_BASE}/api/brands/${activeBrand.id}/logo`, {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) await refreshBrands();
+    } catch { /* silent */ } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await fetch(`${API_BASE}/api/brands/${activeBrand.id}/logo`, { method: "DELETE" });
+      await refreshBrands();
+    } catch { /* silent */ }
+  };
+
+  return (
+    <Card
+      icon={<ImageIcon size={16} />}
+      title="Brand Logo"
+      description="Used in ad compositions and branded content"
+    >
+      {logo?.imageUrl ? (
+        <div className="space-y-2">
+          <div className="relative group inline-block">
+            <div className="w-32 h-32 rounded-[var(--radius-sm)] border border-edge overflow-hidden bg-white flex items-center justify-center p-2">
+              <img
+                src={`${API_BASE}${logo.imageUrl}`}
+                alt="Brand logo"
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+            <button
+              onClick={handleDelete}
+              className="absolute top-1 right-1 p-1 rounded bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+            >
+              <Trash2 size={10} />
+            </button>
+          </div>
+          <label className="flex items-center gap-1.5 text-[11px] text-fg-muted hover:text-fg cursor-pointer">
+            <Upload size={11} /> Replace
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleUpload(f);
+              e.target.value = "";
+            }} />
+          </label>
+        </div>
+      ) : (
+        <label className={cn(
+          "flex flex-col items-center gap-2 py-6 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[11px] transition-all",
+          uploading
+            ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg-muted"
+            : "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
+        )}>
+          {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+          {uploading ? "Uploading..." : "Upload brand logo"}
+          <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleUpload(f);
+            e.target.value = "";
+          }} />
+        </label>
+      )}
+    </Card>
   );
 }

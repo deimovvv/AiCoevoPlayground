@@ -221,6 +221,7 @@ interface ToolConfig {
   resolution: string;
   subtitleEngine: "auto" | "remotion" | "ffmpeg" | "none";
   referenceImages: File[];
+  graphicAssets: File[];
   allowFaces: boolean;
   adStyle: string;
 }
@@ -244,6 +245,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   resolution: "1K",
   subtitleEngine: "auto",
   referenceImages: [],
+  graphicAssets: [],
   allowFaces: true,
   adStyle: "photorealistic",
 };
@@ -650,9 +652,10 @@ export function ToolRunPage() {
 
         advanceStep(stepIndex, result, { needsApproval });
 
-        // Auto-run next step if configured
-        if (autoRunNext || toolDef?.autoRunSteps?.includes(steps[stepIndex + 1]?.id)) {
-          setTimeout(() => handleRunStep(stepIndex + 1), 200);
+        // Auto-run next step if configured — run immediately
+        const nextStepId = steps[stepIndex + 1]?.id;
+        if (!needsApproval && (autoRunNext || toolDef?.autoRunSteps?.includes(nextStepId))) {
+          handleRunStep(stepIndex + 1);
         }
       } catch (err) {
         failStep(stepIndex, err instanceof Error ? err.message : "Step failed");
@@ -1663,66 +1666,112 @@ function ConfigPanel({
         </div>
       )}
 
-      {/* Reference images uploader (Ad Creative Lab) */}
-      {tool.id === "ad_creative_lab" && (
-        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-[12px] font-semibold text-fg-secondary">
-              Reference Images
-              <span className="text-fg-faint font-normal ml-1">(campaign style references)</span>
+      {/* Reference image(s) + Graphics uploaders */}
+      {(tool.id === "ad_creative_lab" || tool.id === "static_ad") && (
+        <div className="space-y-4">
+          {/* Reference Image — single for Static Ad, multiple for Ad Creative Lab */}
+          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-[12px] font-semibold text-fg-secondary">
+                {tool.id === "static_ad" ? "Reference Image" : "Reference Images"}
+                <span className="text-fg-faint font-normal ml-1">
+                  {tool.id === "static_ad" ? "(style reference for the ad)" : "(campaign style references)"}
+                </span>
+              </label>
+              <span className="text-[10px] text-fg-faint">{config.referenceImages.length} uploaded</span>
+            </div>
+
+            {config.referenceImages.length > 0 && (
+              <div className="grid grid-cols-4 gap-2">
+                {config.referenceImages.map((file, i) => (
+                  <div key={i} className="relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge group">
+                    <img src={URL.createObjectURL(file)} alt={file.name} className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => setConfig((p) => ({ ...p, referenceImages: p.referenceImages.filter((_, j) => j !== i) }))}
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      <span className="text-white text-[10px]">×</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <label className={cn(
+              "flex items-center justify-center gap-2 py-3 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[11px] transition-all",
+              "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
+            )}>
+              <Plus size={13} /> {tool.id === "static_ad" ? "Upload reference image" : "Add reference images"}
+              <input
+                type="file"
+                accept="image/*"
+                multiple={tool.id !== "static_ad"}
+                className="hidden"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length > 0) {
+                    setConfig((p) => ({
+                      ...p,
+                      referenceImages: tool.id === "static_ad" ? [files[0]] : [...p.referenceImages, ...files].slice(0, 10),
+                    }));
+                  }
+                  e.target.value = "";
+                }}
+              />
             </label>
-            <span className="text-[10px] text-fg-faint">{config.referenceImages.length} uploaded</span>
           </div>
 
-          {config.referenceImages.length > 0 && (
-            <div className="grid grid-cols-4 gap-2">
-              {config.referenceImages.map((file, i) => (
-                <div key={i} className="relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge group">
-                  <img
-                    src={URL.createObjectURL(file)}
-                    alt={file.name}
-                    className="w-full h-full object-cover"
-                  />
-                  <button
-                    onClick={() => setConfig((p) => ({
-                      ...p,
-                      referenceImages: p.referenceImages.filter((_, j) => j !== i),
-                    }))}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                  >
-                    <span className="text-white text-[10px]">×</span>
-                  </button>
-                  <div className="absolute bottom-0 inset-x-0 bg-black/50 px-1.5 py-0.5">
-                    <span className="text-[8px] text-white truncate block">{file.name}</span>
-                  </div>
+          {/* Graphics — logo, badges, icons (Static Ad only) */}
+          {tool.id === "static_ad" && (
+            <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-[12px] font-semibold text-fg-secondary">
+                  Graphics
+                  <span className="text-fg-faint font-normal ml-1">(logo, badges, icons)</span>
+                </label>
+                <span className="text-[10px] text-fg-faint">{config.graphicAssets.length} uploaded</span>
+              </div>
+
+              {config.graphicAssets.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {config.graphicAssets.map((file, i) => (
+                    <div key={i} className="relative w-16 h-16 rounded-[var(--radius-sm)] overflow-hidden border border-edge group bg-white flex items-center justify-center p-1">
+                      <img src={URL.createObjectURL(file)} alt={file.name} className="max-w-full max-h-full object-contain" />
+                      <button
+                        onClick={() => setConfig((p) => ({ ...p, graphicAssets: p.graphicAssets.filter((_, j) => j !== i) }))}
+                        className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <span className="text-white text-[8px]">×</span>
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+
+              <label className={cn(
+                "flex items-center justify-center gap-2 py-2 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[11px] transition-all",
+                "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
+              )}>
+                <Plus size={13} /> Add graphics
+                <input type="file" accept="image/*" multiple className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length > 0) setConfig((p) => ({ ...p, graphicAssets: [...p.graphicAssets, ...files] }));
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <p className="text-[10px] text-fg-faint">Upload logo, badges, or icons to include in the ad composition.</p>
+              {activeBrand.logo?.imageUrl && config.graphicAssets.length === 0 && (
+                <div className="flex items-center gap-2 bg-surface-2 rounded-[var(--radius-sm)] px-3 py-2">
+                  <div className="w-8 h-8 rounded bg-white overflow-hidden flex items-center justify-center p-0.5 shrink-0">
+                    <img src={`http://localhost:8000${activeBrand.logo.imageUrl}`} alt="Brand logo" className="max-w-full max-h-full object-contain" />
+                  </div>
+                  <span className="text-[10px] text-fg-muted">Brand Kit logo will be used automatically</span>
+                </div>
+              )}
             </div>
           )}
-
-          <label className={cn(
-            "flex items-center justify-center gap-2 py-3 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[11px] transition-all",
-            "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
-          )}>
-            <Plus size={13} /> Add reference images
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                const files = Array.from(e.target.files || []);
-                if (files.length > 0) {
-                  setConfig((p) => ({
-                    ...p,
-                    referenceImages: [...p.referenceImages, ...files].slice(0, 10),
-                  }));
-                }
-                e.target.value = "";
-              }}
-            />
-          </label>
-          <p className="text-[10px] text-fg-faint">Upload 3-10 images that represent the visual style you want. Gemini will analyze them to extract a visual guide.</p>
 
           <label className="flex items-center gap-2 mt-2 cursor-pointer">
             <input
@@ -2699,7 +2748,9 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         script: String(f.script || f.voiceover || ""),
         image_prompt: String(f.prompt || ""),
       }));
-      brief = raw.style ? `Style: ${raw.style}` : null;
+      // Build full script as brief
+      const fullScript = frames.map((f) => String(f.script || f.voiceover || "")).filter(Boolean).join(" ");
+      brief = `Style: ${raw.style || "N/A"}\n\nFull Script:\n${fullScript}`;
     }
     // UGC format: { scenes: [[...]], brief }
     else if (raw.scenes) {
@@ -2723,6 +2774,14 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
 
     return (
       <div className="space-y-4">
+        {/* Full script / brief — shown at top for Video Ad Creator */}
+        {brief && brief.includes("Full Script:") && (
+          <div className="bg-surface-2 border border-edge rounded-[var(--radius-md)] p-4 mb-2">
+            <h4 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Narrative</h4>
+            <pre className="text-[12px] text-fg-muted whitespace-pre-wrap leading-relaxed">{brief}</pre>
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Check size={14} className="text-[var(--color-success)]" />
@@ -2730,7 +2789,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
               Script generated — {scenes.length} scenes
             </span>
           </div>
-          {brief && (
+          {brief && !brief.includes("Full Script:") && (
             <button
               onClick={() => setShowBrief(!showBrief)}
               className="text-[11px] text-fg-muted hover:text-fg transition-colors cursor-pointer underline"
@@ -3102,15 +3161,51 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
     );
   }
 
-  // Voice step — show audio segments
+  // Voice step — show audio segments with play buttons
   if (stepId === "voice" && result) {
-    const segments = result as Array<{
-      sceneId: string;
-      title: string;
-      duration: string;
-      text: string;
-    }>;
-    const totalDuration = segments.reduce((sum, s) => sum + parseFloat(s.duration), 0);
+    // Video Ad Creator format: { audioSegments: [...] }
+    const raw = result as Record<string, unknown>;
+    const audioSegs = raw.audioSegments as Array<{ frame: number; script: string; audioUrl: string }> | undefined;
+
+    if (audioSegs) {
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Check size={14} className="text-[var(--color-success)]" />
+            <span className="text-[13px] font-medium text-fg">
+              {audioSegs.filter((s) => s.audioUrl).length}/{audioSegs.length} audio segments generated
+            </span>
+          </div>
+          <div className="space-y-2">
+            {audioSegs.map((seg) => (
+              <div key={seg.frame} className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] px-4 py-3 flex items-center gap-3">
+                <span className="text-[10px] font-bold text-fg-faint w-6 shrink-0">F{seg.frame}</span>
+                <p className="flex-1 text-[12px] text-fg-muted leading-relaxed">&ldquo;{seg.script}&rdquo;</p>
+                {seg.audioUrl ? (
+                  <button
+                    onClick={() => {
+                      const audio = new Audio(seg.audioUrl);
+                      audio.play();
+                    }}
+                    className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 transition-colors cursor-pointer"
+                  >
+                    <Play size={10} />
+                    Play
+                  </button>
+                ) : (
+                  <span className="text-[10px] text-fg-faint">No audio</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // UGC format fallback
+    const segments = result as Array<{ sceneId: string; title: string; duration: string; text: string }>;
+    if (!Array.isArray(segments)) return null;
+    const totalDuration = segments.reduce((sum, s) => sum + parseFloat(s.duration || "0"), 0);
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-2">
@@ -3130,16 +3225,6 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 <span className="text-[10px] text-fg-faint font-mono">{seg.duration}s</span>
               </div>
               <p className="text-[11px] text-fg-muted leading-relaxed">{seg.text}</p>
-              {/* Fake waveform */}
-              <div className="flex items-end gap-[2px] h-6 mt-2">
-                {Array.from({ length: 40 }, (_, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 bg-[var(--color-warm)] rounded-full opacity-60"
-                    style={{ height: `${20 + Math.random() * 80}%` }}
-                  />
-                ))}
-              </div>
             </div>
           ))}
         </div>
@@ -3334,6 +3419,220 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
     );
   }
 
+  // Generate All step — show all images (Static Ad)
+  if (stepId === "generate_all" && result) {
+    const data = result as { images: Array<{ id: string; url: string; label: string }>; headline?: string; subline?: string };
+    const images = data.images || [];
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">{images.length} creatives generated</span>
+        </div>
+        {data.headline && (
+          <div className="text-center space-y-1 mb-2">
+            <p className="text-[16px] font-bold text-fg">{data.headline}</p>
+            {data.subline && <p className="text-[12px] text-fg-muted">{data.subline}</p>}
+          </div>
+        )}
+        <div className="grid grid-cols-3 gap-3">
+          {images.map((img) => (
+            <div key={img.id} className="space-y-1.5">
+              <div
+                className="rounded-[var(--radius-sm)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors relative group"
+                onClick={() => img.url && setLightboxUrl(img.url)}
+              >
+                <img src={img.url} alt={img.label} className="w-full aspect-square object-cover" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <Eye size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </div>
+              <p className="text-[10px] text-fg-faint text-center">{img.label}</p>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-center gap-2 pt-2">
+          <button
+            onClick={async () => {
+              for (const img of images) {
+                if (!img.url) continue;
+                try {
+                  const res = await fetch(img.url);
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `static_ad_${img.id}.png`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch { /* */ }
+              }
+            }}
+            className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+          >
+            <Film size={14} />
+            Download All ({images.length})
+          </button>
+        </div>
+        {lightboxUrl && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8 cursor-pointer" onClick={() => setLightboxUrl(null)}>
+            <img src={lightboxUrl} alt="Full size" className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]" onClick={(e) => e.stopPropagation()} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Generate step — show generated image
+  if (stepId === "generate" && result) {
+    const data = result as { url?: string; prompt?: string; headline?: string; subline?: string; title?: string };
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">{data.title || "Image generated"}</span>
+        </div>
+        {data.url && (
+          <div className="flex justify-center">
+            <div
+              className="max-w-sm rounded-[var(--radius-md)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors relative group"
+              onClick={() => setLightboxUrl(data.url!)}
+            >
+              <img src={data.url} alt="Generated" className="w-full" />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                <Eye size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            </div>
+          </div>
+        )}
+        {(data.headline || data.subline) && (
+          <div className="text-center space-y-1">
+            {data.headline && <p className="text-[14px] font-bold text-fg">{data.headline}</p>}
+            {data.subline && <p className="text-[12px] text-fg-muted">{data.subline}</p>}
+          </div>
+        )}
+        {data.prompt && (
+          <details className="text-[10px] text-fg-faint">
+            <summary className="cursor-pointer hover:text-fg">Show prompt</summary>
+            <p className="mt-1 p-2 bg-surface-2 rounded text-[10px] font-mono leading-relaxed">{data.prompt}</p>
+          </details>
+        )}
+        {lightboxUrl && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8 cursor-pointer" onClick={() => setLightboxUrl(null)}>
+            <img src={lightboxUrl} alt="Full size" className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]" onClick={(e) => e.stopPropagation()} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Prompt step — show prompt + copy (Static Ad, Product Spotlight, etc.)
+  if (stepId === "prompt" && result) {
+    const data = result as Record<string, unknown>;
+    const imagePrompt = String(data.image_prompt || data.prompt || "");
+    const headline = String(data.headline || "");
+    const subline = String(data.subline || "");
+    const cta = String(data.cta || "");
+    const colors = String(data.colors || "");
+    const title = String(data.title || "");
+    const mood = String(data.mood || "");
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">Prompt generated</span>
+        </div>
+
+        {/* Editable copy + regenerate */}
+        {(headline || subline) && (
+          <div className="bg-surface-0 border border-edge rounded-[var(--radius-md)] p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">Ad Copy (click to edit)</h4>
+              <button
+                onClick={async () => {
+                  if (!activeBrand || !config) return;
+                  setEditLoading(true);
+                  try {
+                    const product = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
+                    const res = await fetch("http://localhost:8000/api/tools/generate-prompt", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        brandId: activeBrand.id,
+                        toolId: "static_ad",
+                        userMessage: `Generate ONLY new ad copy (headline + subline + cta) for ${product?.name || "the product"}. Keep the same image prompt. Respond with JSON.`,
+                        extraVariables: { language: config.language || "es" },
+                      }),
+                    });
+                    if (res.ok) {
+                      const { result: newCopy } = await res.json();
+                      const nc = newCopy as Record<string, unknown>;
+                      if (nc.headline) (data as Record<string, unknown>).headline = nc.headline;
+                      if (nc.subline) (data as Record<string, unknown>).subline = nc.subline;
+                      if (nc.cta) (data as Record<string, unknown>).cta = nc.cta;
+                      // Force re-render by toggling a state
+                      setShowBrief((p) => !p);
+                      setTimeout(() => setShowBrief((p) => !p), 10);
+                    }
+                  } catch { /* silent */ } finally {
+                    setEditLoading(false);
+                  }
+                }}
+                disabled={editLoading}
+                className="flex items-center gap-1 text-[10px] text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 px-2 py-1 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+              >
+                {editLoading ? <Loader2 size={10} className="animate-spin" /> : <RotateCcw size={10} />}
+                Regen copy
+              </button>
+            </div>
+            <input
+              key={`h_${headline}`}
+              defaultValue={headline}
+              onChange={(e) => { (data as Record<string, unknown>).headline = e.target.value; }}
+              className="w-full text-[18px] font-bold text-fg bg-transparent border-b border-transparent hover:border-edge focus:border-[var(--color-warm)] outline-none transition-colors"
+            />
+            <input
+              key={`s_${subline}`}
+              defaultValue={subline}
+              onChange={(e) => { (data as Record<string, unknown>).subline = e.target.value; }}
+              className="w-full text-[13px] text-fg-muted bg-transparent border-b border-transparent hover:border-edge focus:border-[var(--color-warm)] outline-none transition-colors"
+            />
+            <input
+              key={`c_${cta}`}
+              defaultValue={cta}
+              onChange={(e) => { (data as Record<string, unknown>).cta = e.target.value; }}
+              placeholder="CTA (e.g., Shop now)"
+              className="w-full text-[12px] text-[var(--color-warm)] font-medium bg-transparent border-b border-transparent hover:border-edge focus:border-[var(--color-warm)] outline-none transition-colors placeholder:text-fg-faint"
+            />
+          </div>
+        )}
+
+        {/* Colors */}
+        {colors && (
+          <div className="bg-surface-2 rounded-[var(--radius-sm)] px-4 py-2">
+            <span className="text-[10px] text-fg-faint font-medium">Colors: </span>
+            <span className="text-[11px] text-fg-muted">{colors}</span>
+          </div>
+        )}
+
+        {/* Title / Mood */}
+        {(title || mood) && (
+          <div className="flex gap-2">
+            {title && <span className="text-[10px] px-2 py-0.5 bg-surface-2 rounded text-fg-muted">{title}</span>}
+            {mood && <span className="text-[10px] px-2 py-0.5 bg-surface-2 rounded text-fg-faint italic">{mood}</span>}
+          </div>
+        )}
+
+        {/* Image prompt */}
+        <div className="bg-surface-2 border border-edge rounded-[var(--radius-sm)] p-4">
+          <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Image Prompt</h4>
+          <p className="text-[12px] text-fg-muted leading-relaxed font-mono">{imagePrompt}</p>
+        </div>
+      </div>
+    );
+  }
+
   // Visual Guide step — show extracted style guide
   if (stepId === "visual_guide" && result) {
     const data = result as { visualGuide: string; numReferences: number };
@@ -3375,6 +3674,89 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             </div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  // Images step — full review: image + script + audio + prompt per frame
+  if (stepId === "images" && result) {
+    const data = result as { images: Array<{ frame: number; url: string; prompt: string; scene_type: string; script: string; audioUrl?: string; status: string }> };
+    const images = data.images || [];
+    const successful = images.filter((img) => img.url && img.status !== "failed");
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">
+            {successful.length}/{images.length} keyframes generated — review before animating
+          </span>
+        </div>
+
+        {/* Frame-by-frame review */}
+        <div className="space-y-3">
+          {images.map((img) => (
+            <div key={img.frame} className="bg-surface-0 border border-edge rounded-[var(--radius-md)] p-3 flex gap-3">
+              {/* Image */}
+              <div className="w-24 shrink-0">
+                <div
+                  className="aspect-[9/16] rounded-[var(--radius-sm)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors group relative"
+                  onClick={() => img.url && setLightboxUrl(img.url)}
+                >
+                  {img.url ? (
+                    <img src={img.url} alt={`F${img.frame}`} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-surface-2 flex items-center justify-center">
+                      <AlertCircle size={12} className="text-[var(--color-error)]" />
+                    </div>
+                  )}
+                  <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 rounded text-[8px] text-white font-bold">
+                    F{img.frame}
+                  </div>
+                </div>
+              </div>
+
+              {/* Details */}
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-fg">Frame {img.frame}</span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-surface-2 rounded text-fg-faint">{img.scene_type}</span>
+                </div>
+
+                {/* Script text */}
+                {img.script && (
+                  <p className="text-[11px] text-fg-muted leading-relaxed">&ldquo;{img.script}&rdquo;</p>
+                )}
+
+                {/* Audio play */}
+                {img.audioUrl && (
+                  <button
+                    onClick={() => new Audio(img.audioUrl!).play()}
+                    className="flex items-center gap-1 text-[10px] text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 px-2 py-1 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                  >
+                    <Play size={9} /> Listen
+                  </button>
+                )}
+
+                {/* Prompt (collapsible) */}
+                <details className="text-[9px] text-fg-faint">
+                  <summary className="cursor-pointer hover:text-fg">Show prompt</summary>
+                  <p className="mt-1 p-1.5 bg-surface-2 rounded text-[9px] font-mono leading-relaxed break-words">{img.prompt}</p>
+                </details>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-[10px] text-fg-faint text-center">
+          Review all frames. Approve to generate animation with Kling (${images.length - 1} segments × ~$0.50 each).
+        </p>
+
+        {lightboxUrl && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8 cursor-pointer" onClick={() => setLightboxUrl(null)}>
+            <img src={lightboxUrl} alt="Full size" className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]" onClick={(e) => e.stopPropagation()} />
+          </div>
+        )}
       </div>
     );
   }
@@ -3624,6 +4006,51 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             />
           </div>
         )}
+      </div>
+    );
+  }
+
+  // Animate step — show video segments with play
+  if (stepId === "animate" && result) {
+    const data = result as { segments: Array<{ index: number; videoUrl: string; startFrame: number; endFrame: number; status: string }> };
+    const segments = data.segments || [];
+    const successful = segments.filter((s) => s.videoUrl && s.status !== "failed");
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">
+            {successful.length}/{segments.length} segments animated
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {segments.map((seg) => (
+            <div key={seg.index} className="bg-surface-0 border border-edge rounded-[var(--radius-md)] overflow-hidden">
+              <div className="aspect-[9/16]">
+                {seg.videoUrl ? (
+                  <video src={seg.videoUrl} controls className="w-full h-full object-contain bg-black" />
+                ) : (
+                  <div className="w-full h-full bg-surface-2 flex items-center justify-center">
+                    <AlertCircle size={16} className="text-[var(--color-error)]" />
+                  </div>
+                )}
+              </div>
+              <div className="p-2 flex items-center justify-between">
+                <span className="text-[10px] text-fg font-medium">F{seg.startFrame} → F{seg.endFrame}</span>
+                <span className={cn(
+                  "text-[9px] px-1.5 py-0.5 rounded",
+                  seg.status === "done" ? "bg-[rgba(61,191,138,0.1)] text-[var(--color-success)]" : "bg-[rgba(228,171,27,0.1)] text-[var(--color-warning)]"
+                )}>
+                  {seg.status}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-fg-faint text-center">
+          Review animated segments. Approve to render final video.
+        </p>
       </div>
     );
   }

@@ -58,6 +58,7 @@ export interface Brand {
     products?: Product[];
     clothing?: ClothingItem[];
     backgrounds?: BackgroundItem[];
+    logo?: { filename: string; imageUrl: string };
 }
 
 export interface ChatMessage {

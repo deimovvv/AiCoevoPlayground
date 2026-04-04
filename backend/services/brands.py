@@ -16,6 +16,7 @@ AVATARS_DIR = DATA_DIR / "avatars"
 PRODUCTS_DIR = DATA_DIR / "products"
 CLOTHING_DIR = DATA_DIR / "clothing"
 BACKGROUNDS_DIR = DATA_DIR / "backgrounds"
+LOGOS_DIR = DATA_DIR / "logos"
 
 # Ensure directories exist
 DATA_DIR.mkdir(exist_ok=True)
@@ -23,6 +24,7 @@ AVATARS_DIR.mkdir(exist_ok=True)
 PRODUCTS_DIR.mkdir(exist_ok=True)
 CLOTHING_DIR.mkdir(exist_ok=True)
 BACKGROUNDS_DIR.mkdir(exist_ok=True)
+LOGOS_DIR.mkdir(exist_ok=True)
 
 
 def load_brands() -> List[dict]:
@@ -76,3 +78,7 @@ def get_clothing_dir() -> Path:
 
 def get_backgrounds_dir() -> Path:
     return BACKGROUNDS_DIR
+
+
+def get_logos_dir() -> Path:
+    return LOGOS_DIR

@@ -9,7 +9,7 @@
 
 import type { ToolDefinition } from "../types";
 import {
-  handleScript, handleImages, handleReviewImages,
+  handleScript, handleBaseImage, handleImages,
   handleVoice, handleAnimate, handleRender,
 } from "./handlers";
 
@@ -30,12 +30,11 @@ export const videoAdCreator: ToolDefinition = {
   },
   stepHandlers: {
     script: handleScript,
+    base_image: handleBaseImage,
     images: handleImages,
-    review_images: handleReviewImages,
-    voice: handleVoice,
     animate: handleAnimate,
     render: handleRender,
   },
-  approvalSteps: ["script", "images"],
-  autoRunSteps: ["voice", "animate", "render"],
+  approvalSteps: ["script", "base_image", "images", "animate"],
+  autoRunSteps: ["images", "animate", "render"],
 };

@@ -53,7 +53,11 @@ export const handleScript: StepHandler = async (ctx) => {
 
   let userMsg = `Generate a ${duration}-second video ad storyboard with ${numScenes} frames in ${styleLabel} style.`;
   if (selectedProduct) userMsg += `\nProduct: ${selectedProduct.name}`;
-  if (selectedAvatar) userMsg += `\nCharacter: ${selectedAvatar.name}${selectedAvatar.description ? ` — ${selectedAvatar.description}` : ""}`;
+  if (selectedAvatar) {
+    userMsg += `\nCharacter: ${selectedAvatar.name}${selectedAvatar.description ? ` — ${selectedAvatar.description}` : ""}`;
+  } else {
+    userMsg += `\nIMPORTANT: Invent a character for this ad. Describe them in detail in the first frame (age, appearance, style) and keep them EXACTLY the same in every frame. The character interacts with the product throughout the story.`;
+  }
   if (selectedClothing.length > 0) userMsg += `\nThe character wears: ${selectedClothing.map((c) => c.name).join(", ")}`;
   if (config.objective) userMsg += `\nDirection: ${config.objective}`;
 
@@ -90,13 +94,14 @@ export const handleScript: StepHandler = async (ctx) => {
   return { result: { frames, style: styleLabel, numScenes }, needsApproval: true };
 };
 
-// ── Images — generate all keyframes with Nano Banana ────
+// ── Base Image — generate frame 1 only ──────────────────
 
-export const handleImages: StepHandler = async (ctx) => {
+export const handleBaseImage: StepHandler = async (ctx) => {
   const { activeBrand, config, getStepResult } = ctx;
   const scriptData = getStepResult("script") as { frames: Array<{ prompt: string; frame: number; scene_type: string }> } | undefined;
-  if (!scriptData?.frames) throw new Error("No storyboard found.");
+  if (!scriptData?.frames?.[0]) throw new Error("No storyboard found.");
 
+  const firstFrame = scriptData.frames[0];
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
   const selectedClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
@@ -106,50 +111,109 @@ export const handleImages: StepHandler = async (ctx) => {
   selectedClothing.forEach((c) => { if (c.imageUrl) referenceUrls.push(c.imageUrl); });
   if (selectedProduct?.imageUrl) referenceUrls.push(selectedProduct.imageUrl);
 
-  const images = await Promise.all(
-    scriptData.frames.map(async (frame) => {
+  const job = await createImageEdit(referenceUrls, firstFrame.prompt, config.aspectRatio, config.resolution);
+  const result = await pollImageGen(job.request_id);
+  if (result.status === "failed") throw new Error(result.error || "Image generation failed");
+
+  return {
+    result: { url: result.image_url, prompt: firstFrame.prompt, frame: 1, scene_type: firstFrame.scene_type },
+    needsApproval: true,
+  };
+};
+
+// ── Images — generate frames 2-10 using base as reference ──
+
+export const handleImages: StepHandler = async (ctx) => {
+  const { config, getStepResult } = ctx;
+  const scriptData = getStepResult("script") as { frames: Array<{ prompt: string; frame: number; scene_type: string }> } | undefined;
+  if (!scriptData?.frames) throw new Error("No storyboard found.");
+
+  const baseImage = getStepResult("base_image") as { url: string } | undefined;
+  if (!baseImage?.url) throw new Error("No base image found. Approve frame 1 first.");
+
+  // Generate frames SEQUENTIALLY — each uses the previous frame as reference
+  // This creates a chain of visual consistency: F1→F2→F3→...
+  const remainingFrames = scriptData.frames.slice(1);
+  const generatedImages: Array<{ frame: number; url: string; prompt: string; scene_type: string; script: string; status: string }> = [];
+
+  let previousFrameUrl = baseImage.url;
+  for (const frame of remainingFrames) {
+    try {
+      // Use base image (for overall style) + previous frame (for continuity)
+      const refs = [previousFrameUrl, baseImage.url];
+      const prompt = `Same visual style, same character, same product as the reference images. Smooth visual transition from the previous frame. ${frame.prompt}`;
+      const job = await createImageEdit(refs, prompt, config.aspectRatio, config.resolution);
+      const result = await pollImageGen(job.request_id);
+      const url = result.image_url || "";
+      if (url) previousFrameUrl = url; // next frame uses this as reference
+      generatedImages.push({
+        frame: frame.frame, url, prompt: frame.prompt,
+        scene_type: frame.scene_type, script: frame.script || "", status: url ? "done" : "failed",
+      });
+    } catch {
+      generatedImages.push({
+        frame: frame.frame, url: "", prompt: frame.prompt,
+        scene_type: frame.scene_type, script: frame.script || "", status: "failed",
+      });
+    }
+  }
+
+  // Combine: frame 1 (base) + frames 2-10
+  const allFrames = [
+    {
+      frame: 1, url: baseImage.url,
+      prompt: scriptData.frames[0].prompt,
+      scene_type: scriptData.frames[0].scene_type,
+      script: scriptData.frames[0].script || "",
+      status: "done",
+    },
+    ...generatedImages,
+  ];
+
+  // Generate audio for each frame
+  const voiceId = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
+  const framesWithAudio = await Promise.all(
+    allFrames.map(async (f) => {
+      if (!f.script?.trim() || !voiceId) return { ...f, audioUrl: "" };
       try {
-        const job = await createImageEdit(referenceUrls, frame.prompt, config.aspectRatio, config.resolution);
-        const result = await pollImageGen(job.request_id);
-        return {
-          frame: frame.frame,
-          url: result.image_url || "",
-          prompt: frame.prompt,
-          scene_type: frame.scene_type,
-          status: result.status === "failed" ? "failed" : "done",
-        };
+        const { fal_url } = await generateTTSAndUpload({ text: f.script, voice_id: voiceId });
+        return { ...f, audioUrl: fal_url };
       } catch {
-        return { frame: frame.frame, url: "", prompt: frame.prompt, scene_type: frame.scene_type, status: "failed" };
+        return { ...f, audioUrl: "" };
       }
     })
   );
 
-  return { result: { images }, needsApproval: true };
+  return { result: { images: framesWithAudio }, needsApproval: true };
 };
 
-// ── Review Images — manual (UI handles edit/regen) ──────
-
-export const handleReviewImages: StepHandler = async () => {
-  return { result: null };
-};
-
-// ── Voice — generate full voiceover with ElevenLabs ─────
+// ── Voice — generate audio per frame ────────────────────
 
 export const handleVoice: StepHandler = async (ctx) => {
   const { activeBrand, config, getStepResult } = ctx;
-  const scriptData = getStepResult("script") as { frames: Array<{ script: string }> } | undefined;
+  const scriptData = getStepResult("script") as { frames: Array<{ frame: number; script: string }> } | undefined;
   if (!scriptData?.frames) throw new Error("No script found.");
 
   const voiceId = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
-  const fullScript = scriptData.frames.map((f) => f.script).filter(Boolean).join(". ");
+  if (!voiceId) throw new Error("No voice selected. Pick a voice in the form.");
 
-  if (!fullScript.trim()) throw new Error("Script is empty — no voiceover text.");
-
-  const { fal_url } = await generateTTSAndUpload({ text: fullScript, voice_id: voiceId });
+  const audioSegments = [];
+  for (const frame of scriptData.frames) {
+    if (!frame.script?.trim()) {
+      audioSegments.push({ frame: frame.frame, script: "", audioUrl: "" });
+      continue;
+    }
+    try {
+      const { fal_url } = await generateTTSAndUpload({ text: frame.script, voice_id: voiceId });
+      audioSegments.push({ frame: frame.frame, script: frame.script, audioUrl: fal_url });
+    } catch {
+      audioSegments.push({ frame: frame.frame, script: frame.script, audioUrl: "" });
+    }
+  }
 
   return {
-    result: { audioUrl: fal_url, script: fullScript },
-    autoRunNext: true,
+    result: { audioSegments },
+    needsApproval: true,
   };
 };
 
@@ -196,15 +260,16 @@ export const handleAnimate: StepHandler = async (ctx) => {
     }
   }
 
-  return { result: { segments }, autoRunNext: true };
+  return { result: { segments }, needsApproval: true };
 };
 
-// ── Render — concat all segments + voice ────────────────
+// ── Render — concat all segments + voice + subtitles ────
 
 export const handleRender: StepHandler = async (ctx) => {
   const { activeBrand, config, getStepResult, tool } = ctx;
   const animateData = getStepResult("animate") as { segments: Array<{ videoUrl: string }> } | undefined;
   const scriptData = getStepResult("script") as { frames: Array<{ script: string }> } | undefined;
+  const imageData = getStepResult("images") as { images: Array<{ audioUrl?: string }> } | undefined;
 
   if (!animateData?.segments) throw new Error("No animated segments found.");
 

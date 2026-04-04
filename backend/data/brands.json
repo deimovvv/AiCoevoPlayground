@@ -75,6 +75,10 @@
         "filename": "american-fresh_prod_b0d8029b.webp",
         "imageUrl": "/static/products/american-fresh_prod_b0d8029b.webp"
       }
-    ]
+    ],
+    "logo": {
+      "filename": "american-fresh_logo.png",
+      "imageUrl": "/static/logos/american-fresh_logo.png"
+    }
   }
 ]

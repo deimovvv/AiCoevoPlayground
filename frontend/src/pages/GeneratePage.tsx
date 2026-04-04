@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import {
   Sparkles,
@@ -38,7 +38,13 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   sparkles: <Sparkles size={20} />,
 };
 
-// What each tool produces — shown on hover
+// Preview media per tool — images or short video loops
+const TOOL_PREVIEW_MEDIA: Record<string, { url: string; type: "image" | "video" }> = {
+  video_ad_creator: { url: "/previews/videoadcreator.mp4", type: "video" },
+  ugc_creator: { url: "/previews/ugccreator.mp4", type: "video" },
+};
+
+// What each tool produces
 const TOOL_PREVIEWS: Record<string, { what: string; inputs: string; output: string }> = {
   ugc_creator: {
     what: "UGC talking-to-camera videos for social media ads",
@@ -199,19 +205,41 @@ function ToolCard({
   onClick: () => void;
 }) {
   const isComingSoon = tool.status === "coming_soon";
-  const preview = TOOL_PREVIEWS[tool.id];
+  const media = TOOL_PREVIEW_MEDIA[tool.id];
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+  const cardRef = useRef<HTMLButtonElement>(null);
 
   return (
     <button
+      ref={cardRef}
       onClick={onClick}
       disabled={disabled || isComingSoon}
+      onMouseMove={(e) => media && setMousePos({ x: e.clientX, y: e.clientY })}
+      onMouseLeave={() => setMousePos(null)}
       className={cn(
-        "group text-left border border-edge rounded-[var(--radius-md)] p-5 transition-all duration-150 cursor-pointer relative",
+        "group text-left border border-edge rounded-[var(--radius-md)] overflow-hidden transition-all duration-150 cursor-pointer relative",
         disabled || isComingSoon
           ? "bg-surface-0 opacity-50 cursor-not-allowed"
           : "bg-surface-0 hover:bg-surface-1 hover:border-[var(--color-edge-strong)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
       )}
     >
+      {/* Floating preview on hover */}
+      {media && mousePos && (
+        <div
+          className="fixed z-50 pointer-events-none"
+          style={{ left: mousePos.x + 16, top: mousePos.y - 200 }}
+        >
+          <div className="rounded-[var(--radius-md)] overflow-hidden shadow-2xl border border-edge bg-black" style={{ maxWidth: 240, maxHeight: 320 }}>
+            {media.type === "video" ? (
+              <video src={media.url} muted loop autoPlay playsInline className="w-full h-full object-contain" />
+            ) : (
+              <img src={media.url} alt={tool.name} className="w-full h-full object-contain" />
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="p-5">
       {/* Top row: icon + badge */}
       <div className="flex items-start justify-between mb-4">
         <div className="w-10 h-10 rounded-[var(--radius-md)] bg-surface-2 flex items-center justify-center text-fg-muted group-hover:text-fg transition-colors">
@@ -252,6 +280,7 @@ function ToolCard({
             )}
           </span>
         ))}
+      </div>
       </div>
     </button>
   );

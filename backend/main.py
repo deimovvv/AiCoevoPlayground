@@ -878,6 +878,55 @@ def delete_background(brand_id: str, item_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Brand Logo API
+# ══════════════════════════════════════════════════════════════
+
+app.mount("/static/logos", StaticFiles(directory=str(brands.get_logos_dir())), name="logos")
+
+
+@app.post("/api/brands/{brand_id}/logo")
+async def upload_logo(brand_id: str, image: UploadFile = File(...)):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    image_data = await image.read()
+    ext = Path(image.filename or "logo.png").suffix or ".png"
+    filename = f"{brand_id}_logo{ext}"
+    filepath = brands.get_logos_dir() / filename
+
+    with open(filepath, "wb") as f:
+        f.write(image_data)
+
+    brand["logo"] = {
+        "filename": filename,
+        "imageUrl": f"/static/logos/{filename}",
+    }
+    brands.save_brands(all_brands)
+    return brand["logo"]
+
+
+@app.delete("/api/brands/{brand_id}/logo")
+def delete_logo(brand_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    logo = brand.get("logo")
+    if logo and logo.get("filename"):
+        img_path = brands.get_logos_dir() / logo["filename"]
+        if img_path.exists():
+            img_path.unlink()
+    brand.pop("logo", None)
+    brands.save_brands(all_brands)
+    return {"ok": True}
+
+
+# ══════════════════════════════════════════════════════════════
 #  VOICE PRESETS
 # ══════════════════════════════════════════════════════════════
 

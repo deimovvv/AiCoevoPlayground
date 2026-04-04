@@ -40,6 +40,7 @@ export const STEP_META: Record<
   visual_guide: { label: "Visual Guide", icon: <Palette size={15} />, description: "Analyze reference images to extract brand visual style" },
   prompts: { label: "Prompts", icon: <Wand2 size={15} />, description: "Generate creative prompts from visual guide + product" },
   generate_batch: { label: "Generate", icon: <Sparkles size={15} />, description: "Generate all ad creatives from prompts" },
+  generate_all: { label: "Generate", icon: <Sparkles size={15} />, description: "Generate image + variations" },
   review: { label: "Review", icon: <Eye size={15} />, description: "Review, edit, and iterate on generated creatives" },
 };
 

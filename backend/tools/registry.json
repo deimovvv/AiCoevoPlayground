@@ -15,7 +15,16 @@
         "description": "Create cinematic video ads: storyboard, 10 keyframes, frame-to-frame animation with Kling, voiceover, music, and final render.",
         "icon": "film",
         "status": "active",
-        "pipeline": ["script", "images", "review_images", "voice", "animate", "render"]
+        "pipeline": ["script", "base_image", "images", "animate", "render"]
+    },
+    {
+        "id": "static_ad",
+        "name": "Static Ad",
+        "category": "images",
+        "description": "Create ready-to-publish static ads with product, copy, logo, and brand colors. Perfect for social media, display, and print.",
+        "icon": "megaphone",
+        "status": "active",
+        "pipeline": ["prompt", "generate_all"]
     },
     {
         "id": "ad_creative_lab",
