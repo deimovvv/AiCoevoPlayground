@@ -42,7 +42,7 @@ export function Sidebar() {
     const sections: MenuSection[] = [
         {
             items: [
-                { label: "Chat", href: "/dashboard", exact: true, icon: <MessageSquare size={18} /> },
+                { label: "Brand Kit", href: "/dashboard/brand", exact: true, icon: <Palette size={18} /> },
                 { label: "Generate", href: "/dashboard/generate", icon: <Wand2 size={18} /> },
                 { label: "Content", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} /> },
             ],
@@ -50,7 +50,6 @@ export function Sidebar() {
         {
             title: "SETTINGS",
             items: [
-                { label: "Brand Kit", href: "/dashboard/brand", exact: true, icon: <Palette size={18} /> },
                 { label: "Integrations", href: "/dashboard/integrations", exact: true, icon: <Plug size={18} /> },
                 { label: "Automations", href: "/dashboard/automations", exact: true, icon: <Zap size={18} /> },
             ],

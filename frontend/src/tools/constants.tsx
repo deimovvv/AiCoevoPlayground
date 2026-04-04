@@ -41,6 +41,8 @@ export const STEP_META: Record<
   prompts: { label: "Prompts", icon: <Wand2 size={15} />, description: "Generate creative prompts from visual guide + product" },
   generate_batch: { label: "Generate", icon: <Sparkles size={15} />, description: "Generate all ad creatives from prompts" },
   generate_all: { label: "Generate", icon: <Sparkles size={15} />, description: "Generate image + variations" },
+  analyze: { label: "Analyze", icon: <Eye size={15} />, description: "Download and analyze video content with AI" },
+  adapt: { label: "Adapt", icon: <Wand2 size={15} />, description: "Adapt content for your brand" },
   review: { label: "Review", icon: <Eye size={15} />, description: "Review, edit, and iterate on generated creatives" },
 };
 

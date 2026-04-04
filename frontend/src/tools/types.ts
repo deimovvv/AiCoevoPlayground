@@ -96,6 +96,8 @@ export interface ToolSchema {
   showNotes: boolean;
   showLocationRef?: boolean;
   showStyleRef?: boolean;
+  multiAvatar?: boolean;
+  multiProduct?: boolean;
 }
 
 // ── Script Scene (normalized) ────────────────────────────

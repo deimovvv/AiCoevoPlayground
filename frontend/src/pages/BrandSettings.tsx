@@ -461,7 +461,7 @@ function AvatarTile({
           <button
             onClick={onDelete}
             disabled={deleting}
-            className="p-0.5 rounded text-fg-faint hover:text-red-400 transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+            className="p-0.5 rounded text-fg-faint hover:text-error transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
           >
             {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
           </button>
@@ -731,7 +731,7 @@ function ProductTile({
                 <button onClick={() => setEditing(true)} className="p-0.5 rounded text-fg-faint hover:text-fg cursor-pointer">
                   <Pencil size={10} />
                 </button>
-                <button onClick={onDelete} disabled={deleting} className="p-0.5 rounded text-fg-faint hover:text-red-400 cursor-pointer">
+                <button onClick={onDelete} disabled={deleting} className="p-0.5 rounded text-fg-faint hover:text-error cursor-pointer">
                   {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
                 </button>
               </div>
@@ -924,7 +924,7 @@ function ClothingTile({
           <button
             onClick={onDelete}
             disabled={deleting}
-            className="p-0.5 rounded text-fg-faint hover:text-red-400 transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+            className="p-0.5 rounded text-fg-faint hover:text-error transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
           >
             {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
           </button>
@@ -1347,7 +1347,7 @@ function BackgroundTile({
           <button
             onClick={onDelete}
             disabled={deleting}
-            className="p-0.5 rounded text-fg-faint hover:text-red-400 transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+            className="p-0.5 rounded text-fg-faint hover:text-error transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
           >
             {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
           </button>

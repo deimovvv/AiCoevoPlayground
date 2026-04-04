@@ -135,6 +135,170 @@ Respond in English."""
     return await _call_vision(prompt, reference_images)
 
 
+async def analyze_video_frames(
+    frame_images: list[tuple[bytes, str]],
+    video_url: str = "",
+    brand_context: str = "",
+) -> str:
+    """
+    Analyze extracted video frames to reverse-engineer the content.
+    Returns structured analysis: script, scenes, style, transitions.
+    """
+    prompt = f"""You are a creative strategist analyzing a video ad/content piece frame by frame.
+
+These frames are extracted from a video in sequential order. Analyze the COMPLETE content.
+
+{f'Source: {video_url}' if video_url else ''}
+{f'Brand context: {brand_context}' if brand_context else ''}
+
+Analyze and provide:
+
+1. SCRIPT/NARRATION: What is being said or communicated? Reconstruct the likely voiceover or caption text for each scene. Write in the same language as the original content.
+
+2. SCENE BREAKDOWN: For each frame/scene:
+   - What's happening visually
+   - Camera angle and movement
+   - Lighting and mood
+   - Subject/product placement
+   - Text or graphics on screen
+
+3. VISUAL STYLE:
+   - Color palette (specific hex codes)
+   - Lighting approach
+   - Overall aesthetic (UGC, editorial, cinematic, etc.)
+   - Transitions between scenes
+
+4. STRUCTURE:
+   - Hook (how it grabs attention)
+   - Story arc
+   - CTA (call to action)
+   - Pacing (fast cuts, slow reveals, etc.)
+
+5. IMAGE PROMPTS: For each frame, write a Nano Banana 2 image prompt (2-3 sentences, English) that would recreate a similar scene. These prompts should be ready to use for image generation.
+
+Respond in English.
+
+FORMAT: Respond with ONLY a JSON object:
+{{
+  "estimated_script": "full reconstructed script/narration",
+  "scenes": [
+    {{
+      "frame": 1,
+      "description": "what's happening",
+      "image_prompt": "Nano Banana prompt to recreate this scene",
+      "camera": "angle/movement",
+      "mood": "lighting/atmosphere"
+    }}
+  ],
+  "style_guide": "overall visual style description",
+  "color_palette": ["#hex1", "#hex2"],
+  "structure": "hook → story → cta breakdown",
+  "content_type": "UGC | editorial | product-ad | lifestyle | cinematic",
+  "estimated_duration": "seconds",
+  "key_insights": "what makes this content effective"
+}}"""
+
+    return await _call_vision(prompt, frame_images)
+
+
+async def analyze_video_direct(
+    video_bytes: bytes,
+    mime_type: str = "video/mp4",
+    video_url: str = "",
+    brand_context: str = "",
+) -> str:
+    """
+    Send a complete video directly to Gemini for analysis.
+    Gemini sees the full video — visual, audio, text on screen.
+    """
+    prompt = f"""You are a creative strategist analyzing a video ad/content piece.
+
+Watch the ENTIRE video carefully — visuals, audio, text on screen, pacing, everything.
+
+{f'Source: {video_url}' if video_url else ''}
+{f'Brand context for reference: {brand_context}' if brand_context else ''}
+
+Provide a complete analysis:
+
+1. SCRIPT/NARRATION: Transcribe or reconstruct what is being said (voiceover, dialogue, or on-screen text). Keep the original language.
+
+2. SCENE BREAKDOWN: List each distinct scene/shot:
+   - What's happening visually
+   - Camera angle and movement
+   - Duration estimate
+   - Text or graphics on screen
+
+3. VISUAL STYLE: Color palette (hex codes), lighting, aesthetic, transitions
+
+4. AUDIO: Music style, voiceover tone, sound effects
+
+5. STRUCTURE: Hook → Story → CTA breakdown, pacing
+
+6. IMAGE PROMPTS: For each scene, write a Nano Banana 2 prompt (2-3 sentences, English) to recreate it
+
+Respond with ONLY a JSON object:
+{{
+  "estimated_script": "full transcription/script",
+  "scenes": [
+    {{
+      "frame": 1,
+      "description": "what happens",
+      "image_prompt": "Nano Banana prompt",
+      "camera": "angle/movement",
+      "mood": "atmosphere",
+      "duration_estimate": "seconds"
+    }}
+  ],
+  "style_guide": "overall visual style",
+  "color_palette": ["#hex1", "#hex2"],
+  "audio_description": "music and sound",
+  "structure": "hook → story → cta",
+  "content_type": "UGC | editorial | product-ad | lifestyle | cinematic",
+  "estimated_duration": "total seconds",
+  "key_insights": "what makes this effective"
+}}"""
+
+    return await _call_vision_with_video(prompt, video_bytes, mime_type)
+
+
+async def _call_vision_with_video(prompt: str, video_bytes: bytes, mime_type: str) -> str:
+    """Call Gemini with a video file."""
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY not configured")
+
+    b64 = base64.b64encode(video_bytes).decode("utf-8")
+
+    parts = [
+        {"text": prompt},
+        {"inline_data": {"mime_type": mime_type, "data": b64}},
+    ]
+
+    payload = {
+        "contents": [{"role": "user", "parts": parts}],
+        "generationConfig": {
+            "temperature": 0.4,
+            "maxOutputTokens": 8000,
+        },
+    }
+
+    async with httpx.AsyncClient(timeout=120) as client:
+        res = await client.post(
+            _gemini_url(),
+            headers={"Content-Type": "application/json"},
+            json=payload,
+        )
+
+    if res.status_code != 200:
+        raise Exception(f"Gemini Vision error ({res.status_code}): {res.text[:300]}")
+
+    result = res.json()
+    candidates = result.get("candidates", [])
+    if not candidates:
+        raise Exception("No response from Gemini Vision")
+
+    return candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+
+
 async def _call_vision(prompt: str, images: list[tuple[bytes, str]]) -> str:
     """Call Gemini Vision with text prompt + images."""
     if not GEMINI_API_KEY:

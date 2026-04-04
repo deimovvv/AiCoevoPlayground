@@ -62,7 +62,8 @@
       "Bash(git add:*)",
       "Bash(git commit -m ':*)",
       "Bash(git push:*)",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(curl -s -X POST http://localhost:8000/api/analyze/video -F url=https://www.youtube.com/shorts/0VMl7b2Ttng -F brand_context=test)"
     ],
     "deny": [],
     "ask": []

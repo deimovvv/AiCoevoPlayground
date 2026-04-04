@@ -81,7 +81,7 @@ export function ContentPage() {
                             key={t.value}
                             onClick={() => setFilter(t.value)}
                             className={cn(
-                                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-[3px] text-[12px] font-medium transition-colors cursor-pointer",
+                                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--radius-sm)] text-[12px] font-medium transition-colors cursor-pointer",
                                 filter === t.value
                                     ? "bg-surface-2 text-fg"
                                     : "text-fg-muted hover:text-fg"
@@ -97,7 +97,7 @@ export function ContentPage() {
                     <button
                         onClick={() => setView("grid")}
                         className={cn(
-                            "p-1.5 rounded-[3px] transition-colors cursor-pointer",
+                            "p-1.5 rounded-[var(--radius-sm)] transition-colors cursor-pointer",
                             view === "grid" ? "bg-surface-2 text-fg" : "text-fg-muted hover:text-fg"
                         )}
                     >
@@ -106,7 +106,7 @@ export function ContentPage() {
                     <button
                         onClick={() => setView("list")}
                         className={cn(
-                            "p-1.5 rounded-[3px] transition-colors cursor-pointer",
+                            "p-1.5 rounded-[var(--radius-sm)] transition-colors cursor-pointer",
                             view === "list" ? "bg-surface-2 text-fg" : "text-fg-muted hover:text-fg"
                         )}
                     >
@@ -174,8 +174,8 @@ export function ContentPage() {
                     <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmDeleteId(null)} />
                     <div className="relative bg-surface-0 border border-edge rounded-[var(--radius-md)] p-6 max-w-sm w-full mx-4 space-y-4">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
-                                <Trash2 size={18} className="text-red-400" />
+                            <div className="w-10 h-10 rounded-full bg-error-muted flex items-center justify-center shrink-0">
+                                <Trash2 size={18} className="text-error" />
                             </div>
                             <div>
                                 <h3 className="text-[14px] font-semibold text-fg">Delete generation?</h3>
@@ -195,7 +195,7 @@ export function ContentPage() {
                                     setConfirmDeleteId(null);
                                     if (selectedGen?.id === confirmDeleteId) setSelectedGen(null);
                                 }}
-                                className="px-4 py-2 text-[13px] font-medium text-white bg-red-500 hover:bg-red-600 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                                className="px-4 py-2 text-[13px] font-medium text-white bg-[var(--color-error)] hover:opacity-90 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
                             >
                                 Delete
                             </button>
@@ -240,7 +240,7 @@ function ContentCard({ gen, deleting, onDelete, onClick }: { gen: Generation; de
                     <button
                         onClick={(e) => { e.stopPropagation(); onDelete(); }}
                         disabled={deleting}
-                        className="p-2 bg-white/20 rounded-full hover:bg-red-500/60 transition-colors cursor-pointer"
+                        className="p-2 bg-white/20 rounded-full hover:bg-error-muted transition-colors cursor-pointer"
                     >
                         {deleting ? (
                             <Loader2 size={14} className="text-white animate-spin" />
@@ -257,8 +257,8 @@ function ContentCard({ gen, deleting, onDelete, onClick }: { gen: Generation; de
                     <span className={cn(
                         "text-[10px] font-medium px-1.5 py-0.5 rounded",
                         gen.status === "completed"
-                            ? "bg-[rgba(61,191,138,0.1)] text-[var(--color-success)]"
-                            : "bg-[rgba(228,171,27,0.1)] text-[var(--color-warning)]"
+                            ? "bg-success-muted text-success"
+                            : "bg-warning-muted text-warning"
                     )}>
                         {gen.status}
                     </span>
@@ -309,8 +309,8 @@ function ContentRow({ gen, deleting, onDelete, onClick }: { gen: Generation; del
             <span className={cn(
                 "text-[10px] font-medium px-1.5 py-0.5 rounded",
                 gen.status === "completed"
-                    ? "bg-[rgba(61,191,138,0.1)] text-[var(--color-success)]"
-                    : "bg-[rgba(228,171,27,0.1)] text-[var(--color-warning)]"
+                    ? "bg-success-muted text-success"
+                    : "bg-warning-muted text-warning"
             )}>
                 {gen.status}
             </span>
@@ -327,7 +327,7 @@ function ContentRow({ gen, deleting, onDelete, onClick }: { gen: Generation; del
             <button
                 onClick={(e) => { e.stopPropagation(); onDelete(); }}
                 disabled={deleting}
-                className="p-1.5 text-fg-faint hover:text-red-400 transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+                className="p-1.5 text-fg-faint hover:text-error transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
             >
                 {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
             </button>
@@ -385,8 +385,8 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                         <span className={cn(
                             "text-[11px] font-medium px-2 py-1 rounded",
                             gen.status === "completed"
-                                ? "bg-[rgba(61,191,138,0.1)] text-[var(--color-success)]"
-                                : "bg-[rgba(228,171,27,0.1)] text-[var(--color-warning)]"
+                                ? "bg-success-muted text-success"
+                                : "bg-warning-muted text-warning"
                         )}>
                             {gen.status}
                         </span>
@@ -477,7 +477,7 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                         )}
                         <button
                             onClick={onDelete}
-                            className="flex items-center justify-center gap-2 px-4 py-2.5 text-[13px] font-medium text-fg-muted bg-surface-2 hover:bg-red-500/10 hover:text-red-400 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 text-[13px] font-medium text-fg-muted bg-surface-2 hover:bg-error-muted hover:text-error rounded-[var(--radius-sm)] transition-colors cursor-pointer"
                         >
                             <Trash2 size={14} />
                             Delete

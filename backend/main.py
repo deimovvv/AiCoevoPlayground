@@ -33,6 +33,7 @@ from services import chat as chat_service
 from services import prompt_builder
 from services import heygen_avatar4
 from services import image_analysis
+from services import video_download
 
 # ── Paths ────────────────────────────────────────────────────
 (Path(__file__).parent / "tmp").mkdir(exist_ok=True)
@@ -1057,6 +1058,76 @@ async def analyze_visual_guide(
         return {"visual_guide": guide}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Content Analyzer (Video Intelligence)
+# ══════════════════════════════════════════════════════════════
+
+@app.post("/api/analyze/video")
+async def analyze_video(
+    url: str = Form(""),
+    video: UploadFile = File(None),
+    brand_context: str = Form(""),
+):
+    """Analyze a video with Gemini Vision. Accepts URL or direct upload."""
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+
+    video_bytes = None
+    mime_type = "video/mp4"
+    source_url = url
+    work_dir = None
+
+    try:
+        if video and video.filename:
+            # Direct upload
+            video_bytes = await video.read()
+            mime_type = video.content_type or "video/mp4"
+            print(f"[content-analyzer] Uploaded video: {len(video_bytes) / 1024 / 1024:.1f}MB")
+        elif url.strip():
+            # Download from URL
+            dl = await video_download.download_video(url.strip())
+            work_dir = dl.get("work_dir")
+            video_path = Path(dl["path"])
+            video_bytes = video_path.read_bytes()
+            ext = video_path.suffix.lower()
+            mime_map = {".mp4": "video/mp4", ".webm": "video/webm", ".mkv": "video/x-matroska"}
+            mime_type = mime_map.get(ext, "video/mp4")
+            print(f"[content-analyzer] Downloaded: {len(video_bytes) / 1024 / 1024:.1f}MB")
+        else:
+            raise HTTPException(status_code=400, detail="Provide a video URL or upload a video file")
+
+        # Send full video to Gemini
+        analysis_raw = await image_analysis.analyze_video_direct(
+            video_bytes, mime_type, source_url, brand_context
+        )
+
+        # Parse JSON
+        clean = analysis_raw.strip()
+        if clean.startswith("```json"):
+            clean = clean.replace("```json", "").replace("```", "").strip()
+        elif clean.startswith("```"):
+            clean = clean.replace("```", "").strip()
+        if not clean.startswith("{"):
+            start = clean.find("{")
+            if start != -1:
+                clean = clean[start:]
+        try:
+            analysis = json.loads(clean)
+        except json.JSONDecodeError:
+            analysis = {"raw": analysis_raw}
+
+        return {
+            "analysis": analysis,
+            "source_url": source_url,
+            "video_size_mb": round(len(video_bytes) / 1024 / 1024, 1),
+        }
+
+    finally:
+        if work_dir:
+            import shutil
+            shutil.rmtree(work_dir, ignore_errors=True)
 
 
 @app.post("/api/tts/generate-and-upload")

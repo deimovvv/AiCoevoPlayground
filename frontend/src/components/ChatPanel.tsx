@@ -48,7 +48,7 @@ function timeAgo(dateStr: string): string {
 
 // ── Main Component ──────────────────────────────────────────
 
-export function ChatPanel() {
+export function ChatPanel({ compact = false }: { compact?: boolean }) {
   const { activeBrand } = useBrand();
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<ChatSession[]>(loadHistory);
@@ -189,8 +189,16 @@ export function ChatPanel() {
     );
   }
 
+  if (!activeBrand) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-4">
+        <p className="text-[13px] text-fg-faint text-center">Select a brand to start chatting</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex-1 flex min-w-0 h-full">
+    <div className={cn("flex-1 flex min-w-0 h-full", compact ? "flex-col" : "")}>
       {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Messages area */}
@@ -210,7 +218,7 @@ export function ChatPanel() {
               </div>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto px-4 py-6 space-y-1">
+            <div className={cn("mx-auto py-4 space-y-1", compact ? "px-3 max-w-full" : "px-4 max-w-3xl")}>
               {messages.map((msg, i) => (
                 <MessageBubble key={i} message={msg} />
               ))}
@@ -271,8 +279,8 @@ export function ChatPanel() {
               </button>
             </div>
 
-            {/* Context chips + tool actions */}
-            <div className="space-y-1.5">
+            {/* Context chips + tool actions (hidden in compact/drawer mode) */}
+            <div className={cn("space-y-1.5", compact && "hidden")}>
               {/* Asset groups */}
               <AssetChipGroup
                 items={(activeBrand.avatars || []).map((av) => ({ id: av.id, name: av.name, tag: `[avatar: ${av.name}]` }))}

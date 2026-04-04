@@ -13,6 +13,7 @@ import { fashionReels } from "./fashion_reels";
 import { adCreativeLab } from "./ad_creative_lab";
 import { videoAdCreator } from "./video_ad_creator";
 import { staticAd } from "./static_ad";
+import { contentAnalyzer } from "./content_analyzer";
 
 export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   ugc_creator: ugcCreator,
@@ -22,6 +23,7 @@ export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   ad_creative_lab: adCreativeLab,
   video_ad_creator: videoAdCreator,
   static_ad: staticAd,
+  content_analyzer: contentAnalyzer,
 
   // Tools that reuse product_spotlight handlers with different schemas
   photo_multishot: productSpotlight,

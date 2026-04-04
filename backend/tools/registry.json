@@ -9,6 +9,15 @@
         "pipeline": ["script", "base_image", "multishot", "curation", "voice", "lipsync", "render"]
     },
     {
+        "id": "content_analyzer",
+        "name": "Content Analyzer",
+        "category": "images",
+        "description": "Analyze any video (TikTok, YouTube, Instagram) and extract: script, scene prompts, visual style. Then recreate similar content with your brand.",
+        "icon": "sparkles",
+        "status": "active",
+        "pipeline": ["analyze", "adapt", "generate_batch"]
+    },
+    {
         "id": "video_ad_creator",
         "name": "Video Ad Creator",
         "category": "video",

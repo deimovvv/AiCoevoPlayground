@@ -74,6 +74,13 @@
         "description": "This product is an orange plastic bottle of laundry detergent, displayed upright against a white background. The bottle has an ergonomic, slightly hourglass silhouette with an integrated handle on the right side and a clear, faceted plastic measuring cap. Its smooth, glossy surface features a prominent label on the front, displaying \"AMERICA FRESH\" in blue text over a blue wave graphic, surrounded by orange and red bubbles. Small icons like \"32\" and \"HE,\" along with \"Original\" and \"CONT. 2L,\" are also visible on the label.",
         "filename": "american-fresh_prod_b0d8029b.webp",
         "imageUrl": "/static/products/american-fresh_prod_b0d8029b.webp"
+      },
+      {
+        "id": "62c1905c",
+        "name": "America Fresh Original With Softener",
+        "description": "This product is a flexible, upright laundry detergent pouch, predominantly bright pink with a glossy finish. It has a rectangular silhouette, slightly wider at the base, and is displayed standing. Notable features include a large central blue \"AMERICA FRESH\" logo within a swirling blue graphic, surrounded by white bubbles and two lily flowers (one pink, one white) near the bottom right. A yellow \"NEW!\" banner and \"Laundry detergent WITH SOFTENER\" text are visible at the top.",
+        "filename": "american-fresh_prod_62c1905c.jpg",
+        "imageUrl": "/static/products/american-fresh_prod_62c1905c.jpg"
       }
     ],
     "logo": {

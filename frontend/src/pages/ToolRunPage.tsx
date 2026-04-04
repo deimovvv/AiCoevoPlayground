@@ -204,7 +204,9 @@ interface StepState {
 
 interface ToolConfig {
   selectedAvatarId: string | null;
+  selectedAvatarIds: string[];
   selectedProductId: string | null;
+  selectedProductIds: string[];
   selectedClothingIds: string[];
   selectedBackgroundId: string | null;
   selectedVoiceId: string | null;
@@ -228,7 +230,9 @@ interface ToolConfig {
 
 const DEFAULT_CONFIG: ToolConfig = {
   selectedAvatarId: null,
+  selectedAvatarIds: [],
   selectedProductId: null,
+  selectedProductIds: [],
   selectedClothingIds: [],
   selectedBackgroundId: null,
   selectedVoiceId: null,
@@ -1667,15 +1671,15 @@ function ConfigPanel({
       )}
 
       {/* Reference image(s) + Graphics uploaders */}
-      {(tool.id === "ad_creative_lab" || tool.id === "static_ad") && (
+      {(tool.id === "ad_creative_lab" || tool.id === "static_ad" || tool.id === "content_analyzer") && (
         <div className={cn("gap-4", tool.id === "static_ad" ? "grid grid-cols-2" : "space-y-4")}>
           {/* Reference Image — single for Static Ad, multiple for Ad Creative Lab */}
           <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-[12px] font-semibold text-fg-secondary">
-                {tool.id === "static_ad" ? "Reference Image" : "Reference Images"}
+                {tool.id === "content_analyzer" ? "Upload Video" : tool.id === "static_ad" ? "Reference Image" : "Reference Images"}
                 <span className="text-fg-faint font-normal ml-1">
-                  {tool.id === "static_ad" ? "(style reference for the ad)" : "(campaign style references)"}
+                  {tool.id === "content_analyzer" ? "(MP4, WebM — or use URL above)" : tool.id === "static_ad" ? "(style reference for the ad)" : "(campaign style references)"}
                 </span>
               </label>
               <span className="text-[10px] text-fg-faint">{config.referenceImages.length} uploaded</span>
@@ -1701,11 +1705,11 @@ function ConfigPanel({
               "flex items-center justify-center gap-1.5 py-2 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[10px] transition-all",
               "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
             )}>
-              <Plus size={11} /> {tool.id === "static_ad" ? "Upload reference" : "Add references"}
+              <Plus size={11} /> {tool.id === "content_analyzer" ? "Upload video" : tool.id === "static_ad" ? "Upload reference" : "Add references"}
               <input
                 type="file"
-                accept="image/*"
-                multiple={tool.id !== "static_ad"}
+                accept={tool.id === "content_analyzer" ? "video/*" : "image/*"}
+                multiple={tool.id !== "static_ad" && tool.id !== "content_analyzer"}
                 className="hidden"
                 onChange={(e) => {
                   const files = Array.from(e.target.files || []);
@@ -1799,14 +1803,27 @@ function ConfigPanel({
               description: av.description,
               imageUrl: av.imageUrl ? avatarImageUrl(av.imageUrl) : undefined,
             }))}
-            selectedId={config.selectedAvatarId}
-            onSelect={(id) =>
-              setConfig((p) => ({ ...p, selectedAvatarId: p.selectedAvatarId === id ? null : id }))
-            }
+            {...(schema.multiAvatar ? {
+              selectedIds: config.selectedAvatarIds,
+              onToggle: (id: string) => setConfig((p) => ({
+                ...p,
+                selectedAvatarIds: p.selectedAvatarIds.includes(id)
+                  ? p.selectedAvatarIds.filter((x) => x !== id)
+                  : [...p.selectedAvatarIds, id],
+              })),
+              multi: true,
+            } : {
+              selectedId: config.selectedAvatarId,
+              onSelect: (id: string) => setConfig((p) => ({ ...p, selectedAvatarId: p.selectedAvatarId === id ? null : id })),
+            })}
             onUpload={async (file, name) => {
               const item = await uploadAvatar(activeBrand.id, name, file);
               await refreshBrands();
-              setConfig((p) => ({ ...p, selectedAvatarId: item.id }));
+              if (schema.multiAvatar) {
+                setConfig((p) => ({ ...p, selectedAvatarIds: [...p.selectedAvatarIds, item.id] }));
+              } else {
+                setConfig((p) => ({ ...p, selectedAvatarId: item.id }));
+              }
             }}
           />
         )}
@@ -1815,7 +1832,7 @@ function ConfigPanel({
           <div className="space-y-2">
             <AssetSelector
               label={schema.productLabel || "Product"}
-              sublabel="What product to feature"
+              sublabel={schema.multiProduct ? "multi-select" : "What product to feature"}
               emptyText="Upload products in Brand Kit"
               items={(activeBrand.products || []).map((prod) => ({
                 id: prod.id,
@@ -1823,10 +1840,19 @@ function ConfigPanel({
                 description: prod.description,
                 imageUrl: prod.imageUrl ? productImageUrl(prod.imageUrl) : undefined,
               }))}
-              selectedId={config.selectedProductId}
-              onSelect={(id) =>
-                setConfig((p) => ({ ...p, selectedProductId: p.selectedProductId === id ? null : id }))
-              }
+              {...(schema.multiProduct ? {
+                selectedIds: config.selectedProductIds,
+                onToggle: (id: string) => setConfig((p) => ({
+                  ...p,
+                  selectedProductIds: p.selectedProductIds.includes(id)
+                    ? p.selectedProductIds.filter((x) => x !== id)
+                    : [...p.selectedProductIds, id],
+                })),
+                multi: true,
+              } : {
+                selectedId: config.selectedProductId,
+                onSelect: (id: string) => setConfig((p) => ({ ...p, selectedProductId: p.selectedProductId === id ? null : id })),
+              })}
             />
             {config.selectedProductId && tool.id === "ugc_creator" && (
               <label className="flex items-center gap-2 px-4 py-2 bg-surface-1 border border-edge rounded-[var(--radius-sm)] cursor-pointer">
@@ -3525,6 +3551,127 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
     );
   }
 
+  // Analyze step — show video analysis results (Content Analyzer)
+  if (stepId === "analyze" && result) {
+    const data = result as { analysis: Record<string, unknown>; videoDuration: number; numFrames: number; sourceUrl: string };
+    const analysis = data.analysis || {};
+    const scenes = (analysis.scenes || []) as Array<Record<string, string>>;
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">
+            Video analyzed — {data.numFrames} frames, {data.videoDuration}s
+          </span>
+        </div>
+
+        {/* Key insights */}
+        {!!analysis.key_insights && (
+          <div className="bg-[var(--color-warm-muted)] border border-[var(--color-warm)] rounded-[var(--radius-md)] p-4">
+            <h4 className="text-[11px] font-semibold text-[var(--color-warm)] uppercase tracking-wider mb-1">Key Insights</h4>
+            <p className="text-[12px] text-fg-muted">{String(analysis.key_insights)}</p>
+          </div>
+        )}
+
+        {/* Structure + style */}
+        <div className="grid grid-cols-2 gap-3">
+          {!!analysis.content_type && (
+            <div className="bg-surface-2 rounded-[var(--radius-sm)] p-3">
+              <span className="text-[10px] text-fg-faint font-medium">Type</span>
+              <p className="text-[12px] text-fg mt-0.5">{String(analysis.content_type)}</p>
+            </div>
+          )}
+          {!!analysis.structure && (
+            <div className="bg-surface-2 rounded-[var(--radius-sm)] p-3">
+              <span className="text-[10px] text-fg-faint font-medium">Structure</span>
+              <p className="text-[12px] text-fg mt-0.5">{String(analysis.structure)}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Estimated script */}
+        {!!analysis.estimated_script && (
+          <div className="bg-surface-0 border border-edge rounded-[var(--radius-md)] p-4">
+            <h4 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Estimated Script</h4>
+            <p className="text-[12px] text-fg-muted leading-relaxed">{String(analysis.estimated_script)}</p>
+          </div>
+        )}
+
+        {/* Scenes */}
+        {scenes.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider">Scene Breakdown ({scenes.length} scenes)</h4>
+            {scenes.map((scene, i) => (
+              <div key={i} className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-bold text-fg-faint">F{scene.frame || i + 1}</span>
+                  {scene.mood && <span className="text-[9px] px-1.5 py-0.5 bg-surface-2 rounded text-fg-faint">{scene.mood}</span>}
+                </div>
+                <p className="text-[11px] text-fg-muted">{scene.description}</p>
+                <details className="mt-1 text-[9px] text-fg-faint">
+                  <summary className="cursor-pointer hover:text-fg">Image prompt</summary>
+                  <p className="mt-1 font-mono bg-surface-2 p-1.5 rounded text-[9px]">{scene.image_prompt}</p>
+                </details>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Style guide */}
+        {!!analysis.style_guide && (
+          <div className="bg-surface-2 rounded-[var(--radius-sm)] p-3">
+            <span className="text-[10px] text-fg-faint font-medium">Visual Style</span>
+            <p className="text-[11px] text-fg-muted mt-1">{String(analysis.style_guide)}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Adapt step — show adapted content
+  if (stepId === "adapt" && result) {
+    const data = result as {
+      adaptedScript: string;
+      scenes: Array<{ frame: number; script: string; imagePrompt: string; sceneType: string }>;
+      styleNotes: string;
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">
+            Content adapted — {data.scenes.length} scenes for your brand
+          </span>
+        </div>
+
+        {data.adaptedScript && (
+          <div className="bg-surface-0 border border-edge rounded-[var(--radius-md)] p-4">
+            <h4 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Your Script</h4>
+            <p className="text-[13px] text-fg leading-relaxed">{data.adaptedScript}</p>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {data.scenes.map((scene, i) => (
+            <div key={i} className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] p-3 flex gap-3">
+              <span className="text-[10px] font-bold text-fg-faint w-6 shrink-0">F{scene.frame}</span>
+              <div className="flex-1 space-y-1">
+                <p className="text-[11px] text-fg-muted">&ldquo;{scene.script}&rdquo;</p>
+                <details className="text-[9px] text-fg-faint">
+                  <summary className="cursor-pointer hover:text-fg">Image prompt</summary>
+                  <p className="mt-1 font-mono bg-surface-2 p-1.5 rounded text-[9px]">{scene.imagePrompt}</p>
+                </details>
+              </div>
+              <span className="text-[9px] px-1.5 py-0.5 bg-surface-2 rounded text-fg-faint h-fit">{scene.sceneType}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // Prompt step — show prompt + copy (Static Ad, Product Spotlight, etc.)
   if (stepId === "prompt" && result) {
     const data = result as Record<string, unknown>;
@@ -4039,7 +4186,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 <span className="text-[10px] text-fg font-medium">F{seg.startFrame} → F{seg.endFrame}</span>
                 <span className={cn(
                   "text-[9px] px-1.5 py-0.5 rounded",
-                  seg.status === "done" ? "bg-[rgba(61,191,138,0.1)] text-[var(--color-success)]" : "bg-[rgba(228,171,27,0.1)] text-[var(--color-warning)]"
+                  seg.status === "done" ? "bg-success-muted text-success" : "bg-warning-muted text-warning"
                 )}>
                   {seg.status}
                 </span>
@@ -4057,7 +4204,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   // Generic fallback
   return (
     <div className="text-center py-8">
-      <div className="w-10 h-10 rounded-full bg-[rgba(61,191,138,0.1)] flex items-center justify-center mx-auto mb-3">
+      <div className="w-10 h-10 rounded-full bg-success-muted flex items-center justify-center mx-auto mb-3">
         <Check size={18} className="text-[var(--color-success)]" />
       </div>
       <p className="text-[14px] text-fg font-medium">

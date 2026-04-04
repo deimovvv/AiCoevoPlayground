@@ -89,9 +89,9 @@ const TOOL_PREVIEWS: Record<string, { what: string; inputs: string; output: stri
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  video: "bg-purple-500/10 text-purple-400",
-  images: "bg-blue-500/10 text-blue-400",
-  copy: "bg-emerald-500/10 text-emerald-400",
+  video: "bg-warm-muted text-[var(--color-warm)]",
+  images: "bg-surface-2 text-fg-secondary",
+  copy: "bg-success-muted text-success",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
