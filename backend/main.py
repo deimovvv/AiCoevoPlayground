@@ -1016,6 +1016,18 @@ async def text_to_speech(req: TTSRequest):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Static Ad Templates
+# ══════════════════════════════════════════════════════════════
+
+@app.get("/api/tools/static-ad/templates")
+def get_static_ad_templates():
+    templates_file = Path(__file__).parent / "tools" / "static_ad" / "templates.json"
+    if templates_file.exists():
+        return {"templates": json.loads(templates_file.read_text())}
+    return {"templates": []}
+
+
+# ══════════════════════════════════════════════════════════════
 #  Image Analysis (Gemini Vision)
 # ══════════════════════════════════════════════════════════════
 

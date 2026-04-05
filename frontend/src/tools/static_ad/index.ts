@@ -23,7 +23,23 @@ const handlePrompt: StepHandler = async (ctx) => {
   if (config.objective) extraVars.creative_direction = config.objective;
   if (logo) extraVars.logo_info = "Brand logo is available as a reference image.";
 
-  let userMsg = "Generate a static ad composition. Respond with ONLY a JSON object.";
+  // If a template is selected, fetch it and include in the prompt
+  const templateId = config.adTemplate;
+  let templatePrompt = "";
+  if (templateId) {
+    try {
+      const res = await fetch("http://localhost:8000/api/tools/static-ad/templates");
+      const data = await res.json();
+      const template = (data.templates || []).find((t: { id: string }) => t.id === templateId);
+      if (template) {
+        templatePrompt = `\n\nUSE THIS SPECIFIC AD TEMPLATE:\nTemplate: ${template.name}\nFormat: ${template.aspect_ratio}\nDescription: ${template.description}\nGenerate an ad following this exact format and style.`;
+        // Override aspect ratio from template
+        if (template.aspect_ratio) extraVars.template_aspect_ratio = template.aspect_ratio;
+      }
+    } catch { /* silent */ }
+  }
+
+  let userMsg = `Generate a static ad composition.${templatePrompt} Respond with ONLY a JSON object.`;
   if (selectedProduct) userMsg += `\nProduct: ${selectedProduct.name}`;
   if (selectedAvatar) userMsg += `\nModel: ${selectedAvatar.name}`;
   if (config.objective) userMsg += `\nDirection: ${config.objective}`;

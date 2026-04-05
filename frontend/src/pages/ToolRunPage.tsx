@@ -227,6 +227,7 @@ interface ToolConfig {
   allowFaces: boolean;
   adStyle: string;
   animationMode: "frame-to-frame" | "image-to-video";
+  adTemplate: string;
 }
 
 const DEFAULT_CONFIG: ToolConfig = {
@@ -254,6 +255,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   allowFaces: true,
   adStyle: "photorealistic",
   animationMode: "frame-to-frame",
+  adTemplate: "",
 };
 
 // ── Mock data for preview ─────────────────────────────────
@@ -1671,6 +1673,14 @@ function ConfigPanel({
             />
           )}
         </div>
+      )}
+
+      {/* Ad Template selector (Static Ad) */}
+      {tool.id === "static_ad" && (
+        <TemplateSelector
+          selectedId={config.adTemplate}
+          onSelect={(id) => setConfig((p) => ({ ...p, adTemplate: id }))}
+        />
       )}
 
       {/* Animation mode selector (Product Clip, Video Ad Creator) */}
@@ -4836,6 +4846,117 @@ function CurationPanel({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ── Template Selector (Static Ad) ─────────────────────────
+
+interface AdTemplate {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  aspect_ratio: string;
+  needs_person: boolean;
+}
+
+const TEMPLATE_CATEGORIES: Record<string, { label: string; color: string }> = {
+  brand: { label: "Brand", color: "text-[var(--color-warm)] bg-[var(--color-warm-muted)]" },
+  social_proof: { label: "Social Proof", color: "text-success bg-success-muted" },
+  educational: { label: "Educational", color: "text-fg-secondary bg-surface-2" },
+  ugc: { label: "UGC Native", color: "text-warning bg-warning-muted" },
+  comparison: { label: "Comparison", color: "text-error bg-error-muted" },
+  promo: { label: "Promo", color: "text-fg bg-surface-3" },
+  lifestyle: { label: "Lifestyle", color: "text-fg-secondary bg-surface-2" },
+};
+
+function TemplateSelector({ selectedId, onSelect }: { selectedId: string; onSelect: (id: string) => void }) {
+  const [templates, setTemplates] = useState<AdTemplate[]>([]);
+  const [filterCat, setFilterCat] = useState<string>("all");
+
+  useEffect(() => {
+    fetch("http://localhost:8000/api/tools/static-ad/templates")
+      .then((r) => r.json())
+      .then((data) => setTemplates(data.templates || []))
+      .catch(() => {});
+  }, []);
+
+  const categories = [...new Set(templates.map((t) => t.category))];
+  const filtered = filterCat === "all" ? templates : templates.filter((t) => t.category === filterCat);
+
+  return (
+    <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <label className="text-[12px] font-semibold text-fg-secondary">
+          Ad Template
+          <span className="text-fg-faint font-normal ml-1">({templates.length} templates)</span>
+        </label>
+        {selectedId && (
+          <button
+            onClick={() => onSelect("")}
+            className="text-[10px] text-fg-faint hover:text-fg cursor-pointer"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Category filter */}
+      <div className="flex gap-1 flex-wrap">
+        <button
+          onClick={() => setFilterCat("all")}
+          className={cn(
+            "px-2 py-0.5 rounded text-[9px] font-medium cursor-pointer transition-colors",
+            filterCat === "all" ? "bg-surface-3 text-fg" : "text-fg-faint hover:text-fg"
+          )}
+        >
+          All
+        </button>
+        {categories.map((cat) => {
+          const catInfo = TEMPLATE_CATEGORIES[cat];
+          return (
+            <button
+              key={cat}
+              onClick={() => setFilterCat(filterCat === cat ? "all" : cat)}
+              className={cn(
+                "px-2 py-0.5 rounded text-[9px] font-medium cursor-pointer transition-colors",
+                filterCat === cat ? (catInfo?.color || "bg-surface-3 text-fg") : "text-fg-faint hover:text-fg"
+              )}
+            >
+              {catInfo?.label || cat}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Template grid */}
+      <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+        {filtered.map((t) => {
+          const isSelected = selectedId === t.id;
+          const catInfo = TEMPLATE_CATEGORIES[t.category];
+          return (
+            <button
+              key={t.id}
+              onClick={() => onSelect(isSelected ? "" : t.id)}
+              className={cn(
+                "text-left px-2.5 py-2 rounded-[var(--radius-sm)] border transition-all cursor-pointer",
+                isSelected
+                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)]"
+                  : "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2"
+              )}
+            >
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="text-[10px] font-semibold text-fg truncate">{t.name}</span>
+                <span className={cn("text-[8px] px-1 py-0.5 rounded shrink-0", catInfo?.color || "bg-surface-2 text-fg-faint")}>
+                  {t.aspect_ratio}
+                </span>
+              </div>
+              <p className="text-[8px] text-fg-faint leading-tight line-clamp-2">{t.description}</p>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
