@@ -114,7 +114,7 @@ export function normalizeScene(s: Record<string, string>, index: number): Script
   return {
     id: s.id || `act_${index + 1}`,
     title: s.title || s.act || `Scene ${index + 1}`,
-    script: s.script || s.speech || s.text || "",
+    script: s.script || s.speech || s.copy || s.text || "",
     image_prompt: s.image_prompt || "",
   };
 }

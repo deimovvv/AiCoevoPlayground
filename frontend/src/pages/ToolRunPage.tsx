@@ -623,7 +623,7 @@ export function ToolRunPage() {
     return rawScenes.map((s, i) => ({
       id: s.id || `act_${i + 1}`,
       title: s.title || s.act || `Scene ${i + 1}`,
-      script: s.script || s.speech || s.text || "",
+      script: s.script || s.speech || s.copy || s.text || "",
       image_prompt: s.image_prompt || "",
     }));
   };
@@ -2363,7 +2363,7 @@ function StepPanel({
               const sr = allSteps.find((s: StepState) => s.id === "script")?.result as Record<string, unknown> | undefined;
               if (!sr?.scenes) return [];
               const arr = (sr.scenes as Array<Array<Record<string, string>>>)[0] || [];
-              return arr.map((s, i) => ({ id: s.id || `act_${i+1}`, title: s.title || s.act || `Scene ${i+1}`, script: s.script || s.speech || s.text || "", image_prompt: s.image_prompt || "" }));
+              return arr.map((s, i) => ({ id: s.id || `act_${i+1}`, title: s.title || s.act || `Scene ${i+1}`, script: s.script || s.speech || s.copy || s.text || "", image_prompt: s.image_prompt || "" }));
             }} />
         ) : step.status === "done" ? (
           <DoneStep stepId={step.id} result={step.result} audioCache={audioCache} config={config} allSteps={allSteps}
@@ -2371,7 +2371,7 @@ function StepPanel({
               const sr = allSteps.find((s: StepState) => s.id === "script")?.result as Record<string, unknown> | undefined;
               if (!sr?.scenes) return [];
               const arr = (sr.scenes as Array<Array<Record<string, string>>>)[0] || [];
-              return arr.map((s, i) => ({ id: s.id || `act_${i+1}`, title: s.title || s.act || `Scene ${i+1}`, script: s.script || s.speech || s.text || "", image_prompt: s.image_prompt || "" }));
+              return arr.map((s, i) => ({ id: s.id || `act_${i+1}`, title: s.title || s.act || `Scene ${i+1}`, script: s.script || s.speech || s.copy || s.text || "", image_prompt: s.image_prompt || "" }));
             }} />
         ) : (
           <div className="text-center py-12">
@@ -2819,7 +2819,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       scenes = (arr[0] || []).map((s, i) => ({
         id: s.id || `act_${i + 1}`,
         title: s.title || s.act || `Scene ${i + 1}`,
-        script: s.script || s.speech || s.text || "",
+        script: s.script || s.speech || s.copy || s.text || "",
         image_prompt: s.image_prompt || "",
       }));
       brief = (raw.brief as string) || null;
@@ -2828,7 +2828,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       scenes = arr.map((s, i) => ({
         id: s.id || `act_${i + 1}`,
         title: s.title || s.act || `Scene ${i + 1}`,
-        script: s.script || s.speech || s.text || "",
+        script: s.script || s.speech || s.copy || s.text || "",
         image_prompt: s.image_prompt || "",
       }));
     }
@@ -4523,7 +4523,7 @@ function CurationPanel({
     scriptScenes = rawArr.map((s, i) => ({
       id: s.id || `act_${i + 1}`,
       title: s.title || s.act || `Scene ${i + 1}`,
-      script: s.script || s.speech || s.text || "",
+      script: s.script || s.speech || s.copy || s.text || "",
     }));
   }
 
