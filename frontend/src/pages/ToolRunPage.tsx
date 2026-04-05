@@ -226,6 +226,7 @@ interface ToolConfig {
   graphicAssets: File[];
   allowFaces: boolean;
   adStyle: string;
+  animationMode: "frame-to-frame" | "image-to-video";
 }
 
 const DEFAULT_CONFIG: ToolConfig = {
@@ -252,6 +253,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   graphicAssets: [],
   allowFaces: true,
   adStyle: "photorealistic",
+  animationMode: "frame-to-frame",
 };
 
 // ── Mock data for preview ─────────────────────────────────
@@ -574,10 +576,11 @@ export function ToolRunPage() {
     );
     if (stepIndex < steps.length - 1) {
       setActiveStep(stepIndex + 1);
-      // Auto-run next step for certain transitions
+      // Auto-run next step if configured in tool registry
       const nextStep = steps[stepIndex + 1];
-      if (nextStep && (nextStep.id === "base_image" || nextStep.id === "multishot" || nextStep.id === "lipsync" || nextStep.id === "subtitles" || nextStep.id === "render")) {
-        setTimeout(() => handleRunStep(stepIndex + 1), 100);
+      const toolDef = tool ? TOOL_DEFINITIONS[tool.id] : null;
+      if (nextStep && toolDef?.autoRunSteps?.includes(nextStep.id)) {
+        handleRunStep(stepIndex + 1);
       }
     }
   };
@@ -1670,16 +1673,49 @@ function ConfigPanel({
         </div>
       )}
 
+      {/* Animation mode selector (Product Clip, Video Ad Creator) */}
+      {(tool.id === "product_clip" || tool.id === "video_ad_creator") && (
+        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
+          <label className="text-[12px] font-semibold text-fg-secondary">Animation Mode</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setConfig((p) => ({ ...p, animationMode: "frame-to-frame" }))}
+              className={cn(
+                "px-3 py-2 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer text-center",
+                config.animationMode === "frame-to-frame"
+                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                  : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
+              )}
+            >
+              <div className="font-semibold">Frame-to-Frame</div>
+              <div className="text-[9px] text-fg-faint mt-0.5">Smooth transitions between scenes</div>
+            </button>
+            <button
+              onClick={() => setConfig((p) => ({ ...p, animationMode: "image-to-video" }))}
+              className={cn(
+                "px-3 py-2 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer text-center",
+                config.animationMode === "image-to-video"
+                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                  : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
+              )}
+            >
+              <div className="font-semibold">Image-to-Video</div>
+              <div className="text-[9px] text-fg-faint mt-0.5">Each frame animated independently</div>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Reference image(s) + Graphics uploaders */}
-      {(tool.id === "ad_creative_lab" || tool.id === "static_ad" || tool.id === "content_analyzer") && (
+      {(tool.id === "ad_creative_lab" || tool.id === "static_ad" || tool.id === "content_analyzer" || tool.id === "product_clip") && (
         <div className={cn("gap-4", tool.id === "static_ad" ? "grid grid-cols-2" : "space-y-4")}>
           {/* Reference Image — single for Static Ad, multiple for Ad Creative Lab */}
           <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-[12px] font-semibold text-fg-secondary">
-                {tool.id === "content_analyzer" ? "Upload Video" : tool.id === "static_ad" ? "Reference Image" : "Reference Images"}
+                {tool.id === "content_analyzer" ? "Upload Video" : (tool.id === "static_ad" || tool.id === "product_clip") ? "Reference Image" : "Reference Images"}
                 <span className="text-fg-faint font-normal ml-1">
-                  {tool.id === "content_analyzer" ? "(MP4, WebM — or use URL above)" : tool.id === "static_ad" ? "(style reference for the ad)" : "(campaign style references)"}
+                  {tool.id === "content_analyzer" ? "(MP4, WebM — or use URL above)" : (tool.id === "static_ad" || tool.id === "product_clip") ? "(style/mood reference)" : "(campaign style references)"}
                 </span>
               </label>
               <span className="text-[10px] text-fg-faint">{config.referenceImages.length} uploaded</span>
@@ -1705,11 +1741,11 @@ function ConfigPanel({
               "flex items-center justify-center gap-1.5 py-2 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[10px] transition-all",
               "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
             )}>
-              <Plus size={11} /> {tool.id === "content_analyzer" ? "Upload video" : tool.id === "static_ad" ? "Upload reference" : "Add references"}
+              <Plus size={11} /> {tool.id === "content_analyzer" ? "Upload video" : (tool.id === "static_ad" || tool.id === "product_clip") ? "Upload reference" : "Add references"}
               <input
                 type="file"
                 accept={tool.id === "content_analyzer" ? "video/*" : "image/*"}
-                multiple={tool.id !== "static_ad" && tool.id !== "content_analyzer"}
+                multiple={tool.id !== "static_ad" && tool.id !== "content_analyzer" && tool.id !== "product_clip"}
                 className="hidden"
                 onChange={(e) => {
                   const files = Array.from(e.target.files || []);
@@ -3839,57 +3875,114 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           </span>
         </div>
 
-        {/* Frame-by-frame review */}
-        <div className="space-y-3">
+        {/* Horizontal grid of frames */}
+        <div className={cn("grid gap-3", images.length <= 3 ? "grid-cols-3" : images.length <= 5 ? "grid-cols-5" : "grid-cols-5")}>
           {images.map((img) => (
-            <div key={img.frame} className="bg-surface-0 border border-edge rounded-[var(--radius-md)] p-3 flex gap-3">
-              {/* Image */}
-              <div className="w-24 shrink-0">
-                <div
-                  className="aspect-[9/16] rounded-[var(--radius-sm)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors group relative"
-                  onClick={() => img.url && setLightboxUrl(img.url)}
-                >
-                  {img.url ? (
-                    <img src={img.url} alt={`F${img.frame}`} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-surface-2 flex items-center justify-center">
-                      <AlertCircle size={12} className="text-[var(--color-error)]" />
-                    </div>
-                  )}
-                  <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 rounded text-[8px] text-white font-bold">
-                    F{img.frame}
+            <div key={img.frame} className="space-y-1.5">
+              <div
+                className="relative aspect-[9/16] rounded-[var(--radius-sm)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors group"
+                onClick={() => img.url && setLightboxUrl(img.url)}
+              >
+                {img.url ? (
+                  <img src={img.url} alt={`F${img.frame}`} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-surface-2 flex items-center justify-center">
+                    <AlertCircle size={14} className="text-[var(--color-error)]" />
                   </div>
+                )}
+                <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 rounded text-[8px] text-white font-bold">
+                  F{img.frame}
+                </div>
+                {img.scene_type && (
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
+                    <span className="text-[8px] text-white">{img.scene_type}</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <Eye size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </div>
 
-              {/* Details */}
-              <div className="flex-1 min-w-0 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-fg">Frame {img.frame}</span>
-                  <span className="text-[9px] px-1.5 py-0.5 bg-surface-2 rounded text-fg-faint">{img.scene_type}</span>
-                </div>
-
-                {/* Script text */}
-                {img.script && (
-                  <p className="text-[11px] text-fg-muted leading-relaxed">&ldquo;{img.script}&rdquo;</p>
-                )}
-
-                {/* Audio play */}
-                {img.audioUrl && (
+              {/* Script + audio below image */}
+              {img.script && (
+                <p className="text-[9px] text-fg-muted leading-tight line-clamp-2">&ldquo;{img.script}&rdquo;</p>
+              )}
+              {img.audioUrl && (
+                <button
+                  onClick={() => new Audio(img.audioUrl!).play()}
+                  className="flex items-center gap-1 text-[9px] text-fg-faint hover:text-fg cursor-pointer"
+                >
+                  <Play size={8} /> Listen
+                </button>
+              )}
+              {/* Regen + Edit */}
+              {img.frame > 1 && (
+                <div className="flex gap-1">
                   <button
-                    onClick={() => new Audio(img.audioUrl!).play()}
-                    className="flex items-center gap-1 text-[10px] text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 px-2 py-1 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                    onClick={async () => {
+                      setActionLoading(`img_${img.frame}`);
+                      try {
+                        const baseUrl = images[0]?.url;
+                        if (!baseUrl) return;
+                        const prompt = `Same product, same style, same lighting as image 1. ${img.prompt}`;
+                        const job = await createImageEdit([img.url, baseUrl], prompt, config?.aspectRatio || "9:16", config?.resolution || "1K");
+                        const result = await pollImageGen(job.request_id);
+                        if (result.image_url) img.url = result.image_url;
+                      } catch { /* */ } finally { setActionLoading(null); }
+                    }}
+                    disabled={!!actionLoading}
+                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[9px] font-medium bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 transition-colors cursor-pointer"
                   >
-                    <Play size={9} /> Listen
+                    {actionLoading === `img_${img.frame}` ? <Loader2 size={8} className="animate-spin" /> : <RotateCcw size={8} />}
+                    Regen
                   </button>
-                )}
-
-                {/* Prompt (collapsible) */}
-                <details className="text-[9px] text-fg-faint">
-                  <summary className="cursor-pointer hover:text-fg">Show prompt</summary>
-                  <p className="mt-1 p-1.5 bg-surface-2 rounded text-[9px] font-mono leading-relaxed break-words">{img.prompt}</p>
-                </details>
-              </div>
+                  <button
+                    onClick={() => setEditingId(editingId === `img_${img.frame}` ? null : `img_${img.frame}`)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[9px] font-medium bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 transition-colors cursor-pointer"
+                  >
+                    <Pencil size={8} />
+                    Edit
+                  </button>
+                </div>
+              )}
+              {editingId === `img_${img.frame}` && (
+                <div className="flex items-center gap-1">
+                  <input
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    placeholder="E.g., warmer, more dramatic..."
+                    className="flex-1 h-6 px-1.5 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[9px] text-fg outline-none"
+                    onKeyDown={async (e) => {
+                      if (e.key !== "Enter" || !editText.trim()) return;
+                      setEditLoading(true);
+                      try {
+                        const job = await createImageEdit([img.url], editText.trim(), config?.aspectRatio || "9:16", config?.resolution || "1K");
+                        const result = await pollImageGen(job.request_id);
+                        if (result.image_url) img.url = result.image_url;
+                      } catch { /* */ } finally { setEditLoading(false); setEditingId(null); setEditText(""); }
+                    }}
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!editText.trim()) return;
+                      setEditLoading(true);
+                      try {
+                        const job = await createImageEdit([img.url], editText.trim(), config?.aspectRatio || "9:16", config?.resolution || "1K");
+                        const result = await pollImageGen(job.request_id);
+                        if (result.image_url) img.url = result.image_url;
+                      } catch { /* */ } finally { setEditLoading(false); setEditingId(null); setEditText(""); }
+                    }}
+                    disabled={editLoading}
+                    className="px-1.5 py-1 text-[8px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] cursor-pointer"
+                  >
+                    {editLoading ? <Loader2 size={8} className="animate-spin" /> : "OK"}
+                  </button>
+                </div>
+              )}
+              <details className="text-[8px] text-fg-faint">
+                <summary className="cursor-pointer hover:text-fg">Prompt</summary>
+                <p className="mt-0.5 font-mono leading-relaxed break-words">{img.prompt}</p>
+              </details>
             </div>
           ))}
         </div>

@@ -9,6 +9,15 @@
         "pipeline": ["script", "base_image", "multishot", "curation", "voice", "lipsync", "render"]
     },
     {
+        "id": "product_clip",
+        "name": "Product Clip",
+        "category": "video",
+        "description": "Short product video (10-15s). No people — just the product, beautifully shot and animated. Perfect for Stories, e-commerce, product reveals.",
+        "icon": "film",
+        "status": "active",
+        "pipeline": ["script", "base_image", "images", "animate", "render"]
+    },
+    {
         "id": "content_analyzer",
         "name": "Content Analyzer",
         "category": "images",
