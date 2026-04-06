@@ -30,6 +30,7 @@ import {
 import { useBrand } from "../lib/BrandContext";
 import {
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl,
+  type Brand,
   generateCopy, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen,
   createFalLipSync, pollFalLipSync, concatVideos, saveGeneration,
   generateToolPrompt, createKlingVideo, pollKlingVideo,
@@ -230,6 +231,7 @@ interface ToolConfig {
   adTemplate: string;
   carouselType: string;
   numSlides: number;
+  customScript: string;
 }
 
 const DEFAULT_CONFIG: ToolConfig = {
@@ -260,6 +262,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   adTemplate: "",
   carouselType: "",
   numSlides: 5,
+  customScript: "",
 };
 
 // ── Mock data for preview ─────────────────────────────────
@@ -633,13 +636,35 @@ export function ToolRunPage() {
       rawScenes = (scriptResult as Array<Array<Record<string, string>>>)[0] || [];
     }
 
-    // Normalize: Gemini returns inconsistent field names
-    return rawScenes.map((s, i) => ({
-      id: s.id || `act_${i + 1}`,
-      title: s.title || s.act || `Scene ${i + 1}`,
-      script: s.script || s.speech || s.copy || s.text || "",
-      image_prompt: s.image_prompt || "",
-    }));
+    console.log("[getScriptScenes] rawScenes count:", rawScenes.length, "scriptResult keys:", Object.keys(scriptResult));
+    if (rawScenes.length > 0) {
+      console.log("[getScriptScenes] first scene ALL keys:", Object.keys(rawScenes[0]), "FULL:", JSON.stringify(rawScenes[0]));
+    } else {
+      console.log("[getScriptScenes] NO rawScenes found. Full result:", JSON.stringify(scriptResult).slice(0, 500));
+    }
+
+    // Normalize: Gemini returns wildly inconsistent field names across runs
+    return rawScenes.map((s, i) => {
+      // Script: try every possible field name Gemini might use
+      let scriptText = s.script || s.speech || s.copy || s.text || s.audio || s.dialogue
+        || s.narration || s.voiceover || s.action || s.spoken || s.line || s.lines || "";
+      // Clean prefixes like "AVATAR:", "OFF-CAMERA (sigh):", etc.
+      scriptText = scriptText.replace(/^(AVATAR|OFF[- ]?CAMERA|ON[- ]?CAMERA|NARRATOR|SPEAKER)\s*(\([^)]*\)\s*)?:\s*/i, "").trim();
+
+      // Image prompt: try every possible field name
+      const imagePrompt = s.image_prompt || s.visuals || s.visual || s.visual_prompt
+        || s.scene_description || s.setting || s.background || s.scene || "";
+
+      // Don't use numeric-only values as image_prompt (e.g. scene: 1)
+      const finalImagePrompt = imagePrompt && isNaN(Number(imagePrompt)) ? imagePrompt : "";
+
+      return {
+        id: s.id || s.scene_number || `act_${i + 1}`,
+        title: s.title || s.act || `Scene ${i + 1}`,
+        script: scriptText,
+        image_prompt: finalImagePrompt,
+      };
+    });
   };
 
   const handleRunStep = async (stepIndex: number) => {
@@ -702,6 +727,19 @@ export function ToolRunPage() {
     if (step.id === "script") {
       setStepRunning(stepIndex);
       try {
+        // Custom script bypass — skip Gemini, parse user's script directly
+        if (config.customScript?.trim()) {
+          const lines = config.customScript.trim().split("\n").filter((l) => l.trim());
+          const customScenes = lines.map((line, i) => ({
+            id: `act_${i + 1}`,
+            title: `Scene ${i + 1}`,
+            script: line.trim(),
+            image_prompt: `${selectedAvatar?.name || "Person"} looking directly at camera, ${line.trim().slice(0, 50)}. ${selectedProduct ? `Holding or showing ${selectedProduct.name}.` : ""} Shot on 50mm f/1.8, medium shot, natural lighting, vertical 9:16.`,
+          }));
+          advanceStep(stepIndex, { scenes: [customScenes] }, { needsApproval: true });
+          return;
+        }
+
         let notes = config.objective;
         if (selectedAvatar) {
           notes += `\nAVATAR: ${selectedAvatar.name}`;
@@ -757,7 +795,9 @@ export function ToolRunPage() {
       try {
         const scenes = getScriptScenes();
         const firstScene = scenes[0];
+        console.log("[base_image] scenes:", scenes.length, "firstScene:", JSON.stringify(firstScene).slice(0, 300));
         if (!firstScene) throw new Error("No script scenes found. Run the Script step first.");
+        if (!firstScene.image_prompt) throw new Error(`No image prompt found in scene 1. Scene keys: ${JSON.stringify(firstScene)}`);
 
         // Collect reference images based on mode
         const imageUrls: string[] = [];
@@ -807,7 +847,8 @@ export function ToolRunPage() {
           inputs: inputsSummary,
         }, { needsApproval: true });
       } catch (err) {
-        failStep(stepIndex, err instanceof Error ? err.message : "Image generation failed");
+        const msg = err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+        failStep(stepIndex, msg || "Image generation failed");
       }
       return;
     }
@@ -1739,15 +1780,15 @@ function ConfigPanel({
       )}
 
       {/* Reference image(s) + Graphics uploaders */}
-      {(tool.id === "ad_creative_lab" || tool.id === "static_ad" || tool.id === "content_analyzer" || tool.id === "product_clip") && (
+      {(tool.id === "ad_creative_lab" || tool.id === "static_ad" || tool.id === "content_analyzer" || tool.id === "product_clip" || tool.id === "ugc_creator") && (
         <div className={cn("gap-4", tool.id === "static_ad" ? "grid grid-cols-2" : "space-y-4")}>
           {/* Reference Image — single for Static Ad, multiple for Ad Creative Lab */}
           <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-[12px] font-semibold text-fg-secondary">
-                {tool.id === "content_analyzer" ? "Upload Video" : (tool.id === "static_ad" || tool.id === "product_clip") ? "Reference Image" : "Reference Images"}
+                {tool.id === "content_analyzer" ? "Upload Video" : tool.id === "ugc_creator" ? "Composition Reference" : (tool.id === "static_ad" || tool.id === "product_clip") ? "Reference Image" : "Reference Images"}
                 <span className="text-fg-faint font-normal ml-1">
-                  {tool.id === "content_analyzer" ? "(MP4, WebM — or use URL above)" : (tool.id === "static_ad" || tool.id === "product_clip") ? "(style/mood reference)" : "(campaign style references)"}
+                  {tool.id === "content_analyzer" ? "(MP4, WebM — or use URL above)" : tool.id === "ugc_creator" ? "(optional — pose/setting reference for first scene)" : (tool.id === "static_ad" || tool.id === "product_clip") ? "(style/mood reference)" : "(campaign style references)"}
                 </span>
               </label>
               <span className="text-[10px] text-fg-faint">{config.referenceImages.length} uploaded</span>
@@ -2196,6 +2237,122 @@ function ConfigPanel({
             className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-3 py-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-none"
           />
         </div>
+
+        {/* Custom Script — per-scene inputs, skip Gemini */}
+        {tool.pipeline?.includes("script") && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-medium text-fg-faint">
+                Custom Script <span className="text-fg-faint">(optional — skip AI)</span>
+              </label>
+              {config.customScript && (
+                <button
+                  onClick={() => setConfig((p) => ({ ...p, customScript: "" }))}
+                  className="text-[9px] text-fg-faint hover:text-fg cursor-pointer"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+            {(() => {
+              // Parse scenes: array of {script, visual, shot} objects
+              type CustomScene = { script: string; visual: string; shot?: string };
+              let scenes: CustomScene[] = [];
+              try {
+                const parsed = JSON.parse(config.customScript || "[]");
+                if (Array.isArray(parsed)) {
+                  scenes = parsed.map((s: string | CustomScene) =>
+                    typeof s === "string" ? { script: s, visual: "", shot: "auto" } : { shot: "auto", ...s }
+                  );
+                }
+              } catch {
+                scenes = [];
+              }
+              if (scenes.length === 0) scenes.push({ script: "", visual: "", shot: "auto" });
+
+              const save = (updated: CustomScene[]) => {
+                setConfig((p) => ({ ...p, customScript: JSON.stringify(updated) }));
+              };
+              const updateScript = (idx: number, val: string) => {
+                const u = [...scenes]; u[idx] = { ...u[idx], script: val }; save(u);
+              };
+              const updateVisual = (idx: number, val: string) => {
+                const u = [...scenes]; u[idx] = { ...u[idx], visual: val }; save(u);
+              };
+              const updateShot = (idx: number, val: string) => {
+                const u = [...scenes]; u[idx] = { ...u[idx], shot: val }; save(u);
+              };
+              const addScene = () => save([...scenes, { script: "", visual: "", shot: "auto" }]);
+              const removeScene = (idx: number) => save(scenes.filter((_, i) => i !== idx));
+              const hasContent = scenes.some((s) => s.script.trim());
+
+              return (
+                <>
+                  {scenes.map((s, i) => (
+                    <div key={i} className="border border-edge rounded-[var(--radius-sm)] p-2 space-y-1.5">
+                      <div className="flex gap-2 items-start">
+                        <span className="text-[10px] text-fg-faint font-mono mt-1.5 w-4 shrink-0">{i + 1}</span>
+                        <div className="flex-1 space-y-1">
+                          <textarea
+                            value={s.script}
+                            onChange={(e) => updateScript(i, e.target.value)}
+                            rows={2}
+                            placeholder={
+                              i === 0 ? "Script: Si buscas auriculares nuevos escucha bien..."
+                              : i === scenes.length - 1 ? "Script: Si pagas con personal Pay, tenes un 20% de reintegro"
+                              : `Script scene ${i + 1}...`
+                            }
+                            className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-none"
+                          />
+                          <div className="flex gap-1.5">
+                            <input
+                              value={s.visual}
+                              onChange={(e) => updateVisual(i, e.target.value)}
+                              placeholder={
+                                i === 0 ? "Visual: chica acostada en la cama mirando el celular"
+                                : "Visual: close-up del producto solo, sin persona"
+                              }
+                              className="flex-1 bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1 text-[11px] text-fg-muted placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
+                            />
+                            <select
+                              value={s.shot || "auto"}
+                              onChange={(e) => updateShot(i, e.target.value)}
+                              className="w-28 bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-1.5 py-1 text-[10px] text-fg-muted outline-none focus:border-[var(--color-edge-focus)]"
+                            >
+                              <option value="auto">Auto</option>
+                              <option value="close-up">Close-up</option>
+                              <option value="medium-close">Medium Close</option>
+                              <option value="medium">Medium</option>
+                              <option value="full-body">Full Body</option>
+                              <option value="wide">Wide</option>
+                              <option value="hands">Hands</option>
+                              <option value="product-only">Product Only</option>
+                              <option value="overhead">Overhead</option>
+                            </select>
+                          </div>
+                        </div>
+                        <button onClick={() => removeScene(i)} className="text-[10px] text-fg-faint hover:text-red-400 mt-1.5 cursor-pointer">
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    onClick={addScene}
+                    className="flex items-center gap-1 text-[10px] text-fg-muted hover:text-fg cursor-pointer"
+                  >
+                    <Plus size={10} /> Add scene
+                  </button>
+                  {hasContent && (
+                    <p className="text-[10px] text-[var(--color-warm)]">
+                      AI script generation will be skipped — your scripts will be used directly.
+                    </p>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
 
         {(schema.showLocationRef || schema.showStyleRef) && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -2815,6 +2972,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   const [editMode, setEditMode] = useState(false);
   const [editPromptText, setEditPromptText] = useState("");
   const [editLoading, setEditLoading] = useState(false);
+  const [editRefUrls, setEditRefUrls] = useState<string[]>([]);
   const [testVideoLoading, setTestVideoLoading] = useState(false);
   const [testVideoUrl, setTestVideoUrl] = useState<string | null>(null);
   const [playingAudio, setPlayingAudio] = useState(false);
@@ -2829,6 +2987,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   // Script step — show script text + brief, only first image prompt
   if (stepId === "script" && result) {
     const raw = result as Record<string, unknown>;
+    console.log("[DoneStep script] keys:", Object.keys(raw), "isArray:", Array.isArray(result), "preview:", JSON.stringify(raw).slice(0, 500));
     let scenes: Array<{ id: string; title: string; script: string; image_prompt: string }> = [];
     let brief: string | null = null;
 
@@ -2848,20 +3007,27 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
     // UGC format: { scenes: [[...]], brief }
     else if (raw.scenes) {
       const arr = raw.scenes as Array<Array<Record<string, string>>>;
-      scenes = (arr[0] || []).map((s, i) => ({
-        id: s.id || `act_${i + 1}`,
-        title: s.title || s.act || `Scene ${i + 1}`,
-        script: s.script || s.speech || s.copy || s.text || "",
-        image_prompt: s.image_prompt || "",
-      }));
+      scenes = (arr[0] || []).map((s, i) => {
+        let scriptText = s.script || s.speech || s.copy || s.text || s.audio || s.dialogue
+          || s.narration || s.voiceover || s.action || s.spoken || s.line || s.lines || "";
+        scriptText = scriptText.replace(/^(AVATAR|OFF[- ]?CAMERA|ON[- ]?CAMERA|NARRATOR|SPEAKER)\s*(\([^)]*\)\s*)?:\s*/i, "").trim();
+        const imgPrompt = s.image_prompt || s.visuals || s.visual || s.visual_prompt
+          || s.scene_description || s.setting || s.background || s.scene || "";
+        return {
+          id: s.id || s.scene_number || `act_${i + 1}`,
+          title: s.title || s.act || `Scene ${i + 1}`,
+          script: scriptText,
+          image_prompt: imgPrompt && isNaN(Number(imgPrompt)) ? imgPrompt : "",
+        };
+      });
       brief = (raw.brief as string) || null;
     } else if (Array.isArray(result)) {
       const arr = (result as Array<Array<Record<string, string>>>)[0] || [];
       scenes = arr.map((s, i) => ({
-        id: s.id || `act_${i + 1}`,
+        id: s.id || s.scene_number || `act_${i + 1}`,
         title: s.title || s.act || `Scene ${i + 1}`,
-        script: s.script || s.speech || s.copy || s.text || "",
-        image_prompt: s.image_prompt || "",
+        script: s.script || s.speech || s.copy || s.text || s.audio || s.dialogue || s.narration || s.voiceover || "",
+        image_prompt: s.image_prompt || s.visuals || s.visual || s.visual_prompt || s.scene_description || "",
       }));
     }
 
@@ -2910,8 +3076,62 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             </div>
             <div className="p-4 space-y-3">
               <div>
-                <div className="text-[10px] font-medium text-fg-faint uppercase tracking-wider mb-1">Script</div>
-                <p className="text-[13px] text-fg leading-relaxed">{scene.script}</p>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-[10px] font-medium text-fg-faint uppercase tracking-wider">Script</div>
+                  {scene.script && config?.selectedVoiceId && (
+                    <button
+                      onClick={async (e) => {
+                        const btn = e.currentTarget;
+                        // If already playing, stop
+                        if (btn.dataset.playing === "true") {
+                          const audio = document.getElementById(`preview-audio-${scene.id}`) as HTMLAudioElement;
+                          if (audio) { audio.pause(); audio.currentTime = 0; }
+                          btn.dataset.playing = "false";
+                          btn.textContent = "▶ Preview";
+                          return;
+                        }
+                        // Check cache first
+                        const cached = audioCacheProp?.[scene.id];
+                        if (cached?.url) {
+                          let audio = document.getElementById(`preview-audio-${scene.id}`) as HTMLAudioElement;
+                          if (!audio) { audio = new Audio(); audio.id = `preview-audio-${scene.id}`; }
+                          audio.src = cached.url;
+                          btn.dataset.playing = "true";
+                          btn.textContent = "⏹ Stop";
+                          audio.onended = () => { btn.dataset.playing = "false"; btn.textContent = "▶ Preview"; };
+                          audio.play();
+                          return;
+                        }
+                        // Generate TTS
+                        btn.textContent = "⏳...";
+                        try {
+                          const tts = await generateTTS({ text: scene.script, voice_id: config.selectedVoiceId! });
+                          let audio = document.getElementById(`preview-audio-${scene.id}`) as HTMLAudioElement;
+                          if (!audio) { audio = new Audio(); audio.id = `preview-audio-${scene.id}`; }
+                          audio.src = tts.audioUrl;
+                          btn.dataset.playing = "true";
+                          btn.textContent = "⏹ Stop";
+                          audio.onended = () => { btn.dataset.playing = "false"; btn.textContent = "▶ Preview"; };
+                          audio.play();
+                        } catch {
+                          btn.textContent = "▶ Preview";
+                        }
+                      }}
+                      className="text-[10px] text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                    >
+                      ▶ Preview
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  defaultValue={scene.script}
+                  onChange={(e) => {
+                    // Update the script in the step result directly
+                    scene.script = e.target.value;
+                  }}
+                  rows={Math.max(2, Math.ceil(scene.script.length / 60))}
+                  className="w-full text-[13px] text-fg leading-relaxed bg-transparent border border-transparent hover:border-edge focus:border-[var(--color-warm)] rounded-[var(--radius-sm)] px-2 py-1 outline-none resize-none transition-colors"
+                />
               </div>
               {i === 0 && scene.image_prompt && (
                 <div>
@@ -2949,7 +3169,9 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       if (!editPromptText.trim()) return;
       setEditLoading(true);
       try {
-        const job = await createImageEdit([img.url], editPromptText.trim());
+        // Pass current image + user-selected refs
+        const editRefs = [img.url, ...editRefUrls];
+        const job = await createImageEdit(editRefs, editPromptText.trim(), config?.aspectRatio || "9:16", config?.resolution || "1K");
         const editResult = await pollImageGen(job.request_id);
         if (editResult.image_url) {
           (result as { url: string }).url = editResult.image_url;
@@ -3143,28 +3365,83 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           </div>
         </div>
 
-        {/* Edit form */}
+        {/* Edit form with product selector */}
         {editMode && (
-          <div className="flex items-center gap-2 bg-surface-2 rounded-[var(--radius-sm)] p-3">
-            <input
-              value={editPromptText}
-              onChange={(e) => setEditPromptText(e.target.value)}
-              placeholder="E.g., remove background clutter, extend the product, make lighting warmer..."
-              className="flex-1 h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg placeholder:text-fg-faint outline-none"
-              onKeyDown={(e) => e.key === "Enter" && handleEdit()}
-            />
-            <button
-              onClick={handleEdit}
-              disabled={editLoading || !editPromptText.trim()}
-              className={cn(
-                "px-4 py-2 text-[11px] font-medium rounded-[var(--radius-sm)] transition-colors",
-                !editLoading && editPromptText.trim()
-                  ? "text-white bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
-                  : "text-fg-faint bg-surface-1 cursor-not-allowed"
-              )}
-            >
-              {editLoading ? <Loader2 size={12} className="animate-spin" /> : "Apply Edit"}
-            </button>
+          <div className="bg-surface-2 rounded-[var(--radius-md)] p-4 space-y-3">
+            {/* Quick actions */}
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setEditPromptText("Replace the product with the product from the reference images. Keep the person, pose, background, and lighting identical.")}
+                className="text-[10px] px-2.5 py-1 bg-[var(--color-warm-muted)] text-[var(--color-warm)] rounded-full cursor-pointer hover:opacity-80"
+              >
+                Fix Product
+              </button>
+              <button
+                onClick={() => setEditPromptText("Make the clothing match the reference images exactly — same color, design, and fit.")}
+                className="text-[10px] px-2.5 py-1 bg-surface-3 text-fg-muted rounded-full cursor-pointer hover:text-fg"
+              >
+                Fix Clothing
+              </button>
+              <button
+                onClick={() => setEditPromptText("Make the lighting warmer and more natural.")}
+                className="text-[10px] px-2.5 py-1 bg-surface-3 text-fg-muted rounded-full cursor-pointer hover:text-fg"
+              >
+                Warmer Light
+              </button>
+            </div>
+
+            {/* Product/clothing image picker */}
+            {activeBrand && (activeBrand.products?.length || 0) + (activeBrand.clothing?.length || 0) > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[9px] font-medium text-fg-faint uppercase tracking-wider">Reference images (click to include)</span>
+                <div className="flex gap-1.5 flex-wrap">
+                  {(activeBrand.products || []).flatMap((p) => [
+                    { url: p.imageUrl, label: p.name, resolver: productImageUrl },
+                    ...(p.images || []).map((img) => ({ url: img.imageUrl, label: img.label || p.name, resolver: productImageUrl })),
+                  ]).map((ref, idx) => {
+                    const isIncluded = editRefUrls.includes(ref.url);
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => setEditRefUrls((prev) =>
+                          prev.includes(ref.url) ? prev.filter((u) => u !== ref.url) : [...prev, ref.url]
+                        )}
+                        className={cn(
+                          "w-10 h-10 rounded overflow-hidden border-2 cursor-pointer transition-all",
+                          isIncluded ? "border-[var(--color-warm)]" : "border-edge opacity-50 hover:opacity-100"
+                        )}
+                        title={ref.label}
+                      >
+                        <img src={ref.resolver(ref.url)} alt={ref.label} className="w-full h-full object-cover" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Prompt input */}
+            <div className="flex items-center gap-2">
+              <input
+                value={editPromptText}
+                onChange={(e) => setEditPromptText(e.target.value)}
+                placeholder="Describe what to change..."
+                className="flex-1 h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg placeholder:text-fg-faint outline-none"
+                onKeyDown={(e) => e.key === "Enter" && handleEdit()}
+              />
+              <button
+                onClick={handleEdit}
+                disabled={editLoading || !editPromptText.trim()}
+                className={cn(
+                  "px-4 py-2 text-[11px] font-medium rounded-[var(--radius-sm)] transition-colors",
+                  !editLoading && editPromptText.trim()
+                    ? "text-white bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+                    : "text-fg-faint bg-surface-1 cursor-not-allowed"
+                )}
+              >
+                {editLoading ? <Loader2 size={12} className="animate-spin" /> : "Apply"}
+              </button>
+            </div>
           </div>
         )}
 
@@ -3240,16 +3517,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             {picks.length} scenes selected
           </span>
         </div>
-        <div className="grid grid-cols-4 gap-3">
-          {picks.map((pick, i) => (
-            <div key={pick.sceneId} className="space-y-1.5">
-              <div className="aspect-[9/16] rounded-[var(--radius-sm)] overflow-hidden border-2 border-[var(--color-success)]">
-                <img src={pick.selectedUrl} alt={pick.title} className="w-full h-full object-cover" />
-              </div>
-              <p className="text-[11px] text-fg font-medium text-center">{i + 1}. {pick.title}</p>
-            </div>
-          ))}
-        </div>
+        <CurationFixGrid picks={picks} brand={activeBrand!} config={config!} />
       </div>
     );
   }
@@ -3295,29 +3563,62 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       );
     }
 
-    // UGC format fallback
-    const segments = result as Array<{ sceneId: string; title: string; duration: string; text: string }>;
+    // UGC format — voice results with playback + edit + regenerate
+    const segments = result as Array<{ sceneId: string; title: string; script: string; audioUrl: string; duration: string; text?: string }>;
     if (!Array.isArray(segments)) return null;
-    const totalDuration = segments.reduce((sum, s) => sum + parseFloat(s.duration || "0"), 0);
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-2">
           <Check size={14} className="text-[var(--color-success)]" />
           <span className="text-[13px] font-medium text-fg">
-            {segments.length} audio segments — {totalDuration.toFixed(1)}s total
+            {segments.filter((s) => s.audioUrl).length}/{segments.length} audio segments generated
           </span>
         </div>
         <div className="space-y-2">
           {segments.map((seg) => (
-            <div key={seg.sceneId} className="bg-surface-2 rounded-[var(--radius-sm)] px-4 py-3">
-              <div className="flex items-center justify-between mb-1.5">
+            <div key={seg.sceneId} className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Mic size={12} className="text-fg-muted" />
                   <span className="text-[12px] font-medium text-fg">{seg.title}</span>
                 </div>
-                <span className="text-[10px] text-fg-faint font-mono">{seg.duration}s</span>
+                <div className="flex items-center gap-1.5">
+                  {seg.audioUrl && (
+                    <button
+                      onClick={() => {
+                        const audio = new Audio(seg.audioUrl);
+                        audio.play();
+                      }}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 cursor-pointer"
+                    >
+                      <Play size={10} /> Play
+                    </button>
+                  )}
+                  <button
+                    onClick={async (e) => {
+                      const btn = e.currentTarget;
+                      btn.textContent = "⏳...";
+                      try {
+                        const voiceId = config?.selectedVoiceId || activeBrand?.voicePresets?.[0]?.id;
+                        const tts = await generateTTS({ text: seg.script || seg.text || "", voice_id: voiceId });
+                        seg.audioUrl = tts.audioUrl;
+                        const audio = new Audio(tts.audioUrl);
+                        audio.play();
+                      } catch { /* */ }
+                      btn.textContent = "↻ Regen";
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 rounded-[var(--radius-sm)] text-[10px] text-fg-faint hover:text-fg bg-surface-2 hover:bg-surface-3 cursor-pointer"
+                  >
+                    <RotateCcw size={9} /> Regen
+                  </button>
+                </div>
               </div>
-              <p className="text-[11px] text-fg-muted leading-relaxed">{seg.text}</p>
+              <textarea
+                defaultValue={seg.script || seg.text || ""}
+                onChange={(e) => { seg.script = e.target.value; }}
+                rows={2}
+                className="w-full text-[12px] text-fg-muted leading-relaxed bg-transparent border border-transparent hover:border-edge focus:border-[var(--color-warm)] rounded-[var(--radius-sm)] px-2 py-1 outline-none resize-none transition-colors"
+              />
             </div>
           ))}
         </div>
@@ -3811,19 +4112,29 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   }
 
   // Carousel prompt step — show slides overview (detected by presence of slides array)
+  if (stepId === "prompt" && result) {
+    // Debug: log what the DoneStep received
+    const _raw = result as Record<string, unknown>;
+    console.log("[DoneStep prompt]", "keys:", Object.keys(_raw), "isArray:", Array.isArray(_raw), "has slides:", "slides" in _raw, "preview:", JSON.stringify(_raw).slice(0, 400));
+  }
   if (stepId === "prompt" && result && (() => {
     let d = result as Record<string, unknown>;
+    if (Array.isArray(d)) return true; // wrapped array has slides
     const dk = Object.keys(d);
     if (dk.length === 1 && typeof d[dk[0]] === "object" && d[dk[0]] !== null && !Array.isArray(d[dk[0]])) d = d[dk[0]] as Record<string, unknown>;
     return Array.isArray(d.slides);
   })()) {
     let data = result as Record<string, unknown>;
+    // If it's an array, wrap it
+    if (Array.isArray(data)) {
+      data = { slides: data } as unknown as Record<string, unknown>;
+    }
     const dKeys = Object.keys(data);
     if (dKeys.length === 1 && typeof data[dKeys[0]] === "object" && data[dKeys[0]] !== null && !Array.isArray(data[dKeys[0]])) {
       data = data[dKeys[0]] as Record<string, unknown>;
     }
-    const slides = (data.slides || []) as Array<Record<string, string>>;
-    const visualStyle = String(data.visual_style || "");
+    const slides = (data.slides || (Array.isArray(result) ? result : [])) as Array<Record<string, string>>;
+    const visualStyle = String(data.base_scene || data.visual_style || "");
     const colors = String(data.colors || "");
 
     return (
@@ -4692,11 +5003,15 @@ function CurationPanel({
     } else if (Array.isArray(scriptResult)) {
       rawArr = (scriptResult as Array<Array<Record<string, string>>>)[0] || [];
     }
-    scriptScenes = rawArr.map((s, i) => ({
-      id: s.id || `act_${i + 1}`,
-      title: s.title || s.act || `Scene ${i + 1}`,
-      script: s.script || s.speech || s.copy || s.text || "",
-    }));
+    scriptScenes = rawArr.map((s, i) => {
+      let scriptText = s.script || s.speech || s.copy || s.text || s.audio || s.dialogue || s.narration || s.voiceover || s.action || "";
+      scriptText = scriptText.replace(/^(AVATAR|OFF[- ]?CAMERA|ON[- ]?CAMERA|NARRATOR|SPEAKER)\s*(\([^)]*\)\s*)?:\s*/i, "").trim();
+      return {
+        id: s.id || s.scene_number || `act_${i + 1}`,
+        title: s.title || s.act || `Scene ${i + 1}`,
+        script: scriptText,
+      };
+    });
   }
 
   // Local playback state (not generation state)
@@ -4793,7 +5108,8 @@ function CurationPanel({
     if (!editingVar || !editPrompt.trim()) return;
     setEditLoading(true);
     try {
-      const job = await createImageEdit([editingVar.url], editPrompt.trim());
+      const productUrls = (editingVar as typeof editingVar & { productUrls?: string[] })?.productUrls || [];
+      const job = await createImageEdit([editingVar.url, ...productUrls], editPrompt.trim());
       const result = await pollImageGen(job.request_id);
       if (result.image_url) {
         for (const scene of multishotData) {
@@ -4981,16 +5297,52 @@ function CurationPanel({
               })}
             </div>
 
-            {/* Inline edit form */}
+            {/* Inline edit form with product selector */}
             {editingVar && editingVar.sceneId === scene.sceneId && (
-              <div className="flex items-center gap-2 bg-surface-2 rounded-[var(--radius-sm)] p-2">
-                <input
-                  value={editPrompt}
-                  onChange={(e) => setEditPrompt(e.target.value)}
-                  placeholder="E.g., remove the background clutter, make lighting warmer..."
-                  className="flex-1 h-7 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg placeholder:text-fg-faint outline-none"
-                  onKeyDown={(e) => e.key === "Enter" && handleEditImage()}
-                />
+              <div className="bg-surface-2 rounded-[var(--radius-sm)] p-3 space-y-2">
+                {/* Product image selector */}
+                {activeBrand?.products && activeBrand.products.length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-medium text-fg-faint uppercase tracking-wider">Include product reference</span>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {(activeBrand.products || []).flatMap((p) => [
+                        { url: p.imageUrl, label: p.name, pid: p.id },
+                        ...(p.images || []).map((img) => ({ url: img.imageUrl, label: img.label || p.name, pid: p.id })),
+                      ]).map((img, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            const ev = editingVar as typeof editingVar & { productUrls?: string[] };
+                            const urls = ev?.productUrls || [];
+                            if (urls.includes(img.url)) {
+                              (editingVar as typeof editingVar & { productUrls?: string[] }).productUrls = urls.filter((u) => u !== img.url);
+                            } else {
+                              (editingVar as typeof editingVar & { productUrls?: string[] }).productUrls = [...urls, img.url];
+                            }
+                            setEditPrompt((p) => p); // force re-render
+                          }}
+                          className={cn(
+                            "w-10 h-10 rounded overflow-hidden border-2 cursor-pointer transition-all",
+                            ((editingVar as typeof editingVar & { productUrls?: string[] })?.productUrls || []).includes(img.url)
+                              ? "border-[var(--color-warm)]"
+                              : "border-edge opacity-50 hover:opacity-100"
+                          )}
+                          title={img.label}
+                        >
+                          <img src={productImageUrl(img.url)} alt={img.label} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    value={editPrompt}
+                    onChange={(e) => setEditPrompt(e.target.value)}
+                    placeholder="Replace the product with the one from the reference. Keep everything else identical."
+                    className="flex-1 h-7 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg placeholder:text-fg-faint outline-none"
+                    onKeyDown={(e) => e.key === "Enter" && handleEditImage()}
+                  />
                 <button
                   onClick={handleEditImage}
                   disabled={editLoading || !editPrompt.trim()}
@@ -5003,6 +5355,7 @@ function CurationPanel({
                 >
                   {editLoading ? <Loader2 size={11} className="animate-spin" /> : "Apply"}
                 </button>
+                </div>
               </div>
             )}
           </div>
@@ -5229,5 +5582,180 @@ function CarouselTypeSelector({
         </div>
       )}
     </div>
+  );
+}
+
+// ── Curation Fix Grid ─────────────────────────────────────
+
+function CurationFixGrid({ picks, brand, config }: {
+  picks: Array<{ sceneId: string; title: string; selectedUrl: string }>;
+  brand: Brand;
+  config: ToolConfig;
+}) {
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState(config.selectedProductId || "");
+  const [selectedImageUrls, setSelectedImageUrls] = useState<string[]>([]);
+  const [editPrompt, setEditPrompt] = useState("Replace the product in this image with the product from the reference. Keep the person, pose, background, and lighting identical.");
+  const [loading, setLoading] = useState(false);
+  const [, forceUpdate] = useState(0);
+
+  const products = brand.products || [];
+
+  const openEdit = (idx: number) => {
+    setEditingIdx(idx);
+    // Pre-select current product
+    const pid = config.selectedProductId || products[0]?.id || "";
+    setSelectedProductId(pid);
+    // Pre-select all images of that product
+    const p = products.find((pr) => pr.id === pid);
+    if (p) {
+      setSelectedImageUrls([p.imageUrl, ...(p.images || []).map((img) => img.imageUrl)]);
+    }
+  };
+
+  const handleProductChange = (pid: string) => {
+    setSelectedProductId(pid);
+    const p = products.find((pr) => pr.id === pid);
+    if (p) {
+      setSelectedImageUrls([p.imageUrl, ...(p.images || []).map((img) => img.imageUrl)]);
+    }
+  };
+
+  const toggleImage = (url: string) => {
+    setSelectedImageUrls((prev) =>
+      prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url]
+    );
+  };
+
+  const handleFix = async () => {
+    if (editingIdx === null || selectedImageUrls.length === 0) return;
+    const pick = picks[editingIdx];
+    setLoading(true);
+    try {
+      const job = await createImageEdit(
+        [pick.selectedUrl, ...selectedImageUrls],
+        editPrompt,
+        config.aspectRatio || "9:16",
+        config.resolution || "1K"
+      );
+      const result = await pollImageGen(job.request_id);
+      if (result.image_url) {
+        pick.selectedUrl = result.image_url;
+        forceUpdate((n) => n + 1);
+      }
+    } catch (err) {
+      console.error("Fix failed:", err);
+    } finally {
+      setLoading(false);
+      setEditingIdx(null);
+    }
+  };
+
+  const selectedProduct = products.find((p) => p.id === selectedProductId);
+
+  return (
+    <>
+      <div className="grid grid-cols-4 gap-3">
+        {picks.map((pick, i) => (
+          <div key={pick.sceneId} className="space-y-1.5">
+            <div className="aspect-[9/16] rounded-[var(--radius-sm)] overflow-hidden border-2 border-[var(--color-success)] relative group">
+              <img src={pick.selectedUrl} alt={pick.title} className="w-full h-full object-cover" />
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                <button
+                  onClick={() => openEdit(i)}
+                  className="flex-1 text-[9px] font-medium text-white bg-[var(--color-warm)] hover:opacity-90 rounded px-2 py-1 cursor-pointer"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+            <p className="text-[11px] text-fg font-medium text-center">{i + 1}. {pick.title}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Edit panel */}
+      {editingIdx !== null && (
+        <div className="bg-surface-0 border border-edge rounded-[var(--radius-md)] p-4 space-y-3 mt-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-[12px] font-semibold text-fg">
+              Edit Scene {editingIdx + 1} — {picks[editingIdx].title}
+            </h4>
+            <button onClick={() => setEditingIdx(null)} className="text-[10px] text-fg-faint hover:text-fg cursor-pointer">
+              Cancel
+            </button>
+          </div>
+
+          {/* Product selector */}
+          {products.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-[10px] font-medium text-fg-faint uppercase tracking-wider">Product Reference</label>
+              <div className="flex gap-2 flex-wrap">
+                {products.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleProductChange(p.id)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-sm)] border text-[11px] cursor-pointer transition-all",
+                      selectedProductId === p.id
+                        ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                        : "border-edge hover:border-[var(--color-edge-strong)] text-fg-muted"
+                    )}
+                  >
+                    <img src={productImageUrl(p.imageUrl)} alt={p.name} className="w-5 h-5 rounded object-cover" />
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Image picker — select which photos to pass */}
+              {selectedProduct && (
+                <div className="flex gap-2">
+                  {[
+                    { url: selectedProduct.imageUrl, label: "Main" },
+                    ...(selectedProduct.images || []).map((img) => ({ url: img.imageUrl, label: img.label || "Extra" })),
+                  ].map((img, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => toggleImage(img.url)}
+                      className={cn(
+                        "w-12 h-12 rounded-[var(--radius-sm)] overflow-hidden border-2 cursor-pointer transition-all",
+                        selectedImageUrls.includes(img.url)
+                          ? "border-[var(--color-warm)]"
+                          : "border-edge opacity-50 hover:opacity-100"
+                      )}
+                    >
+                      <img src={productImageUrl(img.url)} alt={img.label} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Editable prompt */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-fg-faint uppercase tracking-wider">Edit Prompt</label>
+            <textarea
+              value={editPrompt}
+              onChange={(e) => setEditPrompt(e.target.value)}
+              rows={3}
+              className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-3 py-2 text-[12px] text-fg outline-none focus:border-[var(--color-edge-focus)] resize-none font-mono"
+            />
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={handleFix}
+              disabled={loading || selectedImageUrls.length === 0}
+              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer disabled:opacity-40"
+            >
+              {loading ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+              {loading ? "Generating..." : "Apply Edit"}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -17,6 +17,7 @@ export const ugcCreator: ToolDefinition = {
     showClothing: true, clothingLabel: "Clothing", clothingSublabel: "optional, multi-select",
     showBackground: true,
     showVoice: true, showTone: false, showPlatform: false, showLanguage: true, showVariations: false,
+    showStyleRef: true,
     objectiveLabel: "Video Objective",
     objectivePlaceholder: "Describe what you want to achieve...",
     showNotes: false,
@@ -30,6 +31,6 @@ export const ugcCreator: ToolDefinition = {
     lipsync: handleLipsync,
     render: handleRender,
   },
-  approvalSteps: ["script", "base_image", "lipsync"],
-  autoRunSteps: ["base_image", "multishot", "lipsync", "render"],
+  approvalSteps: ["script", "base_image", "voice", "lipsync"],
+  autoRunSteps: ["base_image", "multishot", "voice", "render"],
 };

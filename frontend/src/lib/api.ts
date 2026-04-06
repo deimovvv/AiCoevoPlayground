@@ -29,6 +29,7 @@ export interface Product {
     description?: string;
     filename: string;
     imageUrl: string;
+    images?: Array<{ filename: string; imageUrl: string; label?: string }>;
 }
 
 export interface ClothingItem {
@@ -95,7 +96,7 @@ export async function sendChatMessage(
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Chat request failed" }));
-        throw new Error(err.detail || "Chat request failed");
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || "Chat request failed");
     }
     const data = await res.json();
     return data.reply;
@@ -122,7 +123,7 @@ export async function createBrand(name: string): Promise<Brand> {
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Failed to create brand (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to create brand (${res.status})`);
     }
     return res.json();
 }
@@ -142,7 +143,7 @@ export async function updateBrand(brandId: string, updates: { name?: string; bra
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Failed to update brand (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to update brand (${res.status})`);
     }
     return res.json();
 }
@@ -159,7 +160,7 @@ export async function addGuidanceFromUrl(brandId: string, url: string): Promise<
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Failed to fetch URL" }));
-        throw new Error(err.detail || "Failed to fetch URL");
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || "Failed to fetch URL");
     }
     return res.json();
 }
@@ -173,7 +174,7 @@ export async function addGuidanceFromPdf(brandId: string, file: File): Promise<{
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Failed to parse PDF" }));
-        throw new Error(err.detail || "Failed to parse PDF");
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || "Failed to parse PDF");
     }
     return res.json();
 }
@@ -186,7 +187,7 @@ export async function generateBrandDNA(brandId: string): Promise<{ dna: BrandDNA
     const res = await fetch(`${API_BASE}/api/brands/${brandId}/generate-dna`, { method: "POST" });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Failed to generate DNA" }));
-        throw new Error(err.detail || "Failed to generate Brand DNA");
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || "Failed to generate Brand DNA");
     }
     return res.json();
 }
@@ -218,7 +219,7 @@ export async function generateCopy(brandId: string, req: GenerateCopyRequest): P
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Copy generation failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Copy generation failed (${res.status})`);
     }
     return res.json();
 }
@@ -247,7 +248,7 @@ export async function uploadAvatar(
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Failed to upload avatar (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to upload avatar (${res.status})`);
     }
 
     return res.json();
@@ -274,7 +275,7 @@ export async function addHeygenAvatar(
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Failed to add HeyGen avatar (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to add HeyGen avatar (${res.status})`);
     }
 
     return res.json();
@@ -318,9 +319,24 @@ export async function uploadProduct(
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Failed to upload product (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to upload product (${res.status})`);
     }
 
+    return res.json();
+}
+
+export async function addProductImage(brandId: string, productId: string, imageFile: File, label = ""): Promise<Product> {
+    const formData = new FormData();
+    formData.append("image", imageFile);
+    formData.append("label", label);
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/products/${productId}/images`, {
+        method: "POST",
+        body: formData,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || "Failed to add product image");
+    }
     return res.json();
 }
 
@@ -360,7 +376,7 @@ export async function uploadClothing(
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Failed to upload clothing (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to upload clothing (${res.status})`);
     }
 
     return res.json();
@@ -402,7 +418,7 @@ export async function uploadBackground(
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Failed to upload background (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to upload background (${res.status})`);
     }
 
     return res.json();
@@ -436,7 +452,7 @@ export async function addVoicePreset(
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Failed to add voice (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to add voice (${res.status})`);
     }
     return res.json();
 }
@@ -532,7 +548,7 @@ export async function generateTTS(req: TTSRequest): Promise<TTSResult> {
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `TTS failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `TTS failed (${res.status})`);
     }
 
     const blob = await res.blob();
@@ -552,7 +568,7 @@ export async function generateTTSAndUpload(req: TTSRequest): Promise<{ fal_url: 
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `TTS+Upload failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `TTS+Upload failed (${res.status})`);
     }
     return res.json();
 }
@@ -593,7 +609,7 @@ export async function uploadTalkingPhoto(imageFile: File): Promise<{ talking_pho
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Failed to upload talking photo (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to upload talking photo (${res.status})`);
     }
 
     return res.json();
@@ -629,7 +645,7 @@ export async function createLipSync(
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Lip sync failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Lip sync failed (${res.status})`);
     }
 
     return res.json();
@@ -709,7 +725,7 @@ export async function createKlingVideo(
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Kling video failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Kling video failed (${res.status})`);
     }
 
     return res.json();
@@ -735,7 +751,7 @@ export async function createKlingVideoFromFile(
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Kling video failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Kling video failed (${res.status})`);
     }
 
     return res.json();
@@ -752,7 +768,7 @@ export async function checkKlingStatus(requestId: string): Promise<KlingStatus> 
     const res = await fetch(`${API_BASE}/api/kling/status/${encodeURIComponent(requestId)}`);
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Kling status check failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Kling status check failed (${res.status})`);
     }
     return res.json();
 }
@@ -761,7 +777,7 @@ export async function getKlingResult(requestId: string): Promise<KlingStatus> {
     const res = await fetch(`${API_BASE}/api/kling/result/${encodeURIComponent(requestId)}`);
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Kling result failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Kling result failed (${res.status})`);
     }
     return res.json();
 }
@@ -846,7 +862,8 @@ export async function createImageEdit(
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Image gen failed (${res.status})`);
+        const detail = typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail);
+        throw new Error(detail || `Image gen failed (${res.status})`);
     }
 
     return res.json();
@@ -856,7 +873,7 @@ export async function checkImageGenStatus(requestId: string): Promise<ImageGenSt
     const res = await fetch(`${API_BASE}/api/image-gen/status/${encodeURIComponent(requestId)}`);
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Image gen status check failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Image gen status check failed (${res.status})`);
     }
     return res.json();
 }
@@ -865,7 +882,7 @@ export async function getImageGenResult(requestId: string): Promise<ImageGenStat
     const res = await fetch(`${API_BASE}/api/image-gen/result/${encodeURIComponent(requestId)}`);
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Image gen result failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Image gen result failed (${res.status})`);
     }
     return res.json();
 }
@@ -876,8 +893,8 @@ export async function getImageGenResult(requestId: string): Promise<ImageGenStat
 export async function pollImageGen(
     requestId: string,
     onProgress?: (status: ImageGenStatus) => void,
-    intervalMs = 3000,
-    maxAttempts = 60,
+    intervalMs = 4000,
+    maxAttempts = 90,
 ): Promise<ImageGenStatus> {
     if (requestId.startsWith("SYNC:")) {
         const result: ImageGenStatus = {
@@ -943,7 +960,7 @@ export async function createFalLipSync(
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Fal lip sync failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Fal lip sync failed (${res.status})`);
     }
 
     return res.json();
@@ -1092,7 +1109,7 @@ export async function generateToolPrompt(
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Prompt generation failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Prompt generation failed (${res.status})`);
     }
     return res.json();
 }
@@ -1126,7 +1143,7 @@ export async function concatVideos(
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `Video concat failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Video concat failed (${res.status})`);
     }
     return res.json();
 }
@@ -1152,7 +1169,7 @@ export async function createHeyGenAvatar4(opts: {
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error(err.detail || `HeyGen Avatar4 failed (${res.status})`);
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `HeyGen Avatar4 failed (${res.status})`);
     }
     return res.json();
 }

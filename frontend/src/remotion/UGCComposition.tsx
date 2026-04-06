@@ -35,11 +35,32 @@ function generateChunks(scenes: UGCScene[]): SubtitleChunk[] {
       // Use line breaks from script
       groups = lines;
     } else {
-      // Fallback: split every 4 words
-      const words = scene.scriptText.split(/\s+/).filter(Boolean);
+      // Split by natural punctuation first, then by word limit
+      // Split on . ! ? , ; — and keep groups under 6 words
+      const raw = scene.scriptText
+        .split(/(?<=[.!?;,…])\s+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
       groups = [];
-      for (let i = 0; i < words.length; i += 4) {
-        groups.push(words.slice(i, i + 4).join(" "));
+      for (const segment of raw) {
+        const words = segment.split(/\s+/);
+        if (words.length <= 6) {
+          groups.push(segment);
+        } else {
+          // Too long — split at ~5 words on word boundary
+          for (let i = 0; i < words.length; i += 5) {
+            groups.push(words.slice(i, i + 5).join(" "));
+          }
+        }
+      }
+      // If nothing was split (no punctuation), fall back to 5-word chunks
+      if (groups.length <= 1) {
+        const words = scene.scriptText.split(/\s+/).filter(Boolean);
+        groups = [];
+        for (let i = 0; i < words.length; i += 5) {
+          groups.push(words.slice(i, i + 5).join(" "));
+        }
       }
     }
 

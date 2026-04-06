@@ -27,6 +27,96 @@ export const handleScript: StepHandler = async (ctx) => {
     (bg) => bg.id === config.selectedBackgroundId
   );
 
+  const selectedClothing = (activeBrand.clothing || []).filter(
+    (c) => config.selectedClothingIds.includes(c.id)
+  );
+
+  // Custom script bypass — skip Gemini, use user's script directly
+  const customScript = (config as Record<string, unknown>).customScript as string || "";
+  if (customScript.trim()) {
+    type CustomScene = { script: string; visual: string };
+    let entries: CustomScene[] = [];
+    try {
+      const parsed = JSON.parse(customScript);
+      if (Array.isArray(parsed)) {
+        entries = parsed
+          .map((s: string | CustomScene) => typeof s === "string" ? { script: s, visual: "" } : s)
+          .filter((s: CustomScene) => s.script?.trim());
+      }
+    } catch {
+      entries = customScript.trim().split("\n")
+        .filter((l: string) => l.trim())
+        .map((l: string) => ({ script: l.trim(), visual: "" }));
+    }
+
+    if (entries.length > 0) {
+      const avatarDesc = selectedAvatar?.description || selectedAvatar?.name || "Person";
+      const productDesc = selectedProduct ? `${selectedProduct.name} visible in frame.` : "";
+      const bgDesc = selectedBackground?.description || selectedBackground?.name || "studio setting";
+      const objective = config.objective || "";
+
+      // Shot types with descriptions
+      const SHOT_MAP: Record<string, string> = {
+        "auto": "", // resolved below
+        "close-up": "Shot on 50mm f/1.4, tight close-up, face fills 60% of frame",
+        "medium": "Shot on 35mm f/1.8, medium shot, waist up, product clearly visible",
+        "medium-close": "Shot on 50mm f/1.8, medium-close, chest up, product at chest height",
+        "full-body": "Shot on 35mm f/2.8, full body visible, head to toe, showing outfit completely",
+        "wide": "Shot on 24mm f/2.8, wide shot, person and environment visible",
+        "product-only": "Shot on 85mm f/2.0, close-up of product only, no person, shallow depth of field",
+        "hands": "Shot on 50mm f/2.0, close-up of hands interacting with product, face partially visible",
+        "overhead": "Shot from directly above, overhead flat-lay angle, product and hands visible",
+      };
+
+      // Auto-select shot based on scene context
+      const autoShot = (visual: string, isFirst: boolean, isLast: boolean): string => {
+        const v = visual.toLowerCase();
+        if (v.includes("solo producto") || v.includes("product only") || v.includes("sin persona")) return SHOT_MAP["product-only"];
+        if (v.includes("cuerpo entero") || v.includes("full body") || v.includes("outfit")) return SHOT_MAP["full-body"];
+        if (v.includes("manos") || v.includes("hands") || v.includes("close-up")) return SHOT_MAP["hands"];
+        if (config.productIsWorn) return isFirst ? SHOT_MAP["medium"] : SHOT_MAP["full-body"];
+        if (selectedProduct) return isFirst ? SHOT_MAP["medium-close"] : SHOT_MAP["medium"];
+        return isFirst ? SHOT_MAP["close-up"] : SHOT_MAP["medium"];
+      };
+
+      const bgNote = selectedBackground?.description || selectedBackground?.name || "";
+
+      const customScenes = entries.map((entry: CustomScene, i: number) => {
+        let imagePrompt: string;
+        const bgContext = bgNote ? `in ${bgNote}` : `in ${bgDesc}`;
+        const clothingDesc = selectedClothing.length > 0
+          ? `wearing ${selectedClothing.map((c) => c.name).join(" and ")}`
+          : "";
+        const productInteraction = selectedProduct
+          ? (config.productIsWorn ? `wearing ${selectedProduct.name}` : `holding ${selectedProduct.name}`)
+          : "";
+
+        // Resolve shot type
+        const shotKey = (entry as CustomScene & { shot?: string }).shot || "auto";
+        const shotDesc = shotKey === "auto"
+          ? autoShot(entry.visual || "", i === 0, i === entries.length - 1)
+          : (SHOT_MAP[shotKey] || SHOT_MAP["medium"]);
+
+        if (entry.visual?.trim()) {
+          imagePrompt = `${entry.visual.trim()}. ${shotDesc}, natural warm lighting, vertical 9:16, ultra-realistic.`;
+        } else {
+          imagePrompt = `${avatarDesc} looking directly at camera ${bgContext}, ${clothingDesc}${clothingDesc && productInteraction ? ", " : ""}${productInteraction}. ${shotDesc}, natural warm lighting, vertical 9:16, ultra-realistic.`;
+        }
+
+        return {
+          id: `act_${i + 1}`,
+          title: i === 0 ? "Hook" : i === entries.length - 1 ? "CTA" : `Scene ${i + 1}`,
+          script: entry.script.trim(),
+          image_prompt: imagePrompt,
+        };
+      });
+      return {
+        result: { scenes: [customScenes], brief: "Custom script (user-provided)" },
+        needsApproval: true,
+      };
+    }
+  }
+
   let notes = config.objective;
   if (selectedAvatar) {
     notes += `\nAVATAR: ${selectedAvatar.name}`;
@@ -36,9 +126,6 @@ export const handleScript: StepHandler = async (ctx) => {
     notes += `\nBACKGROUND/SETTING: ${selectedBackground.name}`;
     if (selectedBackground.description) notes += ` — ${selectedBackground.description}`;
   }
-  const selectedClothing = (activeBrand.clothing || []).filter(
-    (c) => config.selectedClothingIds.includes(c.id)
-  );
   if (selectedClothing.length > 0) {
     notes += `\nCLOTHING TO WEAR:`;
     selectedClothing.forEach((c) => {
@@ -83,18 +170,86 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   const selectedClothingItems = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
 
   const imageUrls: string[] = [];
+
+  // Avatar FIRST (face/identity — highest priority)
+  if (selectedAvatar?.imageUrl) imageUrls.push(selectedAvatar.imageUrl);
+
+  // Composition reference SECOND (pose/setting — optional)
+  const refFiles = (config as { referenceImages?: File[] }).referenceImages || [];
+  let refDataUrl = "";
+  for (const file of refFiles.slice(0, 1)) {
+    refDataUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+    imageUrls.push(refDataUrl);
+  }
+
+  // Then clothing, product
   if (config.productIsWorn) {
-    if (selectedAvatar?.imageUrl) imageUrls.push(selectedAvatar.imageUrl);
     if (selectedProduct?.imageUrl) imageUrls.push(selectedProduct.imageUrl);
     selectedClothingItems.forEach((c) => { if (c.imageUrl) imageUrls.push(c.imageUrl); });
   } else {
-    if (selectedAvatar?.imageUrl) imageUrls.push(selectedAvatar.imageUrl);
     selectedClothingItems.forEach((c) => { if (c.imageUrl) imageUrls.push(c.imageUrl); });
     if (selectedProduct?.imageUrl) imageUrls.push(selectedProduct.imageUrl);
   }
+  // Pass ALL product images if available (front, back, detail)
+  if (selectedProduct?.images) {
+    for (const img of selectedProduct.images) {
+      if (img.imageUrl) imageUrls.push(img.imageUrl);
+    }
+  }
   if (selectedBackground?.imageUrl) imageUrls.push(selectedBackground.imageUrl);
 
-  const job = await createImageEdit(imageUrls, firstScene.image_prompt, config.aspectRatio, config.resolution);
+  // Build prompt with positional references so Nano Banana knows what each image is
+  let prompt = firstScene.image_prompt;
+  const refDescriptions: string[] = [];
+  let imgIdx = 1;
+
+  if (selectedAvatar?.imageUrl) {
+    refDescriptions.push(`Image ${imgIdx}: the person's face and body — use this EXACT person`);
+    imgIdx++;
+  }
+  if (refFiles.length > 0) {
+    refDescriptions.push(`Image ${imgIdx}: composition/pose reference — match this setting and pose`);
+    imgIdx++;
+  }
+  if (config.productIsWorn && selectedProduct?.imageUrl) {
+    refDescriptions.push(`Image ${imgIdx}: "${selectedProduct.name}" — the person WEARS this exact garment. Reproduce it identically: same color, same design, same fit`);
+    imgIdx++;
+  }
+  for (const c of selectedClothingItems) {
+    if (c.imageUrl) {
+      refDescriptions.push(`Image ${imgIdx}: "${c.name}" — the person WEARS this exact clothing item`);
+      imgIdx++;
+    }
+  }
+  if (!config.productIsWorn && selectedProduct?.imageUrl) {
+    refDescriptions.push(`Image ${imgIdx}: "${selectedProduct.name}" — the person HOLDS or SHOWS this exact product`);
+    imgIdx++;
+  }
+  if (selectedProduct?.images) {
+    for (const img of selectedProduct.images) {
+      if (img.imageUrl) {
+        refDescriptions.push(`Image ${imgIdx}: additional view of "${selectedProduct.name}"`);
+        imgIdx++;
+      }
+    }
+  }
+  if (selectedBackground?.imageUrl) {
+    const bgName = selectedBackground.description || selectedBackground.name || "background";
+    refDescriptions.push(`Image ${imgIdx}: background/environment — place the person IN this exact setting (${bgName})`);
+    imgIdx++;
+  }
+
+  if (refDescriptions.length > 0) {
+    prompt = `REFERENCE IMAGES:\n${refDescriptions.join("\n")}\n\n${prompt}`;
+  }
+
+  console.log(`[base_image] refs: ${imageUrls.length}, avatar: ${!!selectedAvatar?.imageUrl}, product: ${!!selectedProduct?.imageUrl}, bg: ${!!selectedBackground?.imageUrl}, refFiles: ${refFiles.length}`);
+  console.log(`[base_image] prompt: ${prompt.slice(0, 200)}...`);
+  const job = await createImageEdit(imageUrls, prompt, config.aspectRatio, config.resolution);
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
@@ -190,14 +345,31 @@ export const handleVoice: StepHandler = async (ctx) => {
   const scenes = getScriptScenes();
   const voiceId = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
 
+  const voiceResults: Array<{ sceneId: string; title: string; script: string; audioUrl: string; duration: string }> = [];
+
   for (const scene of scenes) {
-    if (!audioCache[scene.id]) {
+    if (audioCache[scene.id]) {
+      voiceResults.push({
+        sceneId: scene.id,
+        title: scene.title,
+        script: scene.script,
+        audioUrl: audioCache[scene.id].url,
+        duration: "cached",
+      });
+    } else if (scene.script) {
       const ttsResult = await generateTTS({ text: scene.script, voice_id: voiceId });
       setAudioCache(scene.id, { url: ttsResult.audioUrl, blob: ttsResult.audioBlob });
+      voiceResults.push({
+        sceneId: scene.id,
+        title: scene.title,
+        script: scene.script,
+        audioUrl: ttsResult.audioUrl,
+        duration: "generated",
+      });
     }
   }
 
-  return { result: { generated: true }, autoRunNext: true };
+  return { result: voiceResults, needsApproval: true };
 };
 
 // ── Lipsync (HeyGen Avatar 4) ────────────────────────────

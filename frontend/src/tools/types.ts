@@ -72,6 +72,9 @@ export const DEFAULT_CONFIG: ToolConfig = {
   aspectRatio: "9:16",
   resolution: "1K",
   subtitleEngine: "auto",
+  adStyle: "photorealistic",
+  referenceImages: [],
+  allowFaces: true,
 };
 
 // ── Tool Config Schema (what the form shows) ─────────────
@@ -111,11 +114,12 @@ export interface ScriptScene {
 
 /** Normalize a raw scene object from Gemini (handles field name inconsistencies) */
 export function normalizeScene(s: Record<string, string>, index: number): ScriptScene {
+  console.log(`[normalizeScene ${index}] keys:`, Object.keys(s), "values:", JSON.stringify(s).slice(0, 300));
   return {
     id: s.id || `act_${index + 1}`,
     title: s.title || s.act || `Scene ${index + 1}`,
-    script: s.script || s.speech || s.copy || s.text || "",
-    image_prompt: s.image_prompt || "",
+    script: s.script || s.speech || s.copy || s.text || s.audio || s.dialogue || s.narration || s.voiceover || "",
+    image_prompt: s.image_prompt || s.visuals || s.visual || s.visual_prompt || s.scene_description || "",
   };
 }
 

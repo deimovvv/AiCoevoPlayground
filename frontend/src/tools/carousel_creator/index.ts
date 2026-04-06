@@ -25,7 +25,7 @@ const handlePrompt: StepHandler = async (ctx) => {
   if (logo) extraVars.logo_info = "Brand logo is available as a reference image.";
 
   // Fetch carousel type structure if selected
-  const carouselType = (config as Record<string, unknown>).carouselType as string || "";
+  const carouselType = (config as unknown as Record<string, unknown>).carouselType as string || "";
   let typePrompt = "";
   if (carouselType) {
     try {
@@ -43,8 +43,8 @@ const handlePrompt: StepHandler = async (ctx) => {
     } catch { /* silent */ }
   }
 
-  const numSlides = (config as Record<string, unknown>).numSlides || 5;
-  let userMsg = `Generate a ${numSlides}-slide carousel ad composition.${typePrompt}\nRespond with ONLY a JSON object.`;
+  const numSlides = (config as unknown as Record<string, unknown>).numSlides || 5;
+  let userMsg = `Generate EXACTLY ${numSlides} slides for a carousel ad. No more, no less.${typePrompt}\nRespond with ONLY a JSON object.`;
   if (selectedProduct) userMsg += `\nProduct: ${selectedProduct.name}`;
   if (selectedAvatar) userMsg += `\nModel: ${selectedAvatar.name}`;
   if (config.objective) userMsg += `\nDirection: ${config.objective}`;
@@ -84,25 +84,17 @@ const handleGenerateAll: StepHandler = async (ctx) => {
   const slides = (promptResult?.slides || []) as Array<Record<string, string>>;
   if (slides.length === 0) throw new Error("No slides found in prompt result.");
 
-  const visualStyle = String(promptResult?.visual_style || "");
+  // base_scene is the visual DNA shared by ALL slides — background, lighting, color grade
+  const baseScene = String(promptResult?.base_scene || promptResult?.visual_style || "");
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
   const logo = activeBrand.logo as { imageUrl: string } | undefined;
 
-  // Build reference image URLs
-  const baseImageUrls: string[] = [];
-  const refFiles = (config as { referenceImages?: File[] }).referenceImages || [];
-  for (const file of refFiles.slice(0, 1)) {
-    const dataUrl = await new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.readAsDataURL(file);
-    });
-    baseImageUrls.push(dataUrl);
-  }
-  if (selectedAvatar?.imageUrl) baseImageUrls.push(selectedAvatar.imageUrl);
-  if (selectedProduct?.imageUrl) baseImageUrls.push(selectedProduct.imageUrl);
-  if (logo?.imageUrl) baseImageUrls.push(logo.imageUrl);
+  // Build reference image URLs — product FIRST (highest priority for Nano Banana)
+  const productUrl = selectedProduct?.imageUrl || "";
+  const avatarUrl = selectedAvatar?.imageUrl || "";
+  const logoUrl = logo?.imageUrl || "";
+  const productName = selectedProduct?.name || "the product";
 
   // Generate slides sequentially — each uses the first slide as style reference
   const generatedSlides: Array<{
@@ -118,12 +110,19 @@ const handleGenerateAll: StepHandler = async (ctx) => {
 
   for (let i = 0; i < slides.length; i++) {
     const slide = slides[i];
-    const slidePrompt = `${slide.image_prompt}. ${visualStyle}. DO NOT render any text, letters, words, or typography in the image. Match the color palette and lighting mood of the reference image. Professional advertising photography.`;
+    const mentionsPerson = /person|model|hand|holding|selfie|lifestyle/i.test(slide.image_prompt || "");
 
-    // For slides after the first, use the first slide as style reference
-    const imageUrls = i === 0
-      ? baseImageUrls
-      : [firstSlideUrl, ...baseImageUrls.slice(1)];
+    // Reference images — same approach as UGC: product always included, keep it simple
+    const imageUrls: string[] = [];
+    if (productUrl) imageUrls.push(productUrl);
+    if (i > 0 && firstSlideUrl) imageUrls.push(firstSlideUrl);
+    if (mentionsPerson && avatarUrl) imageUrls.push(avatarUrl);
+
+    // Keep prompt clean — Gemini's image_prompt already describes the product
+    // Don't overload with extra instructions (UGC works because it sends just the prompt)
+    const slidePrompt = `${baseScene}. ${slide.image_prompt}. No text or typography in the image.`;
+
+    console.log(`[carousel] Slide ${i + 1}: ${imageUrls.length} refs, prompt: ${slidePrompt.slice(0, 200)}...`);
 
     try {
       const job = await createImageEdit(imageUrls, slidePrompt, config.aspectRatio || "4:5", config.resolution);
@@ -173,14 +172,14 @@ const handleGenerateAll: StepHandler = async (ctx) => {
       type: "image",
       thumbnailUrl: firstSlideUrl,
       scenes: generatedSlides.map((s) => ({ id: s.id, title: s.label, imageUrl: s.url })),
-      metadata: { numSlides: generatedSlides.length, visualStyle },
+      metadata: { numSlides: generatedSlides.length, baseScene },
     });
   } catch { /* silent */ }
 
   return {
     result: {
       slides: generatedSlides,
-      visualStyle,
+      baseScene,
       prompt: promptResult,
     },
     needsApproval: false,

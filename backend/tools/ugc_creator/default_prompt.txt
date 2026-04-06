@@ -26,9 +26,18 @@ The garment must look identical in every frame — same color, same fit, same te
 ━━━ PRODUCT ━━━
 {products}
 
-The character HOLDS or SHOWS this product in every frame. The product must be clearly visible.
+The character interacts with this product NATURALLY in every frame. The product must be clearly visible.
 Describe the product BY NAME in each prompt. It must look identical to the reference photo.
-When held: fully unfolded, extended, clearly visible — never bunched, folded, or obscured.
+
+PRODUCT INTERACTION — be smart about HOW the person uses it:
+- Phone/tablet: person LOOKS AT the screen, scrolls, takes selfie — NOT showing the screen to camera
+- Drink/food: person holds it casually, takes a sip/bite, brings it close to mouth
+- Clothing/accessory: person wears it, adjusts it, shows it off naturally
+- Beauty/skincare: person applies it, holds it near their face
+- Tech/gadget: person uses it in context — wearing headphones, using device
+- Generic: person holds it at chest height, showing it to camera
+
+NEVER: awkwardly extend the product toward camera like a TV commercial. Make it look natural and organic.
 {/products}
 
 {?backgrounds}
@@ -37,8 +46,12 @@ When held: fully unfolded, extended, clearly visible — never bunched, folded, 
 {/backgrounds}
 
 {?video_objective}
-━━━ OBJECTIVE ━━━
+━━━ OBJECTIVE (HIGHEST PRIORITY) ━━━
 {video_objective}
+
+The objective above describes the EXACT setting, pose, and situation for the video.
+Every image_prompt MUST match this objective. If the objective says "lying in bed" or "sitting on couch",
+then EVERY scene shows that exact setting — do NOT override with generic studio backgrounds.
 {/video_objective}
 
 ━━━ IMAGE PROMPT RULES ━━━
@@ -82,17 +95,27 @@ EXAMPLE PROMPT:
 
 - EXACTLY 4 acts: Hook → Story 1 → Story 2 → CTA
 - Language: {language}
-- Total: 15-30 seconds spoken
-- Each act: 2-4 SHORT phrases separated by \n
-- Style: thinking out loud, pausing between ideas, like talking to a friend
+- Total: 15-25 seconds spoken (THIS IS A HARD LIMIT)
+- Each act: MAXIMUM 2 short sentences. 15 words max per act.
+- Style: thinking out loud, like talking to a friend
 - Tone: direct, casual, slightly provocative. NOT salesy.
 
-GOOD EXAMPLES:
-"Hay algo que está mal con estos buzos…\nPorque no puede ser que estén tan baratos.\nSon de algodón, cómodos, lisos…\nlos usás todos los días."
+CRITICAL LENGTH RULE:
+- Each act = 3-8 seconds spoken
+- If you write more than 2 sentences per act, you are WRONG
+- Short punchy lines > long explanations
+- Never list features. Never sound like a commercial.
 
-"Pará… vos ya viste estas remeras.\nEntraste, miraste… capaz hasta elegiste un color.\n¿Sabés qué pasa? Te estás frenando al pedo."
+GOOD EXAMPLES (notice how SHORT they are):
+"Hay algo que está mal con estos buzos…\nNo puede ser que estén tan baratos."
+
+"Pará… vos ya viste estas remeras.\n¿Sabés qué pasa? Te estás frenando al pedo."
 
 "No lo pienses tanto.\nSumá un par y ya está."
+
+BAD EXAMPLE (TOO LONG — never do this):
+"¡Pero encontré la solución perfecta que no te va a romper el bolsillo! Miren esta joyita: el nuevo Samsung Galaxy A06. Es la combinación ideal de todo lo que necesitás en un smartphone, a un precio increíble."
+→ This is WAY too long. Cut it to: "Encontré algo que no te lo vas a creer.\nMirá este Samsung."
 
 ━━━ OUTPUT ━━━
 

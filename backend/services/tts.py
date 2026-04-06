@@ -26,7 +26,7 @@ def _get_client() -> ElevenLabs:
 def generate_audio(
     text: str,
     voice_id: Optional[str] = None,
-    model_id: str = "eleven_multilingual_v2",
+    model_id: str = "eleven_v3",
     output_format: str = "mp3_44100_128",
 ) -> bytes:
     """

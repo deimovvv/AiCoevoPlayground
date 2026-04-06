@@ -529,8 +529,10 @@ async def generate_copy(brand_id: str, req: GenerateCopyRequest):
             video_objective=req.additionalNotes,
             prompt_override=system_prompt_used,
         )
+        # Normalize field names so frontend always gets: id, title, script, image_prompt
+        normalized = _normalize_script_response(scripts)
         return {
-            "scripts": scripts,
+            "scripts": [normalized] if normalized else scripts,
             "model": "gemini-2.5-flash",
             "brief": system_prompt_used[:2000] if system_prompt_used else None,
         }
@@ -778,6 +780,48 @@ async def upload_product(
     if "products" not in brand:
         brand["products"] = []
     brand["products"].append(product)
+    brands.save_brands(all_brands)
+    return product
+
+
+@app.post("/api/brands/{brand_id}/products/{product_id}/images")
+async def add_product_image(
+    brand_id: str,
+    product_id: str,
+    label: str = Form(""),
+    image: UploadFile = File(...),
+):
+    """Add an extra photo to an existing product (up to 3 total)."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    product = next((p for p in brand.get("products", []) if p["id"] == product_id), None)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    existing_images = product.get("images", [])
+    # Count total: main image + extras
+    if len(existing_images) >= 2:
+        raise HTTPException(status_code=400, detail="Maximum 3 images per product (1 main + 2 extra)")
+
+    ext = Path(image.filename or "product.png").suffix or ".png"
+    img_id = str(uuid.uuid4())[:8]
+    filename = f"{brand_id}_prod_{product_id}_{img_id}{ext}"
+    filepath = brands.get_products_dir() / filename
+
+    content = await image.read()
+    with open(filepath, "wb") as f:
+        f.write(content)
+
+    img_entry = {
+        "filename": filename,
+        "imageUrl": f"/static/products/{filename}",
+        "label": label or f"Photo {len(existing_images) + 2}",
+    }
+    if "images" not in product:
+        product["images"] = []
+    product["images"].append(img_entry)
     brands.save_brands(all_brands)
     return product
 
@@ -1721,7 +1765,7 @@ async def create_lipsync(
 async def image_gen_edit(
     prompt: str = Form(...),
     image_urls: str = Form("[]"),  # JSON array of URLs
-    image_files: list[UploadFile] = File(None),
+    image_files: Optional[list[UploadFile]] = File(None),
     aspect_ratio: str = Form("9:16"),
     resolution: str = Form("1K"),
 ):
@@ -1731,6 +1775,8 @@ async def image_gen_edit(
     Local URLs are auto-uploaded to Fal storage.
     Returns request_id for status polling.
     """
+    print(f"[image-gen-edit] prompt={prompt[:80]}... image_urls={image_urls[:200]} aspect_ratio={aspect_ratio} resolution={resolution}")
+
     if not image_gen.is_configured():
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
 
@@ -1944,6 +1990,84 @@ def delete_generation(gen_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Response Normalizer — force consistent field names
+# ══════════════════════════════════════════════════════════════
+
+def _normalize_scene(scene: dict, index: int) -> dict:
+    """Normalize a single scene/act from Gemini to canonical field names."""
+    print(f"[normalize] Scene {index} raw keys: {list(scene.keys())} values: {str({k: str(v)[:80] for k, v in scene.items()})}")
+    # Script text — try every known field name
+    script = (
+        scene.get("script") or scene.get("speech") or scene.get("copy")
+        or scene.get("text") or scene.get("audio") or scene.get("dialogue")
+        or scene.get("narration") or scene.get("voiceover") or scene.get("action")
+        or scene.get("spoken") or scene.get("line") or scene.get("lines") or ""
+    )
+    # Clean prefixes like "AVATAR:", "OFF-CAMERA (sigh):"
+    import re as _re
+    script = _re.sub(
+        r'^(AVATAR|OFF[- ]?CAMERA|ON[- ]?CAMERA|NARRATOR|SPEAKER)\s*(\([^)]*\)\s*)?:\s*',
+        '', script, flags=_re.IGNORECASE
+    ).strip()
+
+    # Image prompt — try every known field name
+    image_prompt = (
+        scene.get("image_prompt") or scene.get("visuals") or scene.get("visual")
+        or scene.get("visual_prompt") or scene.get("scene_description")
+        or scene.get("setting") or scene.get("prompt") or ""
+    )
+    # Don't use numeric values (e.g. "scene": 1)
+    if image_prompt and str(image_prompt).strip().isdigit():
+        image_prompt = ""
+
+    # Background (optional, merge into image_prompt if separate)
+    bg = scene.get("background") or scene.get("location") or ""
+    if bg and image_prompt and bg not in image_prompt:
+        image_prompt = f"{image_prompt}. Setting: {bg}"
+    elif bg and not image_prompt:
+        image_prompt = bg
+
+    return {
+        "id": str(scene.get("id") or scene.get("scene_number") or scene.get("scene") or f"act_{index + 1}"),
+        "title": scene.get("title") or scene.get("act") or scene.get("scene_title") or f"Scene {index + 1}",
+        "script": script,
+        "image_prompt": image_prompt,
+    }
+
+
+def _normalize_script_response(data) -> list:
+    """Normalize a full script response — handles arrays, nested scenes, etc."""
+    if isinstance(data, list):
+        # Could be [[scenes]] or [scenes]
+        if len(data) > 0 and isinstance(data[0], list):
+            scenes = data[0]
+        else:
+            scenes = data
+    elif isinstance(data, dict):
+        if "scenes" in data:
+            scenes = data["scenes"]
+            if isinstance(scenes, list) and len(scenes) > 0 and isinstance(scenes[0], list):
+                scenes = scenes[0]
+        elif "frames" in data:
+            # Video Ad Creator format
+            return [
+                {
+                    "id": f"frame_{i + 1}",
+                    "title": f"Frame {i + 1} — {f.get('scene_type', 'scene')}",
+                    "script": f.get("script") or f.get("voiceover") or "",
+                    "image_prompt": f.get("prompt") or f.get("image_prompt") or "",
+                }
+                for i, f in enumerate(data["frames"])
+            ]
+        else:
+            return [_normalize_scene(data, 0)]
+    else:
+        return []
+
+    return [_normalize_scene(s, i) for i, s in enumerate(scenes) if isinstance(s, dict)]
+
+
+# ══════════════════════════════════════════════════════════════
 #  Generic Tool Prompt Execution
 # ══════════════════════════════════════════════════════════════
 
@@ -1995,6 +2119,15 @@ async def generate_tool_prompt(req: ToolPromptRequest):
                 content = content[start:end + 1]
 
         result = json.loads(content)
+
+        # Normalize script-like responses (arrays of scenes)
+        if isinstance(result, list) and len(result) > 0 and isinstance(result[0], (dict, list)):
+            # Check if it looks like a script (has scene-like keys)
+            sample = result[0] if isinstance(result[0], dict) else (result[0][0] if isinstance(result[0], list) and result[0] else {})
+            script_keys = {"script", "speech", "audio", "voiceover", "dialogue", "action", "visuals", "setting", "image_prompt"}
+            if isinstance(sample, dict) and script_keys & set(sample.keys()):
+                result = {"scenes": [_normalize_script_response(result)]}
+
         return {"result": result, "model": "gemini-2.5-flash"}
     except json.JSONDecodeError:
         # Return raw text if not valid JSON

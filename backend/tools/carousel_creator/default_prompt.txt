@@ -1,6 +1,6 @@
 You are a senior social media creative director specializing in carousel ads for Instagram, TikTok, and LinkedIn.
 
-Create a carousel ad for **{brand_name}** — a set of slides that tell a cohesive visual story. Each slide must be a COMPLETELY DIFFERENT composition while maintaining a unified color palette and mood.
+Create a carousel ad for **{brand_name}** — a set of slides that tell a cohesive visual story.
 
 {?brand_guidance}
 ━━━ BRAND ━━━
@@ -35,44 +35,36 @@ The product must look IDENTICAL to the reference photo in every slide where it a
 
 Language: {language}
 
-CRITICAL — EACH SLIDE MUST BE A DIFFERENT SCENE:
-Every slide needs a UNIQUE composition. Do NOT reuse the same setup with different text.
-Vary these across slides:
-- CAMERA ANGLE: overhead flat-lay, 45° hero shot, straight-on close-up, macro detail, environmental wide
-- SUBJECT: product alone, product in hand, product in context, lifestyle scene, detail/texture, result/outcome
-- FRAMING: full product, cropped close-up, product with props, person using product, abstract/artistic
-- BACKGROUND: solid color, gradient, real environment, styled surface, blurred lifestyle
+STEP 1 — DEFINE THE BASE SCENE (CRITICAL):
+Before writing any slide, you MUST first define a "base_scene" — the EXACT visual DNA shared by every slide.
+This is the #1 priority. All slides must look like they belong to the same photoshoot.
 
-Example of GOOD variation across 5 slides:
-1. Overhead flat-lay with product centered on branded surface with props
-2. Close-up macro of product texture/detail — fills 80% of frame
-3. Hand holding product in natural lifestyle setting (kitchen, bathroom, outdoors)
-4. Before/after split or comparison scene showing the benefit
-5. Product hero shot on clean background with space for text overlay
+The base_scene must specify:
+- BACKGROUND: ONE specific background treatment (e.g., "smooth gradient from #1a3a5c to #0d1f33" or "white marble surface with soft shadows" or "matte cream paper texture #f5f0e8"). ALL slides use this SAME background.
+- LIGHTING: ONE specific setup (e.g., "soft diffused key light from top-left, warm 4500K, subtle rim light from right"). ALL slides use this SAME lighting.
+- COLOR GRADE: ONE specific look (e.g., "warm tones, slight orange shift in highlights, deep shadows, low contrast"). ALL slides use this SAME grade.
+- SURFACE: If products sit on something, specify it once (e.g., "brushed concrete surface" or "floating, no surface").
 
-Example of BAD variation (DO NOT do this):
-1. Product on solid background with headline
-2. Product on solid background with different headline
-3. Product on solid background with another headline
-→ This is the SAME photo with different text. NEVER do this.
+STEP 2 — VARY THE SUBJECT ONLY:
+Each slide changes WHAT is in the frame, but the background, lighting, color grade, and surface stay IDENTICAL.
+Think of it as one studio setup where you only swap the subject between shots.
 
-VISUAL CONSISTENCY (what stays the same):
-- Color palette: same brand colors across all slides
-- Lighting mood: same warm/cool temperature, same contrast level
-- Color grading: same filter/look applied to all
-- Aspect ratio and overall feel
+Good variations:
+- Slide 1: Full product, 45° angle, centered
+- Slide 2: Macro close-up of product texture/detail, fills 80% of frame
+- Slide 3: Hand holding product, same background
+- Slide 4: Product with lifestyle props (coffee, plant, fabric), same surface
+- Slide 5: Product smaller, bottom-right, lots of negative space for CTA
 
-VISUAL VARIETY (what changes):
-- Camera angle and distance
-- Subject matter and framing
-- Background environment
-- Props and context elements
+Bad variations (DO NOT):
+- Different background colors per slide
+- Different lighting moods per slide
+- One slide outdoors, another in a studio
 
 DO NOT PUT TEXT IN THE IMAGE:
-- The image_prompt describes ONLY the visual composition — no text, no headlines, no overlays
+- The image_prompt describes ONLY the visual composition — no text, no headlines
 - Text will be added as an overlay layer AFTER image generation
-- Leave clean areas (negative space) where text can be placed later
-- Upper 25% or lower 25% should have simpler backgrounds for text readability
+- Leave clean negative space (upper or lower 25%) for text overlay
 
 COPY RULES:
 - Headlines: 2-6 words, punchy, in {language}
@@ -85,16 +77,16 @@ COPY RULES:
 Respond with ONLY a JSON object. Start with {{ end with }}.
 
 {{
+  "base_scene": "EXACT visual DNA for every slide. 3-4 sentences specifying: background (with hex codes), lighting setup (direction, temperature, intensity), color grade (warm/cool, contrast, shadows), surface material. This is prepended to every slide's prompt.",
   "slides": [
     {{
       "slide_number": 1,
       "role": "hook | problem | solution | benefit | social_proof | cta | etc.",
       "headline": "headline in {language} — 2-6 punchy words",
       "body": "optional body text in {language} — 1 short sentence or empty string",
-      "image_prompt": "3-5 sentences, English. Describe ONLY the visual scene — NO TEXT in the image. Specify: camera angle (overhead/45°/straight-on/macro), subject (what's in frame), product placement and size, background environment, lighting, props. Each slide MUST describe a DIFFERENT scene from the others. Leave negative space in upper or lower portion for text overlay. Shot on [lens]. Brand colors: [specific hex codes].",
+      "image_prompt": "2-3 sentences ONLY about what changes in THIS slide: subject, camera angle, framing, product placement, props. Do NOT repeat the background, lighting, or color grade — that comes from base_scene. Example: 'Full product shot at 45° angle, centered in frame, cap slightly open. Two small ingredient leaves scattered at base. Shot on 85mm f/2.0, shallow depth of field.'",
       "text_overlay": "exact text to render on the image later, in {language}"
     }}
   ],
-  "visual_style": "2-3 sentences describing the unified color palette, lighting mood, and overall aesthetic that ties all slides together",
   "colors": "brand colors with hex codes used across all slides"
 }}

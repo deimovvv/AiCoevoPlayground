@@ -41,6 +41,7 @@ import {
   addGuidanceFromUrl,
   addGuidanceFromPdf,
   generateBrandDNA,
+  addProductImage,
   generateTTS,
 } from "../lib/api";
 import type { Avatar, Product, ClothingItem, BackgroundItem } from "../lib/api";
@@ -640,6 +641,14 @@ function ProductsCard() {
               product={p}
               deleting={deleting === p.id}
               onDelete={() => handleDelete(p.id)}
+              onAddImage={async (file) => {
+                try {
+                  await addProductImage(activeBrand.id, p.id, file);
+                  await refreshBrands();
+                } catch (err) {
+                  console.error("Add image failed:", err);
+                }
+              }}
               onUpdate={async (newName, newDesc) => {
                 try {
                   await fetch(`http://localhost:8000/api/brands/${activeBrand.id}/products/${p.id}`, {
@@ -663,16 +672,19 @@ function ProductTile({
   deleting,
   onDelete,
   onUpdate,
+  onAddImage,
 }: {
   product: Product;
   deleting: boolean;
   onDelete: () => void;
   onUpdate: (name: string, description: string) => void;
+  onAddImage: (file: File) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(product.name);
   const [editDesc, setEditDesc] = useState(product.description || "");
   const [aiLoading, setAiLoading] = useState(false);
+  const extraFileRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
     onUpdate(editName, editDesc);
@@ -699,11 +711,50 @@ function ProductTile({
     }
   };
 
+  const allImages = [
+    { imageUrl: product.imageUrl, label: "Main" },
+    ...(product.images || []),
+  ];
+  const canAddMore = allImages.length < 3;
+
   return (
     <div className="group relative rounded-[var(--radius-sm)] bg-surface-2 overflow-hidden">
-      <div className="aspect-square">
-        <img src={productImageUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
+      {/* Image gallery — main + extras */}
+      <div className="flex gap-0.5">
+        <div className="flex-1 aspect-square">
+          <img src={productImageUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
+        </div>
+        {(product.images || []).length > 0 && (
+          <div className="flex flex-col gap-0.5" style={{ width: "30%" }}>
+            {(product.images || []).map((img, idx) => (
+              <div key={idx} className="flex-1">
+                <img src={productImageUrl(img.imageUrl)} alt={img.label || `Photo ${idx + 2}`} className="w-full h-full object-cover" />
+              </div>
+            ))}
+            {canAddMore && (
+              <label className="flex-1 flex items-center justify-center bg-surface-3 cursor-pointer hover:bg-surface-2 transition-colors text-fg-faint hover:text-fg-muted">
+                <Plus size={12} />
+                <input ref={extraFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onAddImage(f);
+                  e.target.value = "";
+                }} />
+              </label>
+            )}
+          </div>
+        )}
       </div>
+      {/* Add first extra photo button — only when no extras yet */}
+      {(product.images || []).length === 0 && (
+        <label className="absolute top-1 right-1 p-1 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title="Add more photos (up to 3)">
+          <Plus size={10} />
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onAddImage(f);
+            e.target.value = "";
+          }} />
+        </label>
+      )}
       <div className="p-2 space-y-0.5">
         {editing ? (
           <div className="space-y-1.5">
