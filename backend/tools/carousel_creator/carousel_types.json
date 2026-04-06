@@ -1,0 +1,105 @@
+[
+  {
+    "id": "storytelling",
+    "name": "Storytelling",
+    "description": "Hook → Problem → Solution → Benefits → CTA. Classic narrative arc.",
+    "slides": 5,
+    "structure": [
+      {"role": "hook", "label": "Hook", "hint": "Bold statement or question that stops the scroll"},
+      {"role": "problem", "label": "Problem", "hint": "Pain point the audience relates to"},
+      {"role": "solution", "label": "Solution", "hint": "Introduce the product as the answer"},
+      {"role": "benefits", "label": "Benefits", "hint": "Key benefits with social proof or stats"},
+      {"role": "cta", "label": "CTA", "hint": "Clear call to action with urgency"}
+    ]
+  },
+  {
+    "id": "educational",
+    "name": "Educational / Tips",
+    "description": "Title slide + 3-4 tips/facts + CTA. Shareable value-first content.",
+    "slides": 5,
+    "structure": [
+      {"role": "title", "label": "Title", "hint": "Bold title: '5 Things You Didn't Know About...'"},
+      {"role": "tip_1", "label": "Tip 1", "hint": "First tip or fact with visual"},
+      {"role": "tip_2", "label": "Tip 2", "hint": "Second tip or fact"},
+      {"role": "tip_3", "label": "Tip 3", "hint": "Third tip or fact"},
+      {"role": "cta", "label": "CTA", "hint": "Follow for more / Shop now"}
+    ]
+  },
+  {
+    "id": "before_after",
+    "name": "Before / After",
+    "description": "Problem state → Transformation → Result. Visual proof of change.",
+    "slides": 4,
+    "structure": [
+      {"role": "hook", "label": "Hook", "hint": "Teaser: 'What happened after 30 days...'"},
+      {"role": "before", "label": "Before", "hint": "The problem state — relatable, raw"},
+      {"role": "after", "label": "After", "hint": "The result — aspirational, polished"},
+      {"role": "cta", "label": "CTA", "hint": "Product + call to action"}
+    ]
+  },
+  {
+    "id": "product_showcase",
+    "name": "Product Showcase",
+    "description": "Hero shot + feature details + lifestyle + social proof + CTA.",
+    "slides": 5,
+    "structure": [
+      {"role": "hero", "label": "Hero Shot", "hint": "Product hero with bold headline"},
+      {"role": "feature_1", "label": "Feature 1", "hint": "Key feature close-up with benefit text"},
+      {"role": "feature_2", "label": "Feature 2", "hint": "Second feature or ingredient highlight"},
+      {"role": "lifestyle", "label": "In Use", "hint": "Product in real-life context"},
+      {"role": "cta", "label": "CTA", "hint": "Price/offer + call to action"}
+    ]
+  },
+  {
+    "id": "testimonial_series",
+    "name": "Testimonial Series",
+    "description": "Hook headline + 3 customer reviews + product CTA. Pure social proof.",
+    "slides": 5,
+    "structure": [
+      {"role": "hook", "label": "Hook", "hint": "Bold claim: 'Why 10,000+ people switched'"},
+      {"role": "review_1", "label": "Review 1", "hint": "Customer review with photo + quote"},
+      {"role": "review_2", "label": "Review 2", "hint": "Different customer, different angle"},
+      {"role": "review_3", "label": "Review 3", "hint": "Third review — the closer"},
+      {"role": "cta", "label": "CTA", "hint": "Product + star rating + shop link"}
+    ]
+  },
+  {
+    "id": "listicle",
+    "name": "Listicle / Reasons Why",
+    "description": "Title + numbered reasons + CTA. 'X reasons to try...' format.",
+    "slides": 5,
+    "structure": [
+      {"role": "title", "label": "Title", "hint": "'X Reasons to Try [Product]'"},
+      {"role": "reason_1", "label": "Reason 1", "hint": "First compelling reason with visual"},
+      {"role": "reason_2", "label": "Reason 2", "hint": "Second reason"},
+      {"role": "reason_3", "label": "Reason 3", "hint": "Third reason — the strongest"},
+      {"role": "cta", "label": "CTA", "hint": "Summary + call to action"}
+    ]
+  },
+  {
+    "id": "myth_busting",
+    "name": "Myth Busting",
+    "description": "Common myths vs reality. Educational + persuasive.",
+    "slides": 5,
+    "structure": [
+      {"role": "hook", "label": "Hook", "hint": "'Stop believing these myths about...'"},
+      {"role": "myth_1", "label": "Myth 1", "hint": "Myth ❌ → Reality ✓"},
+      {"role": "myth_2", "label": "Myth 2", "hint": "Second myth debunked"},
+      {"role": "myth_3", "label": "Myth 3", "hint": "Third myth — the big one"},
+      {"role": "cta", "label": "CTA", "hint": "Product as the truth + CTA"}
+    ]
+  },
+  {
+    "id": "how_to",
+    "name": "How To / Step-by-Step",
+    "description": "Title + step 1-3 + result. Tutorial format that educates and sells.",
+    "slides": 5,
+    "structure": [
+      {"role": "title", "label": "Title", "hint": "'How to [achieve result] in 3 steps'"},
+      {"role": "step_1", "label": "Step 1", "hint": "First step with product in use"},
+      {"role": "step_2", "label": "Step 2", "hint": "Second step"},
+      {"role": "step_3", "label": "Step 3", "hint": "Third step"},
+      {"role": "result", "label": "Result", "hint": "Final result + CTA"}
+    ]
+  }
+]

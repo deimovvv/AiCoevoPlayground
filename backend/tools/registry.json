@@ -45,6 +45,15 @@
         "pipeline": ["prompt", "generate_all"]
     },
     {
+        "id": "carousel_creator",
+        "name": "Carousel Creator",
+        "category": "images",
+        "description": "Create multi-slide carousel ads for Instagram, TikTok, and LinkedIn. Cohesive visual story with consistent style across all slides.",
+        "icon": "share",
+        "status": "active",
+        "pipeline": ["prompt", "generate_all"]
+    },
+    {
         "id": "ad_creative_lab",
         "name": "Ad Creative Lab",
         "category": "images",

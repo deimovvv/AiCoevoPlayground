@@ -78,9 +78,25 @@ class CreateBrandRequest(BaseModel):
     brandContext: str = ""
 
 
+class BrandFonts(BaseModel):
+    headline: Optional[str] = None
+    body: Optional[str] = None
+    accent: Optional[str] = None
+
+class BrandDNA(BaseModel):
+    colors: Optional[list[dict]] = None          # [{name, hex, usage}]
+    tone: Optional[list[str]] = None             # ["friendly", "confident", "premium"]
+    audience: Optional[str] = None               # "Mujeres 25-40, urbanas, ..."
+    keywords: Optional[list[str]] = None         # brand keywords
+    personality: Optional[str] = None            # 2-3 sentence brand personality
+    competitors: Optional[list[str]] = None      # known competitors
+    unique_value: Optional[str] = None           # unique value proposition
+
 class UpdateBrandRequest(BaseModel):
     name: Optional[str] = None
     brandContext: Optional[str] = None
+    fonts: Optional[BrandFonts] = None
+    dna: Optional[BrandDNA] = None
 
 
 class GenerateCopyRequest(BaseModel):
@@ -289,6 +305,10 @@ def update_brand(brand_id: str, req: UpdateBrandRequest):
         brand["name"] = req.name
     if req.brandContext is not None:
         brand["brandContext"] = req.brandContext
+    if req.fonts is not None:
+        brand["fonts"] = req.fonts.model_dump(exclude_none=True)
+    if req.dna is not None:
+        brand["dna"] = req.dna.model_dump(exclude_none=True)
     brands.save_brands(all_brands)
     return brand
 
@@ -372,6 +392,83 @@ async def add_guidance_from_pdf(brand_id: str, file: UploadFile = File(...)):
     brand["brandContext"] = current + separator + f"[Source: {file.filename}]\n{text}"
     brands.save_brands(all_brands)
     return {"added_chars": len(text), "pages": len(reader.pages), "brand": brand}
+
+
+@app.post("/api/brands/{brand_id}/generate-dna")
+async def generate_brand_dna(brand_id: str):
+    """Analyze brand context with Gemini and extract structured Brand DNA."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    context = brand.get("brandContext", "").strip()
+    if not context:
+        raise HTTPException(status_code=400, detail="Brand has no context yet. Add guidance from URL or PDF first.")
+
+    # Include product/avatar info if available
+    extras = []
+    for p in brand.get("products", []):
+        if p.get("name"):
+            extras.append(f"Product: {p['name']} — {p.get('description', '')}")
+    for a in brand.get("avatars", []):
+        if a.get("name"):
+            extras.append(f"Avatar/Model: {a['name']} — {a.get('description', '')}")
+    extra_context = "\n".join(extras) if extras else ""
+
+    system_prompt = """You are a brand strategist. Analyze the brand information below and extract a structured Brand DNA.
+
+BRAND CONTEXT:
+""" + context[:10000] + """
+
+""" + (f"ASSETS:\n{extra_context}\n\n" if extra_context else "") + """Respond with ONLY a JSON object:
+{
+  "colors": [
+    {"name": "Primary", "hex": "#hex_code", "usage": "backgrounds, headers"},
+    {"name": "Secondary", "hex": "#hex_code", "usage": "accents, CTAs"},
+    {"name": "Neutral", "hex": "#hex_code", "usage": "text, borders"}
+  ],
+  "tone": ["adjective1", "adjective2", "adjective3"],
+  "audience": "Target audience description — demographics, psychographics, 2-3 sentences",
+  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
+  "personality": "2-3 sentences describing the brand's personality as if it were a person",
+  "competitors": ["competitor1", "competitor2", "competitor3"],
+  "unique_value": "1-2 sentences — what makes this brand different from competitors",
+  "suggested_fonts": {
+    "headline": "Google Font name for headlines",
+    "body": "Google Font name for body text"
+  }
+}
+
+Rules:
+- Extract colors from any hex codes, color names, or brand guidelines mentioned
+- If no colors are explicitly mentioned, INFER them from the brand's industry and tone
+- Tone should be 3-5 adjectives describing how the brand communicates
+- Be specific about the audience — not generic
+- If competitors aren't mentioned, infer likely competitors from the industry"""
+
+    try:
+        content = await copy_gen._call_gemini(system_prompt, "Generate the Brand DNA now.")
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content.replace("```json", "").replace("```", "").strip()
+        elif content.startswith("```"):
+            content = content.replace("```", "").strip()
+
+        dna = json.loads(content)
+
+        # Save to brand
+        brand["dna"] = dna
+        # Also save suggested fonts if present
+        if dna.get("suggested_fonts"):
+            brand["fonts"] = dna.pop("suggested_fonts")
+        brands.save_brands(all_brands)
+
+        return {"dna": dna, "fonts": brand.get("fonts"), "brand": brand}
+    except json.JSONDecodeError:
+        return {"dna": None, "raw": content, "error": "Failed to parse DNA — raw response returned"}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Gemini error: {str(e)[:200]}")
 
 
 @app.delete("/api/brands/{brand_id}")
@@ -1025,6 +1122,14 @@ def get_static_ad_templates():
     if templates_file.exists():
         return {"templates": json.loads(templates_file.read_text())}
     return {"templates": []}
+
+
+@app.get("/api/tools/carousel-creator/types")
+def get_carousel_types():
+    types_file = Path(__file__).parent / "tools" / "carousel_creator" / "carousel_types.json"
+    if types_file.exists():
+        return {"types": json.loads(types_file.read_text())}
+    return {"types": []}
 
 
 # ══════════════════════════════════════════════════════════════

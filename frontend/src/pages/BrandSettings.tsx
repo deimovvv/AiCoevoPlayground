@@ -19,6 +19,7 @@ import {
   Square,
   Mountain,
   Sparkles,
+  Dna,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
@@ -39,6 +40,7 @@ import {
   backgroundImageUrl,
   addGuidanceFromUrl,
   addGuidanceFromPdf,
+  generateBrandDNA,
   generateTTS,
 } from "../lib/api";
 import type { Avatar, Product, ClothingItem, BackgroundItem } from "../lib/api";
@@ -67,6 +69,9 @@ export function BrandSettings() {
           Configure brand context, assets, and settings
         </p>
       </div>
+
+      {/* Brand DNA — full width */}
+      <BrandDNACard />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <GuidanceCard />
@@ -1408,6 +1413,187 @@ function EmptyState({ onClick, label }: { onClick: () => void; label: string }) 
       <Plus size={14} />
       {label}
     </button>
+  );
+}
+
+// ── Brand DNA Card ──────────────────────────────────────────
+
+function BrandDNACard() {
+  const { activeBrand, refreshBrands } = useBrand();
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!activeBrand) return null;
+
+  const dna = activeBrand.dna;
+  const fonts = activeBrand.fonts;
+  const hasContext = !!activeBrand.brandContext?.trim();
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setError(null);
+    try {
+      await generateBrandDNA(activeBrand.id);
+      await refreshBrands();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  if (!hasContext && !dna) return null;
+
+  return (
+    <Card
+      icon={<Dna size={18} />}
+      title="Brand DNA"
+      description={dna ? "AI-extracted brand identity" : "Generate structured brand identity from your guidance"}
+      action={
+        <button
+          onClick={handleGenerate}
+          disabled={generating || !hasContext}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] transition-all cursor-pointer disabled:opacity-40",
+            dna
+              ? "text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3"
+              : "bg-[var(--color-warm)] text-white hover:opacity-90"
+          )}
+        >
+          {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+          {dna ? "Regenerate" : "Generate DNA"}
+        </button>
+      }
+    >
+      {error && (
+        <div className="flex items-center gap-2 text-[12px] text-red-400 mb-4">
+          <AlertCircle size={14} />
+          {error}
+        </div>
+      )}
+
+      {!dna && !generating && (
+        <p className="text-[13px] text-fg-faint text-center py-4">
+          Add brand guidance (URL or PDF) first, then click Generate DNA.
+        </p>
+      )}
+
+      {generating && !dna && (
+        <div className="flex items-center justify-center gap-2 py-8 text-fg-muted">
+          <Loader2 size={16} className="animate-spin" />
+          <span className="text-[13px]">Analyzing brand context with AI...</span>
+        </div>
+      )}
+
+      {dna && (
+        <div className="space-y-5">
+          {/* Colors */}
+          {dna.colors && dna.colors.length > 0 && (
+            <div>
+              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Color Palette</h4>
+              <div className="flex flex-wrap gap-2">
+                {dna.colors.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-surface-0 border border-edge rounded-[var(--radius-sm)] px-3 py-2">
+                    <div
+                      className="w-6 h-6 rounded-full border border-white/20 shrink-0"
+                      style={{ backgroundColor: c.hex }}
+                    />
+                    <div>
+                      <span className="text-[11px] font-medium text-fg">{c.name}</span>
+                      <span className="text-[10px] text-fg-faint ml-1.5 font-mono">{c.hex}</span>
+                      <p className="text-[9px] text-fg-faint">{c.usage}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tone + Keywords */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {dna.tone && dna.tone.length > 0 && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Brand Tone</h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {dna.tone.map((t, i) => (
+                    <span key={i} className="text-[11px] px-2.5 py-1 bg-[var(--color-warm-muted)] text-[var(--color-warm)] rounded-full font-medium">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {dna.keywords && dna.keywords.length > 0 && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Keywords</h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {dna.keywords.map((k, i) => (
+                    <span key={i} className="text-[11px] px-2.5 py-1 bg-surface-2 text-fg-muted rounded-full">{k}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Personality */}
+          {dna.personality && (
+            <div>
+              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Brand Personality</h4>
+              <p className="text-[13px] text-fg-muted leading-relaxed italic">&ldquo;{dna.personality}&rdquo;</p>
+            </div>
+          )}
+
+          {/* Audience */}
+          {dna.audience && (
+            <div>
+              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Target Audience</h4>
+              <p className="text-[13px] text-fg-muted leading-relaxed">{dna.audience}</p>
+            </div>
+          )}
+
+          {/* Unique Value */}
+          {dna.unique_value && (
+            <div>
+              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Unique Value</h4>
+              <p className="text-[13px] text-fg leading-relaxed font-medium">{dna.unique_value}</p>
+            </div>
+          )}
+
+          {/* Competitors + Fonts */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {dna.competitors && dna.competitors.length > 0 && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Competitors</h4>
+                <div className="flex flex-wrap gap-1.5">
+                  {dna.competitors.map((c, i) => (
+                    <span key={i} className="text-[11px] px-2.5 py-1 bg-surface-2 text-fg-muted rounded-full">{c}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {fonts && (fonts.headline || fonts.body) && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Suggested Fonts</h4>
+                <div className="space-y-1">
+                  {fonts.headline && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-fg-faint w-16">Headline:</span>
+                      <span className="text-[12px] text-fg font-medium">{fonts.headline}</span>
+                    </div>
+                  )}
+                  {fonts.body && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-fg-faint w-16">Body:</span>
+                      <span className="text-[12px] text-fg font-medium">{fonts.body}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 

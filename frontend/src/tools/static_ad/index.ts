@@ -32,7 +32,21 @@ const handlePrompt: StepHandler = async (ctx) => {
       const data = await res.json();
       const template = (data.templates || []).find((t: { id: string }) => t.id === templateId);
       if (template) {
-        templatePrompt = `\n\nUSE THIS SPECIFIC AD TEMPLATE:\nTemplate: ${template.name}\nFormat: ${template.aspect_ratio}\nDescription: ${template.description}\nGenerate an ad following this exact format and style.`;
+        let tPrompt = template.prompt || "";
+        if (tPrompt) {
+          // Pre-fill obvious placeholders with actual brand/product data
+          const brandName = activeBrand.name || "";
+          const productName = selectedProduct?.name || "";
+          const productDesc = selectedProduct?.description || "";
+          tPrompt = tPrompt
+            .replace(/\[YOUR PRODUCT[^\]]*\]/gi, productName || "[YOUR PRODUCT]")
+            .replace(/\[BRAND\]/gi, brandName)
+            .replace(/\[PRODUCT\]/gi, productName || "[PRODUCT]")
+            .replace(/\[PERSON[^\]]*\]/gi, selectedAvatar?.name || selectedAvatar?.description || "[PERSON]");
+          templatePrompt = `\n\nUSE THIS EXACT AD TEMPLATE COMPOSITION:\n${tPrompt}`;
+        } else {
+          templatePrompt = `\n\nUSE THIS SPECIFIC AD TEMPLATE:\nTemplate: ${template.name}\nFormat: ${template.aspect_ratio}\nDescription: ${template.description}\nGenerate an ad following this exact format and style.`;
+        }
         // Override aspect ratio from template
         if (template.aspect_ratio) extraVars.template_aspect_ratio = template.aspect_ratio;
       }
@@ -49,6 +63,11 @@ const handlePrompt: StepHandler = async (ctx) => {
   if (typeof result === "string") {
     try { parsed = JSON.parse(result as string); } catch { /* */ }
   }
+  // Unwrap if Gemini wraps in a single-key object (e.g. {"ad_composition": {...}})
+  const pKeys = Object.keys(parsed);
+  if (pKeys.length === 1 && typeof parsed[pKeys[0]] === "object" && parsed[pKeys[0]] !== null && !Array.isArray(parsed[pKeys[0]])) {
+    parsed = parsed[pKeys[0]] as Record<string, unknown>;
+  }
 
   return { result: parsed, needsApproval: true };
 };
@@ -57,7 +76,14 @@ const handlePrompt: StepHandler = async (ctx) => {
 
 const handleGenerateAll: StepHandler = async (ctx) => {
   const { activeBrand, config, getStepResult, tool } = ctx;
-  const promptResult = getStepResult("prompt") as Record<string, unknown> | undefined;
+  let promptResult = getStepResult("prompt") as Record<string, unknown> | undefined;
+  // Unwrap if still wrapped (e.g. {"ad_composition": {...}})
+  if (promptResult) {
+    const pk = Object.keys(promptResult);
+    if (pk.length === 1 && typeof promptResult[pk[0]] === "object" && promptResult[pk[0]] !== null && !Array.isArray(promptResult[pk[0]])) {
+      promptResult = promptResult[pk[0]] as Record<string, unknown>;
+    }
+  }
   if (!promptResult?.image_prompt) throw new Error("No image prompt found.");
 
   const headline = String(promptResult.headline || "");

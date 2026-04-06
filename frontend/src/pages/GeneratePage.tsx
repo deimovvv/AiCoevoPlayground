@@ -42,10 +42,16 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 const TOOL_PREVIEW_MEDIA: Record<string, { url: string; type: "image" | "video" }> = {
   video_ad_creator: { url: "/previews/videoadcreator.mp4", type: "video" },
   ugc_creator: { url: "/previews/ugccreator.mp4", type: "video" },
+  static_ad: { url: "/previews/staticad.png", type: "image" },
 };
 
 // What each tool produces
 const TOOL_PREVIEWS: Record<string, { what: string; inputs: string; output: string }> = {
+  carousel_creator: {
+    what: "Multi-slide carousel ads for Instagram, TikTok, LinkedIn",
+    inputs: "Product + Carousel Type + Creative Direction",
+    output: "3-5 visually consistent slides with copy and CTA",
+  },
   ugc_creator: {
     what: "UGC talking-to-camera videos for social media ads",
     inputs: "Avatar + Product + Clothing + Voice + Objective",

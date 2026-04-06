@@ -15,6 +15,7 @@ import { videoAdCreator } from "./video_ad_creator";
 import { staticAd } from "./static_ad";
 import { contentAnalyzer } from "./content_analyzer";
 import { productClip } from "./product_clip";
+import { carouselCreator } from "./carousel_creator";
 
 export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   ugc_creator: ugcCreator,
@@ -26,6 +27,7 @@ export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   static_ad: staticAd,
   content_analyzer: contentAnalyzer,
   product_clip: productClip,
+  carousel_creator: carouselCreator,
 
   // Tools that reuse product_spotlight handlers with different schemas
   photo_multishot: productSpotlight,

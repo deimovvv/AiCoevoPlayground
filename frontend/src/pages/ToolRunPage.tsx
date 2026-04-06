@@ -228,6 +228,8 @@ interface ToolConfig {
   adStyle: string;
   animationMode: "frame-to-frame" | "image-to-video";
   adTemplate: string;
+  carouselType: string;
+  numSlides: number;
 }
 
 const DEFAULT_CONFIG: ToolConfig = {
@@ -256,6 +258,8 @@ const DEFAULT_CONFIG: ToolConfig = {
   adStyle: "photorealistic",
   animationMode: "frame-to-frame",
   adTemplate: "",
+  carouselType: "",
+  numSlides: 5,
 };
 
 // ── Mock data for preview ─────────────────────────────────
@@ -419,6 +423,14 @@ export function ToolRunPage() {
         setLoading(false);
       });
   }, [toolId]);
+
+  // Tool-specific config defaults
+  useEffect(() => {
+    if (!tool) return;
+    if (tool.id === "carousel_creator" || tool.id === "static_ad") {
+      setConfig((prev) => ({ ...prev, aspectRatio: "4:5" }));
+    }
+  }, [tool]);
 
   // Auto-select first avatar/product if available
   useEffect(() => {
@@ -1680,6 +1692,16 @@ function ConfigPanel({
         <TemplateSelector
           selectedId={config.adTemplate}
           onSelect={(id) => setConfig((p) => ({ ...p, adTemplate: id }))}
+        />
+      )}
+
+      {/* Carousel type selector */}
+      {tool.id === "carousel_creator" && (
+        <CarouselTypeSelector
+          selectedType={config.carouselType}
+          numSlides={config.numSlides}
+          onSelectType={(id) => setConfig((p) => ({ ...p, carouselType: id }))}
+          onChangeSlides={(n) => setConfig((p) => ({ ...p, numSlides: n }))}
         />
       )}
 
@@ -3491,6 +3513,76 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   }
 
   // Generate All step — show all images (Static Ad)
+  // Carousel generate_all — horizontal slide gallery
+  if (stepId === "generate_all" && result && (result as Record<string, unknown>).slides && Array.isArray((result as Record<string, unknown>).slides)) {
+    const data = result as { slides: Array<{ id: string; url: string; label: string; headline: string; body: string; role: string }>; visualStyle?: string };
+    const slides = data.slides || [];
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">Carousel — {slides.length} slides generated</span>
+        </div>
+        {/* Horizontal scroll carousel preview */}
+        <div className="flex gap-3 overflow-x-auto pb-3 -mx-2 px-2 snap-x snap-mandatory">
+          {slides.map((slide, i) => (
+            <div key={slide.id} className="flex-shrink-0 w-56 snap-start space-y-2">
+              <div
+                className="rounded-[var(--radius-md)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors relative group"
+                onClick={() => slide.url && setLightboxUrl(slide.url)}
+              >
+                {slide.url ? (
+                  <img src={slide.url} alt={slide.label} className="w-full aspect-[4/5] object-cover" />
+                ) : (
+                  <div className="w-full aspect-[4/5] bg-surface-2 flex items-center justify-center text-fg-faint text-[11px]">Failed</div>
+                )}
+                <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                  {i + 1}/{slides.length}
+                </div>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <Eye size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </div>
+              <div className="px-1">
+                <span className="text-[9px] font-semibold text-[var(--color-warm)] uppercase">{slide.role}</span>
+                {slide.headline && <p className="text-[12px] font-bold text-fg leading-tight">{slide.headline}</p>}
+                {slide.body && <p className="text-[10px] text-fg-muted leading-tight">{slide.body}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-center gap-2 pt-2">
+          <button
+            onClick={async () => {
+              for (const slide of slides) {
+                if (!slide.url) continue;
+                try {
+                  const res = await fetch(slide.url);
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `carousel_${slide.id}.png`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch { /* */ }
+              }
+            }}
+            className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+          >
+            <Film size={14} />
+            Download All ({slides.length})
+          </button>
+        </div>
+        {lightboxUrl && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8 cursor-pointer" onClick={() => setLightboxUrl(null)}>
+            <img src={lightboxUrl} alt="Full size" className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]" onClick={(e) => e.stopPropagation()} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (stepId === "generate_all" && result) {
     const data = result as { images: Array<{ id: string; url: string; label: string }>; headline?: string; subline?: string };
     const images = data.images || [];
@@ -3718,10 +3810,80 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
     );
   }
 
+  // Carousel prompt step — show slides overview (detected by presence of slides array)
+  if (stepId === "prompt" && result && (() => {
+    let d = result as Record<string, unknown>;
+    const dk = Object.keys(d);
+    if (dk.length === 1 && typeof d[dk[0]] === "object" && d[dk[0]] !== null && !Array.isArray(d[dk[0]])) d = d[dk[0]] as Record<string, unknown>;
+    return Array.isArray(d.slides);
+  })()) {
+    let data = result as Record<string, unknown>;
+    const dKeys = Object.keys(data);
+    if (dKeys.length === 1 && typeof data[dKeys[0]] === "object" && data[dKeys[0]] !== null && !Array.isArray(data[dKeys[0]])) {
+      data = data[dKeys[0]] as Record<string, unknown>;
+    }
+    const slides = (data.slides || []) as Array<Record<string, string>>;
+    const visualStyle = String(data.visual_style || "");
+    const colors = String(data.colors || "");
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">Carousel — {slides.length} slides</span>
+        </div>
+
+        {visualStyle && (
+          <div className="bg-surface-2 rounded-[var(--radius-sm)] px-4 py-2">
+            <span className="text-[10px] text-fg-faint font-medium">Visual Style: </span>
+            <span className="text-[11px] text-fg-muted">{visualStyle}</span>
+          </div>
+        )}
+
+        {colors && (
+          <div className="bg-surface-2 rounded-[var(--radius-sm)] px-4 py-2">
+            <span className="text-[10px] text-fg-faint font-medium">Colors: </span>
+            <span className="text-[11px] text-fg-muted">{colors}</span>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {slides.map((slide, i) => (
+            <div key={i} className="bg-surface-0 border border-edge rounded-[var(--radius-md)] p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] font-bold text-[var(--color-warm)] bg-warm-muted px-1.5 py-0.5 rounded">
+                  {i + 1}
+                </span>
+                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">
+                  {slide.role || `Slide ${i + 1}`}
+                </span>
+              </div>
+              {slide.headline && (
+                <p className="text-[15px] font-bold text-fg mb-1">{slide.headline}</p>
+              )}
+              {slide.body && (
+                <p className="text-[12px] text-fg-muted mb-2">{slide.body}</p>
+              )}
+              <details className="mt-1">
+                <summary className="text-[9px] text-fg-faint cursor-pointer hover:text-fg-muted">Image prompt</summary>
+                <p className="mt-1 font-mono text-[10px] text-fg-faint leading-relaxed">{slide.image_prompt}</p>
+              </details>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // Prompt step — show prompt + copy (Static Ad, Product Spotlight, etc.)
   if (stepId === "prompt" && result) {
-    const data = result as Record<string, unknown>;
-    const imagePrompt = String(data.image_prompt || data.prompt || "");
+    let data = result as Record<string, unknown>;
+    // Unwrap if Gemini wraps in a single-key object (e.g. {"ad_composition": {...}})
+    const keys = Object.keys(data);
+    if (keys.length === 1 && typeof data[keys[0]] === "object" && data[keys[0]] !== null && !Array.isArray(data[keys[0]])) {
+      data = data[keys[0]] as Record<string, unknown>;
+    }
+    const imagePrompt = String(data.image_prompt || data.prompt || data.image || data.description || "");
     const headline = String(data.headline || "");
     const subline = String(data.subline || "");
     const cta = String(data.cta || "");
@@ -4957,6 +5119,115 @@ function TemplateSelector({ selectedId, onSelect }: { selectedId: string; onSele
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ── Carousel Type Selector ────────────────────────────────
+
+interface CarouselType {
+  id: string;
+  name: string;
+  description: string;
+  slides: number;
+  structure: Array<{ role: string; label: string; hint: string }>;
+}
+
+function CarouselTypeSelector({
+  selectedType,
+  numSlides,
+  onSelectType,
+  onChangeSlides,
+}: {
+  selectedType: string;
+  numSlides: number;
+  onSelectType: (id: string) => void;
+  onChangeSlides: (n: number) => void;
+}) {
+  const [types, setTypes] = useState<CarouselType[]>([]);
+
+  useEffect(() => {
+    fetch("http://localhost:8000/api/tools/carousel-creator/types")
+      .then((r) => r.json())
+      .then((data) => setTypes(data.types || []))
+      .catch(() => {});
+  }, []);
+
+  const selected = types.find((t) => t.id === selectedType);
+
+  return (
+    <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <label className="text-[12px] font-semibold text-fg-secondary">
+          Carousel Type
+          <span className="text-fg-faint font-normal ml-1">({types.length} types)</span>
+        </label>
+        {selectedType && (
+          <button
+            onClick={() => onSelectType("")}
+            className="text-[10px] text-fg-faint hover:text-fg cursor-pointer"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {types.map((t) => {
+          const isSelected = selectedType === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => {
+                onSelectType(isSelected ? "" : t.id);
+                if (!isSelected) onChangeSlides(t.slides);
+              }}
+              className={cn(
+                "text-left px-2.5 py-2 rounded-[var(--radius-sm)] border transition-all cursor-pointer",
+                isSelected
+                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)]"
+                  : "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2"
+              )}
+            >
+              <span className="text-[10px] font-semibold text-fg">{t.name}</span>
+              <p className="text-[8px] text-fg-faint leading-tight line-clamp-2 mt-0.5">{t.description}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Slide count */}
+      <div className="flex items-center gap-3 pt-1">
+        <label className="text-[11px] text-fg-muted">Slides:</label>
+        {[3, 4, 5, 6].map((n) => (
+          <button
+            key={n}
+            onClick={() => onChangeSlides(n)}
+            className={cn(
+              "w-7 h-7 rounded-[var(--radius-sm)] text-[11px] font-medium transition-colors cursor-pointer",
+              numSlides === n
+                ? "bg-[var(--color-warm)] text-white"
+                : "bg-surface-2 text-fg-muted hover:text-fg"
+            )}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+
+      {/* Selected type structure preview */}
+      {selected && (
+        <div className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] p-2.5 space-y-1">
+          <span className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider">Slide Structure</span>
+          {selected.structure.map((s, i) => (
+            <div key={i} className="flex items-start gap-2 text-[10px]">
+              <span className="text-fg-faint shrink-0 w-4">{i + 1}.</span>
+              <span className="text-fg font-medium">{s.label}</span>
+              <span className="text-fg-faint">— {s.hint}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

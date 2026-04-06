@@ -49,6 +49,22 @@ export interface BackgroundItem {
     imageUrl: string;
 }
 
+export interface BrandFonts {
+    headline?: string;
+    body?: string;
+    accent?: string;
+}
+
+export interface BrandDNA {
+    colors?: Array<{ name: string; hex: string; usage: string }>;
+    tone?: string[];
+    audience?: string;
+    keywords?: string[];
+    personality?: string;
+    competitors?: string[];
+    unique_value?: string;
+}
+
 export interface Brand {
     id: string;
     name: string;
@@ -59,6 +75,8 @@ export interface Brand {
     clothing?: ClothingItem[];
     backgrounds?: BackgroundItem[];
     logo?: { filename: string; imageUrl: string };
+    fonts?: BrandFonts;
+    dna?: BrandDNA;
 }
 
 export interface ChatMessage {
@@ -116,7 +134,7 @@ export async function deleteBrand(brandId: string): Promise<void> {
     if (!res.ok) throw new Error("Failed to delete brand");
 }
 
-export async function updateBrand(brandId: string, updates: { name?: string; brandContext?: string }): Promise<Brand> {
+export async function updateBrand(brandId: string, updates: { name?: string; brandContext?: string; fonts?: BrandFonts }): Promise<Brand> {
     const res = await fetch(`${API_BASE}/api/brands/${brandId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -156,6 +174,19 @@ export async function addGuidanceFromPdf(brandId: string, file: File): Promise<{
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Failed to parse PDF" }));
         throw new Error(err.detail || "Failed to parse PDF");
+    }
+    return res.json();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Brand DNA
+// ══════════════════════════════════════════════════════════════
+
+export async function generateBrandDNA(brandId: string): Promise<{ dna: BrandDNA; fonts?: BrandFonts; brand: Brand }> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/generate-dna`, { method: "POST" });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Failed to generate DNA" }));
+        throw new Error(err.detail || "Failed to generate Brand DNA");
     }
     return res.json();
 }
