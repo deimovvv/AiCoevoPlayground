@@ -63,8 +63,28 @@ export const handleScript: StepHandler = async (ctx) => {
 
   const { result } = await generateToolPrompt(activeBrand.id, "video_ad_creator", userMsg, extraVars);
 
-  // Parse frames array
+  // Parse frames array — handle string, array, or nested object
   const findArray = (obj: unknown): Array<Record<string, unknown>> => {
+    // If it's a string, try to parse it
+    if (typeof obj === "string") {
+      try {
+        const parsed = JSON.parse(obj);
+        return findArray(parsed);
+      } catch (e) {
+        console.log("🔴 JSON parse failed:", (e as Error).message, "string starts:", (obj as string).slice(0, 100));
+        // Try to extract JSON array from the string
+        const str = obj as string;
+        const start = str.indexOf("[");
+        const end = str.lastIndexOf("]");
+        if (start !== -1 && end > start) {
+          try {
+            const extracted = JSON.parse(str.slice(start, end + 1));
+            return findArray(extracted);
+          } catch { /* */ }
+        }
+        return [];
+      }
+    }
     if (Array.isArray(obj)) return obj;
     if (typeof obj === "object" && obj !== null) {
       for (const val of Object.values(obj as Record<string, unknown>)) {
@@ -74,19 +94,39 @@ export const handleScript: StepHandler = async (ctx) => {
     return [];
   };
 
-  console.log("[video-ad] Raw result:", JSON.stringify(result)?.slice(0, 500));
+  console.log("[video-ad] Raw result type:", typeof result, "preview:", JSON.stringify(result)?.slice(0, 300));
 
   const rawFrames = findArray(result);
-  console.log("[video-ad] Found array with", rawFrames.length, "items. First item keys:", rawFrames[0] ? Object.keys(rawFrames[0]) : "none");
+  console.log("🔴🔴🔴 VIDEO AD RAW FRAMES:", rawFrames.length);
+  if (rawFrames[0]) {
+    console.log("🔴🔴🔴 FRAME 1 KEYS:", Object.keys(rawFrames[0]));
+    console.log("🔴🔴🔴 FRAME 1 FULL:", JSON.stringify(rawFrames[0]));
+  }
 
   const frames = rawFrames
-    .map((f, i) => ({
-      frame: Number(f.frame || f.scene || f.number) || i + 1,
-      prompt: String(f.prompt || f.image_prompt || f.description || ""),
-      scene_type: String(f.scene_type || f.type || f.category || "story"),
-      script: String(f.script || f.voiceover || f.speech || f.text || f.narration || ""),
-      transition: String(f.transition || f.movement || "fade"),
-    }))
+    .map((f, i) => {
+      // Image prompt — try every possible key
+      const prompt = String(
+        f.prompt || f.image_prompt || f.description || f.visual || f.visuals
+        || f.visual_description || f.scene_description || f.setting || ""
+      );
+      // Script/voiceover — try every possible key
+      let script = String(
+        f.script || f.voiceover || f.speech || f.text || f.narration
+        || f.audio || f.dialogue || f.voice || f.voice_over || f.copy || ""
+      );
+      // Clean prefixes
+      script = script.replace(/^(NARRATOR|VO|VOICEOVER|VOICE|SFX)\s*(\([^)]*\)\s*)?:\s*/i, "").trim();
+
+      return {
+        frame: Number(f.frame || f.scene || f.number || f.scene_number) || i + 1,
+        prompt,
+        scene_type: String(f.scene_type || f.type || f.category || "story"),
+        script,
+        transition: String(f.transition || f.movement || f.camera_movement || "fade"),
+        time: String(f.time || ""),
+      };
+    })
     .filter((f) => f.prompt.length > 5);
 
   if (frames.length === 0) throw new Error(`No frames generated. Raw: ${JSON.stringify(result)?.slice(0, 300)}`);
@@ -97,8 +137,8 @@ export const handleScript: StepHandler = async (ctx) => {
 // ── Base Image — generate frame 1 only ──────────────────
 
 export const handleBaseImage: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult } = ctx;
-  const scriptData = getStepResult("script") as { frames: Array<{ prompt: string; frame: number; scene_type: string }> } | undefined;
+  const { activeBrand, config, getStepResult, setAudioCache } = ctx;
+  const scriptData = getStepResult("script") as { frames: Array<{ prompt: string; frame: number; scene_type: string; script?: string }> } | undefined;
   if (!scriptData?.frames?.[0]) throw new Error("No storyboard found.");
 
   const firstFrame = scriptData.frames[0];
@@ -115,8 +155,24 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
+  // Generate audio for frame 1 if script exists
+  const voiceId = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
+  if (firstFrame.script && voiceId) {
+    try {
+      const { generateTTS } = await import("../../lib/api");
+      const ttsResult = await generateTTS({ text: firstFrame.script, voice_id: voiceId });
+      setAudioCache(`frame_1`, { url: ttsResult.audioUrl, blob: ttsResult.audioBlob });
+    } catch { /* non-blocking */ }
+  }
+
   return {
-    result: { url: result.image_url, prompt: firstFrame.prompt, frame: 1, scene_type: firstFrame.scene_type },
+    result: {
+      url: result.image_url,
+      prompt: firstFrame.prompt,
+      frame: 1,
+      scene_type: firstFrame.scene_type,
+      scriptText: firstFrame.script || "",
+    },
     needsApproval: true,
   };
 };

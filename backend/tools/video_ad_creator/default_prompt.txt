@@ -114,9 +114,24 @@ Each line: 1 short sentence, max 10 words.
 
 Respond with ONLY a JSON array. Start with [ end with ].
 
-Each object:
-- "frame": number (1-{num_scenes})
-- "prompt": string (3-4 sentences following the structure above)
-- "scene_type": string ("hook" | "story" | "climax" | "cta")
-- "script": string (voiceover in {language}, 1 short sentence, max 10 words)
-- "transition": string ("zoom_in" | "pan_left" | "pan_right" | "push" | "dolly" | "static")
+EVERY object MUST have ALL 5 fields. Do NOT omit any field. If you skip "script" the ad will have no voiceover.
+
+[
+  {{
+    "frame": 1,
+    "prompt": "3-4 sentences describing the visual scene (English)",
+    "scene_type": "hook",
+    "script": "Voiceover line in {language}. MANDATORY. 1 short sentence, max 10 words.",
+    "transition": "zoom_in"
+  }},
+  {{
+    "frame": 2,
+    "prompt": "...",
+    "scene_type": "story",
+    "script": "MANDATORY voiceover in {language}. Every frame MUST have a script line.",
+    "transition": "pan_left"
+  }}
+]
+
+CRITICAL: The "script" field is REQUIRED for EVERY frame. It is the voiceover narration.
+Valid transitions: "zoom_in" | "pan_left" | "pan_right" | "push" | "dolly" | "static"

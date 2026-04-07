@@ -32,9 +32,10 @@ export const videoAdCreator: ToolDefinition = {
     script: handleScript,
     base_image: handleBaseImage,
     images: handleImages,
+    voice: handleVoice,
     animate: handleAnimate,
     render: handleRender,
   },
-  approvalSteps: ["script", "base_image", "images", "animate"],
-  autoRunSteps: ["images", "animate", "render"],
+  approvalSteps: ["script", "base_image", "images", "voice", "animate"],
+  autoRunSteps: ["images", "voice", "render"],
 };

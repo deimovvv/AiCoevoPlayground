@@ -16,7 +16,7 @@ import httpx
 from typing import Optional
 
 FAL_BASE = "https://queue.fal.run"
-FAL_MODEL = "fal-ai/kling-video/v2.6/pro/image-to-video"  # Full path for submit
+FAL_MODEL = "fal-ai/kling-video/v3/pro/image-to-video"  # Full path for submit
 FAL_MODEL_BASE = "fal-ai/kling-video"  # Base model for status/result (no subpath per Fal docs)
 
 

@@ -33,7 +33,7 @@
         "description": "Create cinematic video ads: storyboard, 10 keyframes, frame-to-frame animation with Kling, voiceover, music, and final render.",
         "icon": "film",
         "status": "active",
-        "pipeline": ["script", "base_image", "images", "animate", "render"]
+        "pipeline": ["script", "base_image", "images", "voice", "animate", "render"]
     },
     {
         "id": "static_ad",

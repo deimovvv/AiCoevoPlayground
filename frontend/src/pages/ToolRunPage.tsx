@@ -39,6 +39,7 @@ import {
   fetchSystemVoices,
 } from "../lib/api";
 import { cn } from "../lib/utils";
+import { ImageEditPanel } from "../components/ImageEditPanel";
 import { UGCPlayer } from "../remotion/UGCPlayer";
 import { TOOL_DEFINITIONS } from "../tools/registry";
 
@@ -2238,8 +2239,8 @@ function ConfigPanel({
           />
         </div>
 
-        {/* Custom Script — per-scene inputs, skip Gemini */}
-        {tool.pipeline?.includes("script") && (
+        {/* Custom Script — per-scene inputs, skip Gemini (UGC only) */}
+        {tool.id === "ugc_creator" && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-medium text-fg-faint">
@@ -2545,6 +2546,7 @@ function StepPanel({
             audioCache={audioCache}
             onAudioCached={onAudioCached}
             voiceId={config.selectedVoiceId}
+            config={config}
           />
         ) : step.status === "review" ? (
           <DoneStep stepId={step.id} result={step.result} audioCache={audioCache} config={config} allSteps={allSteps}
@@ -2973,6 +2975,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   const [editPromptText, setEditPromptText] = useState("");
   const [editLoading, setEditLoading] = useState(false);
   const [editRefUrls, setEditRefUrls] = useState<string[]>([]);
+  const [editingImageId, setEditingImageId] = useState<string | null>(null);
   const [testVideoLoading, setTestVideoLoading] = useState(false);
   const [testVideoUrl, setTestVideoUrl] = useState<string | null>(null);
   const [playingAudio, setPlayingAudio] = useState(false);
@@ -3072,7 +3075,39 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           >
             <div className="px-4 py-2.5 bg-surface-2 border-b border-edge flex items-center justify-between">
               <span className="text-[12px] font-semibold text-fg">{scene.title}</span>
-              <span className="text-[10px] text-fg-faint font-mono">{scene.id}</span>
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  // Inject shot type into image_prompt
+                  const shotMap: Record<string, string> = {
+                    "": "",
+                    "close-up": "Shot on 50mm f/1.4, tight close-up, face fills 60% of frame.",
+                    "medium-close": "Shot on 50mm f/1.8, medium-close, chest up.",
+                    "medium": "Shot on 35mm f/1.8, medium shot, waist up, product clearly visible.",
+                    "full-body": "Shot on 35mm f/2.8, full body visible, head to toe.",
+                    "wide": "Shot on 24mm f/2.8, wide shot, person and environment visible.",
+                    "hands": "Shot on 50mm f/2.0, close-up of hands interacting with product.",
+                    "product-only": "Shot on 85mm f/2.0, close-up of product only, no person.",
+                    "overhead": "Shot from directly above, overhead flat-lay angle.",
+                  };
+                  const shot = shotMap[e.target.value];
+                  if (shot) {
+                    // Replace camera instruction in image_prompt
+                    scene.image_prompt = scene.image_prompt.replace(/Shot on \d+mm[^.]*\./i, shot) || scene.image_prompt + " " + shot;
+                  }
+                }}
+                className="h-6 px-1.5 rounded border border-edge bg-surface-1 text-[9px] text-fg-muted outline-none"
+              >
+                <option value="">Shot type...</option>
+                <option value="close-up">Close-up</option>
+                <option value="medium-close">Medium Close</option>
+                <option value="medium">Medium</option>
+                <option value="full-body">Full Body</option>
+                <option value="wide">Wide</option>
+                <option value="hands">Hands</option>
+                <option value="product-only">Product Only</option>
+                <option value="overhead">Overhead</option>
+              </select>
             </div>
             <div className="p-4 space-y-3">
               <div>
@@ -3599,9 +3634,14 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                       const btn = e.currentTarget;
                       btn.textContent = "⏳...";
                       try {
-                        const voiceId = config?.selectedVoiceId || activeBrand?.voicePresets?.[0]?.id;
-                        const tts = await generateTTS({ text: seg.script || seg.text || "", voice_id: voiceId });
+                        const vid = config?.selectedVoiceId || activeBrand?.voicePresets?.[0]?.id;
+                        const scriptText = seg.script || seg.text || "";
+                        // Generate local audio for preview
+                        const tts = await generateTTS({ text: scriptText, voice_id: vid });
                         seg.audioUrl = tts.audioUrl;
+                        // Also upload to Fal so lipsync can reuse
+                        const { fal_url } = await generateTTSAndUpload({ text: scriptText, voice_id: vid });
+                        (seg as Record<string, unknown>).falUrl = fal_url;
                         const audio = new Audio(tts.audioUrl);
                         audio.play();
                       } catch { /* */ }
@@ -3745,12 +3785,13 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   // Render step — final video with subtitle engine info + download
   if (stepId === "render" && result) {
     const info = result as {
-      videoUrl?: string; totalDuration: string; scenes: number;
+      videoUrl?: string; videoUrlNoSubs?: string; totalDuration: string; scenes: number;
       format: string; resolution: string; sizeBytes?: number;
       subtitleEngine?: string;
       remotionScenes?: Array<{ videoUrl: string; scriptText: string; durationInFrames: number }>;
     };
     const fullVideoUrl = info.videoUrl ? `http://localhost:8000${info.videoUrl}` : undefined;
+    const fullVideoUrlNoSubs = info.videoUrlNoSubs ? `http://localhost:8000${info.videoUrlNoSubs}` : undefined;
 
     return (
       <div className="space-y-4">
@@ -3797,16 +3838,36 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           <InfoPill label="Resolution" value={info.resolution} />
         </div>
 
-        <div className="flex justify-center gap-2 pt-2">
+        <div className="flex justify-center gap-3 pt-2">
           {fullVideoUrl && (
-            <a
-              href={fullVideoUrl}
-              download="ugc_video.mp4"
+            <button
+              onClick={async () => {
+                const res = await fetch(fullVideoUrl);
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a"); a.href = url; a.download = "ugc_with_subs.mp4"; a.click();
+                URL.revokeObjectURL(url);
+              }}
               className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
             >
               <Film size={14} />
-              Download
-            </a>
+              Download with Subtitles
+            </button>
+          )}
+          {fullVideoUrlNoSubs && (
+            <button
+              onClick={async () => {
+                const res = await fetch(fullVideoUrlNoSubs);
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a"); a.href = url; a.download = "ugc_no_subs.mp4"; a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-fg bg-surface-2 hover:bg-surface-3 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+            >
+              <Film size={14} />
+              Download without Subtitles
+            </button>
           )}
         </div>
       </div>
@@ -3844,11 +3905,29 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   <Eye size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </div>
-              <div className="px-1">
-                <span className="text-[9px] font-semibold text-[var(--color-warm)] uppercase">{slide.role}</span>
+              <div className="px-1 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-semibold text-[var(--color-warm)] uppercase">{slide.role}</span>
+                  <button
+                    onClick={() => setEditingImageId(editingImageId === slide.id ? null : slide.id)}
+                    className="text-[9px] text-fg-faint hover:text-fg cursor-pointer"
+                  >
+                    {editingImageId === slide.id ? "Cancel" : "Edit"}
+                  </button>
+                </div>
                 {slide.headline && <p className="text-[12px] font-bold text-fg leading-tight">{slide.headline}</p>}
                 {slide.body && <p className="text-[10px] text-fg-muted leading-tight">{slide.body}</p>}
               </div>
+              {editingImageId === slide.id && slide.url && (
+                <ImageEditPanel
+                  imageUrl={slide.url}
+                  aspectRatio={config?.aspectRatio || "4:5"}
+                  resolution={config?.resolution || "1K"}
+                  selectedProductId={config?.selectedProductId}
+                  onImageUpdated={(newUrl) => { slide.url = newUrl; setEditingImageId(null); }}
+                  onClose={() => setEditingImageId(null)}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -3911,7 +3990,25 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   <Eye size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </div>
-              <p className="text-[10px] text-fg-faint text-center">{img.label}</p>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setEditingImageId(editingImageId === img.id ? null : img.id)}
+                  className="flex-1 text-[9px] text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 rounded py-1 cursor-pointer text-center"
+                >
+                  {editingImageId === img.id ? "Cancel" : "Edit"}
+                </button>
+                <p className="flex-1 text-[10px] text-fg-faint text-center py-1">{img.label}</p>
+              </div>
+              {editingImageId === img.id && (
+                <ImageEditPanel
+                  imageUrl={img.url}
+                  aspectRatio={config?.aspectRatio || "4:5"}
+                  resolution={config?.resolution || "1K"}
+                  selectedProductId={config?.selectedProductId}
+                  onImageUpdated={(newUrl) => { img.url = newUrl; setEditingImageId(null); }}
+                  onClose={() => setEditingImageId(null)}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -4429,38 +4526,14 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 </div>
               )}
               {editingId === `img_${img.frame}` && (
-                <div className="flex items-center gap-1">
-                  <input
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    placeholder="E.g., warmer, more dramatic..."
-                    className="flex-1 h-6 px-1.5 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[9px] text-fg outline-none"
-                    onKeyDown={async (e) => {
-                      if (e.key !== "Enter" || !editText.trim()) return;
-                      setEditLoading(true);
-                      try {
-                        const job = await createImageEdit([img.url], editText.trim(), config?.aspectRatio || "9:16", config?.resolution || "1K");
-                        const result = await pollImageGen(job.request_id);
-                        if (result.image_url) img.url = result.image_url;
-                      } catch { /* */ } finally { setEditLoading(false); setEditingId(null); setEditText(""); }
-                    }}
-                  />
-                  <button
-                    onClick={async () => {
-                      if (!editText.trim()) return;
-                      setEditLoading(true);
-                      try {
-                        const job = await createImageEdit([img.url], editText.trim(), config?.aspectRatio || "9:16", config?.resolution || "1K");
-                        const result = await pollImageGen(job.request_id);
-                        if (result.image_url) img.url = result.image_url;
-                      } catch { /* */ } finally { setEditLoading(false); setEditingId(null); setEditText(""); }
-                    }}
-                    disabled={editLoading}
-                    className="px-1.5 py-1 text-[8px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] cursor-pointer"
-                  >
-                    {editLoading ? <Loader2 size={8} className="animate-spin" /> : "OK"}
-                  </button>
-                </div>
+                <ImageEditPanel
+                  imageUrl={img.url}
+                  aspectRatio={config?.aspectRatio || "9:16"}
+                  resolution={config?.resolution || "1K"}
+                  selectedProductId={config?.selectedProductId}
+                  onImageUpdated={(newUrl) => { img.url = newUrl; setEditingId(null); }}
+                  onClose={() => setEditingId(null)}
+                />
               )}
               <details className="text-[8px] text-fg-faint">
                 <summary className="cursor-pointer hover:text-fg">Prompt</summary>
@@ -4647,24 +4720,16 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 )}
               </div>
 
-              {/* Edit input */}
+              {/* Edit panel with product picker */}
               {editingId === creative.id && (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    placeholder="E.g., warmer tones, remove clutter..."
-                    className="flex-1 h-7 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[11px] text-fg outline-none"
-                    onKeyDown={(e) => e.key === "Enter" && handleEditCreative(creative)}
-                  />
-                  <button
-                    onClick={() => handleEditCreative(creative)}
-                    disabled={editLoading}
-                    className="px-2 py-1 text-[10px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] cursor-pointer"
-                  >
-                    {editLoading ? <Loader2 size={10} className="animate-spin" /> : "Apply"}
-                  </button>
-                </div>
+                <ImageEditPanel
+                  imageUrl={creative.url}
+                  aspectRatio={config?.aspectRatio || "9:16"}
+                  resolution={config?.resolution || "1K"}
+                  selectedProductId={config?.selectedProductId}
+                  onImageUpdated={(newUrl) => { creative.url = newUrl; setEditingId(null); }}
+                  onClose={() => setEditingId(null)}
+                />
               )}
             </div>
           ))}
@@ -4977,11 +5042,13 @@ function CurationPanel({
   audioCache,
   onAudioCached,
   voiceId,
+  config,
 }: {
   allSteps: StepState[];
   curationSelections: Record<string, string>;
   onSelect: (sceneId: string, variationId: string) => void;
   audioCache: Record<string, { url: string; blob: Blob }>;
+  config?: ToolConfig;
   onAudioCached: (sceneId: string, url: string, blob: Blob) => void;
   voiceId: string | null;
 }) {
@@ -5106,14 +5173,16 @@ function CurationPanel({
 
   const handleEditImage = async () => {
     if (!editingVar || !editPrompt.trim()) return;
+    const editVarId = editingVar.varId;
     setEditLoading(true);
+    setRegenLoading(editVarId); // show loader on the image
     try {
       const productUrls = (editingVar as typeof editingVar & { productUrls?: string[] })?.productUrls || [];
       const job = await createImageEdit([editingVar.url, ...productUrls], editPrompt.trim());
       const result = await pollImageGen(job.request_id);
       if (result.image_url) {
         for (const scene of multishotData) {
-          const v = scene.variations.find((v) => v.id === editingVar.varId);
+          const v = scene.variations.find((v) => v.id === editVarId);
           if (v) { v.url = result.image_url; break; }
         }
         setEditingVar(null);
@@ -5121,6 +5190,7 @@ function CurationPanel({
       }
     } catch { /* silent */ } finally {
       setEditLoading(false);
+      setRegenLoading(null);
     }
   };
 
@@ -5268,7 +5338,7 @@ function CurationPanel({
                           )}
                         >
                           {regenLoading === v.id ? <Loader2 size={10} className="animate-spin" /> : <RotateCcw size={10} />}
-                          Regenerate
+                          Regen
                         </button>
                         <button
                           onClick={() => setEditingVar(isEditing ? null : { sceneId: scene.sceneId, varId: v.id, url: v.url })}
@@ -5297,66 +5367,25 @@ function CurationPanel({
               })}
             </div>
 
-            {/* Inline edit form with product selector */}
+            {/* Edit panel with product picker */}
             {editingVar && editingVar.sceneId === scene.sceneId && (
-              <div className="bg-surface-2 rounded-[var(--radius-sm)] p-3 space-y-2">
-                {/* Product image selector */}
-                {activeBrand?.products && activeBrand.products.length > 0 && (
-                  <div className="space-y-1">
-                    <span className="text-[9px] font-medium text-fg-faint uppercase tracking-wider">Include product reference</span>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {(activeBrand.products || []).flatMap((p) => [
-                        { url: p.imageUrl, label: p.name, pid: p.id },
-                        ...(p.images || []).map((img) => ({ url: img.imageUrl, label: img.label || p.name, pid: p.id })),
-                      ]).map((img, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            const ev = editingVar as typeof editingVar & { productUrls?: string[] };
-                            const urls = ev?.productUrls || [];
-                            if (urls.includes(img.url)) {
-                              (editingVar as typeof editingVar & { productUrls?: string[] }).productUrls = urls.filter((u) => u !== img.url);
-                            } else {
-                              (editingVar as typeof editingVar & { productUrls?: string[] }).productUrls = [...urls, img.url];
-                            }
-                            setEditPrompt((p) => p); // force re-render
-                          }}
-                          className={cn(
-                            "w-10 h-10 rounded overflow-hidden border-2 cursor-pointer transition-all",
-                            ((editingVar as typeof editingVar & { productUrls?: string[] })?.productUrls || []).includes(img.url)
-                              ? "border-[var(--color-warm)]"
-                              : "border-edge opacity-50 hover:opacity-100"
-                          )}
-                          title={img.label}
-                        >
-                          <img src={productImageUrl(img.url)} alt={img.label} className="w-full h-full object-cover" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <input
-                    value={editPrompt}
-                    onChange={(e) => setEditPrompt(e.target.value)}
-                    placeholder="Replace the product with the one from the reference. Keep everything else identical."
-                    className="flex-1 h-7 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg placeholder:text-fg-faint outline-none"
-                    onKeyDown={(e) => e.key === "Enter" && handleEditImage()}
-                  />
-                <button
-                  onClick={handleEditImage}
-                  disabled={editLoading || !editPrompt.trim()}
-                  className={cn(
-                    "px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-sm)] transition-colors",
-                    !editLoading && editPrompt.trim()
-                      ? "text-white bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
-                      : "text-fg-faint bg-surface-1 cursor-not-allowed"
-                  )}
-                >
-                  {editLoading ? <Loader2 size={11} className="animate-spin" /> : "Apply"}
-                </button>
-                </div>
-              </div>
+              <ImageEditPanel
+                imageUrl={editingVar.url}
+                aspectRatio="9:16"
+                resolution="1K"
+                selectedProductId={(() => {
+                  const product = activeBrand?.products?.find((p) => p.id === config?.selectedProductId);
+                  return product?.id || null;
+                })()}
+                onImageUpdated={(newUrl) => {
+                  for (const s of multishotData) {
+                    const v = s.variations.find((v) => v.id === editingVar.varId);
+                    if (v) { v.url = newUrl; break; }
+                  }
+                  setEditingVar(null);
+                }}
+                onClose={() => setEditingVar(null)}
+              />
             )}
           </div>
         );

@@ -27,8 +27,8 @@ async def _call_gemini(system_prompt: str, user_msg: str) -> str:
         raise RuntimeError("Gemini API key not configured. Add GEMINI_API_KEY to your .env file.")
 
     # Truncate very long prompts to avoid Gemini content filters on scraped web content
-    if len(system_prompt) > 4000:
-        system_prompt = system_prompt[:4000] + "\n\n[... truncated for length ...]"
+    if len(system_prompt) > 15000:
+        system_prompt = system_prompt[:15000] + "\n\n[... truncated for length ...]"
 
     full_text = f"{system_prompt}\n\n---\n\n{user_msg}"
     print(f"[gemini] Sending prompt ({len(full_text)} chars)")
@@ -39,7 +39,7 @@ async def _call_gemini(system_prompt: str, user_msg: str) -> str:
         ],
         "generationConfig": {
             "temperature": 0.8,
-            "maxOutputTokens": 8000,
+            "maxOutputTokens": 16000,
             "responseMimeType": "application/json",
         },
         "safetySettings": [
@@ -50,7 +50,7 @@ async def _call_gemini(system_prompt: str, user_msg: str) -> str:
         ],
     }
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=120) as client:
         res = await client.post(
             _gemini_url(),
             headers={"Content-Type": "application/json"},

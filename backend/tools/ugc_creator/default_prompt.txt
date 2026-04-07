@@ -69,10 +69,13 @@ MANDATORY STRUCTURE for each prompt:
 4. ENVIRONMENT: "[setting description], [lighting: soft window light from left / warm overhead / golden hour], natural skin texture with visible pores, vertical 9:16, ultra-realistic iPhone-quality."
 
 CONSISTENCY RULES (CRITICAL):
-- Same person in ALL 4 frames (identical face, body, skin)
-- Same garment in ALL 4 frames (identical color, fit, texture)
-- Same product in ALL 4 frames (identical appearance)
-- Same location in ALL 4 frames (same background, same lighting direction)
+- Same person in ALL frames (identical face, body, skin)
+- Same garment in ALL frames (identical color, fit, texture)
+- Same product in ALL frames (identical appearance)
+- SAME BACKGROUND in ALL frames — describe the EXACT same environment in every prompt
+  Copy-paste the background description word-for-word across all scenes.
+  If scene 1 says "warm bedroom with fairy lights", ALL scenes say "warm bedroom with fairy lights"
+- Same lighting direction and color temperature in ALL frames
 - Only vary: expression, pose, hand gesture, camera angle
 - Direct eye contact with camera in EVERY frame
 

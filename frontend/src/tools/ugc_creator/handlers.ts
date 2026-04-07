@@ -345,18 +345,13 @@ export const handleVoice: StepHandler = async (ctx) => {
   const scenes = getScriptScenes();
   const voiceId = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
 
-  const voiceResults: Array<{ sceneId: string; title: string; script: string; audioUrl: string; duration: string }> = [];
+  const voiceResults: Array<{ sceneId: string; title: string; script: string; audioUrl: string; falUrl: string; duration: string }> = [];
 
   for (const scene of scenes) {
-    if (audioCache[scene.id]) {
-      voiceResults.push({
-        sceneId: scene.id,
-        title: scene.title,
-        script: scene.script,
-        audioUrl: audioCache[scene.id].url,
-        duration: "cached",
-      });
-    } else if (scene.script) {
+    if (scene.script) {
+      // Generate TTS and upload to Fal in one call — so lipsync can reuse the fal_url
+      const { fal_url } = await generateTTSAndUpload({ text: scene.script, voice_id: voiceId });
+      // Also generate local audio for playback preview
       const ttsResult = await generateTTS({ text: scene.script, voice_id: voiceId });
       setAudioCache(scene.id, { url: ttsResult.audioUrl, blob: ttsResult.audioBlob });
       voiceResults.push({
@@ -364,6 +359,7 @@ export const handleVoice: StepHandler = async (ctx) => {
         title: scene.title,
         script: scene.script,
         audioUrl: ttsResult.audioUrl,
+        falUrl: fal_url,
         duration: "generated",
       });
     }
@@ -375,12 +371,17 @@ export const handleVoice: StepHandler = async (ctx) => {
 // ── Lipsync (HeyGen Avatar 4) ────────────────────────────
 
 export const handleLipsync: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, getScriptScenes } = ctx;
+  const { activeBrand, config, getStepResult, getScriptScenes, audioCache } = ctx;
   const curationData = getStepResult("curation") as Array<{
     sceneId: string; title: string; selectedUrl: string;
   }> | undefined;
 
   if (!curationData) throw new Error("No curated images found.");
+
+  // Use voice step results — these have the final edited text + uploaded audio
+  const voiceData = getStepResult("voice") as Array<{
+    sceneId: string; script: string; audioUrl: string; falUrl: string;
+  }> | undefined;
 
   const scenes = getScriptScenes();
   const voiceId = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
@@ -390,14 +391,23 @@ export const handleLipsync: StepHandler = async (ctx) => {
   const lipsyncResults = [];
   for (let i = 0; i < curationData.length; i++) {
     const scene = curationData[i];
+
+    // Get voice entry (has final text + fal audio URL)
+    const voiceEntry = Array.isArray(voiceData)
+      ? voiceData.find((v) => v.sceneId === scene.sceneId) || voiceData[i]
+      : undefined;
     const scriptScene = scenes.find((s) => s.id === scene.sceneId) || scenes[i];
-    const scriptText = scriptScene?.script || "";
+    const scriptText = voiceEntry?.script || scriptScene?.script || "";
     if (!scriptText) continue;
 
-    const { fal_url: falAudioUrl } = await generateTTSAndUpload({
-      text: scriptText,
-      voice_id: voiceId,
-    });
+    // Use the Fal URL from voice step if available, otherwise generate fresh
+    let falAudioUrl: string;
+    if (voiceEntry?.falUrl) {
+      falAudioUrl = voiceEntry.falUrl;
+    } else {
+      const { fal_url } = await generateTTSAndUpload({ text: scriptText, voice_id: voiceId });
+      falAudioUrl = fal_url;
+    }
 
     const job = await createHeyGenAvatar4({
       image_url: scene.selectedUrl,
@@ -440,11 +450,11 @@ export const handleRender: StepHandler = async (ctx) => {
     return { text: seg.scriptText || scene?.script || "" };
   });
 
-  const result = await concatVideos(
-    videoUrls, subtitleScripts,
-    config.subtitleEngine !== "none",
-    config.subtitleEngine,
-  );
+  // Generate both versions: with and without subtitles
+  const [resultWithSubs, resultNoSubs] = await Promise.all([
+    concatVideos(videoUrls, subtitleScripts, true, config.subtitleEngine === "none" ? "auto" : config.subtitleEngine),
+    concatVideos(videoUrls, subtitleScripts, false, "none"),
+  ]);
 
   // Save to content library
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
@@ -457,14 +467,14 @@ export const handleRender: StepHandler = async (ctx) => {
       type: "video",
       status: "completed",
       thumbnailUrl: baseImg?.url,
-      outputUrl: result.video_url,
+      outputUrl: resultWithSubs.video_url,
       scenes: scriptScenes.map((s) => ({ id: s.id, title: s.title, script: s.script })),
-      metadata: { language: config.language, numScenes: scriptScenes.length, duration: result.duration },
+      metadata: { language: config.language, numScenes: scriptScenes.length, duration: resultWithSubs.duration },
     });
   } catch { /* silent */ }
 
   const fps = 30;
-  const avgDuration = (result.duration / lipsyncData.length) * fps;
+  const avgDuration = (resultWithSubs.duration / lipsyncData.length) * fps;
   const remotionScenes = lipsyncData.map((seg) => {
     const scene = scriptScenes.find((s) => s.id === seg.sceneId);
     return {
@@ -476,12 +486,13 @@ export const handleRender: StepHandler = async (ctx) => {
 
   return {
     result: {
-      videoUrl: result.video_url,
-      totalDuration: `${result.duration}s`,
-      scenes: result.num_segments,
+      videoUrl: resultWithSubs.video_url,
+      videoUrlNoSubs: resultNoSubs.video_url,
+      totalDuration: `${resultWithSubs.duration}s`,
+      scenes: resultWithSubs.num_segments,
       format: "MP4 / H.264",
       resolution: "1080x1920 (9:16)",
-      sizeBytes: result.size_bytes,
+      sizeBytes: resultWithSubs.size_bytes,
       subtitleEngine: config.subtitleEngine,
       remotionScenes,
     },

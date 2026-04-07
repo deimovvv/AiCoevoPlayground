@@ -2120,17 +2120,32 @@ async def generate_tool_prompt(req: ToolPromptRequest):
 
         result = json.loads(content)
 
-        # Normalize script-like responses (arrays of scenes)
-        if isinstance(result, list) and len(result) > 0 and isinstance(result[0], (dict, list)):
-            # Check if it looks like a script (has scene-like keys)
+        # Only normalize for UGC-like tools (not video_ad_creator which has its own parser)
+        # Only normalize for UGC script responses — skip tools that have their own parsers
+        ugc_normalize_tools = {"ugc_creator"}
+        if req.toolId in ugc_normalize_tools and isinstance(result, list) and len(result) > 0 and isinstance(result[0], (dict, list)):
             sample = result[0] if isinstance(result[0], dict) else (result[0][0] if isinstance(result[0], list) and result[0] else {})
             script_keys = {"script", "speech", "audio", "voiceover", "dialogue", "action", "visuals", "setting", "image_prompt"}
             if isinstance(sample, dict) and script_keys & set(sample.keys()):
                 result = {"scenes": [_normalize_script_response(result)]}
 
         return {"result": result, "model": "gemini-2.5-flash"}
-    except json.JSONDecodeError:
-        # Return raw text if not valid JSON
+    except json.JSONDecodeError as jde:
+        # Try to fix truncated JSON arrays
+        print(f"[generate-prompt] JSON decode failed: {jde}. Content ends: ...{content[-100:] if content else 'empty'}")
+        # Attempt: if it looks like a truncated array, close it
+        trimmed = content.rstrip()
+        if trimmed.startswith("[") and not trimmed.endswith("]"):
+            # Find last complete object
+            last_brace = trimmed.rfind("}")
+            if last_brace > 0:
+                try:
+                    fixed = trimmed[:last_brace + 1] + "]"
+                    result = json.loads(fixed)
+                    print(f"[generate-prompt] Fixed truncated JSON: {len(result)} items")
+                    return {"result": result, "model": "gemini-2.5-flash"}
+                except json.JSONDecodeError:
+                    pass
         return {"result": content, "raw": True, "model": "gemini-2.5-flash"}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))

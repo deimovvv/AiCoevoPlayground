@@ -27,46 +27,16 @@ function generateChunks(scenes: UGCScene[]): SubtitleChunk[] {
       continue;
     }
 
-    // Use natural line breaks as subtitle chunks
-    const lines = scene.scriptText.split("\n").map((l) => l.trim()).filter(Boolean);
-
-    let groups: string[];
-    if (lines.length > 1) {
-      // Use line breaks from script
-      groups = lines;
-    } else {
-      // Split by natural punctuation first, then by word limit
-      // Split on . ! ? , ; — and keep groups under 6 words
-      const raw = scene.scriptText
-        .split(/(?<=[.!?;,…])\s+/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-
-      groups = [];
-      for (const segment of raw) {
-        const words = segment.split(/\s+/);
-        if (words.length <= 6) {
-          groups.push(segment);
-        } else {
-          // Too long — split at ~5 words on word boundary
-          for (let i = 0; i < words.length; i += 5) {
-            groups.push(words.slice(i, i + 5).join(" "));
-          }
-        }
-      }
-      // If nothing was split (no punctuation), fall back to 5-word chunks
-      if (groups.length <= 1) {
-        const words = scene.scriptText.split(/\s+/).filter(Boolean);
-        groups = [];
-        for (let i = 0; i < words.length; i += 5) {
-          groups.push(words.slice(i, i + 5).join(" "));
-        }
-      }
+    // Word-by-word karaoke style — 1 word per chunk
+    const words = scene.scriptText.split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      frameOffset += scene.durationInFrames;
+      continue;
     }
+    const groups = words;
 
-    // Distribute proportionally by word count
-    const wordCounts = groups.map((g) => g.split(/\s+/).length);
-    const totalWords = wordCounts.reduce((a, b) => a + b, 0) || 1;
+    // Each word gets equal time
+    const totalWords = words.length;
     let chunkOffset = frameOffset;
 
     for (let i = 0; i < groups.length; i++) {

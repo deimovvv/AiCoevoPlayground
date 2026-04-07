@@ -1,4 +1,4 @@
-import { useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
+import { useCurrentFrame, useVideoConfig, interpolate } from "remotion";
 
 export interface SubtitleChunk {
   text: string;
@@ -12,7 +12,7 @@ interface SubtitleOverlayProps {
 
 export function SubtitleOverlay({ chunks }: SubtitleOverlayProps) {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps: _fps } = useVideoConfig();
 
   const activeChunk = chunks.find(
     (c) => frame >= c.startFrame && frame <= c.endFrame
@@ -23,28 +23,21 @@ export function SubtitleOverlay({ chunks }: SubtitleOverlayProps) {
   const relFrame = frame - activeChunk.startFrame;
   const duration = activeChunk.endFrame - activeChunk.startFrame;
 
-  // Bounce scale — overshoots then settles
-  const scale = spring({
-    frame: relFrame,
-    fps,
-    config: { damping: 8, stiffness: 180, mass: 0.6 },
-  });
-
-  // Slide up from below
-  const translateY = interpolate(relFrame, [0, 5], [30, 0], {
-    extrapolateRight: "clamp",
-  });
-
-  // Fade in fast, fade out at end
+  // Gentle fade in/out — minimal, no bounce
   const opacity = interpolate(
     relFrame,
-    [0, 3, duration - 4, duration],
+    [0, 2, duration - 2, duration],
     [0, 1, 1, 0],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
 
-  // Split text into words for individual word animation
-  const words = activeChunk.text.split(/\s+/);
+  // Very subtle scale — 0.97 → 1.0
+  const scale = interpolate(
+    relFrame,
+    [0, 3],
+    [0.97, 1],
+    { extrapolateRight: "clamp" }
+  );
 
   return (
     <div
@@ -61,60 +54,27 @@ export function SubtitleOverlay({ chunks }: SubtitleOverlayProps) {
     >
       <div
         style={{
-          transform: `scale(${scale}) translateY(${translateY}px)`,
+          transform: `scale(${scale})`,
           opacity,
           textAlign: "center",
-          maxWidth: "85%",
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          gap: "0 10px",
         }}
       >
-        {words.map((word, i) => {
-          // Stagger each word slightly
-          const wordDelay = i * 2;
-          const wordRelFrame = relFrame - wordDelay;
-
-          const wordScale = spring({
-            frame: Math.max(0, wordRelFrame),
-            fps,
-            config: { damping: 10, stiffness: 250, mass: 0.5 },
-          });
-
-          const wordOpacity = interpolate(
-            wordRelFrame,
-            [-1, 1],
-            [0, 1],
-            { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-          );
-
-          // Current word highlight — the last word to appear gets highlighted
-          const isHighlighted = wordRelFrame > 0 && wordRelFrame < 8;
-
-          return (
-            <span
-              key={i}
-              style={{
-                display: "inline-block",
-                transform: `scale(${wordScale})`,
-                opacity: wordOpacity,
-                fontSize: 52,
-                fontWeight: 900,
-                fontFamily: "Inter, system-ui, sans-serif",
-                color: isHighlighted ? "#FFD700" : "#FFFFFF",
-                textShadow:
-                  "0 3px 12px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,1), 2px 2px 0 rgba(0,0,0,0.8)",
-                letterSpacing: "-0.03em",
-                lineHeight: 1.15,
-                textTransform: "uppercase",
-                transition: "color 0.15s",
-              }}
-            >
-              {word}
-            </span>
-          );
-        })}
+        <span
+          style={{
+            display: "inline-block",
+            fontSize: 64,
+            fontWeight: 800,
+            fontFamily: "Inter, system-ui, sans-serif",
+            color: "#FFFFFF",
+            textShadow:
+              "0 2px 8px rgba(0,0,0,0.7), 0 1px 2px rgba(0,0,0,0.9)",
+            letterSpacing: "-0.02em",
+            lineHeight: 1.1,
+            textTransform: "uppercase",
+          }}
+        >
+          {activeChunk.text}
+        </span>
       </div>
     </div>
   );
