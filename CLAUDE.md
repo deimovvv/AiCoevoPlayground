@@ -155,16 +155,15 @@ Layer 3: Dynamic Vars     ->  {brand_name}, {brand_guidance}, {avatars}, {produc
 
 **Key**: Assets are uploaded once per brand and available to ALL tools automatically.
 
-### 4. UGC Pipeline (8 Steps)
+### 4. UGC Pipeline (7 Steps)
 
-1. **Script** (Gemini 2.5 Flash) — 3-4 act structure
-2. **Base Image** (Nano Banana 2) — Avatar + prompt
-3. **Multishot** (Nano Banana 2 x N) — Parallel variations
-4. **Curation** (planned: Gemini Vision) — Select best
-5. **Voice** (ElevenLabs) — TTS per scene
-6. **Lip-Sync** (Kling + Fal Fabric) — Animate curated image
-7. **Subtitles** (planned)
-8. **Render** (FFmpeg) — Concatenate segments
+1. **Script** (Gemini 2.5 Flash or custom per scene with visual direction + shot type)
+2. **Base Image** (Nano Banana 2) — Avatar + product + clothing + composition ref
+3. **Multishot** (Nano Banana 2 x N) — Variations per scene
+4. **Curation** — Manual selection + ImageEditPanel per variation
+5. **Voice** (ElevenLabs v3) — TTS per scene, editable text, play/regen
+6. **Lip-Sync** (HeyGen Avatar 4) — Uses voice step audio directly
+7. **Render** (FFmpeg) — Dual output: with + without word-by-word subtitles
 
 ### 5. Async Job Pattern (Fal services)
 
@@ -189,9 +188,10 @@ All backend communication goes through `frontend/src/lib/api.ts`. Always use exp
 ### Adding a New Tool
 1. Create tool directory: `backend/tools/{tool_id}/`
 2. Add `default_prompt.txt` with template variables
-3. Optionally add `config.json` with parameters
-4. Register in `backend/tools/registry.json`
-5. Implement execution logic in `backend/services/`
+3. Register in `backend/tools/registry.json` with pipeline steps
+4. Create frontend directory: `frontend/src/tools/{tool_id}/`
+5. Create `index.ts` with ToolDefinition (schema + stepHandlers + approvalSteps + autoRunSteps)
+6. Register in `frontend/src/tools/registry.ts`
 
 ## API Key Management
 
@@ -209,37 +209,45 @@ KLING_API_KEY=...      # optional
 ## Current State
 
 ### Implemented
-- Brand CRUD with rich configuration (context, assets, voices, prompts)
-- Avatar, product, clothing upload with metadata
+- Brand CRUD with rich configuration (context, DNA, assets, voices, prompts, fonts)
+- Brand DNA: AI-extracted identity (colors, tone, audience, keywords, personality, competitors)
+- Multi-photo products (up to 3 images per product: front, back, detail)
+- Avatar, product, clothing, background, logo upload with auto-description (Gemini Vision)
 - Voice presets with TTS preview playback
-- AI Chat (Gemini 2.5 Flash) with brand context, asset chips, tool quick actions
-- 6 registered tools (4 active: UGC Creator, Product Photos, Ad Creative, Social Post)
-- UGC Creator: 8-step pipeline with mock preview mode
-- 3-layer prompt system (defaults, brand overrides, dynamic variables)
-- All AI services integrated: Gemini, Nano Banana 2, Kling V2.6, ElevenLabs, Fal Fabric
-- FFmpeg video concatenation
+- AI Chat (Gemini 2.5 Flash) with brand context, asset chips
+- 15 registered tools (10 active with full pipelines)
+- UGC Creator: 7-step pipeline with custom scripts, shot selector, voice editing, dual render
+- Video Ad Creator: 6-step pipeline with 10-frame storyboard, Kling V3 animation
+- Static Ad: 40 templates with detailed composition prompts
+- Carousel Creator: 8 types, base_scene visual consistency system
+- Ad Creative Lab: visual guide extraction + batch generation
+- Content Analyzer: video analysis with Gemini Vision
+- Product Clip: frame-to-frame product videos
+- ImageEditPanel: reusable edit component across all tools (product picker + quick actions)
+- 3-layer prompt system with response normalizer
+- Word-by-word karaoke subtitles (Remotion)
+- All AI services: Gemini 2.5 Flash, Nano Banana 2, Kling V3 Pro, HeyGen Avatar 4, ElevenLabs v3
+- FFmpeg video concatenation with dual output (subs + no subs)
 - Brand guidance from URL scraping and PDF upload
 - Brand switcher in sidebar with real-time sync
-
-### In Progress
-- Gemini Vision curation (currently auto-selects first variation)
-- Subtitles pipeline step
-- Content library with real generations
-- End-to-end pipeline testing
+- Content library with generation history
 
 ### Planned
+- Generation persistence (save full pipeline state per run)
+- Content Calendar agent
+- Client Portal (requires auth)
 - Batch generation
-- Client-facing dashboards
-- Authentication
+- Authentication (Clerk/Auth0)
 - Redis job queues
 - PostgreSQL migration
+- Cross-scene variation assignment in curation
 
 ## Important Notes
 
 - **macOS/Linux Environment**: Primary development on macOS
 - **CORS**: Backend allows all origins for local development
-- **Static Files**: Backend serves `/static/avatars/`, `/static/products/`, `/static/clothing/`, `/static/renders/`
-- **Async Execution**: Backend uses `asyncio` + `httpx` for external API calls
+- **Static Files**: Backend serves `/static/avatars/`, `/static/products/`, `/static/clothing/`, `/static/backgrounds/`, `/static/renders/`
+- **Async Execution**: Backend uses `asyncio` + `httpx` for external API calls (120s timeout for Gemini)
 - **Type Safety**: Frontend uses TypeScript strictly — maintain type definitions
 - **Dark Theme**: Pure black canvas (#000000) with warm burgundy accent (#c45830)
 - **React Hooks Rule**: All `useState` calls must be before any conditional returns in components
@@ -247,7 +255,7 @@ KLING_API_KEY=...      # optional
 ## Documentation
 
 - **[architecture.md](docs/architecture.md)**: System architecture, API endpoints, data structures
-- **[tools.md](docs/tools.md)**: All 9 tools with prompts, pipelines, inputs, and rules
+- **[tools.md](docs/tools.md)**: All 15 tools with pipelines, features, and status
 - **[stack.md](docs/stack.md)**: Tech stack, services, environment setup
 - **[pipeline.md](docs/pipeline.md)**: UGC pipeline flow, cost optimization, PromptBuilder
 - **[product_vision_ux.md](docs/product_vision_ux.md)**: UX philosophy, user flows

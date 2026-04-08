@@ -637,13 +637,6 @@ export function ToolRunPage() {
       rawScenes = (scriptResult as Array<Array<Record<string, string>>>)[0] || [];
     }
 
-    console.log("[getScriptScenes] rawScenes count:", rawScenes.length, "scriptResult keys:", Object.keys(scriptResult));
-    if (rawScenes.length > 0) {
-      console.log("[getScriptScenes] first scene ALL keys:", Object.keys(rawScenes[0]), "FULL:", JSON.stringify(rawScenes[0]));
-    } else {
-      console.log("[getScriptScenes] NO rawScenes found. Full result:", JSON.stringify(scriptResult).slice(0, 500));
-    }
-
     // Normalize: Gemini returns wildly inconsistent field names across runs
     return rawScenes.map((s, i) => {
       // Script: try every possible field name Gemini might use
@@ -796,7 +789,6 @@ export function ToolRunPage() {
       try {
         const scenes = getScriptScenes();
         const firstScene = scenes[0];
-        console.log("[base_image] scenes:", scenes.length, "firstScene:", JSON.stringify(firstScene).slice(0, 300));
         if (!firstScene) throw new Error("No script scenes found. Run the Script step first.");
         if (!firstScene.image_prompt) throw new Error(`No image prompt found in scene 1. Scene keys: ${JSON.stringify(firstScene)}`);
 
@@ -2990,7 +2982,6 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   // Script step — show script text + brief, only first image prompt
   if (stepId === "script" && result) {
     const raw = result as Record<string, unknown>;
-    console.log("[DoneStep script] keys:", Object.keys(raw), "isArray:", Array.isArray(result), "preview:", JSON.stringify(raw).slice(0, 500));
     let scenes: Array<{ id: string; title: string; script: string; image_prompt: string }> = [];
     let brief: string | null = null;
 
@@ -4209,11 +4200,6 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   }
 
   // Carousel prompt step — show slides overview (detected by presence of slides array)
-  if (stepId === "prompt" && result) {
-    // Debug: log what the DoneStep received
-    const _raw = result as Record<string, unknown>;
-    console.log("[DoneStep prompt]", "keys:", Object.keys(_raw), "isArray:", Array.isArray(_raw), "has slides:", "slides" in _raw, "preview:", JSON.stringify(_raw).slice(0, 400));
-  }
   if (stepId === "prompt" && result && (() => {
     let d = result as Record<string, unknown>;
     if (Array.isArray(d)) return true; // wrapped array has slides

@@ -5,11 +5,11 @@
     "brandContext": "Taller Santa Clara es una marca de ropa artesanal argentina. Fabrican remeras, polos y prendas básicas con algodón orgánico de alta calidad. Su tono es cercano, auténtico y aspiracional. Target: hombres 25-40, urbanos, que valoran la calidad y el diseño simple. Estilo de comunicación: directo, cálido, con un toque de craft/artesanal. Usan español rioplatense.",
     "avatars": [
       {
-        "id": "0ac9f3f1",
+        "id": "9b24fa4c",
         "name": "Elias",
-        "description": "",
-        "filename": "taller-santa-clara_0ac9f3f1.jpeg",
-        "imageUrl": "/static/avatars/taller-santa-clara_0ac9f3f1.jpeg",
+        "description": "Elias is a male in his early to mid-20s, with a lean, athletic build and a Mediterranean or Middle Eastern appearance. He has short, dark brown, wavy hair that is slightly longer on top. He has an oval face with a prominent jawline, thick dark eyebrows, hazel eyes, a straight nose, and full lips, complemented by short, scruffy stubble. His olive skin tone features visible pores and scattered small moles on his face.",
+        "filename": "taller-santa-clara_9b24fa4c.jpeg",
+        "imageUrl": "/static/avatars/taller-santa-clara_9b24fa4c.jpeg",
         "talkingPhotoId": null,
         "heygenStatus": "skipped"
       }
@@ -27,6 +27,27 @@
         "description": "",
         "filename": "taller-santa-clara_prod_c4aa18c2.jpeg",
         "imageUrl": "/static/products/taller-santa-clara_prod_c4aa18c2.jpeg"
+      },
+      {
+        "id": "2caf8999",
+        "name": "Remera Basica Azul ",
+        "description": "oversize t shirt",
+        "filename": "taller-santa-clara_prod_2caf8999.png",
+        "imageUrl": "/static/products/taller-santa-clara_prod_2caf8999.png"
+      },
+      {
+        "id": "e1bd79e3",
+        "name": "Remera Oversize Bordo",
+        "description": "This is a plain, oversized t-shirt in a deep burgundy (bordo) color, made from a smooth, soft-looking knit fabric with minimal visible texture. It features a loose, relaxed fit with short, wide sleeves and a ribbed crew neck. The garment has no visible logos, patterns, or hardware, and is presented as a front view, likely a flat lay or ghost mannequin shot, isolated on a white background with a subtle shadow.",
+        "filename": "taller-santa-clara_prod_e1bd79e3.png",
+        "imageUrl": "/static/products/taller-santa-clara_prod_e1bd79e3.png"
+      },
+      {
+        "id": "5d8c1c49",
+        "name": "Remera Oversize Negra",
+        "description": "This is a black, oversized short-sleeve t-shirt, likely made of a smooth jersey knit fabric with a matte finish. It features a classic crew neck with a ribbed collar and a relaxed, boxy silhouette with dropped shoulders and wide sleeves. The garment has clean, unadorned hems and cuffs, with no visible logos, patterns, or hardware. It is displayed as a flat lay, front view, isolated on a white background with a soft shadow beneath.",
+        "filename": "taller-santa-clara_prod_5d8c1c49.png",
+        "imageUrl": "/static/products/taller-santa-clara_prod_5d8c1c49.png"
       }
     ],
     "clothing": [
@@ -37,6 +58,56 @@
         "tags": [],
         "filename": "taller-santa-clara_cloth_e2d5fbcb.jpg",
         "imageUrl": "/static/clothing/taller-santa-clara_cloth_e2d5fbcb.jpg"
+      },
+      {
+        "id": "b583498d",
+        "name": "Remera negra",
+        "description": "",
+        "tags": [],
+        "filename": "taller-santa-clara_cloth_b583498d.png",
+        "imageUrl": "/static/clothing/taller-santa-clara_cloth_b583498d.png"
+      },
+      {
+        "id": "39d9c755",
+        "name": "Remera bordod",
+        "description": "",
+        "tags": [],
+        "filename": "taller-santa-clara_cloth_39d9c755.png",
+        "imageUrl": "/static/clothing/taller-santa-clara_cloth_39d9c755.png"
+      }
+    ],
+    "backgrounds": [
+      {
+        "id": "df1adc51",
+        "name": "Taller0",
+        "description": "",
+        "tags": [],
+        "filename": "taller-santa-clara_bg_df1adc51.jpeg",
+        "imageUrl": "/static/backgrounds/taller-santa-clara_bg_df1adc51.jpeg"
+      },
+      {
+        "id": "5f47b628",
+        "name": "Taller1",
+        "description": "",
+        "tags": [],
+        "filename": "taller-santa-clara_bg_5f47b628.jpeg",
+        "imageUrl": "/static/backgrounds/taller-santa-clara_bg_5f47b628.jpeg"
+      },
+      {
+        "id": "a5fe56a5",
+        "name": "Taller2",
+        "description": "",
+        "tags": [],
+        "filename": "taller-santa-clara_bg_a5fe56a5.png",
+        "imageUrl": "/static/backgrounds/taller-santa-clara_bg_a5fe56a5.png"
+      },
+      {
+        "id": "9d514b58",
+        "name": "3",
+        "description": "",
+        "tags": [],
+        "filename": "taller-santa-clara_bg_9d514b58.png",
+        "imageUrl": "/static/backgrounds/taller-santa-clara_bg_9d514b58.png"
       }
     ]
   },
@@ -57,16 +128,167 @@
   {
     "id": "personal",
     "name": "Personal",
-    "brandContext": "",
-    "avatars": [],
-    "voicePresets": []
+    "brandContext": "[Source: https://tienda.personal.com.ar]\nTienda Personal: las Mejores Ofertas en Tecnología\nIndividuos\n|\nPymes\n|\nGrandes Empresas\n|\nInstitucional\n|\nMóvil\nFibra\nFlow\nPay\nTienda\nSmarthome\nAyuda\nTienda\nCelulares\nTelevisores\nTablets\nSmartwatches\nAuriculares\nHogar Conectado\nAccesorios para celulares\nParlantes\nSmartbands\nClimatización\nAccesorios para TV\nMonitores\nNotebooks\nPequeños Electrodomésticos\nIluminación\nHeladeras\nLavado\nPeriféricos PC\nGaming\nMicrófonos\nCocina\nIr a Market\nEl Market que necesitás\nMás productos, nuevas categorías\nAprovechá las ofertas\nde Tecno Week\n20% dto. extra Conexión Total\nEnvío gratis en seleccionados\nDesde el 01/04/26 al 12/04/26 - Más info en Legales\nElegí TCL\n10% dto. extra Conexión Total\nEnvío gratis en seleccionados\nMás opciones, más Personal\nSumamos retiro en punto de entrega.\n¡Elegí dónde y cuándo retirar tu compra!\n¡Electro en oferta!\nEnvíos a todo el país\nDesde el 19/03/26 al 30/04/26 - Más info en Legales\nPagá con Personal Pay\ny ahorrá más\nSamsung Galaxy S\nen la tienda\nPagá en cuotas y llevate\nlos Buds4 Pro de regalo\nEl Market que necesitás\nMás productos, nuevas categorías\nAprovechá las ofertas\nde Tecno Week\n20% dto. extra Conexión Total\nEnvío gratis en seleccionados\nDesde el 01/04/26 al 12/04/26 - Más info en Legales\nLos más buscados en la tienda de Personal\nEnvío gratis\nSamsung Galaxy A06 64 GB\n$331.999\n27\n% OFF\n$239.999\nConexión Total\n$215.999\n*\nHasta 9 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$178.512\nIncluye accesorios\nMotorola Moto E15 64 GB\n$268.999\n51\n% OFF\n$129.999\nConexión Total\n$116.999\n*\nPrecio exclusivo\nAbonando en 1 pago\n*\nPrecio sin impto.\n$96.694\nEnvío gratis\nSamsung Galaxy A16 128 GB\n$516.999\n32\n% OFF\n$349.999\nConexión Total\n$314.999\n*\nHasta 6 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$260.330\nEnvío gratis\nSamsung Galaxy S25 FE 256 GB\n$1.799.999\n22\n% OFF\n$1.399.999\nPrecio exclusivo\nAbonando en 1 pago\nPrecio sin impto.\n$1.157.024\nEnvío gratis\nSamsung Galaxy A26 5G 256 GB\n$799.999\n25\n% OFF\n$599.999\nConexión Total\n$539.999\n*\nHasta 6 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$446.281\nIncluye accesorio\nEnvío gratis\niPhone 14 256 GB + Cable USB-C Lightning 2mts\n$1.599.999\n31\n% OFF\n$1.099.999\nPrecio exclusivo\nAbonando en 1 pago\nPrecio sin impto.\n$909.091\nLanzamiento\nEnvío gratis\nSamsung Galaxy S26 512 GB\n$2.699.999\n18\n% OFF\n$2.189.999\nConexión Total\n$1.751.999\n*\nPrecio exclusivo\nAbonando en 1 pago\n*\nPrecio sin impto.\n$1.447.934\nLavasecarropas Samsung Bespoke AI 22 Kg\n$6.699.999\n25\n% OFF\n$4.999.999\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\nPrecio sin impto.\n$4.524.886\nIncluye accesorios\nEnvío gratis\nMotorola Edge 60 Fusion 256 GB\n$806.999\n13\n% OFF\n$699.999\nConexión Total\n$629.999\n*\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$520.661\nFreidora de Aire Midea 2 zonas 11L\n$389.999\n28\n% OFF\n$279.999\nConexión Total\n$265.999\n*\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$219.834\nGarantia extendida\nEnvío gratis\nSamsung Galaxy A56 5G 256 GB\n$1.199.999\n17\n% OFF\n$986.999\nConexión Total\n$888.299\n*\nPrecio exclusivo\nAbonando en 1 pago\n*\nPrecio sin impto.\n$734.132\nLanzamiento\nIncluye accesorios\nEnvío gratis\nMotorola Edge 70 512 GB\n$1.299.999\nConexión Total\n$1.170.000\n*\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$966.942\nEnvío gratis\nSamsung Galaxy A06 64 GB\n$331.999\n27\n% OFF\n$239.999\nConexión Total\n$215.999\n*\nHasta 9 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$178.512\nIncluye accesorios\nMotorola Moto E15 64 GB\n$268.999\n51\n% OFF\n$129.999\nConexión Total\n$116.999\n*\nPrecio exclusivo\nAbonando en 1 pago\n*\nPrecio sin impto.\n$96.694\nEnvío gratis\nSamsung Galaxy A16 128 GB\n$516.999\n32\n% OFF\n$349.999\nConexión Total\n$314.999\n*\nHasta 6 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$260.330\nEnvío gratis\nSamsung Galaxy S25 FE 256 GB\n$1.799.999\n22\n% OFF\n$1.399.999\nPrecio exclusivo\nAbonando en 1 pago\nPrecio sin impto.\n$1.157.024\nEnvío gratis\nSamsung Galaxy A26 5G 256 GB\n$799.999\n25\n% OFF\n$599.999\nConexión Total\n$539.999\n*\nHasta 6 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$446.281\nIncluye accesorio\nEnvío gratis\niPhone 14 256 GB + Cable USB-C Lightning 2mts\n$1.599.999\n31\n% OFF\n$1.099.999\nPrecio exclusivo\nAbonando en 1 pago\nPrecio sin impto.\n$909.091\nLanzamiento\nEnvío gratis\nSamsung Galaxy S26 512 GB\n$2.699.999\n18\n% OFF\n$2.189.999\nConexión Total\n$1.751.999\n*\nPrecio exclusivo\nAbonando en 1 pago\n*\nPrecio sin impto.\n$1.447.934\nLavasecarropas Samsung Bespoke AI 22 Kg\n$6.699.999\n25\n% OFF\n$4.999.999\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\nPrecio sin impto.\n$4.524.886\nIncluye accesorios\nEnvío gratis\nMotorola Edge 60 Fusion 256 GB\n$806.999\n13\n% OFF\n$699.999\nConexión Total\n$629.999\n*\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$520.661\nFreidora de Aire Midea 2 zonas 11L\n$389.999\n28\n% OFF\n$279.999\nConexión Total\n$265.999\n*\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$219.834\nGarantia extendida\nEnvío gratis\nSamsung Galaxy A56 5G 256 GB\n$1.199.999\n17\n% OFF\n$986.999\nConexión Total\n$888.299\n*\nPrecio exclusivo\nAbonando en 1 pago\n*\nPrecio sin impto.\n$734.132\nLanzamiento\nIncluye accesorios\nEnvío gratis\nMotorola Edge 70 512 GB\n$1.299.999\nConexión Total\n$1.170.000\n*\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$966.942\n‌\n‌\n‌\nComprá y pagá en cuotas con tu factura de\nPersonal\nPagá con\nPersonal Pay\nen 1 pago y te reintegramos hasta $45.000\nCómo pagar tu compra: cuotas y condiciones\nProductos destacados\nSmart TV 55\" TCL QLED C655\n$1.144.999\n30\n% OFF\n$799.999\nConexión Total\n$759.999\n*\n*\nPrecio sin impto.\n$628.099\n¡Lo quiero!\nMotorola Edge 50 Fusion 256 GB\nEnvío gratis\n$962.999\n28\n% OFF\n$685.999\nConexión Total\n$617.399\n*\n*\nPrecio sin impto.\n$510.248\n¡Lo quiero!\nNubia Music 2 128 GB\n$289.999\n33\n% OFF\n$192.999\nConexión Total\n$173.699\n*\n*\nPrecio sin impto.\n$143.553\n¡Lo quiero!\nXiaomi Redmi Note 14 Pro 256 GB\nEnvío gratis\n2\ncolores\n$775.999\n11\n% OFF\n$689.999\nConexión Total\n$620.999\n*\n*\nPrecio sin impto.\n$513.223\n¡Lo quiero!\nCargador Motorola 125W + Cable Tipo C 2 mts\n$119.999\n30\n% OFF\n$83.999\nPrecio sin impto.\n$69.421\n¡Lo quiero!\nKit x2 Cámaras WiFi 360 Personal Smarthome\n$200.000\n30\n% OFF\n$139.999\nConexión Total\n$125.999\n*\n*\nPrecio sin impto.\n$104.132\n¡Lo quiero!\nTCL 605 256 GB\nEnvío gratis\n$289.999\n13\n% OFF\n$249.999\nConexión Total\n$224.999\n*\n*\nPrecio sin impto.\n$185.950\n¡Lo quiero!\nHONOR X5c Plus 256 GB\nEnvío gratis\n$366.499\n16\n% OFF\n$306.999\nConexión Total\n$276.299\n*\n*\nPrecio sin impto.\n$210.118\n¡Lo quiero!\nSmart TV 65\" Samsung UHD 4K DU7000\n$1.664.499\n21\n% OFF\n$1.299.999\nPrecio sin impto.\n$1.074.380\n¡Lo quiero!\nLavasecarropas Samsung Bespoke AI 22 Kg\n$6.699.999\n25\n% OFF\n$4.999.999\nPrecio sin impto.\n$4.524.886\n¡Lo quiero!\nSamsung Galaxy S25 FE 256 GB\nEnvío gratis\n3\ncolores\n$1.799.999\n22\n% OFF\n$1.399.999\nPrecio sin impto.\n$1.157.024\n¡Lo quiero!\nAuriculares Apple Airpods 2da Generación\n$359.999\n50\n% OFF\n$179.999\nPrecio sin impto.\n$148.760\n¡Lo quiero!\nParlante Bluetooth Foxbox Nyxia 60\n2\ncolores\n$181.999\n20\n% OFF\n$144.999\nConexión Total\n$137.749\n*\n*\nPrecio sin impto.\n$113.843\n¡Lo quiero!\nCargador Inalámbrico Hune Hoja 10W\n$32.399\n13\n% OFF\n$27.999\nConexión Total\n$26.599\n*\n*\nPrecio sin impto.\n$21.983\n¡Lo quiero!\nSmart TV 55\" TCL QLED C655\n$1.144.999\n30\n% OFF\n$799.999\nConexión Total\n$759.999\n*\n*\nPrecio sin impto.\n$628.099\n¡Lo quiero!\nMotorola Edge 50 Fusion 256 GB\nEnvío gratis\n$962.999\n28\n% OFF\n$685.999\nConexión Total\n$617.399\n*\n*\nPrecio sin impto.\n$510.248\n¡Lo quiero!\nNubia Music 2 128 GB\n$289.999\n33\n% OFF\n$192.999\nConexión Total\n$173.699\n*\n*\nPrecio sin impto.\n$143.553\n¡Lo quiero!\nXiaomi Redmi Note 14 Pro 256 GB\nEnvío gratis\n2\ncolores\n$775.999\n11\n% OFF\n$689.999\nConexión Total\n$620.999\n*\n*\nPrecio sin impto.\n$513.223\n¡Lo quiero!\nCargador Motorola 125W + Cable Tipo C 2 mts\n$119.999\n30\n% OFF\n$83.999\nPrecio sin impto.\n$69.421\n¡Lo quiero!\nKit x2 Cámaras WiFi 360 Personal Smarthome\n$200.000\n30\n% OFF\n$139.999\nConexión Total\n$125.999\n*\n*\nPrecio sin impto.\n$104.132\n¡Lo quiero!\nTCL 605",
+    "avatars": [
+      {
+        "id": "a202c7bd",
+        "name": "MODELO IA GTSS (1)",
+        "description": "This is a young adult Caucasian female with a tall, very slender build and fair skin. She has long, wavy light brown hair styled with a full, wispy fringe that frames her oval-shaped face. Her facial features include prominent cheekbones and full lips.",
+        "filename": "personal_a202c7bd.png",
+        "imageUrl": "/static/avatars/personal_a202c7bd.png",
+        "talkingPhotoId": null,
+        "heygenStatus": "failed",
+        "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
+      },
+      {
+        "id": "4cc88aa5",
+        "name": "Sofia",
+        "description": "Sofia is a female in her late 20s to early 30s, with an olive skin tone and appears to be of Latina or Mediterranean ethnicity. Her dark brown, curly hair is pulled up into a messy high bun. She has an oval-shaped face, prominent dark eyebrows, brown eyes, and a small mole on her right cheek. She has a slender build.",
+        "filename": "personal_4cc88aa5.png",
+        "imageUrl": "/static/avatars/personal_4cc88aa5.png",
+        "talkingPhotoId": null,
+        "heygenStatus": "skipped"
+      }
+    ],
+    "voicePresets": [
+      {
+        "id": "Hm2MNjeuDOMexjsviA4M",
+        "name": "Sofia"
+      },
+      {
+        "id": "o4gFIovn5dQhpIJWNFrQ",
+        "name": "Tatiana 02"
+      }
+    ],
+    "dna": {
+      "brand_name": "Tienda Personal",
+      "parent_company_ecosystem": "Personal (telecommunications and financial services)",
+      "brand_mission_purpose": "To be the essential online market ('El Market que necesitás') providing the best offers in technology and home goods, making a wide array of products accessible, convenient, and affordable for individuals and businesses within the Personal ecosystem.",
+      "target_audience": [
+        "Individuals (Individuos)",
+        "Small and Medium Enterprises (Pymes)",
+        "Large Corporations (Grandes Empresas)",
+        "Institutional Clients (Institucional)"
+      ],
+      "core_values": [
+        "Value",
+        "Accessibility",
+        "Convenience",
+        "Innovation",
+        "Completeness",
+        "Affordability"
+      ],
+      "key_differentiators": [
+        "Extensive and frequently updated offers, promotions, and exclusive discounts (e.g., 'Tecno Week', 'Conexión Total')",
+        "Flexible payment options including interest-free installments and additional savings with 'Personal Pay'",
+        "Diverse fulfillment options including nationwide shipping, free shipping on selected items, and in-store pickup points",
+        "Broad product catalog spanning various technology and home categories ('Más productos, nuevas categorías')",
+        "Integration with the broader Personal ecosystem, offering synergistic benefits for existing customers"
+      ],
+      "product_service_portfolio": {
+        "mobile_devices": [
+          "Celulares",
+          "Smartwatches",
+          "Tablets",
+          "Smartbands",
+          "Accesorios para celulares"
+        ],
+        "home_entertainment_electronics": [
+          "Televisores",
+          "Monitores",
+          "Notebooks",
+          "Auriculares",
+          "Parlantes",
+          "Micrófonos",
+          "Periféricos PC",
+          "Gaming",
+          "Accesorios para TV"
+        ],
+        "smart_home_appliances": [
+          "Hogar Conectado",
+          "Smarthome",
+          "Climatización",
+          "Iluminación",
+          "Heladeras",
+          "Lavado",
+          "Pequeños Electrodomésticos",
+          "Cocina (e.g., Freidora de Aire)",
+          "Lavasecarropas"
+        ],
+        "services": [
+          "Online shopping platform",
+          "Nationwide delivery services",
+          "Pickup points",
+          "Flexible financing options"
+        ]
+      },
+      "brand_personality": [
+        "Promotional",
+        "Value-driven",
+        "Modern",
+        "Convenient",
+        "Comprehensive",
+        "Customer-focused"
+      ],
+      "customer_benefits": [
+        "Significant savings through frequent discounts and special offers",
+        "Financial flexibility with various payment methods and interest-free installments",
+        "Convenient shopping experience with multiple delivery/pickup choices",
+        "Access to a wide and updated selection of technology and home products, including new launches",
+        "Exclusive benefits and savings for existing Personal service subscribers ('Conexión Total')",
+        "Added value through bundled accessories, extended warranties, and promotional gifts"
+      ]
+    },
+    "products": [
+      {
+        "id": "1de8f92e",
+        "name": "Samsung Galaxy A06",
+        "description": "This product image displays a modern smartphone, rectangular with rounded corners and a slim profile. The screen features a vibrant gradient wallpaper, transitioning from green at the top to yellow in the middle and blue at the bottom, overlaid with large white \"A06\" text rotated 90 degrees clockwise. A small teardrop notch is visible at the top center of the screen, and the device has a thin black bezel framing the display, with a light grey or silver-colored frame and visible side buttons. The phone is presented vertically, centered against a plain white background, showcasing its front face.",
+        "filename": "personal_prod_1de8f92e.png",
+        "imageUrl": "/static/products/personal_prod_1de8f92e.png",
+        "images": [
+          {
+            "filename": "personal_prod_1de8f92e_5553e7fa.png",
+            "imageUrl": "/static/products/personal_prod_1de8f92e_5553e7fa.png",
+            "label": "Photo 2"
+          },
+          {
+            "filename": "personal_prod_1de8f92e_b16e6327.png",
+            "imageUrl": "/static/products/personal_prod_1de8f92e_b16e6327.png",
+            "label": "Photo 3"
+          }
+        ]
+      },
+      {
+        "id": "47a9d308",
+        "name": "Iphone",
+        "description": "This product is a gold-colored smartphone, specifically an iPhone, featuring a glossy glass back and a matching metal frame. It has a rectangular shape with gently rounded corners and a slim profile. The upper left corner of the back showcases a raised square camera module containing three prominent black camera lenses and a circular flash, while a dark gray Apple logo is centered vertically below it. The device is presented as a clean, standalone product shot, viewed from the back and oriented vertically against a plain white background.",
+        "filename": "personal_prod_47a9d308.png",
+        "imageUrl": "/static/products/personal_prod_47a9d308.png"
+      }
+    ],
+    "backgrounds": [
+      {
+        "id": "54b7330b",
+        "name": "freepik_use-img1-as-lighting-and-_2728330512",
+        "description": "",
+        "tags": [],
+        "filename": "personal_bg_54b7330b.png",
+        "imageUrl": "/static/backgrounds/personal_bg_54b7330b.png"
+      }
+    ]
   },
   {
     "id": "american-fresh",
     "name": "American Fresh",
     "brandContext": "",
     "avatars": [],
-    "voicePresets": [],
+    "voicePresets": [
+      {
+        "id": "o4gFIovn5dQhpIJWNFrQ",
+        "name": "Tatiana02"
+      }
+    ],
     "products": [
       {
         "id": "b0d8029b",

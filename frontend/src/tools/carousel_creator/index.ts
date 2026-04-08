@@ -122,7 +122,6 @@ const handleGenerateAll: StepHandler = async (ctx) => {
     // Don't overload with extra instructions (UGC works because it sends just the prompt)
     const slidePrompt = `${baseScene}. ${slide.image_prompt}. No text or typography in the image.`;
 
-    console.log(`[carousel] Slide ${i + 1}: ${imageUrls.length} refs, prompt: ${slidePrompt.slice(0, 200)}...`);
 
     try {
       const job = await createImageEdit(imageUrls, slidePrompt, config.aspectRatio || "4:5", config.resolution);

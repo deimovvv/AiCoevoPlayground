@@ -71,7 +71,7 @@ export const handleScript: StepHandler = async (ctx) => {
         const parsed = JSON.parse(obj);
         return findArray(parsed);
       } catch (e) {
-        console.log("🔴 JSON parse failed:", (e as Error).message, "string starts:", (obj as string).slice(0, 100));
+        // JSON parse failed — try to extract array
         // Try to extract JSON array from the string
         const str = obj as string;
         const start = str.indexOf("[");
@@ -94,14 +94,7 @@ export const handleScript: StepHandler = async (ctx) => {
     return [];
   };
 
-  console.log("[video-ad] Raw result type:", typeof result, "preview:", JSON.stringify(result)?.slice(0, 300));
-
   const rawFrames = findArray(result);
-  console.log("🔴🔴🔴 VIDEO AD RAW FRAMES:", rawFrames.length);
-  if (rawFrames[0]) {
-    console.log("🔴🔴🔴 FRAME 1 KEYS:", Object.keys(rawFrames[0]));
-    console.log("🔴🔴🔴 FRAME 1 FULL:", JSON.stringify(rawFrames[0]));
-  }
 
   const frames = rawFrames
     .map((f, i) => {

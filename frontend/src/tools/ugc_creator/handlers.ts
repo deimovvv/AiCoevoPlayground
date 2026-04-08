@@ -247,8 +247,6 @@ export const handleBaseImage: StepHandler = async (ctx) => {
     prompt = `REFERENCE IMAGES:\n${refDescriptions.join("\n")}\n\n${prompt}`;
   }
 
-  console.log(`[base_image] refs: ${imageUrls.length}, avatar: ${!!selectedAvatar?.imageUrl}, product: ${!!selectedProduct?.imageUrl}, bg: ${!!selectedBackground?.imageUrl}, refFiles: ${refFiles.length}`);
-  console.log(`[base_image] prompt: ${prompt.slice(0, 200)}...`);
   const job = await createImageEdit(imageUrls, prompt, config.aspectRatio, config.resolution);
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");

@@ -64,7 +64,20 @@
       "Bash(git push:*)",
       "Bash(gh auth:*)",
       "Bash(curl -s -X POST http://localhost:8000/api/analyze/video -F url=https://www.youtube.com/shorts/0VMl7b2Ttng -F brand_context=test)",
-      "Bash(curl -s -X POST http://localhost:8000/api/brands/taller-santa-clara/generate-copy -H 'Content-Type: application/json' -d '{\"productName\":\"Hoodie Chocolote\",\"language\":\"es\",\"additionalNotes\":\"ugc\"}')"
+      "Bash(curl -s -X POST http://localhost:8000/api/brands/taller-santa-clara/generate-copy -H 'Content-Type: application/json' -d '{\"productName\":\"Hoodie Chocolote\",\"language\":\"es\",\"additionalNotes\":\"ugc\"}')",
+      "Bash(find /Users/gonzalocortez/cov/AiCoevoPlayground/frontend/src -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" -o -name \"*.js\" -o -name \"*.jsx\" \\\\\\) -exec wc -l {} +)",
+      "Bash(find /Users/gonzalocortez/cov/AiCoevoPlayground/backend -type f -name \"*.py\" -exec wc -l {} +)",
+      "Bash(find /Users/gonzalocortez/cov/AiCoevoPlayground/backend -type f -name \"*.py\" -not -path \"*/.venv/*\" -exec wc -l {} +)",
+      "Bash(find /Users/gonzalocortez/cov/AiCoevoPlayground/frontend/src -type f '\\(' -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' '\\)' -exec bash -c 'lines=$\\(wc -l < \"$1\"\\); if [ \"$lines\" -gt 1000 ]; then echo \"$lines $1\"; fi' _ '{}' ';')",
+      "Bash(find /Users/gonzalocortez/cov/AiCoevoPlayground/backend -type f -name '*.py' -not -path '*/.venv/*' -exec bash -c 'lines=$\\(wc -l < \"$1\"\\); if [ \"$lines\" -gt 1000 ]; then echo \"$lines $1\"; fi' _ '{}' ';')",
+      "Bash(find /Users/gonzalocortez/cov/AiCoevoPlayground/frontend -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" -o -name \"*.js\" -o -name \"*.jsx\" \\\\\\) -not -path \"*/node_modules/*\" -not -path \"*/dist/*\" -exec wc -l {} +)",
+      "Bash(grep -l \"def\\\\s\" /Users/gonzalocortez/cov/AiCoevoPlayground/backend/tools/*.py)",
+      "Bash(ls -lah /Users/gonzalocortez/cov/AiCoevoPlayground/CLAUDE.md /Users/gonzalocortez/cov/AiCoevoPlayground/docs/*.md)",
+      "Read(//Users/gonzalocortez/cov/AiCoevoPlayground/**)",
+      "Bash(grep -l \"import.*GenerationPipeline\\\\|import.*GenerationPipeline\" /Users/gonzalocortez/cov/AiCoevoPlayground/frontend/src/**/*.tsx)",
+      "Bash(wc -l /Users/gonzalocortez/cov/AiCoevoPlayground/docs/*.md)",
+      "Bash(ls frontend/src/pages/*.tsx)",
+      "Bash(ls frontend/src/components/*.tsx)"
     ],
     "deny": [],
     "ask": []

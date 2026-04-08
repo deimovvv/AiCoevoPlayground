@@ -166,9 +166,6 @@ export const handlePrompts: StepHandler = async (ctx) => {
   // Parse: result could be array, object with array, or string
   let prompts: Array<{ prompt: string; style: string; angle: string }> = [];
 
-  console.log("[ad-creative-lab] Raw result type:", typeof result, Array.isArray(result));
-  console.log("[ad-creative-lab] Raw result:", JSON.stringify(result)?.slice(0, 300));
-
   // Find the array of prompts wherever Gemini put it
   const findArray = (obj: unknown): Array<Record<string, string>> => {
     if (Array.isArray(obj)) return obj;

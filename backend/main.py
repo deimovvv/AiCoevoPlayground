@@ -1775,8 +1775,6 @@ async def image_gen_edit(
     Local URLs are auto-uploaded to Fal storage.
     Returns request_id for status polling.
     """
-    print(f"[image-gen-edit] prompt={prompt[:80]}... image_urls={image_urls[:200]} aspect_ratio={aspect_ratio} resolution={resolution}")
-
     if not image_gen.is_configured():
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
 
@@ -1995,7 +1993,6 @@ def delete_generation(gen_id: str):
 
 def _normalize_scene(scene: dict, index: int) -> dict:
     """Normalize a single scene/act from Gemini to canonical field names."""
-    print(f"[normalize] Scene {index} raw keys: {list(scene.keys())} values: {str({k: str(v)[:80] for k, v in scene.items()})}")
     # Script text — try every known field name
     script = (
         scene.get("script") or scene.get("speech") or scene.get("copy")
