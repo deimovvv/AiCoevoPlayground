@@ -50,6 +50,14 @@ export interface BackgroundItem {
     imageUrl: string;
 }
 
+export interface MoodboardItem {
+    id: string;
+    name: string;
+    description?: string;
+    filename: string;
+    imageUrl: string;
+}
+
 export interface BrandFonts {
     headline?: string;
     body?: string;
@@ -69,12 +77,14 @@ export interface BrandDNA {
 export interface Brand {
     id: string;
     name: string;
+    isSandbox?: boolean;
     brandContext: string;
     avatars: Avatar[];
     voicePresets: VoicePreset[];
     products?: Product[];
     clothing?: ClothingItem[];
     backgrounds?: BackgroundItem[];
+    moodboards?: MoodboardItem[];
     logo?: { filename: string; imageUrl: string };
     fonts?: BrandFonts;
     dna?: BrandDNA;
@@ -203,6 +213,7 @@ export interface GenerateCopyRequest {
     language?: "es" | "en";
     additionalNotes?: string;
     count?: number;
+    narrativeMode?: boolean;
 }
 
 export interface GenerateCopyResult {
@@ -437,6 +448,43 @@ export function backgroundImageUrl(relativeUrl: string): string {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  Moodboards API
+// ══════════════════════════════════════════════════════════════
+
+export async function uploadMoodboard(
+    brandId: string,
+    name: string,
+    imageFile: File,
+    description = "",
+): Promise<MoodboardItem> {
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("description", description);
+    formData.append("image", imageFile);
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/moodboards`, {
+        method: "POST",
+        body: formData,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Upload failed" }));
+        throw new Error(err.detail || "Upload failed");
+    }
+    return res.json();
+}
+
+export async function deleteMoodboard(brandId: string, itemId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/moodboards/${itemId}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete moodboard");
+}
+
+export function moodboardImageUrl(relativeUrl: string): string {
+    if (relativeUrl.startsWith("http")) return relativeUrl;
+    return `${API_BASE}${relativeUrl}`;
+}
+
+// ══════════════════════════════════════════════════════════════
 //  Voice Presets API
 // ══════════════════════════════════════════════════════════════
 
@@ -479,6 +527,11 @@ export interface Generation {
     outputUrl?: string;
     scenes?: Array<{ id: string; title: string; script?: string; imageUrl?: string; videoUrl?: string }>;
     metadata?: Record<string, unknown>;
+    pipelineState?: {
+        steps: Array<{ id: string; status: string; result?: unknown }>;
+        config: Record<string, unknown>;
+        curationSelections?: Record<string, string>;
+    };
     createdAt: string;
 }
 
@@ -502,6 +555,7 @@ export async function saveGeneration(gen: {
     outputUrl?: string;
     scenes?: Array<Record<string, unknown>>;
     metadata?: Record<string, unknown>;
+    pipelineState?: Record<string, unknown>;
 }): Promise<Generation> {
     const res = await fetch(`${API_BASE}/api/generations`, {
         method: "POST",
@@ -732,6 +786,27 @@ export async function createKlingVideo(
 }
 
 /**
+ * Kling frame-to-frame: animate from a start image to an end image.
+ */
+export async function createKlingFrameToFrame(opts: {
+    start_image_url: string;
+    end_image_url: string;
+    prompt?: string;
+    duration?: string;
+}): Promise<KlingVideoResult> {
+    const res = await fetch(`${API_BASE}/api/kling/frame-to-frame`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(opts),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Kling frame-to-frame failed (${res.status})`);
+    }
+    return res.json();
+}
+
+/**
  * Upload an image file and generate a Kling video from it.
  */
 export async function createKlingVideoFromFile(
@@ -864,6 +939,41 @@ export async function createImageEdit(
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
         const detail = typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail);
         throw new Error(detail || `Image gen failed (${res.status})`);
+    }
+
+    return res.json();
+}
+
+export async function analyzePoseReference(imageFile: File): Promise<{ pose_description: string }> {
+    const formData = new FormData();
+    formData.append("image", imageFile);
+    const res = await fetch(`${API_BASE}/api/analyze/pose`, { method: "POST", body: formData });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : "Pose analysis failed"));
+    }
+    return res.json();
+}
+
+export async function createTextToImage(
+    prompt: string,
+    aspectRatio: string = "1:1",
+    resolution: string = "2K",
+): Promise<ImageGenResult> {
+    const formData = new FormData();
+    formData.append("prompt", prompt);
+    formData.append("aspect_ratio", aspectRatio);
+    formData.append("resolution", resolution);
+
+    const res = await fetch(`${API_BASE}/api/image-gen/text-to-image`, {
+        method: "POST",
+        body: formData,
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        const detail = typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail);
+        throw new Error(detail || `Text-to-image failed (${res.status})`);
     }
 
     return res.json();
@@ -1088,6 +1198,42 @@ export async function previewPrompt(brandId: string, toolId: string, extraVariab
 }
 
 // ══════════════════════════════════════════════════════════════
+//  Action Library
+// ══════════════════════════════════════════════════════════════
+
+export interface ActionPreset {
+    name: string;
+    prompt: string;
+}
+
+export interface ActionCategory {
+    id: string;
+    label: string;
+    actions: ActionPreset[];
+}
+
+export async function fetchActionPresets(): Promise<{ categories: ActionCategory[] }> {
+    const res = await fetch(`${API_BASE}/api/action-presets`);
+    if (!res.ok) throw new Error("Failed to fetch action presets");
+    return res.json();
+}
+
+export async function fetchBrandActions(brandId: string): Promise<{ categories: ActionCategory[] }> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/actions`);
+    if (!res.ok) throw new Error("Failed to fetch brand actions");
+    return res.json();
+}
+
+export async function saveBrandActions(brandId: string, actions: ActionPreset[]): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/actions`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actions }),
+    });
+    if (!res.ok) throw new Error("Failed to save brand actions");
+}
+
+// ══════════════════════════════════════════════════════════════
 //  Generic Tool Prompt Execution
 // ══════════════════════════════════════════════════════════════
 
@@ -1123,6 +1269,19 @@ export interface ConcatResult {
     duration: number;
     size_bytes: number;
     num_segments: number;
+}
+
+export async function overlayAudio(videoUrl: string, audioUrl: string): Promise<{ video_url: string; duration: number }> {
+    const res = await fetch(`${API_BASE}/api/video/overlay-audio`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ video_url: videoUrl, audio_url: audioUrl }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "Audio overlay failed");
+    }
+    return res.json();
 }
 
 export async function concatVideos(
@@ -1179,8 +1338,8 @@ export async function pollHeyGenAvatar4(requestId: string): Promise<{
     video_url?: string;
     error?: string;
 }> {
-    const POLL_INTERVAL = 3000;
-    const MAX_POLLS = 120; // 6 minutes max
+    const POLL_INTERVAL = 5000;
+    const MAX_POLLS = 300; // 25 minutes max — HeyGen can be slow in queue
 
     for (let i = 0; i < MAX_POLLS; i++) {
         const statusRes = await fetch(`${API_BASE}/api/heygen-avatar4/status/${requestId}`);
@@ -1198,10 +1357,66 @@ export async function pollHeyGenAvatar4(requestId: string): Promise<{
             return { status: "failed", error: statusData.error || "HeyGen Avatar4 failed" };
         }
 
+        // Log progress every 10 polls (~50s)
+        if (i % 10 === 0 && i > 0) {
+            console.log(`[heygen-avatar4] Still waiting... poll ${i}/${MAX_POLLS}, status: ${statusData.status}`);
+        }
+
         await new Promise((r) => setTimeout(r, POLL_INTERVAL));
     }
 
-    throw new Error("HeyGen Avatar4 timed out");
+    throw new Error("HeyGen Avatar4 timed out after 25 minutes");
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Sync Lipsync V3 (video + audio → lipsync video, via Fal)
+// ══════════════════════════════════════════════════════════════
+
+export async function createSyncLipsync(opts: {
+    video_url: string;
+    audio_url: string;
+    sync_mode?: string;
+}): Promise<{ request_id: string }> {
+    const res = await fetch(`${API_BASE}/api/synclipsync/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(opts),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `SyncLipsync failed (${res.status})`);
+    }
+    return res.json();
+}
+
+export async function pollSyncLipsync(requestId: string): Promise<{
+    status: string;
+    video_url?: string;
+    error?: string;
+}> {
+    const POLL_INTERVAL = 4000;
+    const MAX_POLLS = 150; // 10 minutes max
+
+    for (let i = 0; i < MAX_POLLS; i++) {
+        const statusRes = await fetch(`${API_BASE}/api/synclipsync/status/${requestId}`);
+        if (!statusRes.ok) throw new Error("Failed to check SyncLipsync status");
+        const statusData = await statusRes.json();
+
+        if (statusData.status === "completed") {
+            const resultRes = await fetch(`${API_BASE}/api/synclipsync/result/${requestId}`);
+            if (!resultRes.ok) throw new Error("Failed to fetch SyncLipsync result");
+            const resultData = await resultRes.json();
+            return { status: "completed", video_url: resultData.video_url };
+        }
+
+        if (statusData.status === "failed") {
+            return { status: "failed", error: statusData.error || "SyncLipsync failed" };
+        }
+
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+    }
+
+    throw new Error("SyncLipsync timed out after 10 minutes");
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1234,4 +1449,36 @@ export async function checkHealth(): Promise<{
     const res = await fetch(`${API_BASE}/health`);
     if (!res.ok) throw new Error("Backend unreachable");
     return res.json();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TikTok / Apify
+// ══════════════════════════════════════════════════════════════
+
+export interface TikTokVideo {
+    url: string;
+    download_url: string;
+    thumbnail_url: string;
+    author: string;
+    description: string;
+    likes: number;
+    comments: number;
+    shares: number;
+    plays: number;
+    duration: number;
+    created_at: string;
+}
+
+export async function getTikTokTopVideos(profileUrl: string, limit = 10): Promise<TikTokVideo[]> {
+    const res = await fetch(`${API_BASE}/api/tiktok/top-videos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile_url: profileUrl, limit }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error(err.detail || "TikTok profile scrape failed");
+    }
+    const data = await res.json();
+    return data.videos as TikTokVideo[];
 }

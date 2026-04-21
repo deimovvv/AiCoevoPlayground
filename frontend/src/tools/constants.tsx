@@ -17,6 +17,8 @@ export const STEP_META: Record<
   string,
   { label: string; icon: React.ReactNode; description: string }
 > = {
+  brief: { label: "Brief", icon: <Sparkles size={15} />, description: "Generate avatar character brief from brand context" },
+  save: { label: "Save to Brand", icon: <Camera size={15} />, description: "Save generated avatar to brand library" },
   script: { label: "Script", icon: <Type size={15} />, description: "Generate the script/copy using AI" },
   base_image: { label: "Base Image", icon: <ImageIcon size={15} />, description: "Generate and approve the hero image for scene 1" },
   multishot: { label: "Multishot", icon: <Camera size={15} />, description: "Generate variations for all scenes from approved base" },
@@ -61,12 +63,9 @@ export const TOOL_ICONS: Record<string, React.ReactNode> = {
 // ── Fallback tool definitions ────────────────────────────
 
 export const FALLBACK_TOOLS: Record<string, ToolEntry> = {
-  ugc_creator: { id: "ugc_creator", name: "UGC Creator", category: "video", description: "Create complete UGC videos.", icon: "video", status: "active", pipeline: ["script", "base_image", "multishot", "curation", "voice", "lipsync", "render"] },
+  ugc_creator: { id: "ugc_creator", name: "UGC Creator", category: "video", description: "Create complete UGC videos.", icon: "video", status: "active", pipeline: ["script", "base_image", "multishot", "voice", "lipsync", "render"] },
   product_spotlight: { id: "product_spotlight", name: "Product Spotlight", category: "images", description: "Professional product photography.", icon: "camera", status: "active", pipeline: ["prompt", "generate", "variations"] },
   fashion_editorial: { id: "fashion_editorial", name: "Fashion Editorial", category: "images", description: "High-end fashion editorial.", icon: "sparkles", status: "active", pipeline: ["prompt", "generate", "variations"] },
-  fashion_reels: { id: "fashion_reels", name: "Fashion Reels", category: "video", description: "Outfit-transition reels.", icon: "film", status: "active", pipeline: ["script", "base_image", "multishot", "curation", "animate"] },
+  fashion_reel: { id: "fashion_reel", name: "Fashion Reel", category: "video", description: "Visual fashion/lifestyle reels.", icon: "film", status: "active", pipeline: ["script", "base_image", "multishot", "animate", "render"] },
   ad_creative_lab: { id: "ad_creative_lab", name: "Ad Creative Lab", category: "images", description: "Generate brand-consistent ad creatives.", icon: "sparkles", status: "active", pipeline: ["visual_guide", "prompts", "generate_batch"] },
-  photo_multishot: { id: "photo_multishot", name: "Product Photos", category: "images", description: "Product photo variations.", icon: "camera", status: "active", pipeline: ["prompt", "generate"] },
-  ad_creative: { id: "ad_creative", name: "Ad Creative", category: "images", description: "Ad creatives with copy.", icon: "megaphone", status: "active", pipeline: ["prompt", "generate"] },
-  social_post: { id: "social_post", name: "Social Post", category: "copy", description: "Social media posts.", icon: "share", status: "active", pipeline: ["caption", "image"] },
 };

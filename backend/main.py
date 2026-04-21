@@ -32,8 +32,10 @@ from services import video_concat
 from services import chat as chat_service
 from services import prompt_builder
 from services import heygen_avatar4
+from services import fal_synclipsync
 from services import image_analysis
 from services import video_download
+from services import apify_tiktok
 
 # ── Paths ────────────────────────────────────────────────────
 (Path(__file__).parent / "tmp").mkdir(exist_ok=True)
@@ -106,6 +108,7 @@ class GenerateCopyRequest(BaseModel):
     language: str = "es"
     additionalNotes: str = ""
     count: int = 1
+    narrativeMode: bool = False
 
 
 class AddHeygenAvatarRequest(BaseModel):
@@ -134,6 +137,7 @@ class SaveGenerationRequest(BaseModel):
     outputUrl: Optional[str] = None
     scenes: Optional[List[dict]] = None
     metadata: Optional[dict] = None
+    pipelineState: Optional[dict] = None  # Full pipeline: {steps, config, curationSelections}
 
 
 # ══════════════════════════════════════════════════════════════
@@ -520,7 +524,7 @@ async def generate_copy(brand_id: str, req: GenerateCopyRequest):
 
     try:
         system_prompt_used = built_prompt or ""
-        scripts = await copy_gen.generate_scripts(
+        result = await copy_gen.generate_scripts(
             brand_context=brand_context,
             product_name=req.productName,
             tone=req.tone,
@@ -528,13 +532,28 @@ async def generate_copy(brand_id: str, req: GenerateCopyRequest):
             language=req.language,
             video_objective=req.additionalNotes,
             prompt_override=system_prompt_used,
+            narrative_mode=req.narrativeMode,
         )
+        # result is [scenes, concept] or [scenes] for legacy
+        scenes_raw = result[0] if result else []
+        concept = result[1] if len(result) > 1 else ""
+
+        # If no concept from Gemini (e.g. prompt_override used old format),
+        # generate it as a separate quick call
+        if not concept:
+            concept = await copy_gen.generate_concept(
+                brand_context=brand_context,
+                product_name=req.productName or "",
+                video_objective=req.additionalNotes or "",
+                language=req.language or "es",
+            )
+
         # Normalize field names so frontend always gets: id, title, script, image_prompt
-        normalized = _normalize_script_response(scripts)
+        normalized = _normalize_script_response([scenes_raw])
         return {
-            "scripts": [normalized] if normalized else scripts,
+            "scripts": [normalized] if normalized else [scenes_raw],
             "model": "gemini-2.5-flash",
-            "brief": system_prompt_used[:2000] if system_prompt_used else None,
+            "brief": concept or None,
         }
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -1020,6 +1039,80 @@ def delete_background(brand_id: str, item_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Brand Moodboard API
+# ══════════════════════════════════════════════════════════════
+
+app.mount("/static/moodboards", StaticFiles(directory=str(brands.get_moodboards_dir())), name="moodboards")
+
+
+@app.get("/api/brands/{brand_id}/moodboards")
+def list_moodboards(brand_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    return {"moodboards": brand.get("moodboards", [])}
+
+
+@app.post("/api/brands/{brand_id}/moodboards")
+async def upload_moodboard(
+    brand_id: str,
+    name: str = Form(...),
+    description: str = Form(""),
+    image: UploadFile = File(...),
+):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    existing = brand.get("moodboards", [])
+    if len(existing) >= 5:
+        raise HTTPException(status_code=400, detail="Maximum 5 moodboards per brand")
+
+    image_data = await image.read()
+    ext = Path(image.filename or "moodboard.png").suffix or ".png"
+    item_id = str(uuid.uuid4())[:8]
+    filename = f"{brand_id}_mood_{item_id}{ext}"
+    filepath = brands.get_moodboards_dir() / filename
+    with open(filepath, "wb") as f:
+        f.write(image_data)
+
+    item = {
+        "id": item_id,
+        "name": name,
+        "description": description,
+        "filename": filename,
+        "imageUrl": f"/static/moodboards/{filename}",
+    }
+    if "moodboards" not in brand:
+        brand["moodboards"] = []
+    brand["moodboards"].append(item)
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.delete("/api/brands/{brand_id}/moodboards/{item_id}")
+def delete_moodboard(brand_id: str, item_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((m for m in brand.get("moodboards", []) if m["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Moodboard not found")
+    filename = item.get("filename", "")
+    if filename:
+        img_path = brands.get_moodboards_dir() / filename
+        if img_path.exists() and img_path.is_file():
+            img_path.unlink()
+    brand["moodboards"] = [m for m in brand["moodboards"] if m["id"] != item_id]
+    brands.save_brands(all_brands)
+    return {"ok": True}
+
+
+# ══════════════════════════════════════════════════════════════
 #  Brand Logo API
 # ══════════════════════════════════════════════════════════════
 
@@ -1201,6 +1294,20 @@ async def analyze_image(
         raise HTTPException(status_code=502, detail=str(e))
 
 
+@app.post("/api/analyze/pose")
+async def analyze_pose_reference(image: UploadFile = File(...)):
+    """Analyze a reference image and extract ONLY pose/body position description (ignores style/lighting)."""
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    try:
+        data = await image.read()
+        ct = image.content_type or "image/jpeg"
+        pose_description = await image_analysis.analyze_pose(data, ct)
+        return {"pose_description": pose_description}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 @app.post("/api/analyze/visual-guide")
 async def analyze_visual_guide(
     images: list[UploadFile] = File(...),
@@ -1247,15 +1354,28 @@ async def analyze_video(
             mime_type = video.content_type or "video/mp4"
             print(f"[content-analyzer] Uploaded video: {len(video_bytes) / 1024 / 1024:.1f}MB")
         elif url.strip():
-            # Download from URL
-            dl = await video_download.download_video(url.strip())
-            work_dir = dl.get("work_dir")
-            video_path = Path(dl["path"])
-            video_bytes = video_path.read_bytes()
-            ext = video_path.suffix.lower()
-            mime_map = {".mp4": "video/mp4", ".webm": "video/webm", ".mkv": "video/x-matroska"}
-            mime_type = mime_map.get(ext, "video/mp4")
-            print(f"[content-analyzer] Downloaded: {len(video_bytes) / 1024 / 1024:.1f}MB")
+            clean_url = url.strip()
+            is_tiktok = "tiktok.com" in clean_url or "vm.tiktok.com" in clean_url
+
+            if is_tiktok:
+                # tikwm.com: free API, no auth, reliable TikTok downloads
+                print(f"[content-analyzer] TikTok URL — using tikwm.com")
+                dl = await video_download.download_tiktok_tikwm(clean_url)
+                work_dir = dl.get("work_dir")
+                video_path = Path(dl["path"])
+                video_bytes = video_path.read_bytes()
+                mime_type = "video/mp4"
+                print(f"[content-analyzer] tikwm: {len(video_bytes) / 1024 / 1024:.1f}MB")
+            else:
+                # Download via yt-dlp (YouTube, Instagram, direct links)
+                dl = await video_download.download_video(clean_url)
+                work_dir = dl.get("work_dir")
+                video_path = Path(dl["path"])
+                video_bytes = video_path.read_bytes()
+                ext = video_path.suffix.lower()
+                mime_map = {".mp4": "video/mp4", ".webm": "video/webm", ".mkv": "video/x-matroska"}
+                mime_type = mime_map.get(ext, "video/mp4")
+                print(f"[content-analyzer] yt-dlp download: {len(video_bytes) / 1024 / 1024:.1f}MB")
         else:
             raise HTTPException(status_code=400, detail="Provide a video URL or upload a video file")
 
@@ -1289,6 +1409,35 @@ async def analyze_video(
         if work_dir:
             import shutil
             shutil.rmtree(work_dir, ignore_errors=True)
+
+
+class TikTokProfileRequest(BaseModel):
+    profile_url: str
+    limit: int = 10
+
+
+@app.post("/api/tiktok/top-videos")
+async def tiktok_top_videos(req: TikTokProfileRequest):
+    """Scrape a TikTok profile and return top videos by engagement rate."""
+    if not apify_tiktok.is_configured():
+        raise HTTPException(status_code=500, detail="APIFY_API_KEY not configured")
+    try:
+        videos = await apify_tiktok.get_profile_top_videos(req.profile_url, req.limit)
+        return {"videos": videos, "total": len(videos)}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/api/tiktok/video-info")
+async def tiktok_video_info(url: str = Form(...)):
+    """Fetch metadata for a single TikTok video via Apify."""
+    if not apify_tiktok.is_configured():
+        raise HTTPException(status_code=500, detail="APIFY_API_KEY not configured")
+    try:
+        info = await apify_tiktok.get_video_info(url)
+        return info
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @app.post("/api/tts/generate-and-upload")
@@ -1479,11 +1628,39 @@ async def heygen_avatar4_create(req: HeyGenAvatar4Request):
     if not heygen_avatar4.is_configured():
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
     try:
+        import base64 as _base64
+        audio_url = req.audio_url
+        image_url = req.image_url
+
+        # If audio_url is a data URI, upload to Fal storage so HeyGen can fetch it
+        if audio_url and audio_url.startswith("data:"):
+            try:
+                header, encoded = audio_url.split(",", 1)
+                audio_bytes = _base64.b64decode(encoded)
+                ct = header.split(";")[0].replace("data:", "") or "audio/mpeg"
+                ext = ".mp3" if "mpeg" in ct else ".wav"
+                audio_url = await kling_video.upload_image(audio_bytes, f"speech{ext}", ct)
+                print(f"[heygen-avatar4] Uploaded data URI audio to Fal: {audio_url[:80]}")
+            except Exception as e:
+                print(f"[heygen-avatar4] Failed to upload data URI audio: {e}")
+
+        # If image_url is a localhost/local URL, upload to Fal storage
+        if image_url and ("localhost" in image_url or "127.0.0.1" in image_url or image_url.startswith("/static/")):
+            try:
+                async with httpx.AsyncClient(timeout=30) as client:
+                    img_resp = await client.get(image_url if image_url.startswith("http") else f"http://localhost:8000{image_url}")
+                if img_resp.status_code == 200:
+                    ct = img_resp.headers.get("content-type", "image/jpeg")
+                    image_url = await kling_video.upload_image(img_resp.content, "avatar.jpg", ct)
+                    print(f"[heygen-avatar4] Uploaded local image to Fal: {image_url[:80]}")
+            except Exception as e:
+                print(f"[heygen-avatar4] Failed to upload local image: {e}")
+
         request_id = await heygen_avatar4.create_video(
-            image_url=req.image_url,
+            image_url=image_url,
             prompt=req.prompt,
             voice=req.voice,
-            audio_url=req.audio_url,
+            audio_url=audio_url,
             expression=req.expression,
             talking_style=req.talking_style,
             resolution=req.resolution,
@@ -1510,6 +1687,63 @@ async def heygen_avatar4_result(request_id: str):
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
     try:
         return await heygen_avatar4.get_result(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Sync Lipsync V3 (via Fal) — video + audio → lipsync video
+# ══════════════════════════════════════════════════════════════
+
+class SyncLipsyncRequest(BaseModel):
+    video_url: str
+    audio_url: str
+    sync_mode: str = "cut_off"
+
+
+@app.post("/api/synclipsync/create")
+async def synclipsync_create(req: SyncLipsyncRequest):
+    if not fal_synclipsync.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    try:
+        import base64 as _base64
+        audio_url = req.audio_url
+        # If audio is a data URI, upload to Fal storage first
+        if audio_url and audio_url.startswith("data:"):
+            try:
+                header, encoded = audio_url.split(",", 1)
+                audio_bytes = _base64.b64decode(encoded)
+                ct = header.split(";")[0].replace("data:", "") or "audio/mpeg"
+                ext = ".mp3" if "mpeg" in ct else ".wav"
+                audio_url = await kling_video.upload_image(audio_bytes, f"speech{ext}", ct)
+            except Exception as e:
+                print(f"[synclipsync] Failed to upload data URI audio: {e}")
+        request_id = await fal_synclipsync.create_lipsync(
+            video_url=req.video_url,
+            audio_url=audio_url,
+            sync_mode=req.sync_mode,
+        )
+        return {"request_id": request_id, "status": "pending"}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/api/synclipsync/status/{request_id}")
+async def synclipsync_status(request_id: str):
+    if not fal_synclipsync.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    try:
+        return await fal_synclipsync.get_status(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/api/synclipsync/result/{request_id}")
+async def synclipsync_result(request_id: str):
+    if not fal_synclipsync.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    try:
+        return await fal_synclipsync.get_result(request_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -1545,6 +1779,12 @@ async def kling_frame_to_frame(req: KlingFrameToFrameRequest):
 
         for url_attr in ["start", "end"]:
             url = resolved_start if url_attr == "start" else resolved_end
+            # Normalize full localhost URLs to /static/ path
+            if "localhost" in url or "127.0.0.1" in url:
+                for prefix in static_dirs:
+                    if prefix in url:
+                        url = url[url.index(prefix):]
+                        break
             if url.startswith("/static/"):
                 for prefix, directory in static_dirs.items():
                     if prefix in url:
@@ -1837,9 +2077,6 @@ async def image_gen_edit(
                     )
                     resolved_urls.append(fal_url)
 
-        if not resolved_urls:
-            raise HTTPException(status_code=400, detail="At least one image is required")
-
         print(f"[image-gen] Resolved {len(resolved_urls)} image URLs")
         print(f"[image-gen] Prompt: {prompt[:100]}")
 
@@ -1865,6 +2102,30 @@ async def image_gen_edit(
     except Exception as e:
         print(f"[image-gen] ERROR: {e}")
         raise HTTPException(status_code=502, detail=f"Image generation failed: {str(e)}")
+
+
+@app.post("/api/image-gen/text-to-image")
+async def image_gen_text_to_image(
+    prompt: str = Form(...),
+    aspect_ratio: str = Form("1:1"),
+    resolution: str = Form("2K"),
+):
+    """Text-to-image using nano-banana-2 (no reference images needed)."""
+    if not image_gen.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    try:
+        print(f"[t2i] prompt={prompt[:80]}, aspect={aspect_ratio}, res={resolution}")
+        request_id = await image_gen.create_text_to_image(
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+        )
+        if request_id.startswith("SYNC:"):
+            return {"request_id": request_id, "status": "completed", "image_url": request_id[5:]}
+        return {"request_id": request_id, "status": "pending"}
+    except Exception as e:
+        print(f"[t2i] ERROR: {e}")
+        raise HTTPException(status_code=502, detail=f"Text-to-image failed: {str(e)}")
 
 
 @app.get("/api/image-gen/status/{request_id}")
@@ -1896,6 +2157,24 @@ class ConcatRequest(BaseModel):
     scripts: Optional[List[dict]] = None  # [{"text": "spoken text"}, ...] per segment
     add_subtitles: bool = True
     subtitle_engine: str = "auto"  # "auto" | "remotion" | "ffmpeg" | "none"
+
+class OverlayAudioRequest(BaseModel):
+    video_url: str
+    audio_url: str
+
+@app.post("/api/video/overlay-audio")
+async def overlay_audio_endpoint(req: OverlayAudioRequest):
+    """Overlay a TTS audio track onto a silent video (e.g. Kling creative shots)."""
+    if not video_concat.is_configured():
+        raise HTTPException(status_code=500, detail="FFmpeg not installed")
+    try:
+        renders_dir = Path("data/renders")
+        renders_dir.mkdir(parents=True, exist_ok=True)
+        result = await video_concat.overlay_audio(req.video_url, req.audio_url, str(renders_dir))
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
 
 @app.post("/api/video/concat")
 async def concat_videos_endpoint(req: ConcatRequest):
@@ -1969,6 +2248,7 @@ async def create_generation(req: SaveGenerationRequest):
         "outputUrl": req.outputUrl,
         "scenes": req.scenes or [],
         "metadata": req.metadata or {},
+        "pipelineState": req.pipelineState,
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
     gens.append(gen)
@@ -1993,43 +2273,86 @@ def delete_generation(gen_id: str):
 
 def _normalize_scene(scene: dict, index: int) -> dict:
     """Normalize a single scene/act from Gemini to canonical field names."""
-    # Script text — try every known field name
-    script = (
-        scene.get("script") or scene.get("speech") or scene.get("copy")
-        or scene.get("text") or scene.get("audio") or scene.get("dialogue")
-        or scene.get("narration") or scene.get("voiceover") or scene.get("action")
-        or scene.get("spoken") or scene.get("line") or scene.get("lines") or ""
-    )
-    # Clean prefixes like "AVATAR:", "OFF-CAMERA (sigh):"
     import re as _re
+
+    def _str(val) -> str:
+        """Safely convert a value to string, returning '' for None/falsy non-strings."""
+        if val is None:
+            return ""
+        if isinstance(val, dict):
+            # Handle {speaker: "...", dialogue: "..."} or {text: "..."} or {line: "..."}
+            return str(
+                val.get("dialogue") or val.get("text") or val.get("line")
+                or val.get("speech") or val.get("copy") or val.get("narration")
+                or next((v for v in val.values() if isinstance(v, str) and len(v) > 5), "")
+            )
+        if isinstance(val, list):
+            # Handle [{speaker, dialogue}, ...] or ["line1", "line2"]
+            parts = []
+            for item in val:
+                if isinstance(item, dict):
+                    parts.append(_str(item))
+                elif isinstance(item, str) and item:
+                    parts.append(item)
+            return " ".join(p for p in parts if p)
+        return str(val)
+
+    # Script text — try every known field name
+    raw_script = (
+        scene.get("script") or scene.get("spoken_script") or scene.get("speech")
+        or scene.get("copy") or scene.get("text") or scene.get("audio")
+        or scene.get("dialogue") or scene.get("narration") or scene.get("voiceover")
+        or scene.get("voiceover_script") or scene.get("narration_text")
+        or scene.get("action") or scene.get("spoken") or scene.get("line")
+        or scene.get("lines") or ""
+    )
+    script = _str(raw_script)
+    # Strip **Name:** or *Name:* or Name: speaker labels — ONLY at start of string (^ anchor)
+    script = _re.sub(r'^\*{0,2}[\w\s]{1,30}\*{0,2}\s*:\s*', '', script).strip()
+    # Strip remaining known prefixes like "AVATAR:", "OFF-CAMERA:" — ONLY at start
     script = _re.sub(
-        r'^(AVATAR|OFF[- ]?CAMERA|ON[- ]?CAMERA|NARRATOR|SPEAKER)\s*(\([^)]*\)\s*)?:\s*',
+        r'^(AVATAR|OFF[- ]?CAMERA|ON[- ]?CAMERA|NARRATOR|SPEAKER)\s*:\s*',
         '', script, flags=_re.IGNORECASE
     ).strip()
+    # Collapse multiple blank lines left by removed stage directions
+    script = _re.sub(r'\n{3,}', '\n\n', script).strip()
 
     # Image prompt — try every known field name
-    image_prompt = (
-        scene.get("image_prompt") or scene.get("visuals") or scene.get("visual")
-        or scene.get("visual_prompt") or scene.get("scene_description")
-        or scene.get("setting") or scene.get("prompt") or ""
+    raw_image_prompt = (
+        scene.get("image_prompt") or scene.get("visual_description")
+        or scene.get("visuals") or scene.get("visual") or scene.get("visual_prompt")
+        or scene.get("scene_description") or scene.get("setting") or scene.get("prompt") or ""
     )
+    image_prompt = _str(raw_image_prompt)
     # Don't use numeric values (e.g. "scene": 1)
-    if image_prompt and str(image_prompt).strip().isdigit():
+    if image_prompt and image_prompt.strip().isdigit():
         image_prompt = ""
 
-    # Background (optional, merge into image_prompt if separate)
-    bg = scene.get("background") or scene.get("location") or ""
+    # Location — keep as separate field AND optionally append to image_prompt context
+    location = _str(scene.get("location") or scene.get("ambiente") or "")
+
+    # Background (optional, merge into image_prompt if separate and not already covered by location)
+    bg = _str(scene.get("background") or "")
     if bg and image_prompt and bg not in image_prompt:
         image_prompt = f"{image_prompt}. Setting: {bg}"
     elif bg and not image_prompt:
         image_prompt = bg
 
-    return {
+    # Pass through AI-suggested scene type if present
+    scene_type = scene.get("sceneType") or scene.get("scene_type") or "talking"
+    if scene_type not in ("talking", "creative", "lifestyle", "sensorial", "product_reveal"):
+        scene_type = "talking"
+
+    result = {
         "id": str(scene.get("id") or scene.get("scene_number") or scene.get("scene") or f"act_{index + 1}"),
         "title": scene.get("title") or scene.get("act") or scene.get("scene_title") or f"Scene {index + 1}",
         "script": script,
         "image_prompt": image_prompt,
+        "sceneType": scene_type,
     }
+    if location:
+        result["location"] = location
+    return result
 
 
 def _normalize_script_response(data) -> list:
@@ -2213,6 +2536,50 @@ def delete_brand_prompt_override(brand_id: str, tool_id: str):
     return {"ok": True}
 
 
+@app.get("/api/action-presets")
+def get_action_presets():
+    """Return the global action presets library (all categories)."""
+    presets_path = Path(__file__).parent / "data" / "action_presets.json"
+    if not presets_path.exists():
+        return {"categories": []}
+    with open(presets_path) as f:
+        return json.load(f)
+
+
+@app.get("/api/brands/{brand_id}/actions")
+def get_brand_actions(brand_id: str):
+    """Return merged action list: global presets + brand-specific extraActions."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    presets_path = Path(__file__).parent / "data" / "action_presets.json"
+    presets = json.load(open(presets_path)) if presets_path.exists() else {"categories": []}
+
+    extra = brand.get("extraActions", [])
+    if extra:
+        presets["categories"].insert(0, {
+            "id": "brand",
+            "label": f"{brand.get('name', 'Brand')} — Acciones probadas",
+            "actions": extra,
+        })
+
+    return presets
+
+
+@app.put("/api/brands/{brand_id}/actions")
+def save_brand_actions(brand_id: str, req: dict):
+    """Save brand-specific extra actions."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    brand["extraActions"] = req.get("actions", [])
+    brands.save_brands(all_brands)
+    return {"ok": True}
+
+
 @app.post("/api/brands/{brand_id}/prompts/{tool_id}/preview")
 def preview_prompt(brand_id: str, tool_id: str, req: Optional[dict] = None):
     """Preview how a prompt will look after variable substitution."""
@@ -2231,6 +2598,49 @@ def preview_prompt(brand_id: str, tool_id: str, req: Optional[dict] = None):
 # ══════════════════════════════════════════════════════════════
 #  Chat (Gemini)
 # ══════════════════════════════════════════════════════════════
+
+@app.post("/api/brands/{brand_id}/avatar-brief")
+async def generate_avatar_brief(brand_id: str, req: dict = None):
+    """Generate an avatar character brief using Gemini based on brand context."""
+    if not copy_gen.is_configured():
+        raise HTTPException(500, "GEMINI_API_KEY not configured")
+
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(404, "Brand not found")
+
+    direction = (req or {}).get("direction", "")
+    extra_vars = {}
+    if direction:
+        extra_vars["user_direction"] = direction
+
+    built_prompt = prompt_builder.build_prompt("avatar_creator", brand, extra_vars)
+
+    user_msg = "Generate the avatar character brief now. Respond with ONLY a valid JSON object, nothing else."
+    try:
+        result_text = await copy_gen._call_gemini(built_prompt, user_msg)
+    except Exception as e:
+        raise HTTPException(502, f"Gemini error: {e}")
+
+    # Clean response and extract JSON
+    result_text = result_text.strip()
+    if result_text.startswith("```json"):
+        result_text = result_text.replace("```json", "").replace("```", "").strip()
+    elif result_text.startswith("```"):
+        result_text = result_text.replace("```", "").strip()
+
+    if not result_text.startswith("{"):
+        start = result_text.find("{")
+        end = result_text.rfind("}")
+        if start != -1 and end != -1:
+            result_text = result_text[start:end + 1]
+
+    try:
+        return json.loads(result_text)
+    except json.JSONDecodeError:
+        raise HTTPException(500, f"Failed to parse avatar brief JSON: {result_text[:300]}")
+
 
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):

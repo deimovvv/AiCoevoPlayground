@@ -36,12 +36,13 @@ function generateChunks(scenes: UGCScene[]): SubtitleChunk[] {
     const groups = words;
 
     // Each word gets equal time
-    const totalWords = words.length;
+    const framesPerWord = Math.floor(scene.durationInFrames / words.length);
     let chunkOffset = frameOffset;
 
     for (let i = 0; i < groups.length; i++) {
-      const proportion = wordCounts[i] / totalWords;
-      const dur = Math.floor(scene.durationInFrames * proportion);
+      const dur = i === groups.length - 1
+        ? scene.durationInFrames - (chunkOffset - frameOffset)  // last word gets remaining frames
+        : framesPerWord;
       chunks.push({ text: groups[i], startFrame: chunkOffset, endFrame: chunkOffset + dur - 2 });
       chunkOffset += dur;
     }

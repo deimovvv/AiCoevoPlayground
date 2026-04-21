@@ -36,15 +36,14 @@ export function ImageEditPanel({
   const [loading, setLoading] = useState(false);
 
   const products = activeBrand?.products || [];
+  const selectedProduct = selectedProductId ? products.find((p) => p.id === selectedProductId) : null;
 
   // Auto-select the active product's images
-  const getInitialRefs = (): string[] => {
-    if (!selectedProductId) return [];
-    const product = products.find((p) => p.id === selectedProductId);
-    if (!product) return [];
-    return [product.imageUrl, ...(product.images || []).map((img) => img.imageUrl)];
+  const getProductRefs = (): string[] => {
+    if (!selectedProduct) return [];
+    return [selectedProduct.imageUrl, ...(selectedProduct.images || []).map((img) => img.imageUrl)];
   };
-  const [selectedRefs, setSelectedRefs] = useState<string[]>(getInitialRefs);
+  const [selectedRefs, setSelectedRefs] = useState<string[]>(getProductRefs);
 
   // All product images (main + extras)
   const allProductImages = products.flatMap((p) => [
@@ -80,13 +79,26 @@ export function ImageEditPanel({
       {/* Quick actions */}
       <div className="flex gap-2 flex-wrap">
         <button
-          onClick={() => setPrompt("Replace the product with the product from the reference images. Keep everything else identical.")}
+          onClick={() => {
+            // Auto-select product reference images
+            const refs = getProductRefs();
+            if (refs.length > 0) setSelectedRefs((prev) => [...new Set([...prev, ...refs])]);
+            const productName = selectedProduct?.name || "the product";
+            const productDesc = selectedProduct?.description ? ` (${selectedProduct.description})` : "";
+            setPrompt(`Replace the product with "${productName}"${productDesc} from the reference images. Match the EXACT color, design, shape, and details from the reference. Keep everything else identical.`);
+          }}
           className="text-[10px] px-2.5 py-1 bg-[var(--color-warm-muted)] text-[var(--color-warm)] rounded-full cursor-pointer hover:opacity-80"
         >
           Fix Product
         </button>
         <button
-          onClick={() => setPrompt("Make the clothing match the reference images exactly — same color, design, and fit.")}
+          onClick={() => {
+            // Auto-select product refs for clothing fix too
+            const refs = getProductRefs();
+            if (refs.length > 0) setSelectedRefs((prev) => [...new Set([...prev, ...refs])]);
+            const productName = selectedProduct?.name || "the garment";
+            setPrompt(`Make the clothing match "${productName}" from the reference images exactly — same color, same design, same fit, same texture.`);
+          }}
           className="text-[10px] px-2.5 py-1 bg-surface-3 text-fg-muted rounded-full cursor-pointer hover:text-fg"
         >
           Fix Clothing
@@ -98,7 +110,12 @@ export function ImageEditPanel({
           Warmer Light
         </button>
         <button
-          onClick={() => setPrompt("Improve the product visibility — make it more prominent and clearly visible in the frame.")}
+          onClick={() => {
+            const refs = getProductRefs();
+            if (refs.length > 0) setSelectedRefs((prev) => [...new Set([...prev, ...refs])]);
+            const productName = selectedProduct?.name || "the product";
+            setPrompt(`Make "${productName}" more prominent and clearly visible in the frame. Match the exact product from the reference images.`);
+          }}
           className="text-[10px] px-2.5 py-1 bg-surface-3 text-fg-muted rounded-full cursor-pointer hover:text-fg"
         >
           Show Product

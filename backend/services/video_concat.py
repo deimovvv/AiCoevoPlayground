@@ -10,9 +10,11 @@ Subtitle strategy:
   - Deploy: FFmpeg only
 """
 
+import base64
 import shutil
 import tempfile
 import asyncio
+import uuid
 from pathlib import Path
 from typing import List, Optional
 
@@ -26,6 +28,19 @@ def is_configured() -> bool:
 
 
 async def download_file(url: str, dest: Path) -> None:
+    """Download a file from a URL to dest. Handles data: URIs directly."""
+    if url.startswith("data:"):
+        # data:audio/mpeg;base64,XXXX or data:video/mp4;base64,XXXX
+        try:
+            header, encoded = url.split(",", 1)
+            if ";base64" in header:
+                dest.write_bytes(base64.b64decode(encoded))
+            else:
+                dest.write_bytes(encoded.encode())
+            return
+        except Exception as e:
+            raise ValueError(f"Failed to decode data URI: {e}")
+
     async with httpx.AsyncClient(timeout=120) as client:
         resp = await client.get(url)
         resp.raise_for_status()
@@ -143,6 +158,78 @@ def _generate_word_subtitles(
     return subtitles
 
 
+async def overlay_audio(
+    video_url: str,
+    audio_url: str,
+    output_dir: Optional[str] = None,
+) -> dict:
+    """
+    Overlay an audio track onto a silent video clip (e.g. Kling output).
+    Pads audio with silence if shorter than video — never cuts the video.
+    Returns dict with video_url and duration.
+    """
+    if not is_configured():
+        raise RuntimeError("FFmpeg is not installed.")
+
+    work_dir = Path(tempfile.mkdtemp(prefix="coevo_overlay_"))
+    try:
+        video_path = work_dir / "input_video.mp4"
+        audio_path = work_dir / "input_audio.mp3"
+        output_path = work_dir / f"overlay_{uuid.uuid4().hex[:8]}.mp4"
+
+        await asyncio.gather(
+            download_file(video_url, video_path),
+            download_file(audio_url, audio_path),
+        )
+
+        # Trim output to audio duration so the clip never runs silent at the end.
+        # If audio is longer than the video, cap at video duration (can't extend).
+        video_duration = await _get_duration(video_path)
+        audio_duration = await _get_duration(audio_path)
+        output_duration = min(video_duration, audio_duration) if audio_duration > 0 else video_duration
+
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", str(video_path),
+            "-i", str(audio_path),
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-t", str(output_duration),
+            str(output_path),
+        ]
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+
+        if proc.returncode != 0:
+            raise RuntimeError(f"FFmpeg overlay failed: {stderr.decode()[-400:]}")
+
+        duration = await _get_duration(output_path)
+
+        # Move to output dir if specified
+        if output_dir:
+            dest = Path(output_dir) / output_path.name
+            shutil.move(str(output_path), str(dest))
+            output_path = dest
+
+        return {
+            "output_path": str(output_path),
+            "video_url": f"/static/renders/{output_path.name}",
+            "duration": duration,
+        }
+    finally:
+        # Clean up temp files (not the output)
+        for f in [work_dir / "input_video.mp4", work_dir / "input_audio.mp3"]:
+            if f.exists():
+                f.unlink()
+
+
 async def concat_videos(
     video_urls: List[str],
     output_dir: Optional[str] = None,
@@ -233,7 +320,7 @@ async def concat_videos(
         # 4. Add subtitles
         out_dir = Path(output_dir) if output_dir else work_dir
         out_dir.mkdir(parents=True, exist_ok=True)
-        output_path = out_dir / "final_output.mp4"
+        output_path = out_dir / f"final_{uuid.uuid4().hex[:8]}.mp4"
 
         use_subs = add_subtitles and scripts and len(scripts) > 0 and subtitle_engine != "none"
 

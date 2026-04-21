@@ -9,47 +9,25 @@ import type { ToolDefinition } from "./types";
 import { ugcCreator } from "./ugc_creator";
 import { productSpotlight } from "./product_spotlight";
 import { fashionEditorial } from "./fashion_editorial";
-import { fashionReels } from "./fashion_reels";
 import { adCreativeLab } from "./ad_creative_lab";
 import { videoAdCreator } from "./video_ad_creator";
 import { staticAd } from "./static_ad";
 import { contentAnalyzer } from "./content_analyzer";
 import { productClip } from "./product_clip";
 import { carouselCreator } from "./carousel_creator";
+import { avatarCreator } from "./avatar_creator";
+import { fashionReel } from "./fashion_reel";
 
 export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
+  avatar_creator: avatarCreator,
+  fashion_reel: fashionReel,
   ugc_creator: ugcCreator,
   product_spotlight: productSpotlight,
   fashion_editorial: fashionEditorial,
-  fashion_reels: fashionReels,
   ad_creative_lab: adCreativeLab,
   video_ad_creator: videoAdCreator,
   static_ad: staticAd,
   content_analyzer: contentAnalyzer,
   product_clip: productClip,
   carousel_creator: carouselCreator,
-
-  // Tools that reuse product_spotlight handlers with different schemas
-  photo_multishot: productSpotlight,
-  ad_creative: {
-    ...productSpotlight,
-    schema: {
-      ...productSpotlight.schema,
-      showAvatar: true, avatarLabel: "Avatar", avatarSublabel: "optional — include talent",
-      showTone: true, showPlatform: true, showVariations: true,
-      objectiveLabel: "Campaign Brief",
-      objectivePlaceholder: "Describe the campaign objective...",
-      showNotes: true,
-    },
-  },
-  social_post: {
-    ...productSpotlight,
-    schema: {
-      ...productSpotlight.schema,
-      showAvatar: true, avatarLabel: "Avatar", avatarSublabel: "optional",
-      showTone: true, showPlatform: true, showLanguage: true, showVariations: false,
-      objectiveLabel: "Post Brief",
-      objectivePlaceholder: "What do you want to communicate?...",
-    },
-  },
 };

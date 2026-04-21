@@ -36,6 +36,7 @@ export interface ToolConfig {
   selectedProductId: string | null;
   selectedClothingIds: string[];
   selectedBackgroundId: string | null;
+  selectedMoodboardId: string | null;
   selectedVoiceId: string | null;
   objective: string;
   tone: string;
@@ -59,6 +60,7 @@ export const DEFAULT_CONFIG: ToolConfig = {
   selectedProductId: null,
   selectedClothingIds: [],
   selectedBackgroundId: null,
+  selectedMoodboardId: null,
   selectedVoiceId: null,
   objective: "",
   tone: "engaging",
@@ -85,10 +87,13 @@ export interface ToolSchema {
   avatarSublabel?: string;
   showProduct: boolean;
   productLabel?: string;
+  productSublabel?: string;
   showClothing: boolean;
   clothingLabel?: string;
   clothingSublabel?: string;
   showBackground: boolean;
+  backgroundSublabel?: string;
+  showMoodboard: boolean;
   showVoice: boolean;
   showTone: boolean;
   showPlatform: boolean;
@@ -101,6 +106,8 @@ export interface ToolSchema {
   showStyleRef?: boolean;
   multiAvatar?: boolean;
   multiProduct?: boolean;
+  /** Describes what inputs are available and how they affect the output */
+  inputsHint?: string;
 }
 
 // ── Script Scene (normalized) ────────────────────────────
@@ -110,6 +117,11 @@ export interface ScriptScene {
   title: string;
   script: string;
   image_prompt: string;
+  sceneType?: string;
+  location?: string;
+  _showProduct?: boolean;
+  /** false = skip avatar references, use text-to-image for this scene */
+  _useAvatar?: boolean;
 }
 
 /** Normalize a raw scene object from Gemini (handles field name inconsistencies) */
@@ -155,6 +167,10 @@ export interface StepContext {
   getScriptScenes: () => ScriptScene[];
   audioCache: Record<string, AudioCacheEntry>;
   setAudioCache: (sceneId: string, entry: AudioCacheEntry) => void;
+  /** Get all steps with their results — for saving pipeline state */
+  getAllSteps?: () => Array<{ id: string; status: string; result?: unknown }>;
+  /** Curation selections — for saving pipeline state */
+  curationSelections?: Record<string, string>;
 }
 
 // ── Step Handler ─────────────────────────────────────────

@@ -59,6 +59,14 @@ The image generator (Nano Banana 2) will receive these reference images:
 
 Your image_prompt must describe a COMPLETE advertising composition:
 
+BRAND FIDELITY (CRITICAL):
+- ONLY include elements that belong to the brand — no random props, symbols, or decorations
+- The product MUST look IDENTICAL to the reference photo: same shape, same color, same labels, same packaging
+- Do NOT invent product features, labels, or text that are not visible in the reference
+- Do NOT add extra products, items, or objects that are not part of the brand
+- The overall aesthetic MUST match the brand's identity and tone
+- If the brand is minimalist, the ad must be minimalist. If vibrant, the ad must be vibrant.
+
 PRODUCT PLACEMENT:
 - Product is the HERO — occupies 30-50% of the frame
 - Shot on a clean surface or floating with brand-colored background
@@ -84,6 +92,7 @@ BACKGROUND:
 - Brand colors as background (gradient, solid, or subtle pattern)
 - OR lifestyle context that matches brand identity
 - Never cluttered — the product must stand out
+- Do NOT add unrelated objects, textures, or patterns that don't belong to the brand
 
 ━━━ OUTPUT ━━━
 

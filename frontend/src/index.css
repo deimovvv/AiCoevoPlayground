@@ -3,19 +3,19 @@
 /* ============================================================
    Coevo Studio — Design Tokens
    Direction: Dark, editorial, premium workspace
-   Depth: Fine borders (no shadows)
+   Depth: Fine borders + subtle shadows
    Foundation: Near-black neutral
    Spacing base: 4px
-   Radius: 4px / 6px / 8px (technical, sharp)
+   Radius: 6px / 12px / 16px (rounded, modern)
    ============================================================ */
 
 @theme {
   /* --- Surfaces (lifted grays for premium feel) --- */
   --color-canvas: #0c0c0c;
-  --color-surface-0: #161618;
-  --color-surface-1: #1e1e21;
-  --color-surface-2: #27272b;
-  --color-surface-3: #303035;
+  --color-surface-0: #141416;
+  --color-surface-1: #1c1c1f;
+  --color-surface-2: #252528;
+  --color-surface-3: #2e2e32;
 
   /* --- Foreground (pure neutral, no blue tint) --- */
   --color-fg: #eeeeee;
@@ -55,10 +55,11 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Consolas", ui-monospace, monospace;
 
-  /* --- Radius (sharp, technical) --- */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  /* --- Radius (rounded, modern) --- */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
 
   /* --- Spacing base: 4px --- */
   --space-1: 4px;
@@ -68,6 +69,11 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+
+  /* --- Shadows --- */
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-modal: 0 8px 40px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-dropdown: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
 /* ============================================================

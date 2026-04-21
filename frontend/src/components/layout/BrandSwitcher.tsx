@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useBrand } from "../../lib/BrandContext";
-import { ChevronDown, Check, Plus, Loader2 } from "lucide-react";
+import { ChevronDown, Check, Plus, Loader2, FlaskConical } from "lucide-react";
 import { useNavigate } from "react-router";
 import { cn } from "../../lib/utils";
 
@@ -84,39 +84,54 @@ export function BrandSwitcher() {
         <div className="absolute left-3 right-3 top-full mt-1 z-50 bg-surface-1 border border-edge rounded-[var(--radius-md)] shadow-lg overflow-hidden">
           {/* Brand list */}
           <div className="max-h-[240px] overflow-y-auto py-1">
-            {brands.length === 0 && (
+            {brands.filter(b => b.id !== "__sandbox__").length === 0 && (
               <div className="px-3 py-4 text-center text-fg-muted text-[13px]">
                 No brands yet
               </div>
             )}
-            {brands.map((brand) => {
+            {brands.filter(b => b.id !== "__sandbox__").map((brand) => {
               const isActive = brand.id === activeBrand?.id;
               return (
                 <button
                   key={brand.id}
-                  onClick={() => {
-                    setActiveBrandId(brand.id);
-                    setOpen(false);
-                  }}
+                  onClick={() => { setActiveBrandId(brand.id); setOpen(false); }}
                   className={cn(
                     "w-full flex items-center gap-2.5 px-3 py-2 text-left cursor-pointer transition-colors",
-                    isActive
-                      ? "bg-surface-2 text-fg"
-                      : "text-fg-secondary hover:bg-surface-2 hover:text-fg"
+                    isActive ? "bg-surface-2 text-fg" : "text-fg-secondary hover:bg-surface-2 hover:text-fg"
                   )}
                 >
                   <div className="w-6 h-6 rounded-[var(--radius-sm)] bg-[var(--color-warm-muted)] flex items-center justify-center shrink-0">
-                    <span className="text-[9px] font-bold text-[var(--color-warm)] leading-none">
-                      {initials(brand.name)}
-                    </span>
+                    <span className="text-[9px] font-bold text-[var(--color-warm)] leading-none">{initials(brand.name)}</span>
                   </div>
-                  <span className="flex-1 text-[13px] font-medium truncate">
-                    {brand.name}
-                  </span>
+                  <span className="flex-1 text-[13px] font-medium truncate">{brand.name}</span>
                   {isActive && <Check size={14} className="text-[var(--color-warm)] shrink-0" />}
                 </button>
               );
             })}
+          </div>
+
+          {/* Sandbox */}
+          <div className="border-t border-edge">
+            {(() => {
+              const sandbox = brands.find(b => b.id === "__sandbox__");
+              if (!sandbox) return null;
+              const isActive = activeBrand?.id === "__sandbox__";
+              return (
+                <button
+                  onClick={() => { setActiveBrandId("__sandbox__"); setOpen(false); }}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-3 py-2.5 text-left cursor-pointer transition-colors",
+                    isActive ? "bg-surface-2 text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg"
+                  )}
+                >
+                  <div className="w-6 h-6 rounded-[var(--radius-sm)] bg-surface-3 flex items-center justify-center shrink-0">
+                    <FlaskConical size={11} className="text-fg-faint" />
+                  </div>
+                  <span className="flex-1 text-[13px] font-medium">Sandbox</span>
+                  {isActive && <Check size={14} className="text-[var(--color-warm)] shrink-0" />}
+                </button>
+              );
+            })()}
           </div>
 
           {/* Manage brands link */}

@@ -18,6 +18,7 @@ import {
   Play,
   Square,
   Mountain,
+  Palette,
   Sparkles,
   Dna,
 } from "lucide-react";
@@ -32,6 +33,9 @@ import {
   deleteClothing,
   uploadBackground,
   deleteBackground,
+  uploadMoodboard,
+  deleteMoodboard,
+  moodboardImageUrl,
   addVoicePreset,
   deleteVoicePreset,
   avatarImageUrl,
@@ -44,7 +48,7 @@ import {
   addProductImage,
   generateTTS,
 } from "../lib/api";
-import type { Avatar, Product, ClothingItem, BackgroundItem } from "../lib/api";
+import type { Avatar, Product, ClothingItem, BackgroundItem, MoodboardItem } from "../lib/api";
 import { cn } from "../lib/utils";
 import { PromptsCard } from "../components/PromptsCard";
 
@@ -82,6 +86,7 @@ export function BrandSettings() {
         <ProductsCard />
         <LogoCard />
         <BackgroundsCard />
+        <MoodboardsCard />
         <PromptsCard />
       </div>
     </div>
@@ -1419,6 +1424,168 @@ function BackgroundTile({
               </span>
             ))}
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Moodboards Card ──────────────────────────────────────────
+
+function MoodboardsCard() {
+  const { activeBrand, refreshBrands } = useBrand();
+  const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  if (!activeBrand) return null;
+
+  const moodboards = activeBrand.moodboards || [];
+  const atLimit = moodboards.length >= 5;
+
+  const handleUpload = async () => {
+    if (!file || !name.trim()) return;
+    setUploading(true);
+    setError(null);
+    try {
+      await uploadMoodboard(activeBrand.id, name.trim(), file, description.trim());
+      await refreshBrands();
+      setShowUpload(false);
+      setName("");
+      setDescription("");
+      setFile(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (itemId: string) => {
+    setDeleting(itemId);
+    try {
+      await deleteMoodboard(activeBrand.id, itemId);
+      await refreshBrands();
+    } catch (err) {
+      console.error("Delete failed:", err);
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  return (
+    <Card
+      icon={<Palette size={16} />}
+      title={`Moodboard (${moodboards.length}/5)`}
+      description="Visual style references — one active at a time in each tool"
+      action={
+        !atLimit ? (
+          <button
+            onClick={() => setShowUpload(!showUpload)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium text-fg-muted hover:text-fg bg-surface-1 hover:bg-surface-2 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+          >
+            <Plus size={12} />
+            Add
+          </button>
+        ) : (
+          <span className="text-[11px] text-fg-faint">Max 5 reached</span>
+        )
+      }
+    >
+      {showUpload && (
+        <div className="mb-4 p-3 bg-surface-0 border border-edge rounded-[var(--radius-sm)] space-y-2.5">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Moodboard name (e.g. Verano editorial 2025)"
+            className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Description (e.g. Tonos cálidos, luz natural, estética editorial minimalista, paleta terracota)"
+            rows={2}
+            className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none resize-none focus:border-[var(--color-edge-focus)] transition-colors"
+          />
+          <div
+            onClick={() => fileRef.current?.click()}
+            className={cn(
+              "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
+              file ? "border-[var(--color-warm)] bg-[var(--color-warm-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+            )}
+          >
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            {file ? (
+              <span className="text-[12px] text-fg-secondary">{file.name}</span>
+            ) : (
+              <div className="space-y-1">
+                <Upload size={16} className="mx-auto text-fg-faint" />
+                <p className="text-[12px] text-fg-faint">Click to select moodboard image</p>
+              </div>
+            )}
+          </div>
+          {error && (
+            <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-error)]">
+              <AlertCircle size={12} /> {error}
+            </div>
+          )}
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => { setShowUpload(false); setName(""); setDescription(""); setFile(null); setError(null); }}
+              className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleUpload}
+              disabled={uploading || !file || !name.trim()}
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-white rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+            >
+              {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+              Upload
+            </button>
+          </div>
+        </div>
+      )}
+
+      {moodboards.length === 0 && !showUpload ? (
+        <EmptyState onClick={() => setShowUpload(true)} label="Upload first moodboard" />
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {moodboards.map((m) => (
+            <MoodboardTile key={m.id} item={m} deleting={deleting === m.id} onDelete={() => handleDelete(m.id)} />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function MoodboardTile({ item, deleting, onDelete }: { item: MoodboardItem; deleting: boolean; onDelete: () => void }) {
+  return (
+    <div className="group relative rounded-[var(--radius-sm)] bg-surface-2 overflow-hidden">
+      <div className="aspect-square">
+        <img src={moodboardImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
+      </div>
+      <div className="p-2 space-y-0.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-fg font-medium truncate">{item.name}</span>
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            className="p-0.5 rounded text-fg-faint hover:text-error transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+          >
+            {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
+          </button>
+        </div>
+        {item.description && (
+          <p className="text-[10px] text-fg-faint leading-tight line-clamp-2">{item.description}</p>
         )}
       </div>
     </div>

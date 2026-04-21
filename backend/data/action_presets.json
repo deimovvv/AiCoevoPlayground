@@ -1,0 +1,76 @@
+{
+  "categories": [
+    {
+      "id": "fashion",
+      "label": "Indumentaria",
+      "actions": [
+        { "name": "Mostrar prenda", "prompt": "medium shot. Person holds the garment with both hands by the shoulders, stretching it slightly forward so the entire piece is fully visible to camera." },
+        { "name": "Ponerse la prenda", "prompt": "medium shot. Person is pulling the garment over their head as if putting it on, hands lifting the collar while looking at the camera." },
+        { "name": "Acomodar el cuello", "prompt": "medium close-up. Person adjusts the collar or neckline with one hand while looking directly into the camera." },
+        { "name": "Mostrar la capucha", "prompt": "medium shot. Person lightly grabs the hood with both hands behind the neck, slightly lifting it to show the garment structure." },
+        { "name": "Mostrar la espalda", "prompt": "medium shot. Body turns slightly to show the back of the garment, revealing the plain back. Head turns back to look at the camera." },
+        { "name": "Prenda en el hombro", "prompt": "medium shot. Person has the garment resting on their shoulder, naturally placed. One hand loosely holds part of it while it hangs over the shoulder. Looking directly at camera." },
+        { "name": "Mostrar etiqueta / precio", "prompt": "close-up. Person holds the tag or label of the garment between two fingers, presenting it clearly to camera." },
+        { "name": "Doblar / apilar", "prompt": "medium shot. Person folds the garment neatly and places it on a stack, looking at camera with a calm, confident expression." },
+        { "name": "Comparar colores", "prompt": "medium shot. Person holds two or three garments of different colors side by side, displayed clearly toward camera." },
+        { "name": "Gesto de calidad", "prompt": "medium close-up. Person rubs the fabric between their fingers with a satisfied, approving expression, looking at camera." },
+        { "name": "Link abajo + prenda colgando", "prompt": "medium shot. Person holds the garment by the collar or shoulders with one hand, letting it hang naturally and fully visible in front of the body — the complete piece is on display. Other hand points straight down with index finger toward the bottom of the frame. Direct eye contact with camera. Confident, clean commercial energy." },
+        { "name": "Mostrar prenda + señalar web", "prompt": "medium shot. Both hands grip the garment at the shoulders, stretching it slightly forward so the full piece is clearly visible. Eyes look directly at camera, one hand then drops to point downward, directing attention to the link below. The garment stays prominent in frame." }
+      ]
+    },
+    {
+      "id": "food",
+      "label": "Gastronomía",
+      "actions": [
+        { "name": "Mostrar plato", "prompt": "medium shot. Person holds the plate or food at chest level with both hands, presenting it fully to camera with a natural proud expression." },
+        { "name": "Primera mordida", "prompt": "medium close-up. Person takes a genuine first bite, reaction is honest — eyes may close slightly, natural chewing." },
+        { "name": "Verter / servir", "prompt": "close-up. Liquid or sauce being poured from above onto the dish, slow and satisfying. No person visible, product is the hero." },
+        { "name": "Partir / abrir", "prompt": "close-up. Hands break or cut the food open, revealing the inside. The action is slow and deliberate." },
+        { "name": "Oler el plato", "prompt": "medium close-up. Person leans slightly toward the food and inhales with a genuine pleased expression." },
+        { "name": "Mostrar ingredientes", "prompt": "medium shot. Person holds up key ingredients one by one, displaying each clearly to camera." }
+      ]
+    },
+    {
+      "id": "real_estate",
+      "label": "Inmobiliaria",
+      "actions": [
+        { "name": "Señalar la vista", "prompt": "medium shot. Person stands near a window or balcony, gesturing outward toward the view with one open hand, looking at camera." },
+        { "name": "Abrir la puerta", "prompt": "medium shot. Person opens the door from outside, steps in, and looks back at camera with a welcoming expression." },
+        { "name": "Mostrar el espacio", "prompt": "medium shot. Person stands in the center of the room with both arms open at sides, gesturing to the full space around them." },
+        { "name": "Señalar detalle", "prompt": "medium close-up. Person points to a specific detail (finish, material, fixture) with one finger, looking at camera." },
+        { "name": "Sentarse en el espacio", "prompt": "medium shot. Person sits naturally in the living area or balcony, relaxed posture, looking directly at camera." }
+      ]
+    },
+    {
+      "id": "tech",
+      "label": "Tecnología",
+      "actions": [
+        { "name": "Mostrar pantalla", "prompt": "medium shot. Person holds the device screen-forward toward camera at chest level, displaying it clearly." },
+        { "name": "Unboxing", "prompt": "medium shot. Person opens a box or package, looks inside with genuine curiosity, then lifts the product out toward camera." },
+        { "name": "Demo rápido", "prompt": "medium close-up. Person interacts with the product interface — tapping, swiping, or pressing — while glancing at camera." },
+        { "name": "Comparar tamaños", "prompt": "medium shot. Person holds the product next to a known reference object (their hand, a coffee cup) to show scale." }
+      ]
+    },
+    {
+      "id": "cta",
+      "label": "CTA / Cierre",
+      "actions": [
+        { "name": "Gesto link abajo", "prompt": "medium shot. Both hands raised at chest level, index fingers extended, clearly pointing straight down simultaneously. Confident, direct eye contact with camera." },
+        { "name": "Gesto link abajo v2", "prompt": "medium shot. Garment worn normally. Person points downward with both index fingers indicating the lower part of the frame." },
+        { "name": "Se hace acá", "prompt": "medium shot. Both arms extend outward to the sides at chest level, opening the space, elbows slightly bent, palms relaxed. Chest forward, shoulders open, posture firm. Calm but confident expression, subtle smirk. Gesture communicates assurance and authority." },
+        { "name": "Pulgar arriba", "prompt": "medium close-up. Person gives a genuine thumbs up toward camera with a natural approving expression." },
+        { "name": "Señalar a cámara", "prompt": "medium shot. Person points directly at the camera lens with one finger, confident direct eye contact." }
+      ]
+    },
+    {
+      "id": "talking",
+      "label": "Talking / Persona",
+      "actions": [
+        { "name": "Directo a cámara", "prompt": "medium-close shot. Person looks directly into the camera, natural and relaxed. Chest up, shoulders back, no tension." },
+        { "name": "Giro hacia cámara", "prompt": "medium shot. Person starts looking slightly off to the side then turns naturally to face the camera, as if just noticing it." },
+        { "name": "Caminar al frame", "prompt": "medium shot. Person walks casually into frame from the side, stops in the center and looks directly at camera." },
+        { "name": "Reacción genuina", "prompt": "medium close-up. Person reacts naturally to something — slight surprise, nod of approval, or amused expression — then looks at camera." }
+      ]
+    }
+  ]
+}

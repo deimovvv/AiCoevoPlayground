@@ -23,15 +23,26 @@ import {
 import type { PromptTemplate } from "../lib/api";
 import { cn } from "../lib/utils";
 
-// Tool display names
 const TOOL_LABELS: Record<string, string> = {
-  chat: "Chat Assistant",
   ugc_creator: "UGC Creator",
-  photo_multishot: "Product Photos",
-  ad_creative: "Ad Creative",
-  social_post: "Social Post",
-  reel_creator: "Reel Creator",
+  video_ad_creator: "Video Ad Creator",
+  fashion_reel: "Fashion Reel",
+  product_clip: "Product Clip",
+  content_analyzer: "Content Analyzer",
+  static_ad: "Static Ad",
+  carousel_creator: "Carousel Creator",
+  ad_creative_lab: "Ad Creative Lab",
+  product_spotlight: "Product Spotlight",
+  fashion_editorial: "Fashion Editorial",
+  avatar_creator: "Avatar Creator",
+  chat: "Chat Assistant",
 };
+
+const TOOL_GROUPS: Array<{ label: string; ids: string[] }> = [
+  { label: "Video", ids: ["ugc_creator", "video_ad_creator", "fashion_reel", "product_clip"] },
+  { label: "Images", ids: ["static_ad", "carousel_creator", "ad_creative_lab", "product_spotlight", "fashion_editorial", "avatar_creator", "content_analyzer"] },
+  { label: "Other", ids: ["chat"] },
+];
 
 export function PromptsCard() {
   const { activeBrand } = useBrand();
@@ -89,31 +100,38 @@ export function PromptsCard() {
             No prompt templates found
           </p>
         ) : (
-          <div className="space-y-1">
-            {templates.map((tmpl) => (
-              <ToolPromptRow
-                key={tmpl.tool_id}
-                template={tmpl}
-                override={overrides[tmpl.tool_id]}
-                expanded={expandedTool === tmpl.tool_id}
-                onToggle={() =>
-                  setExpandedTool(
-                    expandedTool === tmpl.tool_id ? null : tmpl.tool_id
-                  )
-                }
-                onSaved={(newOverride) => {
-                  if (newOverride) {
-                    setOverrides((o) => ({ ...o, [tmpl.tool_id]: newOverride }));
-                  } else {
-                    setOverrides((o) => {
-                      const copy = { ...o };
-                      delete copy[tmpl.tool_id];
-                      return copy;
-                    });
-                  }
-                }}
-              />
-            ))}
+          <div className="space-y-5">
+            {TOOL_GROUPS.map((group) => {
+              const groupTemplates = group.ids
+                .map((id) => templates.find((t) => t.tool_id === id))
+                .filter(Boolean) as typeof templates;
+              if (groupTemplates.length === 0) return null;
+              return (
+                <div key={group.label}>
+                  <p className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2 px-1">
+                    {group.label}
+                  </p>
+                  <div className="space-y-1">
+                    {groupTemplates.map((tmpl) => (
+                      <ToolPromptRow
+                        key={tmpl.tool_id}
+                        template={tmpl}
+                        override={overrides[tmpl.tool_id]}
+                        expanded={expandedTool === tmpl.tool_id}
+                        onToggle={() => setExpandedTool(expandedTool === tmpl.tool_id ? null : tmpl.tool_id)}
+                        onSaved={(newOverride) => {
+                          if (newOverride) {
+                            setOverrides((o) => ({ ...o, [tmpl.tool_id]: newOverride }));
+                          } else {
+                            setOverrides((o) => { const copy = { ...o }; delete copy[tmpl.tool_id]; return copy; });
+                          }
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

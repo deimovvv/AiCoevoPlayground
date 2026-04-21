@@ -1,12 +1,21 @@
 [
     {
+        "id": "avatar_creator",
+        "name": "Avatar Creator",
+        "category": "images",
+        "description": "Generate AI avatars tailored to your brand's audience. Choose a style, get a character brief from Gemini, and generate a full reference sheet with body + face angles.",
+        "icon": "camera",
+        "status": "active",
+        "pipeline": ["brief", "generate", "save"]
+    },
+    {
         "id": "ugc_creator",
         "name": "UGC Creator",
         "category": "video",
         "description": "Create complete UGC videos: script, base image, multishot variations, voice, lip-sync, subtitles.",
         "icon": "video",
         "status": "active",
-        "pipeline": ["script", "base_image", "multishot", "curation", "voice", "lipsync", "render"]
+        "pipeline": ["script", "base_image", "multishot", "voice", "lipsync", "render"]
     },
     {
         "id": "product_clip",
@@ -24,7 +33,7 @@
         "description": "Analyze any video (TikTok, YouTube, Instagram) and extract: script, scene prompts, visual style. Then recreate similar content with your brand.",
         "icon": "sparkles",
         "status": "active",
-        "pipeline": ["analyze", "adapt", "generate_batch"]
+        "pipeline": ["analyze", "adapt", "route"]
     },
     {
         "id": "video_ad_creator",
@@ -81,40 +90,13 @@
         "pipeline": ["prompt", "generate", "variations"]
     },
     {
-        "id": "fashion_reels",
-        "name": "Fashion Reels",
+        "id": "fashion_reel",
+        "name": "Fashion Reel",
         "category": "video",
-        "description": "Outfit-transition reels: same model, same spot, multiple looks. Multishot generation + Kling animation for fashion content.",
+        "description": "Visual fashion/lifestyle reels — no talking, pure movement. Story mode (Hook → Movement → Showcase → Closer) or Looks mode (one scene per outfit).",
         "icon": "film",
         "status": "active",
-        "pipeline": ["script", "base_image", "multishot", "curation", "animate"]
-    },
-    {
-        "id": "photo_multishot",
-        "name": "Product Photos",
-        "category": "images",
-        "description": "Generate multiple creative product photo variations from a base image.",
-        "icon": "camera",
-        "status": "active",
-        "pipeline": ["prompt", "generate"]
-    },
-    {
-        "id": "ad_creative",
-        "name": "Ad Creative",
-        "category": "images",
-        "description": "Generate ad creatives with copy, images, and brand composition.",
-        "icon": "megaphone",
-        "status": "active",
-        "pipeline": ["prompt", "generate"]
-    },
-    {
-        "id": "social_post",
-        "name": "Social Post",
-        "category": "copy",
-        "description": "Generate captions and images for social media posts.",
-        "icon": "share",
-        "status": "active",
-        "pipeline": ["caption", "image"]
+        "pipeline": ["script", "base_image", "multishot", "animate", "render"]
     },
     {
         "id": "reel_creator",

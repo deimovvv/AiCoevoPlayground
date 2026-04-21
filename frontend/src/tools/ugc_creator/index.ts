@@ -1,13 +1,14 @@
 /**
  * UGC Creator — Tool Definition
  * ──────────────────────────────
- * 7-step pipeline: script → base_image → multishot → curation → voice → lipsync → render
+ * 6-step pipeline: script → base_image → multishot → voice → lipsync → render
+ * Multishot generates variations AND lets you select/edit (replaces old curation step).
  */
 
 import type { ToolDefinition } from "../types";
 import {
   handleScript, handleBaseImage, handleMultishot,
-  handleCuration, handleVoice, handleLipsync, handleRender,
+  handleVoice, handleLipsync, handleRender,
 } from "./handlers";
 
 export const ugcCreator: ToolDefinition = {
@@ -26,11 +27,10 @@ export const ugcCreator: ToolDefinition = {
     script: handleScript,
     base_image: handleBaseImage,
     multishot: handleMultishot,
-    curation: handleCuration,
     voice: handleVoice,
     lipsync: handleLipsync,
     render: handleRender,
   },
-  approvalSteps: ["script", "base_image", "voice", "lipsync"],
-  autoRunSteps: ["base_image", "multishot", "voice", "render"],
+  approvalSteps: ["script", "base_image", "multishot", "voice", "lipsync"],
+  autoRunSteps: ["base_image", "multishot", "render"],
 };

@@ -9,6 +9,7 @@ import tempfile
 import subprocess
 import shutil
 import asyncio
+import httpx
 from pathlib import Path
 from typing import Optional
 
@@ -18,35 +19,107 @@ def is_configured() -> bool:
     return shutil.which("yt-dlp") is not None
 
 
-async def download_video(url: str, max_duration: int = 120) -> dict:
-    """
-    Download a video from URL using yt-dlp.
-    Returns path to downloaded file + metadata.
-    """
-    work_dir = Path(tempfile.mkdtemp(prefix="coevo_dl_"))
-    output_path = work_dir / "video.mp4"
+def _is_tiktok(url: str) -> bool:
+    return "tiktok.com" in url or "vm.tiktok.com" in url
 
-    cmd = [
-        "yt-dlp",
-        "--no-playlist",
-        "--max-filesize", "100M",
-        "-f", "best[ext=mp4]/best",
-        "-o", str(output_path),
-        url,
-    ]
 
-    print(f"[video-download] Downloading: {url[:80]}")
-
+async def _run_ytdlp(cmd: list, work_dir: Path) -> tuple[int, str]:
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await proc.communicate()
+    _, stderr = await proc.communicate()
+    return proc.returncode, stderr.decode() if stderr else ""
 
-    if proc.returncode != 0:
-        error_msg = stderr.decode()[-300:] if stderr else "Unknown error"
-        raise Exception(f"Download failed: {error_msg}")
+
+async def download_tiktok_tikwm(url: str) -> dict:
+    """
+    Download TikTok video via tikwm.com API (free, no auth required).
+    Returns same dict format as download_video().
+    """
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            "https://www.tikwm.com/api/",
+            data={"url": url, "hd": "1"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    if data.get("code") != 0:
+        raise Exception(f"tikwm error: {data.get('msg', 'unknown')}")
+
+    vdata = data.get("data") or {}
+    play_url = vdata.get("play") or vdata.get("wmplay") or ""
+    if not play_url:
+        raise Exception("tikwm no devolvió URL de video")
+
+    print(f"[video-download] tikwm resolved: {play_url[:80]}")
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        dl = await client.get(play_url)
+        dl.raise_for_status()
+        video_bytes = dl.content
+
+    work_dir = Path(tempfile.mkdtemp(prefix="coevo_dl_"))
+    output_path = work_dir / "video.mp4"
+    output_path.write_bytes(video_bytes)
+
+    size_bytes = len(video_bytes)
+    print(f"[video-download] tikwm done: {size_bytes / 1024 / 1024:.1f}MB")
+    return {
+        "path": str(output_path),
+        "duration": vdata.get("duration", 0),
+        "size_bytes": size_bytes,
+        "work_dir": str(work_dir),
+    }
+
+
+async def download_video(url: str, max_duration: int = 120) -> dict:
+    """
+    Download a video from URL using yt-dlp.
+    For TikTok: tries impersonation first, then browser cookies as fallback.
+    Returns path to downloaded file + metadata.
+    """
+    work_dir = Path(tempfile.mkdtemp(prefix="coevo_dl_"))
+    output_path = work_dir / "video.mp4"
+
+    base_args = [
+        "--no-playlist",
+        "--max-filesize", "100M",
+        "-f", "best[ext=mp4]/best",
+        "-o", str(output_path),
+    ]
+
+    # Attempt list: for TikTok try multiple strategies; for others just one attempt.
+    attempts: list[list[str]] = []
+    if _is_tiktok(url):
+        attempts = [
+            ["yt-dlp", "--impersonate", "chrome", *base_args, url],
+            ["yt-dlp", "--cookies-from-browser", "chrome", *base_args, url],
+            ["yt-dlp", "--cookies-from-browser", "firefox", *base_args, url],
+            ["yt-dlp", *base_args, url],  # last-resort plain
+        ]
+    else:
+        attempts = [["yt-dlp", *base_args, url]]
+
+    last_error = ""
+    for cmd in attempts:
+        print(f"[video-download] Trying: {' '.join(cmd[:4])}... {url[:60]}")
+        returncode, stderr = await _run_ytdlp(cmd, work_dir)
+        if returncode == 0:
+            break
+        last_error = stderr[-400:]
+        print(f"[video-download] Attempt failed: {last_error[-120:]}")
+    else:
+        # All attempts failed
+        if _is_tiktok(url):
+            raise Exception(
+                "TikTok bloqueó la descarga directa. "
+                "Descargá el video manualmente (app TikTok → Guardar, o snaptik.app) "
+                "y subilo como archivo usando el botón 'Upload Video' de abajo."
+            )
+        raise Exception(f"Download failed: {last_error}")
 
     if not output_path.exists():
         # yt-dlp might use different extension

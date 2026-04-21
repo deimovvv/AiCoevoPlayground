@@ -24,11 +24,7 @@ export const handlePrompt: StepHandler = async (ctx) => {
 
   const objectiveKey: Record<string, string> = {
     fashion_editorial: "pose_direction",
-    fashion_reels: "creative_direction",
     product_spotlight: "setting_description",
-    photo_multishot: "photo_brief",
-    ad_creative: "campaign_brief",
-    social_post: "post_brief",
   };
   const key = objectiveKey[tool.id];
   if (key && config.objective) extraVars[key] = config.objective;
@@ -75,6 +71,7 @@ export const handleGenerate: StepHandler = async (ctx) => {
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedBackground = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
+  const selectedMoodboard = (activeBrand.moodboards || []).find((m) => m.id === config.selectedMoodboardId);
   const selClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
 
   const imageUrls: string[] = [];
@@ -82,13 +79,19 @@ export const handleGenerate: StepHandler = async (ctx) => {
   selClothing.forEach((c) => { if (c.imageUrl) imageUrls.push(c.imageUrl); });
   if (selectedProduct?.imageUrl) imageUrls.push(selectedProduct.imageUrl);
   if (selectedBackground?.imageUrl) imageUrls.push(selectedBackground.imageUrl);
+  if (selectedMoodboard?.imageUrl) imageUrls.push(selectedMoodboard.imageUrl);
 
-  const job = await createImageEdit(imageUrls, promptResult.image_prompt, config.aspectRatio, config.resolution);
+  let finalPrompt = promptResult.image_prompt;
+  if (selectedMoodboard) {
+    finalPrompt += ` Visual style moodboard reference: replicate the aesthetic, color palette, and mood of the style reference image.`;
+  }
+
+  const job = await createImageEdit(imageUrls, finalPrompt, config.aspectRatio, config.resolution);
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
   return {
-    result: { url: result.image_url, prompt: promptResult.image_prompt, title: promptResult.title || "Generated" },
+    result: { url: result.image_url, prompt: finalPrompt, title: promptResult.title || "Generated" },
     needsApproval: true,
   };
 };

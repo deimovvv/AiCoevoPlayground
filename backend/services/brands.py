@@ -17,6 +17,7 @@ PRODUCTS_DIR = DATA_DIR / "products"
 CLOTHING_DIR = DATA_DIR / "clothing"
 BACKGROUNDS_DIR = DATA_DIR / "backgrounds"
 LOGOS_DIR = DATA_DIR / "logos"
+MOODBOARDS_DIR = DATA_DIR / "moodboards"
 
 # Ensure directories exist
 DATA_DIR.mkdir(exist_ok=True)
@@ -25,10 +26,25 @@ PRODUCTS_DIR.mkdir(exist_ok=True)
 CLOTHING_DIR.mkdir(exist_ok=True)
 BACKGROUNDS_DIR.mkdir(exist_ok=True)
 LOGOS_DIR.mkdir(exist_ok=True)
+MOODBOARDS_DIR.mkdir(exist_ok=True)
+
+
+SANDBOX_BRAND = {
+    "id": "__sandbox__",
+    "name": "Sandbox",
+    "isSandbox": True,
+    "brandContext": "Generic sandbox for quick generation and testing. No specific brand guidelines — just generate.",
+    "avatars": [],
+    "voicePresets": [],
+    "products": [],
+    "clothing": [],
+    "backgrounds": [],
+    "moodboards": [],
+}
 
 
 def load_brands() -> List[dict]:
-    """Load brands from JSON file. Seeds with default if empty."""
+    """Load brands from JSON file. Seeds with default if empty. Always ensures Sandbox exists."""
     if not BRANDS_FILE.exists():
         default = [{
             "id": "taller-santa-clara",
@@ -40,15 +56,22 @@ def load_brands() -> List[dict]:
             ],
         }]
         save_brands(default)
-        return default
-    with open(BRANDS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        loaded = default
+    else:
+        with open(BRANDS_FILE, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+
+    # Always ensure Sandbox exists (never persisted — injected at load time)
+    if not any(b["id"] == "__sandbox__" for b in loaded):
+        loaded = [SANDBOX_BRAND] + loaded
+    return loaded
 
 
 def save_brands(brands: List[dict]):
-    """Save brands to JSON file."""
+    """Save brands to JSON file. Never persists the sandbox brand."""
+    real = [b for b in brands if b["id"] != "__sandbox__"]
     with open(BRANDS_FILE, "w", encoding="utf-8") as f:
-        json.dump(brands, f, indent=2, ensure_ascii=False)
+        json.dump(real, f, indent=2, ensure_ascii=False)
 
 
 def find_brand(brands: List[dict], brand_id: str) -> Optional[dict]:
@@ -82,3 +105,7 @@ def get_backgrounds_dir() -> Path:
 
 def get_logos_dir() -> Path:
     return LOGOS_DIR
+
+
+def get_moodboards_dir() -> Path:
+    return MOODBOARDS_DIR

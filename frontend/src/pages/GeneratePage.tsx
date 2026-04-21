@@ -72,25 +72,10 @@ const TOOL_PREVIEWS: Record<string, { what: string; inputs: string; output: stri
     inputs: "Model + Garments + Pose direction + Style reference",
     output: "Editorial photo + variations",
   },
-  fashion_reels: {
-    what: "Outfit-transition reels for Instagram/TikTok",
-    inputs: "Model + Multiple outfits + Direction",
-    output: "Animated reel with outfit changes",
-  },
-  photo_multishot: {
-    what: "Multiple product photo variations",
-    inputs: "Product + Photo brief",
-    output: "Multiple angles and styles of the same product",
-  },
-  ad_creative: {
-    what: "Ad creative with copy and visuals",
-    inputs: "Product + Campaign brief + Platform",
-    output: "Ad image with headline and copy",
-  },
-  social_post: {
-    what: "Social media post with caption",
-    inputs: "Product + Post brief + Platform",
-    output: "Post image + caption text",
+  fashion_reel: {
+    what: "Visual fashion/lifestyle reels — no talking, pure movement",
+    inputs: "Model + Outfits + Direction",
+    output: "Animated reel (Story or Looks mode)",
   },
 };
 
@@ -153,29 +138,18 @@ export function GeneratePage() {
 
       {/* Category filter */}
       <div className="flex items-center gap-2">
-        <button
-          onClick={() => setFilter("all")}
-          className={cn(
-            "px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] transition-colors cursor-pointer",
-            filter === "all"
-              ? "bg-surface-2 text-fg"
-              : "text-fg-muted hover:text-fg hover:bg-surface-1"
-          )}
-        >
-          All
-        </button>
-        {categories.map((cat) => (
+        {(["all", ...categories] as const).map((cat) => (
           <button
             key={cat}
             onClick={() => setFilter(cat as typeof filter)}
             className={cn(
-              "px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] transition-colors cursor-pointer",
+              "px-4 py-1.5 text-[12px] font-medium rounded-full transition-all duration-150 cursor-pointer",
               filter === cat
-                ? "bg-surface-2 text-fg"
-                : "text-fg-muted hover:text-fg hover:bg-surface-1"
+                ? "bg-[var(--color-warm)] text-white"
+                : "text-fg-muted hover:text-fg bg-surface-1 hover:bg-surface-2"
             )}
           >
-            {CATEGORY_LABELS[cat] || cat}
+            {cat === "all" ? "All" : CATEGORY_LABELS[cat] || cat}
           </button>
         ))}
       </div>
@@ -223,10 +197,10 @@ function ToolCard({
       onMouseMove={(e) => media && setMousePos({ x: e.clientX, y: e.clientY })}
       onMouseLeave={() => setMousePos(null)}
       className={cn(
-        "group text-left border border-edge rounded-[var(--radius-md)] overflow-hidden transition-all duration-150 cursor-pointer relative",
+        "group text-left border rounded-[var(--radius-lg)] overflow-hidden transition-all duration-200 cursor-pointer relative",
         disabled || isComingSoon
-          ? "bg-surface-0 opacity-50 cursor-not-allowed"
-          : "bg-surface-0 hover:bg-surface-1 hover:border-[var(--color-edge-strong)] hover:shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
+          ? "bg-surface-0 border-edge opacity-40 cursor-not-allowed"
+          : "bg-surface-0 border-edge hover:border-[var(--color-warm-muted)] hover:bg-surface-1 hover:shadow-[0_4px_24px_rgba(0,0,0,0.4)]"
       )}
     >
       {/* Floating preview on hover */}
@@ -235,7 +209,7 @@ function ToolCard({
           className="fixed z-50 pointer-events-none"
           style={{ left: mousePos.x + 16, top: mousePos.y - 200 }}
         >
-          <div className="rounded-[var(--radius-md)] overflow-hidden shadow-2xl border border-edge bg-black" style={{ maxWidth: 240, maxHeight: 320 }}>
+          <div className="rounded-[var(--radius-lg)] overflow-hidden shadow-2xl border border-edge bg-black" style={{ maxWidth: 240, maxHeight: 320 }}>
             {media.type === "video" ? (
               <video src={media.url} muted loop autoPlay playsInline className="w-full h-full object-contain" />
             ) : (
@@ -245,48 +219,52 @@ function ToolCard({
         </div>
       )}
 
-      <div className="p-5">
-      {/* Top row: icon + badge */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="w-10 h-10 rounded-[var(--radius-md)] bg-surface-2 flex items-center justify-center text-fg-muted group-hover:text-fg transition-colors">
-          {ICON_MAP[tool.icon] || <Sparkles size={20} />}
-        </div>
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "text-[10px] font-medium px-2 py-0.5 rounded-full",
-              CATEGORY_COLORS[tool.category] || "bg-surface-2 text-fg-faint"
+      <div className="p-6">
+        {/* Top row: icon + badge */}
+        <div className="flex items-start justify-between mb-5">
+          <div className={cn(
+            "w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center transition-all duration-200",
+            disabled || isComingSoon
+              ? "bg-surface-2 text-fg-faint"
+              : "bg-surface-2 text-fg-muted group-hover:bg-[var(--color-warm-muted)] group-hover:text-[var(--color-warm)]"
+          )}>
+            {ICON_MAP[tool.icon] || <Sparkles size={22} />}
+          </div>
+          <div className="flex items-center gap-2">
+            {isComingSoon ? (
+              <span className="text-[10px] font-medium text-fg-faint bg-surface-2 px-2.5 py-1 rounded-full flex items-center gap-1">
+                <Clock size={9} /> Soon
+              </span>
+            ) : (
+              <span className={cn(
+                "text-[10px] font-semibold px-2.5 py-1 rounded-full",
+                CATEGORY_COLORS[tool.category] || "bg-surface-2 text-fg-faint"
+              )}>
+                {CATEGORY_LABELS[tool.category] || tool.category}
+              </span>
             )}
-          >
-            {CATEGORY_LABELS[tool.category] || tool.category}
-          </span>
-          {isComingSoon && (
-            <span className="text-[10px] font-medium text-fg-faint bg-surface-2 px-2 py-0.5 rounded-full flex items-center gap-1">
-              <Clock size={9} /> Soon
-            </span>
-          )}
+          </div>
         </div>
-      </div>
 
-      {/* Name + description */}
-      <h3 className="text-[15px] font-semibold text-fg mb-1.5">{tool.name}</h3>
-      <p className="text-[12px] text-fg-muted leading-relaxed mb-3">
-        {tool.description}
-      </p>
+        {/* Name + description */}
+        <h3 className="text-[16px] font-semibold text-fg mb-2 tracking-tight">{tool.name}</h3>
+        <p className="text-[13px] text-fg-muted leading-relaxed mb-4">
+          {tool.description}
+        </p>
 
-      {/* Pipeline steps */}
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {tool.pipeline.map((step, i) => (
-          <span key={step} className="flex items-center gap-1">
-            <span className="text-[10px] font-medium text-fg-faint bg-surface-2 px-2 py-0.5 rounded">
-              {step}
+        {/* Pipeline steps */}
+        <div className="flex items-center gap-1 flex-wrap">
+          {tool.pipeline.map((step, i) => (
+            <span key={step} className="flex items-center gap-1">
+              <span className="text-[10px] font-medium text-fg-faint bg-surface-2 px-2 py-0.5 rounded-full">
+                {step}
+              </span>
+              {i < tool.pipeline.length - 1 && (
+                <ChevronRight size={8} className="text-fg-faint" />
+              )}
             </span>
-            {i < tool.pipeline.length - 1 && (
-              <ChevronRight size={9} className="text-fg-faint" />
-            )}
-          </span>
-        ))}
-      </div>
+          ))}
+        </div>
       </div>
     </button>
   );

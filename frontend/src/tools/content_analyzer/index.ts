@@ -8,7 +8,7 @@
  */
 
 import type { ToolDefinition } from "../types";
-import { handleAnalyze, handleAdapt, handleGenerateBatch } from "./handlers";
+import { handleAnalyze, handleAdapt, handleRoute, handleGenerateBatch } from "./handlers";
 
 export const contentAnalyzer: ToolDefinition = {
   schema: {
@@ -17,7 +17,7 @@ export const contentAnalyzer: ToolDefinition = {
     showProduct: true, productLabel: "Products",
     multiProduct: true,
     showClothing: true, clothingLabel: "Garments", clothingSublabel: "multi-select",
-    showBackground: false,
+    showBackground: true,
     showVoice: false,
     showTone: false,
     showPlatform: false,
@@ -30,8 +30,9 @@ export const contentAnalyzer: ToolDefinition = {
   stepHandlers: {
     analyze: handleAnalyze,
     adapt: handleAdapt,
+    route: handleRoute,
     generate_batch: handleGenerateBatch,
   },
   approvalSteps: ["analyze", "adapt"],
-  autoRunSteps: ["adapt", "generate_batch"],
+  autoRunSteps: ["adapt", "route"],
 };

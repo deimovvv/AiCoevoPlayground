@@ -89,14 +89,20 @@ const handleGenerateAll: StepHandler = async (ctx) => {
   const headline = String(promptResult.headline || "");
   const subline = String(promptResult.subline || "");
   const colors = String(promptResult.colors || "");
-  const finalPrompt = `${promptResult.image_prompt}. Text overlay reading "${headline}". Use brand colors: ${colors}. Match the style of the reference image. Place logo in a corner. Professional ad.`;
+  const brandName = activeBrand.name || "";
+  const finalPrompt = `${promptResult.image_prompt}. Text overlay reading "${headline}". Use brand colors: ${colors}. Match the style of the reference image. Place logo in a corner. Professional ad for ${brandName}. IMPORTANT: Only include elements from the brand — reproduce the product EXACTLY as it appears in the reference photo. Do NOT add objects, props, text, or decorations that are not part of the brand.`;
 
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
+  const selectedBackground = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
   const logo = activeBrand.logo as { imageUrl: string } | undefined;
 
-  // Build reference URLs
+  // Build reference URLs + positional descriptions so Nano Banana knows what each image is
   const imageUrls: string[] = [];
+  const refDescriptions: string[] = [];
+  let imgIdx = 1;
+
+  // Style reference (uploaded file)
   const refFiles = (config as { referenceImages?: File[] }).referenceImages || [];
   for (const file of refFiles.slice(0, 1)) {
     const dataUrl = await new Promise<string>((resolve) => {
@@ -105,9 +111,43 @@ const handleGenerateAll: StepHandler = async (ctx) => {
       reader.readAsDataURL(file);
     });
     imageUrls.push(dataUrl);
+    refDescriptions.push(`Image ${imgIdx}: STYLE REFERENCE — match this mood, color grading, and composition`);
+    imgIdx++;
   }
-  if (selectedAvatar?.imageUrl) imageUrls.push(selectedAvatar.imageUrl);
-  if (selectedProduct?.imageUrl) imageUrls.push(selectedProduct.imageUrl);
+
+  // Avatar / model
+  if (selectedAvatar?.imageUrl) {
+    imageUrls.push(selectedAvatar.imageUrl);
+    refDescriptions.push(`Image ${imgIdx}: MODEL "${selectedAvatar.name}" — use this EXACT person if the ad includes a person`);
+    imgIdx++;
+  }
+
+  // Product
+  if (selectedProduct?.imageUrl) {
+    imageUrls.push(selectedProduct.imageUrl);
+    refDescriptions.push(`Image ${imgIdx}: PRODUCT "${selectedProduct.name}"${selectedProduct.description ? ` (${selectedProduct.description})` : ""} — reproduce this EXACT product, same shape, colors, labels, packaging`);
+    imgIdx++;
+  }
+  // Extra product images
+  if (selectedProduct?.images) {
+    for (const img of selectedProduct.images) {
+      if (img.imageUrl) {
+        imageUrls.push(img.imageUrl);
+        refDescriptions.push(`Image ${imgIdx}: additional view of "${selectedProduct.name}"`);
+        imgIdx++;
+      }
+    }
+  }
+
+  // Background
+  if (selectedBackground?.imageUrl) {
+    imageUrls.push(selectedBackground.imageUrl);
+    const bgDesc = selectedBackground.description || selectedBackground.name || "background";
+    refDescriptions.push(`Image ${imgIdx}: BACKGROUND/SETTING — use this as the ad background (${bgDesc})`);
+    imgIdx++;
+  }
+
+  // Graphic assets (uploaded files)
   const graphicFiles = (config as { graphicAssets?: File[] }).graphicAssets || [];
   for (const file of graphicFiles) {
     const dataUrl = await new Promise<string>((resolve) => {
@@ -116,11 +156,24 @@ const handleGenerateAll: StepHandler = async (ctx) => {
       reader.readAsDataURL(file);
     });
     imageUrls.push(dataUrl);
+    refDescriptions.push(`Image ${imgIdx}: GRAPHIC ASSET — incorporate this element into the ad`);
+    imgIdx++;
   }
-  if (logo?.imageUrl && graphicFiles.length === 0) imageUrls.push(logo.imageUrl);
+
+  // Logo
+  if (logo?.imageUrl && graphicFiles.length === 0) {
+    imageUrls.push(logo.imageUrl);
+    refDescriptions.push(`Image ${imgIdx}: BRAND LOGO — place in a corner of the ad`);
+    imgIdx++;
+  }
+
+  // Prepend reference descriptions to the prompt so Nano Banana knows what each image is
+  const promptWithRefs = refDescriptions.length > 0
+    ? `REFERENCE IMAGES:\n${refDescriptions.join("\n")}\n\n${finalPrompt}`
+    : finalPrompt;
 
   // Generate base image
-  const baseJob = await createImageEdit(imageUrls, finalPrompt, config.aspectRatio, config.resolution);
+  const baseJob = await createImageEdit(imageUrls, promptWithRefs, config.aspectRatio, config.resolution);
   const baseResult = await pollImageGen(baseJob.request_id);
   if (baseResult.status === "failed") throw new Error(baseResult.error || "Image generation failed");
 
@@ -131,8 +184,8 @@ const handleGenerateAll: StepHandler = async (ctx) => {
   const variations = await Promise.all(
     Array.from({ length: numVariations - 1 }, async (_, i) => {
       try {
-        const varPrompt = `Same product, same style, same brand colors. Vary the composition and angle slightly. ${finalPrompt}`;
-        const job = await createImageEdit([baseUrl, ...imageUrls.slice(1)], varPrompt, config.aspectRatio, config.resolution);
+        const varPrompt = `Image 1: the BASE AD — keep the same product, style, brand colors, brand identity. Only vary the composition and angle slightly. Do NOT add new elements.\n${refDescriptions.slice(1).map((d, ri) => d.replace(/^Image \d+/, `Image ${ri + 2}`)).join("\n")}\n\n${finalPrompt}`;
+        const job = await createImageEdit([baseUrl, ...imageUrls.slice(refFiles.length > 0 ? 1 : 0)], varPrompt, config.aspectRatio, config.resolution);
         const result = await pollImageGen(job.request_id);
         return { id: `var_${i + 2}`, url: result.image_url || "", label: `Variation ${i + 2}` };
       } catch {
@@ -167,7 +220,7 @@ const handleGenerateAll: StepHandler = async (ctx) => {
 
 export const staticAd: ToolDefinition = {
   schema: {
-    showAvatar: true, avatarLabel: "Person", avatarSublabel: "optional — include talent",
+    showAvatar: true, avatarLabel: "Person",
     showProduct: true, productLabel: "Product",
     showClothing: false,
     showBackground: true,

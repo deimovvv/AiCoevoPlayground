@@ -2,7 +2,7 @@
 
 ## Overview
 
-Coevo Studio is an internal agency platform for AI-powered content creation. Brands onboard once with assets (avatars, products, clothing, backgrounds, voices, logo), and all tools inherit that brand context automatically.
+Coevo Studio is an internal agency platform for AI-powered content creation. Brands onboard once with assets (avatars, products, clothing, backgrounds, moodboards, voices, logo), and all tools inherit that brand context automatically.
 
 ## System Architecture
 
@@ -13,9 +13,9 @@ Browser (React 19 + Vite 8)
   |
 FastAPI (Python 3.11+)
   |
-  |--- Gemini 2.5 Flash (scripts, prompts, Brand DNA, analysis)
+  |--- Gemini 2.5 Flash (scripts, prompts, Brand DNA, video analysis)
   |--- Nano Banana 2 via Fal (image generation/editing)
-  |--- Kling V3 Pro via Fal (video animation, frame-to-frame)
+  |--- Kling via Fal (video animation, frame-to-frame)
   |--- HeyGen Avatar 4 via Fal (lip-sync from image + audio)
   |--- ElevenLabs v3 (text-to-speech, voice cloning)
   |--- FFmpeg (video concatenation, subtitles)
@@ -25,12 +25,14 @@ FastAPI (Python 3.11+)
 
 ```
 backend/data/
-  brands.json           # All brands with assets, DNA, config
+  brands.json           # All brands with assets, DNA, config (Sandbox never persisted)
   generations.json      # Content library entries
   avatars/              # Avatar image files
   products/             # Product image files (main + up to 2 extras per product)
   clothing/             # Clothing image files
   backgrounds/          # Background image files
+  moodboards/           # Moodboard image files (up to 5 per brand)
+  logos/                # Brand logo files
   renders/              # Generated video outputs
 ```
 
@@ -38,9 +40,9 @@ backend/data/
 
 ```
 frontend/src/
-  pages/                    # 15 route-level components
-    ToolRunPage.tsx            # Pipeline orchestrator (5700+ lines)
-    BrandSettings.tsx          # Brand config: assets, DNA, prompts, voices
+  pages/
+    ToolRunPage.tsx            # Pipeline orchestrator — all tool pipelines
+    BrandSettings.tsx          # Brand config: assets, DNA, prompts, voices, moodboards
     GeneratePage.tsx            # Tool launcher with hover previews
     ContentPage.tsx            # Content library
     Dashboard.tsx              # Brand list
@@ -48,6 +50,7 @@ frontend/src/
   components/
     ImageEditPanel.tsx         # Reusable: product picker + quick actions + prompt
     ChatPanel.tsx              # AI chat with brand context
+    PromptsCard.tsx            # Prompt templates grouped by tool category
     layout/                    # AppLayout, Sidebar, BrandSwitcher
     ui/                        # Primitives
   tools/                    # Modular tool definitions (1 dir per tool)
@@ -55,21 +58,22 @@ frontend/src/
     types.ts                   # StepHandler, ToolConfig, ScriptScene, etc.
     ugc_creator/               # Handlers + views
     video_ad_creator/
+    fashion_reel/
+    product_clip/
+    content_analyzer/
     static_ad/
     carousel_creator/
     ad_creative_lab/
-    content_analyzer/
-    product_clip/
     product_spotlight/
     fashion_editorial/
-    fashion_reels/
+    avatar_creator/
     shared/
   remotion/                 # Video preview
     SubtitleOverlay.tsx        # Word-by-word karaoke
     UGCComposition.tsx
     UGCPlayer.tsx
   lib/
-    api.ts                     # 78 API call functions
+    api.ts                     # All API call functions + types
     BrandContext.tsx            # Global brand state
 ```
 
@@ -77,25 +81,32 @@ frontend/src/
 
 ```
 backend/
-  main.py                  # FastAPI: 78 endpoints + response normalizer
-  services/                # 11 service modules
+  main.py                  # FastAPI: endpoints + response normalizer
+  services/
     copy_gen.py              # Gemini (scripts, prompts, DNA)
     prompt_builder.py        # 3-layer prompt assembly
     image_gen.py             # Nano Banana 2
-    image_analysis.py        # Gemini Vision
-    kling_video.py           # Kling V3 Pro
-    heygen_avatar4.py        # HeyGen Avatar 4
+    image_analysis.py        # Gemini Vision (video + image analysis)
+    kling_video.py           # Kling image-to-video
+    heygen_avatar4.py        # HeyGen Avatar 4 lip-sync
     tts.py                   # ElevenLabs v3
-    fal_lipsync.py           # Fal Fabric lip-sync
+    fal_lipsync.py           # Fal Fabric lip-sync (alternative)
     video_concat.py          # FFmpeg
-    brands.py                # Brand CRUD
+    brands.py                # Brand CRUD + Sandbox injection
     chat.py                  # Gemini chat
-  tools/                   # 15 tool directories
-    registry.json            # Tool definitions
+  tools/                   # Active tool directories
+    registry.json            # Tool definitions (11 active, 2 coming_soon)
     ugc_creator/             # default_prompt.txt
+    video_ad_creator/
+    fashion_reel/
+    product_clip/
+    content_analyzer/
     static_ad/               # default_prompt.txt + templates.json (40 templates)
     carousel_creator/        # default_prompt.txt + carousel_types.json (8 types)
-    ...
+    ad_creative_lab/
+    product_spotlight/
+    fashion_editorial/
+    avatar_creator/
 ```
 
 ## Key Patterns
@@ -107,10 +118,16 @@ Layer 2: Brand Override   ->  brand.promptOverrides[tool_id]
 Layer 3: Dynamic Vars     ->  {brand_name}, {brand_guidance}, {avatars}, etc.
 ```
 
+### Sandbox Brand
+Auto-created on every `load_brands()` call, never persisted to JSON. Always available as `id: "__sandbox__"`. Allows quick generation without setting up a client brand. Shown separately in the BrandSwitcher with a flask icon.
+
+### Moodboards
+Up to 5 visual style reference images per brand. One can be active per tool run (`selectedMoodboardId` in ToolConfig). Passed to Nano Banana as the last reference image with the label: *"visual style moodboard — replicate this aesthetic, color palette, lighting, and mood"*.
+
 ### Response Normalizer
 Backend normalizes Gemini's inconsistent field names before sending to frontend:
-- `audio/speech/voiceover/dialogue/action` -> `script`
-- `visuals/visual/setting/scene_description` -> `image_prompt`
+- `audio/speech/voiceover/dialogue/action` → `script`
+- `visuals/visual/setting/scene_description` → `image_prompt`
 - Cleans prefixes like `AVATAR:`, `OFF-CAMERA:`
 - Auto-fixes truncated JSON arrays
 
@@ -121,15 +138,19 @@ Reusable across all tools for editing generated images:
 - Free-form prompt input
 - Used in: UGC, Static Ad, Carousel, Ad Creative Lab, Video Ad Creator
 
-### Async Job Pattern
+### Content Analyzer Handoff
+After adapt step, user selects destination tool. Data transferred via `sessionStorage`:
+- `adaptData` (scenes with script + imagePrompt)
+- `analyzeData` (content_type, style_guide, key_insights)
+- `contentMode` ("visual" or "voiceover")
+- All asset IDs: `selectedAvatarIds`, `selectedProductIds`, `selectedClothingIds`, `selectedBackgroundId`, `selectedMoodboardId`
+
+### Async Job Pattern (Fal services)
 ```
 POST submit -> request_id
 poll status -> IN_QUEUE | IN_PROGRESS | COMPLETED
 GET result -> final URL
 ```
-
-### Brand DNA
-AI-extracted structured identity: colors (with hex), tone, audience, keywords, personality, competitors, unique value, suggested fonts. Generated from brand guidance (URL/PDF) via Gemini.
 
 ## Brand Data Model
 
@@ -138,14 +159,40 @@ AI-extracted structured identity: colors (with hex), tone, audience, keywords, p
   "id": "string",
   "name": "string",
   "brandContext": "guidance text (from URL scrape, PDF, manual)",
-  "dna": { "colors": [], "tone": [], "audience": "", "keywords": [], "personality": "", "competitors": [], "unique_value": "" },
+  "dna": {
+    "colors": [{ "name": "...", "hex": "#...", "usage": "..." }],
+    "tone": [],
+    "audience": "",
+    "keywords": [],
+    "personality": "",
+    "competitors": [],
+    "unique_value": ""
+  },
   "fonts": { "headline": "Google Font", "body": "Google Font" },
   "avatars": [{ "id", "name", "description", "imageUrl" }],
   "products": [{ "id", "name", "description", "imageUrl", "images": [{ "imageUrl", "label" }] }],
   "clothing": [{ "id", "name", "description", "imageUrl" }],
   "backgrounds": [{ "id", "name", "description", "imageUrl" }],
+  "moodboards": [{ "id", "name", "description", "imageUrl" }],
   "voicePresets": [{ "id", "name" }],
   "logo": { "filename", "imageUrl" },
   "promptOverrides": { "tool_id": "custom prompt text" }
 }
+```
+
+Note: Sandbox brand (`id: "__sandbox__"`) always has `"isSandbox": true` and is never written to `brands.json`.
+
+## ToolConfig (Frontend State Per Tool Run)
+
+Key fields in `ToolConfig` (types.ts):
+```typescript
+selectedAvatarId: string | null
+selectedAvatarIds: string[]        // multi-select
+selectedProductId: string | null
+selectedProductIds: string[]
+selectedClothingIds: string[]
+selectedBackgroundId: string | null
+selectedMoodboardId: string | null  // one active moodboard at a time
+selectedVoiceId: string | null
+aspectRatio, resolution, language, objective, notes, ...
 ```

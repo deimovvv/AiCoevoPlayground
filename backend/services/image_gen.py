@@ -1,21 +1,20 @@
 """
-Image Generation / Edit Service (via Fal AI — nano-banana-2/edit)
-─────────────────────────────────────────────────────────────────
-Generates or edits images using reference images (avatar + product/background).
-Uses the Fal queue pattern (submit → poll → result).
+Image Generation / Edit Service (via Fal AI — nano-banana-2)
+─────────────────────────────────────────────────────────────
+- nano-banana-2/edit  → image editing (requires reference images)
+- nano-banana-2       → text-to-image (prompt only, no reference images)
 
-Typical use-case:
-  - Pass avatar photo + product photo
-  - Prompt: "Person holding the product in a modern kitchen"
-  - Result: composite image ready for Kling video generation
+Both share the same status/result base URL: queue.fal.run/fal-ai/nano-banana-2/requests/...
+Uses the Fal queue pattern (submit → poll → result).
 """
 
 import os
 import httpx
 
 FAL_BASE = "https://queue.fal.run"
-FAL_MODEL = "fal-ai/nano-banana-2/edit"       # Submit endpoint (with /edit)
-FAL_MODEL_BASE = "fal-ai/nano-banana-2"       # Status/result endpoint (without /edit)
+FAL_MODEL = "fal-ai/nano-banana-2/edit"  # Image edit (requires image_urls)
+FAL_T2I_MODEL = "fal-ai/nano-banana-2"   # Text-to-image (prompt only)
+FAL_MODEL_BASE = "fal-ai/nano-banana-2"  # Shared base for status/result polling
 
 
 def _get_key() -> str:
@@ -178,3 +177,56 @@ async def get_result(request_id: str) -> dict:
         "description": data.get("description", ""),
         "error": None,
     }
+
+
+# ══════════════════════════════════════════════════════════════
+#  Text-to-image (nano-banana-2 — prompt only, no reference images)
+# ══════════════════════════════════════════════════════════════
+
+async def create_text_to_image(
+    prompt: str,
+    aspect_ratio: str = "1:1",
+    resolution: str = "2K",
+    num_images: int = 1,
+) -> str:
+    """
+    Submit a text-to-image job to nano-banana-2 (base model, no images required).
+    Returns a request_id for status polling — same get_status/get_result functions work
+    because both models share the same FAL_MODEL_BASE URL.
+    """
+    payload = {
+        "prompt": prompt,
+        "aspect_ratio": aspect_ratio,
+        "resolution": resolution,
+        "num_images": num_images,
+        "output_format": "png",
+        "safety_tolerance": "4",
+    }
+
+    print(f"[image-gen/t2i] Submitting nano-banana-2 text-to-image job...")
+    print(f"[image-gen/t2i] Prompt: {prompt[:120]}")
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        res = await client.post(
+            f"{FAL_BASE}/{FAL_T2I_MODEL}",
+            headers=_headers(),
+            json=payload,
+        )
+
+    print(f"[image-gen/t2i] Submit response: {res.status_code}")
+
+    if res.status_code not in (200, 201):
+        print(f"[image-gen/t2i] FAILED: {res.text[:500]}")
+        raise Exception(f"Text-to-image submit failed ({res.status_code}): {res.text[:400]}")
+
+    data = res.json()
+    request_id = data.get("request_id")
+
+    if not request_id:
+        images = data.get("images", [])
+        if images and images[0].get("url"):
+            return f"SYNC:{images[0]['url']}"
+        raise Exception(f"No request_id in t2i response: {data}")
+
+    # No special prefix needed — get_status/get_result use the same FAL_MODEL_BASE
+    return request_id

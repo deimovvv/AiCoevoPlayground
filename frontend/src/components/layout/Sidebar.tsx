@@ -132,13 +132,18 @@ function NavLink({ item, active }: { item: MenuItem; active: boolean }) {
         <Link
             to={item.href}
             className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition-colors duration-150",
+                "flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-[13px] font-medium transition-all duration-150",
                 active
-                    ? "bg-surface-2 text-fg"
-                    : "text-fg-muted hover:text-fg hover:bg-surface-1"
+                    ? "bg-[var(--color-warm-subtle)] text-fg border border-[var(--color-warm-muted)]"
+                    : "text-fg-muted hover:text-fg hover:bg-surface-1 border border-transparent"
             )}
         >
-            <div className={cn(active ? "text-fg" : "text-fg-muted")}>{item.icon}</div>
+            <div className={cn(
+                "transition-colors duration-150",
+                active ? "text-[var(--color-warm)]" : "text-fg-muted"
+            )}>
+                {item.icon}
+            </div>
             {item.label}
         </Link>
     );
@@ -166,13 +171,13 @@ function CollapsibleNav({
             <button
                 onClick={onToggle}
                 className={cn(
-                    "cursor-pointer w-full flex items-center gap-3 px-3 py-2 rounded-[var(--radius-sm)] text-[13px] font-medium transition-colors duration-150",
+                    "cursor-pointer w-full flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-[13px] font-medium transition-all duration-150 border border-transparent",
                     parentActive
-                        ? "bg-surface-2 text-fg"
+                        ? "bg-[var(--color-warm-subtle)] text-fg border-[var(--color-warm-muted)]"
                         : "text-fg-muted hover:text-fg hover:bg-surface-1"
                 )}
             >
-                <div className={cn(parentActive ? "text-fg" : "text-fg-muted")}>{icon}</div>
+                <div className={cn(parentActive ? "text-[var(--color-warm)]" : "text-fg-muted")}>{icon}</div>
                 <span className="flex-1 text-left">{label}</span>
                 <ChevronDown
                     size={12}

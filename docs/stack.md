@@ -9,28 +9,32 @@
 
 ## Backend
 - **FastAPI** + **Python 3.11+** + **Uvicorn**
-- JSON file-based storage (Phase 1)
+- JSON file-based storage (Phase 1 — see planning.md for PostgreSQL migration)
 
 ## AI Services
+
 | Service | Provider | Use |
 |---------|----------|-----|
 | Scripts, prompts, DNA, analysis | **Gemini 2.5 Flash** | Text generation, structured output |
 | Image generation | **Nano Banana 2** via Fal | Reference-based image creation |
-| Video animation | **Kling V3 Pro** via Fal | Image-to-video, frame-to-frame |
-| Lip-sync | **HeyGen Avatar 4** via Fal | Image + audio -> talking video |
+| Video animation | **Kling** via Fal | Image-to-video, frame-to-frame |
+| Lip-sync | **HeyGen Avatar 4** via Fal | Image + audio → talking video |
+| Lip-sync (alternative) | **Fal Fabric 1.0** | Alternative lip-sync pipeline |
 | Text-to-speech | **ElevenLabs v3** | Voice generation, multilingual |
-| Lip-sync (legacy) | **Fal Fabric** | Alternative lip-sync |
 | Video processing | **FFmpeg** | Concatenation, subtitles |
-| Image analysis | **Gemini Vision** | Product/avatar auto-description |
+| Image/video analysis | **Gemini Vision** | Product/avatar auto-description, video analysis |
+| TikTok scraping | **Apify** (clockworks/tiktok-scraper) | Profile top videos by engagement |
+| TikTok download | **tikwm.com** | Video download (no auth) |
 
 ## Environment Variables
 
 ```env
-GEMINI_API_KEY=...         # Required — Gemini 2.5 Flash
+GEMINI_API_KEY=...         # Required — Gemini 2.5 Flash + Vision
 ELEVENLABS_API_KEY=...     # Required — ElevenLabs TTS
-FAL_KEY=...                # Required — Fal AI (Nano Banana, Kling, HeyGen Avatar 4)
-HEYGEN_API_KEY=...         # Optional — HeyGen legacy
-KLING_API_KEY=...          # Optional — Kling legacy
+FAL_KEY=...                # Required — Fal AI (Nano Banana, Kling, HeyGen Avatar 4, Fabric)
+APIFY_API_KEY=...          # Optional — TikTok profile scraping
+HEYGEN_API_KEY=...         # Optional — HeyGen legacy (not used in active pipeline)
+KLING_API_KEY=...          # Optional — Kling legacy (not used in active pipeline)
 ```
 
 ## Development
@@ -51,5 +55,5 @@ cd frontend && npm run build    # Output: frontend/dist/
 ```
 
 ## Key Dependencies
-- **Frontend** (24 packages): react, react-dom, react-router, tailwindcss, remotion, lucide-react, clsx, tailwind-merge
+- **Frontend**: react, react-dom, react-router, tailwindcss, remotion, lucide-react, clsx, tailwind-merge
 - **Backend**: fastapi, uvicorn, httpx, elevenlabs, google-generativeai, PyPDF2, beautifulsoup4, python-multipart

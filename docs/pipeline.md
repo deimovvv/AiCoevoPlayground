@@ -1,21 +1,20 @@
 # Coevo Studio — Pipeline Reference
 
-## UGC Creator Pipeline (7 steps)
+## UGC Creator Pipeline (6 steps)
 
 ```
 1. Script      Gemini generates 4-scene script (or user provides custom script per scene)
                Each scene: script text + visual direction + shot type
-2. Base Image  Nano Banana generates Scene 1 from avatar + product + clothing refs
+2. Base Image  Nano Banana generates Scene 1 from avatar + product + clothing + moodboard refs
                Composition reference image (optional)
                Positional reference labels for each image
-3. Multishot   Generates variations for scenes 2-4 using base as reference
-4. Curation    User selects best variation per scene
-               Edit panel with product picker available per variation
-5. Voice       ElevenLabs generates audio per scene
+3. Multishot   Generates variations for remaining scenes using base as reference
+               User selects best variation per scene (inline in multishot step)
+4. Voice       ElevenLabs generates audio per scene
                Editable text + Play/Regen + uploads to Fal for lipsync
-6. Lipsync     HeyGen Avatar 4: image + audio -> talking video per scene
+5. Lipsync     HeyGen Avatar 4: image + audio -> talking video per scene
                Uses falUrl from voice step (no re-generation)
-7. Render      FFmpeg concatenates all scenes
+6. Render      FFmpeg concatenates all scenes
                Generates both: with subtitles + without subtitles
                Word-by-word karaoke subtitles (Remotion preview)
 ```
@@ -30,8 +29,19 @@
 3. Images      Generates frames 2-10 sequentially (each refs previous)
                Audio generated per frame via ElevenLabs
 4. Voice       Audio review per frame: Play/Edit/Regen
-5. Animate     Kling V3 Pro frame-to-frame (9 transitions)
+5. Animate     Kling frame-to-frame (9 transitions)
 6. Render      FFmpeg concat + subtitles
+```
+
+## Fashion Reel Pipeline (5 steps)
+
+```
+1. Script      Story mode: Gemini generates 4-scene arc (Hook/Movement/Showcase/Closer)
+               Looks mode: generates scenes directly from selected clothing items (no Gemini)
+2. Base Image  Nano Banana generates first scene with avatar + clothing + moodboard refs
+3. Multishot   Generates remaining scenes, each with per-scene clothing selection
+4. Animate     Kling image-to-video per scene with motion prompts
+5. Render      FFmpeg concat — no subtitles, no voice
 ```
 
 ## Static Ad Pipeline (2 steps)
@@ -52,6 +62,20 @@
                Slide count selector (3-6)
 2. Generate    Sequential generation, each slide refs product + slide 1
                Edit panel per slide
+```
+
+## Content Analyzer Pipeline (3 steps)
+
+```
+1. Analyze     Upload video file or paste URL (TikTok, YouTube, Instagram)
+               Gemini Vision: extract script, scenes, visual style, camera work, pacing
+               content_type detection: UGC | dance | movement | editorial | lifestyle | cinematic | etc.
+2. Adapt       Gemini adapts content for your brand
+               Replaces product/avatar/clothing references, keeps structure
+               Generates per-scene image prompts + adapted script
+3. Route       Scene preview panel (script + image prompt per scene)
+               Auto-suggests destination tool based on content_type + isVisualOnly detection
+               Launch destination → all data + assets transfer via sessionStorage
 ```
 
 ## PromptBuilder System
@@ -75,13 +99,14 @@ Available Variables:
 
 Nano Banana 2 uses positional image references. Order matters:
 
-### UGC
+### UGC / Fashion Reel
 ```
 Image 1: Avatar (face/identity)
 Image 2: Composition reference (optional pose/setting)
 Image 3+: Clothing items
 Image N-1: Product (+ extra images if multi-photo)
-Image N: Background
+Image N-1: Background
+Image N: Moodboard (visual style reference — if selected)
 ```
 
 ### Carousel / Static Ad

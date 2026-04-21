@@ -37,17 +37,25 @@ def is_configured() -> bool:
     return key is not None and len(key) > 0
 
 
-# Default prompt for UGC avatar videos — talking to camera, ready for lip sync
+# Default prompt for UGC avatar videos — natural body movement, ready for lip sync overlay
 DEFAULT_PROMPT = (
-    "A person talking directly to the camera in a selfie-style UGC video. "
-    "Natural expressive gestures and head movements while speaking. "
-    "Friendly, engaging energy as if presenting a product to their audience. "
-    "Mouth moving naturally as if speaking with enthusiasm. "
-    "Shoulders and hands slightly animated with conversational gestures. "
-    "Well-lit, casual setting. Photorealistic, high quality, 9:16 vertical portrait."
+    "A person looking at the camera in a selfie-style UGC video. "
+    "Natural subtle body movement: gentle breathing, slight head sway, relaxed shoulder motion. "
+    "Friendly, calm energy. Closed mouth, neutral expression. "
+    "Soft hand and arm movement as if at rest between sentences. "
+    "Well-lit, casual setting. Single continuous shot, one person only. "
+    "Photorealistic, high quality, 9:16 vertical portrait, smooth natural motion."
 )
 
-DEFAULT_NEGATIVE = "blur, distort, low quality, unnatural motion, excessive movement, morphing face, frozen, static, stiff"
+DEFAULT_NEGATIVE = (
+    "blur, distortion, low quality, watermark, text, subtitles, "
+    "split screen, double image, duplicate person, mirrored frame, two people, cloned figure, "
+    "tiled image, collage, grid, multiple panels, "
+    "morphing face, melting skin, warped features, extra limbs, deformed hands, "
+    "frozen, completely static, stiff, no movement, "
+    "excessive shake, jitter, fast zoom, unnatural motion, jerky movement, "
+    "black bars, letterbox, pillarbox"
+)
 
 
 # ══════════════════════════════════════════════════════════════

@@ -32,7 +32,6 @@
 **Goal**: Modular creative tools with context-aware prompt system.
 
 - Tools registry (`registry.json` + prompt templates)
-- 9 registered tools (6 active, 3 coming soon)
 - PromptBuilder 3-layer system (default → brand override → dynamic vars)
 - AI Chat with Gemini, brand context, asset chips
 - Brand switcher in sidebar
@@ -42,29 +41,35 @@
 
 ## Phase 4 — Full Pipeline Integration (Complete)
 
-**Goal**: All AI services wired end-to-end.
+**Goal**: All AI services wired end-to-end, full tool suite.
 
-- Gemini 2.5 Flash: script generation with brand-aware prompts
-- Nano Banana 2: image generation with multi-reference (avatar + clothing + product + background)
+- Gemini 2.5 Flash: script generation, video analysis, prompt assembly
+- Nano Banana 2: image generation with multi-reference (avatar + clothing + product + background + moodboard)
 - ElevenLabs: TTS with custom voice IDs per brand
 - HeyGen Avatar 4 (via Fal): lip-sync video from image + audio
 - FFmpeg: video concatenation + word-by-word subtitles
-- Human-in-the-loop: script review, base image review, test video, manual curation
-- Inline asset upload from pipeline form (clothing, backgrounds)
-- Audio generation + Fal Storage upload via backend endpoint
-- Content library with real generations
+- Human-in-the-loop: script review, base image review, manual curation
+- Content Analyzer: video analysis + adapt + route pipeline
+- Brand DNA: AI-extracted identity from URL/PDF
+- Moodboards: visual style references per brand (up to 5, one active per tool)
+- Sandbox brand: always-available workspace for quick generation
+- Prompt templates grouped by tool category in BrandSettings
 
 **Current tools**:
 
 | Tool | Category | Status |
 |------|----------|--------|
-| UGC Creator | Video | Active (8-step pipeline) |
+| UGC Creator | Video | Active (6-step pipeline) |
+| Video Ad Creator | Video | Active (6-step pipeline) |
+| Fashion Reel | Video | Active (5-step, Story + Looks modes) |
+| Product Clip | Video | Active |
+| Content Analyzer | Images → Routes | Active |
+| Static Ad | Images | Active |
+| Carousel Creator | Images | Active |
+| Ad Creative Lab | Images | Active |
 | Product Spotlight | Images | Active |
 | Fashion Editorial | Images | Active |
-| Fashion Reels | Video | Active |
-| Product Photos | Images | Active |
-| Ad Creative | Images | Active |
-| Social Post | Copy | Active |
+| Avatar Creator | Images | Active |
 | Reel Creator | Video | Coming Soon |
 | Background Remover | Images | Coming Soon |
 
@@ -75,12 +80,13 @@
 **Goal**: Production-ready for internal team use.
 
 **TODO**:
-- End-to-end UGC pipeline test (script → render with real video output)
+- End-to-end pipeline test across all active tools
 - Content page: download, preview, delete generations
-- Storage abstraction (Local → Cloudflare R2) for deploy
+- Storage abstraction (Local → Cloudflare R2 or S3) for deploy
 - Basic auth (Clerk or shared password) for team access
-- Deploy: Vercel (frontend) + Render (backend)
+- Deploy: Vercel (frontend) + Render/Railway (backend)
 - Clean up error handling and retry UX
+- Design system fields in brand kit (color palette, typography, photo style, voice/tone rules)
 
 ---
 

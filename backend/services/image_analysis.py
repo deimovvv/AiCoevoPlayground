@@ -193,7 +193,7 @@ FORMAT: Respond with ONLY a JSON object:
   "style_guide": "overall visual style description",
   "color_palette": ["#hex1", "#hex2"],
   "structure": "hook → story → cta breakdown",
-  "content_type": "UGC | editorial | product-ad | lifestyle | cinematic",
+  "content_type": "UGC | editorial | product-ad | lifestyle | cinematic | dance | transformation | movement | fashion-movement",
   "estimated_duration": "seconds",
   "key_insights": "what makes this content effective"
 }}"""
@@ -211,51 +211,54 @@ async def analyze_video_direct(
     Send a complete video directly to Gemini for analysis.
     Gemini sees the full video — visual, audio, text on screen.
     """
-    prompt = f"""You are a creative strategist analyzing a video ad/content piece.
+    prompt = f"""Eres un estratega creativo analizando un video de contenido o publicidad.
 
-Watch the ENTIRE video carefully — visuals, audio, text on screen, pacing, everything.
+Mirá el video COMPLETO con atención — visuales, audio, texto en pantalla, ritmo, todo.
 
-{f'Source: {video_url}' if video_url else ''}
-{f'Brand context for reference: {brand_context}' if brand_context else ''}
+{f'Fuente: {video_url}' if video_url else ''}
+{f'Contexto de marca: {brand_context}' if brand_context else ''}
 
-Provide a complete analysis:
+Analizá en detalle:
 
-1. SCRIPT/NARRATION: Transcribe or reconstruct what is being said (voiceover, dialogue, or on-screen text). Keep the original language.
+1. GUIÓN/NARRACIÓN: Transcribí o reconstruí lo que se dice (voiceover, diálogo, texto en pantalla). Mantené el idioma original del video.
 
-2. SCENE BREAKDOWN: List each distinct scene/shot:
-   - What's happening visually
-   - Camera angle and movement
-   - Duration estimate
-   - Text or graphics on screen
+2. ESCENAS: Para cada plano o escena distinta:
+   - Qué pasa visualmente
+   - Ángulo y movimiento de cámara
+   - Duración estimada
+   - Texto o gráficos en pantalla
 
-3. VISUAL STYLE: Color palette (hex codes), lighting, aesthetic, transitions
+3. ESTILO VISUAL: Paleta de colores (hex), iluminación, estética, transiciones
 
-4. AUDIO: Music style, voiceover tone, sound effects
+4. AUDIO: Estilo musical, tono del voiceover, efectos de sonido
 
-5. STRUCTURE: Hook → Story → CTA breakdown, pacing
+5. ESTRUCTURA: Desglose Hook → Historia → CTA, ritmo y pacing
 
-6. IMAGE PROMPTS: For each scene, write a Nano Banana 2 prompt (2-3 sentences, English) to recreate it
+6. PROMPTS DE IMAGEN: Para cada escena, escribí un prompt Nano Banana 2 (2-3 oraciones, en INGLÉS) para recrearla
 
-Respond with ONLY a JSON object:
+Respondé con SOLO un objeto JSON válido. Empezá con {{ y terminá con }}.
+Los campos "key_insights", "structure", "style_guide" deben estar en español.
+Los "image_prompt" de cada escena deben estar en inglés.
+
 {{
-  "estimated_script": "full transcription/script",
+  "estimated_script": "transcripción completa del guión",
   "scenes": [
     {{
       "frame": 1,
-      "description": "what happens",
-      "image_prompt": "Nano Banana prompt",
-      "camera": "angle/movement",
-      "mood": "atmosphere",
-      "duration_estimate": "seconds"
+      "description": "qué pasa en esta escena",
+      "image_prompt": "Nano Banana prompt in English, 2-3 sentences",
+      "camera": "ángulo y movimiento",
+      "mood": "atmósfera y emoción",
+      "duration_estimate": "segundos estimados"
     }}
   ],
-  "style_guide": "overall visual style",
+  "style_guide": "estilo visual general en español",
   "color_palette": ["#hex1", "#hex2"],
-  "audio_description": "music and sound",
-  "structure": "hook → story → cta",
-  "content_type": "UGC | editorial | product-ad | lifestyle | cinematic",
-  "estimated_duration": "total seconds",
-  "key_insights": "what makes this effective"
+  "audio_description": "descripción de música y sonido en español",
+  "structure": "hook → historia → cta en español",
+  "content_type": "UGC | editorial | product-ad | lifestyle | cinematic | dance | transformation | movement | fashion-movement",
+  "estimated_duration": "duración total en segundos",
+  "key_insights": "por qué funciona este contenido — en español"
 }}"""
 
     return await _call_vision_with_video(prompt, video_bytes, mime_type)
@@ -297,6 +300,30 @@ async def _call_vision_with_video(prompt: str, video_bytes: bytes, mime_type: st
         raise Exception("No response from Gemini Vision")
 
     return candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+
+
+async def analyze_pose(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    """
+    Analyze a reference image and extract ONLY pose/body position description.
+    Ignores lighting, style, colors, background — just the physical poses.
+    Used so multi-person reference images can guide generation without confusing the model.
+    """
+    prompt = """Analyze this image and describe ONLY the body poses and positions of the people in it.
+
+Focus exclusively on:
+- Number of people and their relative positioning (side by side, facing each other, etc.)
+- Body posture and stance of each person (standing, leaning, arms raised, etc.)
+- Camera framing (full body, half body / waist-up, close-up, etc.)
+- Camera angle (eye-level, slight low angle, overhead, etc.)
+- Hand and arm positions (arm extended, hand raised, holding something near chest, etc.)
+- Head/face direction (looking at camera, looking sideways, etc.)
+- Energy/dynamism of the pose (relaxed, dynamic, candid, posed, etc.)
+
+Do NOT describe: lighting, colors, clothing style, background, facial features, mood, aesthetic, or anything unrelated to body positioning.
+
+Return a single concise paragraph (2-4 sentences) suitable for use as a pose reference in an image generation prompt. Start directly with the description, no preamble."""
+
+    return await _call_vision(prompt, [(image_bytes, mime_type)])
 
 
 async def _call_vision(prompt: str, images: list[tuple[bytes, str]]) -> str:

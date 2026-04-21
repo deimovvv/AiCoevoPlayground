@@ -1,5 +1,6 @@
-import { FolderOpen, Image, Video, FileText, Search, Grid3X3, List, Trash2, ExternalLink, Loader2, X, Download } from "lucide-react";
+import { FolderOpen, Image, Video, FileText, Search, Grid3X3, List, Trash2, ExternalLink, Loader2, X, Download, Pencil } from "lucide-react";
 import { useState, useEffect } from "react";
+import { Link } from "react-router";
 import { useBrand } from "../lib/BrandContext";
 import { fetchGenerations, deleteGeneration } from "../lib/api";
 import type { Generation } from "../lib/api";
@@ -474,6 +475,15 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                                 <Download size={14} />
                                 Download
                             </a>
+                        )}
+                        {gen.pipelineState && (
+                            <Link
+                                to={`/dashboard/generate/${gen.toolId}?gen=${gen.id}`}
+                                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-[13px] font-medium text-fg bg-surface-2 hover:bg-surface-3 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+                            >
+                                <Pencil size={14} />
+                                Continue editing
+                            </Link>
                         )}
                         <button
                             onClick={onDelete}
