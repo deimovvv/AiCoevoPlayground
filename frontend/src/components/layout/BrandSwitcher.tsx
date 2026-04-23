@@ -1,41 +1,20 @@
-import { useState, useRef, useEffect } from "react";
 import { useBrand } from "../../lib/BrandContext";
-import { ChevronDown, Check, Plus, Loader2, FlaskConical } from "lucide-react";
+import { Loader2, FlaskConical, LayoutGrid } from "lucide-react";
 import { useNavigate } from "react-router";
 import { cn } from "../../lib/utils";
 
+const API_BASE = "http://localhost:8000";
+
 export function BrandSwitcher() {
-  const { brands, activeBrand, setActiveBrandId, loading } = useBrand();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const { activeBrand, loading } = useBrand();
   const navigate = useNavigate();
-
-  // Close on click outside
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    if (open) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  // Close on Escape
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    if (open) document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [open]);
 
   if (loading) {
     return (
       <div className="px-4 py-5 border-b border-edge">
         <div className="flex items-center gap-2 text-fg-muted">
           <Loader2 size={15} className="animate-spin" />
-          <span className="text-[13px]">Loading...</span>
+          <span className="text-[13px]">Cargando...</span>
         </div>
       </div>
     );
@@ -49,106 +28,49 @@ export function BrandSwitcher() {
       .slice(0, 2)
       .toUpperCase();
 
+  const isSandbox = activeBrand?.id === "__sandbox__";
+  const hasLogo = !!activeBrand?.logo?.imageUrl;
+
   return (
-    <div ref={ref} className="relative px-4 py-5 border-b border-edge">
+    <div className="px-4 py-4 border-b border-edge">
       <button
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "w-full flex items-center gap-2.5 cursor-pointer rounded-[var(--radius-sm)] transition-colors group",
-          "hover:opacity-80"
-        )}
+        onClick={() => navigate("/dashboard/brands")}
+        className="w-full flex items-center gap-2.5 cursor-pointer rounded-[var(--radius-sm)] px-1 py-1 -mx-1 -my-1 hover:bg-surface-1 transition-colors group"
+        title="Ver todas las marcas"
       >
         {/* Brand avatar */}
-        <div className="w-7 h-7 rounded-[var(--radius-sm)] bg-[var(--color-warm-muted)] flex items-center justify-center shrink-0">
-          <span className="text-[10px] font-bold text-[var(--color-warm)] leading-none">
-            {activeBrand ? initials(activeBrand.name) : "?"}
-          </span>
-        </div>
-
-        {/* Brand name */}
-        <span className="flex-1 text-left font-semibold text-[14px] text-fg tracking-tight truncate">
-          {activeBrand?.name ?? "Select brand"}
-        </span>
-
-        <ChevronDown
-          size={13}
+        <div
           className={cn(
-            "text-fg-faint transition-transform duration-200 shrink-0",
-            open && "rotate-180"
+            "w-8 h-8 rounded-[var(--radius-sm)] flex items-center justify-center shrink-0 overflow-hidden",
+            isSandbox ? "bg-surface-2" : "bg-[var(--color-warm-muted)]"
           )}
-        />
-      </button>
+        >
+          {hasLogo && activeBrand ? (
+            <img
+              src={`${API_BASE}${activeBrand.logo!.imageUrl}`}
+              alt={activeBrand.name}
+              className="max-w-full max-h-full object-contain p-0.5 bg-white"
+            />
+          ) : isSandbox ? (
+            <FlaskConical size={14} className="text-fg-faint" />
+          ) : (
+            <span className="text-[10px] font-bold text-[var(--color-warm)] leading-none">
+              {activeBrand ? initials(activeBrand.name) : "?"}
+            </span>
+          )}
+        </div>
 
-      {/* Dropdown */}
-      {open && (
-        <div className="absolute left-3 right-3 top-full mt-1 z-50 bg-surface-1 border border-edge rounded-[var(--radius-md)] shadow-lg overflow-hidden">
-          {/* Brand list */}
-          <div className="max-h-[240px] overflow-y-auto py-1">
-            {brands.filter(b => b.id !== "__sandbox__").length === 0 && (
-              <div className="px-3 py-4 text-center text-fg-muted text-[13px]">
-                No brands yet
-              </div>
-            )}
-            {brands.filter(b => b.id !== "__sandbox__").map((brand) => {
-              const isActive = brand.id === activeBrand?.id;
-              return (
-                <button
-                  key={brand.id}
-                  onClick={() => { setActiveBrandId(brand.id); setOpen(false); }}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-3 py-2 text-left cursor-pointer transition-colors",
-                    isActive ? "bg-surface-2 text-fg" : "text-fg-secondary hover:bg-surface-2 hover:text-fg"
-                  )}
-                >
-                  <div className="w-6 h-6 rounded-[var(--radius-sm)] bg-[var(--color-warm-muted)] flex items-center justify-center shrink-0">
-                    <span className="text-[9px] font-bold text-[var(--color-warm)] leading-none">{initials(brand.name)}</span>
-                  </div>
-                  <span className="flex-1 text-[13px] font-medium truncate">{brand.name}</span>
-                  {isActive && <Check size={14} className="text-[var(--color-warm)] shrink-0" />}
-                </button>
-              );
-            })}
+        {/* Brand name + label */}
+        <div className="flex-1 min-w-0 text-left">
+          <div className="text-[13px] font-semibold text-fg truncate leading-tight">
+            {activeBrand?.name ?? "Sin marca"}
           </div>
-
-          {/* Sandbox */}
-          <div className="border-t border-edge">
-            {(() => {
-              const sandbox = brands.find(b => b.id === "__sandbox__");
-              if (!sandbox) return null;
-              const isActive = activeBrand?.id === "__sandbox__";
-              return (
-                <button
-                  onClick={() => { setActiveBrandId("__sandbox__"); setOpen(false); }}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-3 py-2.5 text-left cursor-pointer transition-colors",
-                    isActive ? "bg-surface-2 text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg"
-                  )}
-                >
-                  <div className="w-6 h-6 rounded-[var(--radius-sm)] bg-surface-3 flex items-center justify-center shrink-0">
-                    <FlaskConical size={11} className="text-fg-faint" />
-                  </div>
-                  <span className="flex-1 text-[13px] font-medium">Sandbox</span>
-                  {isActive && <Check size={14} className="text-[var(--color-warm)] shrink-0" />}
-                </button>
-              );
-            })()}
-          </div>
-
-          {/* Manage brands link */}
-          <div className="border-t border-edge">
-            <button
-              onClick={() => {
-                setOpen(false);
-                navigate("/dashboard/brands");
-              }}
-              className="w-full flex items-center gap-2 px-3 py-2.5 text-fg-muted hover:text-fg hover:bg-surface-2 transition-colors cursor-pointer"
-            >
-              <Plus size={14} />
-              <span className="text-[13px] font-medium">Manage brands</span>
-            </button>
+          <div className="text-[10px] text-fg-faint leading-tight mt-0.5 flex items-center gap-1">
+            <LayoutGrid size={9} />
+            Ver todas las marcas
           </div>
         </div>
-      )}
+      </button>
     </div>
   );
 }

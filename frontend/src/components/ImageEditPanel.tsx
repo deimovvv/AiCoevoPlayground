@@ -68,7 +68,7 @@ export function ImageEditPanel({
         onImageUpdated(result.image_url);
       }
     } catch (err) {
-      console.error("Edit failed:", err);
+      console.error("Error al editar:", err);
     } finally {
       setLoading(false);
     }
@@ -89,7 +89,7 @@ export function ImageEditPanel({
           }}
           className="text-[10px] px-2.5 py-1 bg-[var(--color-warm-muted)] text-[var(--color-warm)] rounded-full cursor-pointer hover:opacity-80"
         >
-          Fix Product
+          Corregir producto
         </button>
         <button
           onClick={() => {
@@ -101,13 +101,13 @@ export function ImageEditPanel({
           }}
           className="text-[10px] px-2.5 py-1 bg-surface-3 text-fg-muted rounded-full cursor-pointer hover:text-fg"
         >
-          Fix Clothing
+          Corregir ropa
         </button>
         <button
           onClick={() => setPrompt("Make the lighting warmer and more natural.")}
           className="text-[10px] px-2.5 py-1 bg-surface-3 text-fg-muted rounded-full cursor-pointer hover:text-fg"
         >
-          Warmer Light
+          Luz más cálida
         </button>
         <button
           onClick={() => {
@@ -118,14 +118,14 @@ export function ImageEditPanel({
           }}
           className="text-[10px] px-2.5 py-1 bg-surface-3 text-fg-muted rounded-full cursor-pointer hover:text-fg"
         >
-          Show Product
+          Mostrar producto
         </button>
       </div>
 
       {/* Product image picker */}
       {allProductImages.length > 0 && (
         <div className="space-y-1.5">
-          <span className="text-[9px] font-medium text-fg-faint uppercase tracking-wider">Product reference (click to include)</span>
+          <span className="text-[9px] font-medium text-fg-faint uppercase tracking-wider">Referencia del producto (click para incluir)</span>
           <div className="flex gap-1.5 flex-wrap">
             {allProductImages.map((img, idx) => (
               <button
@@ -151,7 +151,7 @@ export function ImageEditPanel({
         <input
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Describe what to change..."
+          placeholder="Describí qué cambiar..."
           className="flex-1 h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg placeholder:text-fg-faint outline-none"
           onKeyDown={(e) => e.key === "Enter" && handleApply()}
         />
@@ -161,12 +161,12 @@ export function ImageEditPanel({
           className={cn(
             "flex items-center gap-1.5 px-4 py-2 text-[11px] font-medium rounded-[var(--radius-sm)] transition-colors",
             !loading && prompt.trim()
-              ? "text-white bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+              ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
               : "text-fg-faint bg-surface-1 cursor-not-allowed"
           )}
         >
           {loading ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-          {loading ? "..." : "Apply"}
+          {loading ? "..." : "Aplicar"}
         </button>
         {onClose && (
           <button

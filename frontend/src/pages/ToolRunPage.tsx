@@ -32,6 +32,7 @@ import {
   Download,
   Zap,
   X,
+  Mountain,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
@@ -74,127 +75,127 @@ const STEP_META: Record<
   script: {
     label: "Script",
     icon: <Type size={15} />,
-    description: "Generate the script/copy using AI",
+    description: "Generá el script/copy con IA",
   },
   base_image: {
-    label: "Base Image",
+    label: "Imagen base",
     icon: <ImageIcon size={15} />,
-    description: "Generate and approve the hero image for scene 1",
+    description: "Generá y aprobá la imagen hero de la escena 1",
   },
   multishot: {
     label: "Shots",
     icon: <Camera size={15} />,
-    description: "Generate variations per scene — select the best for each",
+    description: "Generá variaciones por escena — elegí la mejor de cada una",
   },
   images: {
-    label: "Images",
+    label: "Imágenes",
     icon: <ImageIcon size={15} />,
-    description: "Generate image variations for each scene",
+    description: "Generá variaciones de imagen para cada escena",
   },
   image: {
-    label: "Image",
+    label: "Imagen",
     icon: <ImageIcon size={15} />,
-    description: "Generate the visual creative",
+    description: "Generá el creativo visual",
   },
   curation: {
-    label: "Curation",
+    label: "Curación",
     icon: <Eye size={15} />,
-    description: "Select and reorder the best shots for your video",
+    description: "Elegí y reordená los mejores shots del video",
   },
   voice: {
-    label: "Voice",
+    label: "Voz",
     icon: <Mic size={15} />,
-    description: "Generate voiceover with text-to-speech",
+    description: "Generá el voiceover con text-to-speech",
   },
   lipsync: {
-    label: "Lip-Sync",
+    label: "Lip-sync",
     icon: <Video size={15} />,
-    description: "Animate the image with lip-sync",
+    description: "Animá la imagen con lip-sync",
   },
   subtitles: {
-    label: "Subtitles",
+    label: "Subtítulos",
     icon: <Type size={15} />,
-    description: "Auto-generate subtitles overlay",
+    description: "Subtítulos en overlay generados automáticamente",
   },
   render: {
     label: "Render",
     icon: <Film size={15} />,
-    description: "Combine all elements into final output",
+    description: "Combinar todos los elementos en el output final",
   },
   prompt: {
     label: "Prompt",
     icon: <Wand2 size={15} />,
-    description: "Generate image prompts from brand context",
+    description: "Generá prompts de imagen desde el contexto de marca",
   },
   generate: {
-    label: "Generate",
+    label: "Generar",
     icon: <Sparkles size={15} />,
-    description: "Run the AI generation",
+    description: "Correr la generación con IA",
   },
   copy: {
     label: "Copy",
     icon: <Type size={15} />,
-    description: "Generate ad copy and headlines",
+    description: "Generá copy y headlines del ad",
   },
   compose: {
-    label: "Compose",
+    label: "Componer",
     icon: <Palette size={15} />,
-    description: "Compose the final ad creative",
+    description: "Componer el creativo final",
   },
   caption: {
     label: "Caption",
     icon: <Type size={15} />,
-    description: "Generate social media caption",
+    description: "Generá un caption para social media",
   },
   scenes: {
-    label: "Scenes",
+    label: "Escenas",
     icon: <ListChecks size={15} />,
-    description: "Generate scene descriptions",
+    description: "Generá descripciones de escenas",
   },
   music: {
-    label: "Music",
+    label: "Música",
     icon: <Mic size={15} />,
-    description: "Select music mood and track",
+    description: "Elegí el mood musical y el track",
   },
   remove: {
-    label: "Remove BG",
+    label: "Quitar fondo",
     icon: <Scissors size={15} />,
-    description: "AI background removal",
+    description: "Eliminación de fondo con IA",
   },
   variations: {
-    label: "Variations",
+    label: "Variaciones",
     icon: <Camera size={15} />,
-    description: "Generate multiple variations for selection",
+    description: "Generá varias variaciones para elegir",
   },
   animate: {
-    label: "Animate",
+    label: "Animar",
     icon: <Video size={15} />,
-    description: "Animate frames with Kling for smooth transitions",
+    description: "Animá los frames con Kling para transiciones suaves",
   },
   visual_guide: {
-    label: "Visual Guide",
+    label: "Guía visual",
     icon: <Palette size={15} />,
-    description: "Analyze reference images to extract brand visual style",
+    description: "Analizá imágenes de referencia para extraer el estilo visual",
   },
   prompts: {
     label: "Prompts",
     icon: <Wand2 size={15} />,
-    description: "Generate creative prompts from visual guide + product",
+    description: "Generá prompts creativos desde la guía visual + producto",
   },
   generate_batch: {
-    label: "Generate",
+    label: "Generar",
     icon: <Sparkles size={15} />,
-    description: "Generate all ad creatives from prompts",
+    description: "Generá todos los creativos desde los prompts",
   },
   analyze: {
-    label: "Analyze",
+    label: "Analizar",
     icon: <Eye size={15} />,
-    description: "Analyze video content with Gemini Vision",
+    description: "Analizá el video con Gemini Vision",
   },
   adapt: {
-    label: "Adapt",
+    label: "Adaptar",
     icon: <Wand2 size={15} />,
-    description: "Adapt content to your brand",
+    description: "Adaptá el contenido a tu marca",
   },
   route: {
     label: "Crear contenido",
@@ -202,9 +203,9 @@ const STEP_META: Record<
     description: "Elegí cómo querés usar este contenido en tu marca",
   },
   review: {
-    label: "Review",
+    label: "Revisar",
     icon: <Eye size={15} />,
-    description: "Review, edit, and iterate on generated creatives",
+    description: "Revisá, editá e iterá sobre los creativos generados",
   },
 };
 
@@ -268,6 +269,12 @@ interface ToolConfig {
   hookType: "none" | "distracted" | "empty-room" | "walks-in" | "looks-down" | "phone-flip";
   hookMode: "standard" | "fooh";
   foohPrompt: string;
+  // ElevenLabs voice settings
+  voiceStability: number;
+  voiceSimilarityBoost: number;
+  voiceStyle: number;
+  voiceSpeed: number;
+  voiceSpeakerBoost: boolean;
 }
 
 const DEFAULT_CONFIG: ToolConfig = {
@@ -309,6 +316,11 @@ const DEFAULT_CONFIG: ToolConfig = {
   hookType: "none",
   hookMode: "standard",
   foohPrompt: "",
+  voiceStability: 0.5,
+  voiceSimilarityBoost: 0.8,
+  voiceStyle: 0.0,
+  voiceSpeed: 1.0,
+  voiceSpeakerBoost: true,
 };
 
 // ── Mock data for preview ─────────────────────────────────
@@ -514,6 +526,26 @@ export function ToolRunPage() {
       .catch(() => { /* generation not found or no pipeline state */ });
   }, [generationId, tool]);
 
+  // Apply handoff from chat ("Crear con esto" button)
+  useEffect(() => {
+    if (!tool) return;
+    try {
+      const raw = sessionStorage.getItem("coevo-chat-handoff");
+      if (!raw) return;
+      const h = JSON.parse(raw) as { from: string; brief?: string; tool?: string };
+      if (h.from !== "chat" || h.tool !== tool.id) return;
+      sessionStorage.removeItem("coevo-chat-handoff");
+      if (h.brief) {
+        setConfig((prev) => ({
+          ...prev,
+          objective: prev.objective ? `${prev.objective}\n\n${h.brief}` : h.brief!,
+        }));
+      }
+    } catch (err) {
+      console.error("[chat-handoff] parse error:", err);
+    }
+  }, [tool]);
+
   // Apply handoff from Content Analyzer routing
   useEffect(() => {
     console.log("[handoff] effect fired — key:", handoffKey, "tool:", tool?.id);
@@ -666,7 +698,7 @@ export function ToolRunPage() {
         >
           Back to tools
         </Link>
-        <div className="text-center py-16 text-fg-muted">Tool not found</div>
+        <div className="text-center py-16 text-fg-muted">Tool no encontrada</div>
       </div>
     );
   }
@@ -844,7 +876,7 @@ export function ToolRunPage() {
   };
 
   // Helper: get script scenes from the script step result
-  const getScriptScenes = (): Array<{ id: string; title: string; script: string; image_prompt: string; sceneType: "talking" | "creative"; narrativeSceneType?: string; location?: string; _showProduct?: boolean; _useAvatar?: boolean }> => {
+  const getScriptScenes = (): Array<{ id: string; title: string; script: string; image_prompt: string; sceneType: "talking" | "creative"; narrativeSceneType?: string; location?: string; backgroundId?: string | null; _showProduct?: boolean; _useAvatar?: boolean }> => {
     const scriptResult = getStepResult("script") as Record<string, unknown> | undefined;
     if (!scriptResult) return [];
 
@@ -879,12 +911,15 @@ export function ToolRunPage() {
       const sceneType = (s.sceneType as "talking" | "creative") || "talking";
       const narrativeSceneType = s.narrativeSceneType ? String(s.narrativeSceneType) : undefined;
       const location = s.location ? String(s.location) : undefined;
+      // Per-scene background override: string = specific asset id, null = force none, undefined = inherit global
+      const bgRaw = (s as { backgroundId?: string | null }).backgroundId;
+      const backgroundId = bgRaw === null ? null : (typeof bgRaw === "string" && bgRaw.length > 0 ? bgRaw : undefined);
       const showProduct = typeof s._showProduct === "boolean" ? s._showProduct : undefined;
       // avatar: false (from Gemini or custom script) → skip avatar refs, use text-to-image
       const avatarVal = s.avatar ?? s._useAvatar;
       const useAvatar = (avatarVal === false || avatarVal === "false") ? false : undefined;
 
-      return { id, title, script: scriptText, image_prompt: finalImagePrompt, sceneType, narrativeSceneType, location, _showProduct: showProduct, _useAvatar: useAvatar };
+      return { id, title, script: scriptText, image_prompt: finalImagePrompt, sceneType, narrativeSceneType, location, backgroundId, _showProduct: showProduct, _useAvatar: useAvatar };
     });
   };
 
@@ -1621,7 +1656,7 @@ export function ToolRunPage() {
                 className={cn(
                   "flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium rounded-[var(--radius-sm)] transition-all cursor-pointer",
                   activeBrand
-                    ? "text-white bg-[var(--color-warm)] hover:opacity-90"
+                    ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90"
                     : "text-fg-faint bg-surface-2 cursor-not-allowed"
                 )}
               >
@@ -1668,7 +1703,7 @@ export function ToolRunPage() {
                         : step.status === "review"
                           ? "bg-[var(--color-warning)] text-white"
                           : step.status === "active" || step.status === "running"
-                            ? "bg-[var(--color-warm)] text-white"
+                            ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]"
                             : step.status === "error"
                               ? "bg-[var(--color-error)] text-white"
                               : "bg-surface-2 text-fg-faint border border-edge"
@@ -1898,13 +1933,13 @@ function ContentAnalyzerInput({
         <div className="flex rounded-[var(--radius-sm)] overflow-hidden border border-edge text-[11px]">
           <button
             onClick={() => setMode("video")}
-            className={`px-3 py-1 ${mode === "video" ? "bg-[var(--color-warm)] text-white" : "bg-surface-2 text-fg-faint hover:text-fg"}`}
+            className={`px-3 py-1 ${mode === "video" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]" : "bg-surface-2 text-fg-faint hover:text-fg"}`}
           >
             URL / Upload
           </button>
           <button
             onClick={() => setMode("profile")}
-            className={`px-3 py-1 ${mode === "profile" ? "bg-[var(--color-warm)] text-white" : "bg-surface-2 text-fg-faint hover:text-fg"}`}
+            className={`px-3 py-1 ${mode === "profile" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]" : "bg-surface-2 text-fg-faint hover:text-fg"}`}
           >
             Perfil TikTok
           </button>
@@ -1940,7 +1975,7 @@ function ContentAnalyzerInput({
             <button
               onClick={fetchTopVideos}
               disabled={loading || !profileUrl.trim()}
-              className="px-4 h-9 rounded-[var(--radius-sm)] bg-[var(--color-warm)] text-white text-[12px] font-medium disabled:opacity-50 flex items-center gap-1.5"
+              className="px-4 h-9 rounded-[var(--radius-sm)] bg-[var(--color-warm)] text-[var(--color-warm-fg)] text-[12px] font-medium disabled:opacity-50 flex items-center gap-1.5"
             >
               {loading ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
               Analizar
@@ -2077,7 +2112,7 @@ function ConfigPanel({
       {/* Avatar style selector (Avatar Creator) */}
       {tool.id === "avatar_creator" && (
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
-          <label className="text-[12px] font-semibold text-fg-secondary">Avatar Style</label>
+          <label className="text-[12px] font-semibold text-fg-secondary">Estilo de avatar</label>
           <div className="grid grid-cols-3 gap-2">
             {[
               { id: "realistic", label: "Realistic", desc: "Photorealistic" },
@@ -2108,196 +2143,15 @@ function ConfigPanel({
         </div>
       )}
 
-      {/* UGC production settings */}
+      {/* UGC production settings — presets + grouped sections */}
       {tool.id === "ugc_creator" && (
-        <div className="space-y-4">
-          {/* Modo */}
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Modo</span>
-            <div className="flex bg-surface-1 rounded-[var(--radius-sm)] p-0.5">
-              {([
-                { id: "standard" as const, label: "Estándar" },
-                { id: "narrative" as const, label: "Narrativo" },
-              ] as const).map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setConfig((p) => ({ ...p, ugcMode: m.id }))}
-                  className={cn(
-                    "flex-1 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                    config.ugcMode === m.id ? "bg-[var(--color-warm)] text-white shadow-sm" : "text-fg-faint hover:text-fg"
-                  )}
-                >{m.label}</button>
-              ))}
-            </div>
-            <p className="text-[10px] text-fg-faint leading-relaxed">
-              {config.ugcMode === "standard" ? "Una locación, foco en el avatar." : "Múltiples ambientes, estilo cortometraje."}
-            </p>
-          </div>
-
-          {/* Lipsync */}
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Lipsync</span>
-            <div className="flex bg-surface-1 rounded-[var(--radius-sm)] p-0.5">
-              {([
-                { id: "heygen" as const, label: "HeyGen Avatar 4" },
-                { id: "synclipsync" as const, label: "Sync Lipsync V3" },
-              ] as const).map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setConfig((p) => ({ ...p, lipsyncMethod: m.id }))}
-                  className={cn(
-                    "flex-1 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                    config.lipsyncMethod === m.id ? "bg-[var(--color-warm)] text-white shadow-sm" : "text-fg-faint hover:text-fg"
-                  )}
-                >{m.label}</button>
-              ))}
-            </div>
-            <p className="text-[10px] text-fg-faint leading-relaxed">
-              {config.lipsyncMethod === "heygen" ? "Imagen → HeyGen directo. Más rápido." : "Imagen → Kling → lipsync. Movimiento más natural."}
-            </p>
-          </div>
-
-          {/* Visual Style */}
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Visual Style</span>
-            <div className="grid grid-cols-4 gap-1.5">
-              {([
-                { id: "iphone", label: "iPhone" },
-                { id: "cinematic", label: "Cinematic" },
-                { id: "studio", label: "Studio" },
-                { id: "custom", label: "Custom" },
-              ] as const).map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setConfig((p) => ({ ...p, visualStyle: s.id }))}
-                  className={cn(
-                    "py-1.5 rounded-[var(--radius-sm)] text-[11px] font-semibold border transition-all cursor-pointer",
-                    config.visualStyle === s.id
-                      ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
-                      : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
-                  )}
-                >{s.label}</button>
-              ))}
-            </div>
-            {config.visualStyle === "custom" && (
-              <textarea
-                value={config.visualStyleCustom}
-                onChange={(e) => setConfig((p) => ({ ...p, visualStyleCustom: e.target.value }))}
-                placeholder="FORMAT: Vertical 9:16... LIGHTING: ... STYLE: ..."
-                rows={3}
-                className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[11px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-warm)] resize-none"
-              />
-            )}
-            <p className="text-[10px] text-fg-faint">
-              {config.visualStyle === "iphone" && "iPhone 17 Pro handheld — UGC nativo, sin look cinemático."}
-              {config.visualStyle === "cinematic" && "Lente anamórfico, iluminación dramática, color de película."}
-              {config.visualStyle === "studio" && "Iluminación 3 puntos, limpio, fotografía comercial."}
-              {config.visualStyle === "custom" && "Definí tu propio bloque de FORMAT / LIGHTING / STYLE."}
-            </p>
-          </div>
-
-          {/* Hook de entrada — Scene 1 */}
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Hook de Entrada</span>
-            <div className="grid grid-cols-3 gap-1.5">
-              {([
-                { id: "none", label: "Ninguno" },
-                { id: "distracted", label: "Distraído" },
-                { id: "empty-room", label: "Solo fondo" },
-                { id: "walks-in", label: "Entra al frame" },
-                { id: "looks-down", label: "Mira abajo" },
-                { id: "phone-flip", label: "Da vuelta el celu" },
-              ] as const).map((h) => (
-                <button
-                  key={h.id}
-                  onClick={() => setConfig((p) => ({ ...p, hookType: h.id }))}
-                  className={cn(
-                    "py-1.5 px-1 rounded-[var(--radius-sm)] text-[10px] font-semibold border transition-all cursor-pointer text-center",
-                    config.hookType === h.id
-                      ? "border-purple-500/60 bg-purple-500/15 text-purple-400"
-                      : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
-                  )}
-                >{h.label}</button>
-              ))}
-            </div>
-            <p className="text-[10px] text-fg-faint leading-relaxed">
-              {config.hookType === "none" && "Sin animación de entrada — Scene 1 arranca directo con lipsync."}
-              {config.hookType === "distracted" && "Persona mirando al costado → gira a cámara. Kling f2f → lipsync."}
-              {config.hookType === "empty-room" && "Fondo vacío → persona aparece en frame. Kling f2f → lipsync."}
-              {config.hookType === "walks-in" && "Persona entrando al frame desde el costado. Kling f2f → lipsync."}
-              {config.hookType === "looks-down" && "Persona mirando abajo → levanta la vista. Kling f2f → lipsync."}
-              {config.hookType === "phone-flip" && "Back de celu → flip a selfie camera. Kling f2f → lipsync."}
-            </p>
-          </div>
-
-          {/* Modo Hook — Standard vs FOOH Surrealista */}
-          {config.hookType !== "none" && (
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Modo Hook</span>
-              <div className="flex bg-surface-1 rounded-[var(--radius-sm)] p-0.5">
-                {([
-                  { id: "standard" as const, label: "Llegada del Avatar" },
-                  { id: "fooh" as const, label: "FOOH Surrealista" },
-                ] as const).map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setConfig((p) => ({ ...p, hookMode: m.id }))}
-                    className={cn(
-                      "flex-1 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                      config.hookMode === m.id ? "bg-[var(--color-warm)] text-white shadow-sm" : "text-fg-faint hover:text-fg"
-                    )}
-                  >{m.label}</button>
-                ))}
-              </div>
-              {config.hookMode === "standard" && (
-                <p className="text-[10px] text-fg-faint leading-relaxed">El avatar aparece en la escena con una animación de entrada.</p>
-              )}
-              {config.hookMode === "fooh" && (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] text-fg-faint leading-relaxed">Escena surrealist generada por IA (sin avatar) → transición a UGC. Ideal para hooks estilo FOOH.</p>
-                  <textarea
-                    value={config.foohPrompt}
-                    onChange={(e) => setConfig((p) => ({ ...p, foohPrompt: e.target.value }))}
-                    placeholder="Ej: A giant floating hoodie drifts through the Buenos Aires skyline at golden hour, fabric rippling in the wind above rooftops..."
-                    rows={4}
-                    className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[11px] text-fg placeholder:text-fg-faint focus:outline-none focus:border-[var(--color-warm)] resize-none leading-relaxed"
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Animación creativa — solo en narrativo */}
-          {config.ugcMode === "narrative" && (
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Escenas Creativas</span>
-              <div className="flex bg-surface-1 rounded-[var(--radius-sm)] p-0.5">
-                {([
-                  { id: "single-frame" as const, label: "Single Frame" },
-                  { id: "frame-to-frame" as const, label: "Frame to Frame" },
-                ] as const).map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setConfig((p) => ({ ...p, creativeMode: m.id }))}
-                    className={cn(
-                      "flex-1 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                      config.creativeMode === m.id ? "bg-[var(--color-warm)] text-white shadow-sm" : "text-fg-faint hover:text-fg"
-                    )}
-                  >{m.label}</button>
-                ))}
-              </div>
-              <p className="text-[10px] text-fg-faint leading-relaxed">
-                {config.creativeMode === "single-frame" ? "Kling anima desde una imagen." : "Kling interpola hacia la imagen de la siguiente escena."}
-              </p>
-            </div>
-          )}
-        </div>
+        <UGCConfigPanel config={config} setConfig={setConfig} />
       )}
 
       {/* Style selector (Video Ad Creator) */}
       {tool.id === "video_ad_creator" && (
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
-          <label className="text-[12px] font-semibold text-fg-secondary">Visual Style</label>
+          <label className="text-[12px] font-semibold text-fg-secondary">Estilo visual</label>
           <div className="grid grid-cols-4 gap-2">
             {[
               { id: "photorealistic", label: "Photorealistic" },
@@ -2327,7 +2181,7 @@ function ConfigPanel({
             <input
               value={config.notes}
               onChange={(e) => setConfig((p) => ({ ...p, notes: e.target.value }))}
-              placeholder="Describe your custom style. E.g., 'watercolor illustration, pastel tones, hand-drawn textures'..."
+              placeholder="Describí tu estilo custom. Ej: 'ilustración en acuarela, tonos pastel, texturas dibujadas a mano'..."
               className="w-full h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
             />
           )}
@@ -2350,8 +2204,8 @@ function ConfigPanel({
                   title={m.desc}
                   onClick={() => setConfig((p) => ({ ...p, reelMode: m.id }))}
                   className={cn(
-                    "flex-1 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                    config.reelMode === m.id ? "bg-[var(--color-warm)] text-white shadow-sm" : "text-fg-faint hover:text-fg"
+                    "px-3 py-1 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+                    config.reelMode === m.id ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
                   )}
                 >{m.label}</button>
               ))}
@@ -2365,34 +2219,22 @@ function ConfigPanel({
 
           {/* Visual style */}
           <div className="space-y-1.5">
-            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Visual Style</span>
-            <div className="grid grid-cols-4 gap-1.5">
-              {([
-                { id: "editorial" as const, label: "Editorial", desc: "Fashion magazine — clean, directional light" },
-                { id: "cinematic" as const, label: "Cinematic", desc: "Film look — dramatic, anamorphic" },
-                { id: "iphone" as const, label: "iPhone", desc: "Authentic UGC — handheld natural light" },
-                { id: "studio" as const, label: "Studio", desc: "Clean commercial — professional lighting" },
-              ]).map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setConfig((p) => ({ ...p, visualStyle: s.id }))}
-                  title={s.desc}
-                  className={cn(
-                    "px-3 py-2 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer text-center",
-                    config.visualStyle === s.id
-                      ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
-                      : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
-                  )}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Estilo visual</span>
+            <select
+              value={config.visualStyle}
+              onChange={(e) => setConfig((p) => ({ ...p, visualStyle: e.target.value as typeof p.visualStyle }))}
+              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg outline-none focus:border-[var(--color-warm)] cursor-pointer"
+            >
+              <option value="editorial">Editorial</option>
+              <option value="cinematic">Cinematic</option>
+              <option value="iphone">iPhone</option>
+              <option value="studio">Studio</option>
+            </select>
             <p className="text-[10px] text-fg-faint">
-              {config.visualStyle === "editorial" ? "Editorial — luz direccional suave, calidad de revista de moda." :
-               config.visualStyle === "cinematic" ? "Cinematic — lente anamórfico, iluminación dramática, grado cinematográfico." :
-               config.visualStyle === "iphone" ? "iPhone — handheld auténtico, luz natural disponible." :
-               "Studio — iluminación profesional 3 puntos, limpio y nítido."}
+              {config.visualStyle === "editorial" ? "Luz direccional suave, calidad de revista de moda." :
+               config.visualStyle === "cinematic" ? "Lente anamórfico, iluminación dramática, grado cinematográfico." :
+               config.visualStyle === "iphone" ? "Handheld auténtico, luz natural disponible." :
+               "Iluminación profesional 3 puntos, limpio y nítido."}
             </p>
           </div>
         </div>
@@ -2419,7 +2261,7 @@ function ConfigPanel({
       {/* Animation mode selector (Product Clip, Video Ad Creator) */}
       {(tool.id === "product_clip" || tool.id === "video_ad_creator") && (
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
-          <label className="text-[12px] font-semibold text-fg-secondary">Animation Mode</label>
+          <label className="text-[12px] font-semibold text-fg-secondary">Modo de animación</label>
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setConfig((p) => ({ ...p, animationMode: "frame-to-frame" }))}
@@ -2431,7 +2273,7 @@ function ConfigPanel({
               )}
             >
               <div className="font-semibold">Frame-to-Frame</div>
-              <div className="text-[9px] text-fg-faint mt-0.5">Smooth transitions between scenes</div>
+              <div className="text-[9px] text-fg-faint mt-0.5">Transiciones suaves entre escenas</div>
             </button>
             <button
               onClick={() => setConfig((p) => ({ ...p, animationMode: "image-to-video" }))}
@@ -2443,7 +2285,7 @@ function ConfigPanel({
               )}
             >
               <div className="font-semibold">Image-to-Video</div>
-              <div className="text-[9px] text-fg-faint mt-0.5">Each frame animated independently</div>
+              <div className="text-[9px] text-fg-faint mt-0.5">Cada frame animado independientemente</div>
             </button>
           </div>
         </div>
@@ -2700,7 +2542,7 @@ function ConfigPanel({
 
           {schema.showBackground && (
             <AssetSelector
-              label="Background"
+              label="Fondo"
               sublabel={schema.backgroundSublabel || ""}
               emptyText="Upload a background or add from here"
               items={(activeBrand.backgrounds || []).map((bg) => ({
@@ -2748,7 +2590,7 @@ function ConfigPanel({
 
       {/* Settings — only relevant dropdowns + objective */}
       <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-5 space-y-4">
-        <h3 className="text-[12px] font-semibold text-fg-secondary">Settings</h3>
+        <h3 className="text-[12px] font-semibold text-fg-secondary">Ajustes</h3>
 
         {settingsCols > 0 && (
           <div
@@ -2757,7 +2599,7 @@ function ConfigPanel({
           >
             {schema.showVoice && (
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-fg-faint">Voice</label>
+                <label className="text-[11px] font-medium text-fg-faint">Voz</label>
                 <div className="flex gap-1.5">
                   <select
                     value={config.selectedVoiceId || ""}
@@ -2766,14 +2608,14 @@ function ConfigPanel({
                   >
                     <option value="">Select voice...</option>
                     {(activeBrand?.voicePresets || []).length > 0 && (
-                      <optgroup label="Brand Voices">
+                      <optgroup label="Voces de la marca">
                         {activeBrand.voicePresets.map((v) => (
                           <option key={v.id} value={v.id}>{v.name}</option>
                         ))}
                       </optgroup>
                     )}
                     {systemVoices.length > 0 && (
-                      <optgroup label="System Voices">
+                      <optgroup label="Voces del sistema">
                         {systemVoices.map((v) => (
                           <option key={v.id} value={v.id}>{v.name}</option>
                         ))}
@@ -2816,7 +2658,7 @@ function ConfigPanel({
                         }
                       }}
                       className="h-8 w-8 shrink-0 flex items-center justify-center rounded-[var(--radius-sm)] bg-surface-2 border border-edge text-fg-muted hover:text-fg hover:bg-surface-3 transition-colors cursor-pointer"
-                      title="Preview voice"
+                      title="Previsualizar voz"
                     >
                       <Play size={12} />
                     </button>
@@ -2827,24 +2669,24 @@ function ConfigPanel({
 
             {schema.showTone && (
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-fg-faint">Tone</label>
+                <label className="text-[11px] font-medium text-fg-faint">Tono</label>
                 <select
                   value={config.tone}
                   onChange={(e) => setConfig((p) => ({ ...p, tone: e.target.value }))}
                   className="w-full h-8 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg outline-none focus:border-[var(--color-edge-focus)]"
                 >
-                  <option value="engaging">Engaging</option>
+                  <option value="engaging">Atrapante</option>
                   <option value="casual">Casual</option>
-                  <option value="professional">Professional</option>
-                  <option value="funny">Funny</option>
-                  <option value="inspirational">Inspirational</option>
+                  <option value="professional">Profesional</option>
+                  <option value="funny">Gracioso</option>
+                  <option value="inspirational">Inspiracional</option>
                 </select>
               </div>
             )}
 
             {schema.showPlatform && (
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-fg-faint">Platform</label>
+                <label className="text-[11px] font-medium text-fg-faint">Plataforma</label>
                 <select
                   value={config.platform}
                   onChange={(e) => setConfig((p) => ({ ...p, platform: e.target.value }))}
@@ -2860,21 +2702,21 @@ function ConfigPanel({
 
             {schema.showLanguage && (
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-fg-faint">Language</label>
+                <label className="text-[11px] font-medium text-fg-faint">Idioma</label>
                 <select
                   value={config.language}
                   onChange={(e) => setConfig((p) => ({ ...p, language: e.target.value }))}
                   className="w-full h-8 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg outline-none focus:border-[var(--color-edge-focus)]"
                 >
                   <option value="es">Español</option>
-                  <option value="en">English</option>
+                  <option value="en">Inglés</option>
                 </select>
               </div>
             )}
 
             {schema.showVariations && (
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-fg-faint">Variations</label>
+                <label className="text-[11px] font-medium text-fg-faint">Variaciones</label>
                 <select
                   value={config.numVariations}
                   onChange={(e) => setConfig((p) => ({ ...p, numVariations: parseInt(e.target.value) }))}
@@ -2892,7 +2734,7 @@ function ConfigPanel({
         {/* Aspect Ratio + Resolution + Subtitles — hidden for analysis-only tools */}
         {tool.id !== "content_analyzer" && <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-fg-faint">Aspect Ratio</label>
+            <label className="text-[11px] font-medium text-fg-faint">Aspect ratio</label>
             <select
               value={config.aspectRatio}
               onChange={(e) => setConfig((p) => ({ ...p, aspectRatio: e.target.value }))}
@@ -2905,7 +2747,7 @@ function ConfigPanel({
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-fg-faint">Resolution</label>
+            <label className="text-[11px] font-medium text-fg-faint">Resolución</label>
             <select
               value={config.resolution}
               onChange={(e) => setConfig((p) => ({ ...p, resolution: e.target.value }))}
@@ -2918,7 +2760,7 @@ function ConfigPanel({
           </div>
           {tool.category === "video" && (
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-fg-faint">Subtitles</label>
+              <label className="text-[11px] font-medium text-fg-faint">Subtítulos</label>
               <select
                 value={config.subtitleEngine}
                 onChange={(e) => setConfig((p) => ({ ...p, subtitleEngine: e.target.value as ToolConfig["subtitleEngine"] }))}
@@ -2969,6 +2811,11 @@ function ConfigPanel({
               ))}
             </div>
           </div>
+        )}
+
+        {/* Voice settings — only for UGC Creator (has voice step) */}
+        {tool.id === "ugc_creator" && (
+          <VoiceSettingsPanel config={config} setConfig={setConfig} />
         )}
 
         {/* Objective / brief — hidden for content_analyzer (shown at top as URL input) */}
@@ -3166,7 +3013,7 @@ function ConfigPanel({
                   value={config.locationRef}
                   onChange={(e) => setConfig((p) => ({ ...p, locationRef: e.target.value }))}
                   rows={2}
-                  placeholder="E.g., 'rooftop in NYC at golden hour', 'industrial warehouse with concrete walls and diffused light'..."
+                  placeholder="Ej: 'rooftop in NYC at golden hour', 'industrial warehouse with concrete walls and diffused light'..."
                   className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-3 py-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-none"
                 />
               </div>
@@ -3180,7 +3027,7 @@ function ConfigPanel({
                   value={config.styleRef}
                   onChange={(e) => setConfig((p) => ({ ...p, styleRef: e.target.value }))}
                   rows={2}
-                  placeholder="E.g., 'Vogue Italia dark editorial', 'COS minimalist campaign', '90s supermodel energy, film grain'..."
+                  placeholder="Ej: 'Vogue Italia dark editorial', 'COS minimalist campaign', '90s supermodel energy, film grain'..."
                   className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-3 py-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-none"
                 />
               </div>
@@ -3197,7 +3044,7 @@ function ConfigPanel({
               value={config.notes}
               onChange={(e) => setConfig((p) => ({ ...p, notes: e.target.value }))}
               rows={2}
-              placeholder="Any extra instructions, references, or constraints..."
+              placeholder="Instrucciones extra, referencias, o constraints..."
               className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-3 py-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-none"
             />
           </div>
@@ -3208,7 +3055,7 @@ function ConfigPanel({
       <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-5">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-[13px] font-semibold text-fg">Ready to generate</h3>
+            <h3 className="text-[13px] font-semibold text-fg">Listo para generar</h3>
             <p className="text-[12px] text-fg-muted mt-0.5">
               {[
                 schema.showAvatar && (config.selectedAvatarId
@@ -3231,7 +3078,7 @@ function ConfigPanel({
           <div className="flex items-center gap-2">
             <button
               onClick={onStart}
-              className="flex items-center gap-2 px-6 py-2.5 text-[13px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
+              className="flex items-center gap-2 px-6 py-2.5 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
             >
               <Play size={14} />
               Start Pipeline
@@ -3306,7 +3153,7 @@ function StepPanel({
           {step.status === "active" && (
             <button
               onClick={onComplete}
-              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
             >
               <Play size={12} />
               Run
@@ -3578,7 +3425,7 @@ function ActiveStep({
           <div className="w-48 aspect-[9/16] bg-surface-2 border-2 border-dashed border-edge rounded-[var(--radius-md)] flex items-center justify-center">
             <div className="text-center">
               <ImageIcon size={28} className="mx-auto text-fg-faint mb-2" />
-              <p className="text-[11px] text-fg-faint">Base image</p>
+              <p className="text-[11px] text-fg-faint">Imagen base</p>
               <p className="text-[10px] text-fg-faint">9:16</p>
             </div>
           </div>
@@ -3637,7 +3484,7 @@ function ActiveStep({
           <div className="w-48 aspect-[9/16] bg-surface-2 border border-dashed border-edge rounded-[var(--radius-md)] flex items-center justify-center">
             <div className="text-center">
               <ImageIcon size={20} className="mx-auto text-fg-faint mb-1" />
-              <span className="text-[10px] text-fg-faint">Generated image</span>
+              <span className="text-[10px] text-fg-faint">Imagen generada</span>
             </div>
           </div>
         </div>
@@ -3844,7 +3691,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-2">
           <Check size={14} className="text-[var(--color-success)]" />
-          <span className="text-[13px] font-medium text-fg">Avatar brief generated</span>
+          <span className="text-[13px] font-medium text-fg">Brief de avatar generado</span>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {fields.map(({ label, key }) => (
@@ -4113,6 +3960,8 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 {hasAiSuggestion && (
                   <span className="text-[9px] text-fg-faint italic">IA</span>
                 )}
+                {/* Avatar on/off toggle */}
+                <AvatarToggle scene={scene} />
                 {/* Location chip (narrative mode) */}
                 {sceneLocation && (
                   <span className="text-[9px] text-fg-faint bg-surface-2 border border-edge rounded px-1.5 py-0.5 max-w-[160px] truncate" title={sceneLocation}>
@@ -4190,6 +4039,31 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   <p className="text-[11px] text-fg-faint italic px-2">Auto-generated from script</p>
                 )}
               </div>
+            </div>
+
+            {/* Per-scene background override */}
+            <div className="px-3 py-2 border-t border-edge bg-surface-1/40 flex items-center gap-2 flex-wrap">
+              <Mountain size={10} className="text-fg-faint" />
+              <span className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider">Fondo de esta escena</span>
+              <select
+                defaultValue={scene.backgroundId === null ? "__none__" : scene.backgroundId || ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  scene.backgroundId = v === "" ? undefined : v === "__none__" ? null : v;
+                }}
+                className="h-6 px-1.5 rounded border border-edge bg-surface-1 text-[10px] text-fg-muted outline-none cursor-pointer"
+              >
+                <option value="">Usar el del ConfigPanel</option>
+                <option value="__none__">Sin fondo (solo texto)</option>
+                {(activeBrand?.backgrounds || []).map((bg) => (
+                  <option key={bg.id} value={bg.id}>{bg.name}</option>
+                ))}
+              </select>
+              <span className="text-[9px] text-fg-faint italic ml-auto">
+                {scene.backgroundId === null ? "Nano Banana genera solo desde el prompt" :
+                 scene.backgroundId ? "Usa esta imagen como referencia visual" :
+                 "Hereda del ConfigPanel global"}
+              </span>
             </div>
           </div>
           );
@@ -4274,7 +4148,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
 
           {/* Inputs used */}
           <div className="flex-1 space-y-3">
-            <h4 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider">Inputs used</h4>
+            <h4 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider">Inputs usados</h4>
 
             {inputs?.avatar && (
               <div className="flex items-center gap-2.5 bg-surface-2 rounded-[var(--radius-sm)] px-3 py-2">
@@ -4318,7 +4192,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   <img src={backgroundImageUrl(inputs.background.imageUrl)} alt="" className="w-full h-full object-cover" />
                 </div>
                 <div>
-                  <div className="text-[10px] text-fg-faint">Background</div>
+                  <div className="text-[10px] text-fg-faint">Fondo</div>
                   <div className="text-[12px] text-fg font-medium">{inputs.background.name}</div>
                 </div>
               </div>
@@ -4361,7 +4235,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
               </div>
             </div>
           </div>
-        ) : config?.hookMode !== "fooh" && (config?.hookType !== "none" || img.entryFrameUrl) ? (
+        ) : config?.hookMode !== "fooh" && allSteps.some((s) => s.id === "lipsync") ? (
           <EntryFramePanel
             sceneId="scene_1"
             entryFrameUrl={img.entryFrameUrl}
@@ -4440,7 +4314,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
               <input
                 value={editPromptText}
                 onChange={(e) => setEditPromptText(e.target.value)}
-                placeholder="Describe what to change..."
+                placeholder="Describí qué cambiar..."
                 className="flex-1 h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg placeholder:text-fg-faint outline-none"
                 onKeyDown={(e) => e.key === "Enter" && handleEdit()}
               />
@@ -4450,7 +4324,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 className={cn(
                   "px-4 py-2 text-[11px] font-medium rounded-[var(--radius-sm)] transition-colors",
                   !editLoading && editPromptText.trim()
-                    ? "text-white bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+                    ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
                     : "text-fg-faint bg-surface-1 cursor-not-allowed"
                 )}
               >
@@ -4585,7 +4459,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                     Play
                   </button>
                 ) : (
-                  <span className="text-[10px] text-fg-faint">No audio</span>
+                  <span className="text-[10px] text-fg-faint">Sin audio</span>
                 )}
               </div>
             ))}
@@ -4811,7 +4685,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                     <video src={seg.videoUrl} controls className="w-full h-full object-contain bg-black" />
                   ) : (
                     <div className="w-full h-full bg-surface-2 flex items-center justify-center">
-                      <p className="text-[11px] text-fg-faint">No video</p>
+                      <p className="text-[11px] text-fg-faint">Sin video</p>
                     </div>
                   )}
                   {isRegen && (
@@ -4916,7 +4790,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-2">
           <Check size={14} className="text-[var(--color-success)]" />
-          <span className="text-[13px] font-medium text-fg">Final video rendered</span>
+          <span className="text-[13px] font-medium text-fg">Video final renderizado</span>
           {info.subtitleEngine && (
             <span className="text-[10px] text-fg-faint px-2 py-0.5 bg-surface-2 rounded">
               subs: {info.subtitleEngine}
@@ -4934,7 +4808,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         ) : (
           <div className="text-center py-8 text-fg-faint">
             <Film size={32} className="mx-auto mb-2" />
-            <p className="text-[13px]">Video ready</p>
+            <p className="text-[13px]">Video listo</p>
           </div>
         )}
 
@@ -4967,7 +4841,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 const a = document.createElement("a"); a.href = url; a.download = "ugc_with_subs.mp4"; a.click();
                 URL.revokeObjectURL(url);
               }}
-              className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
             >
               <Film size={14} />
               Download with Subtitles
@@ -5067,7 +4941,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 } catch { /* */ }
               }
             }}
-            className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+            className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
           >
             <Film size={14} />
             Download All ({slides.length})
@@ -5148,7 +5022,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 } catch { /* */ }
               }
             }}
-            className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+            className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
           >
             <Film size={14} />
             Download All ({images.length})
@@ -5193,7 +5067,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         )}
         {data.prompt && (
           <details className="text-[10px] text-fg-faint">
-            <summary className="cursor-pointer hover:text-fg">Show prompt</summary>
+            <summary className="cursor-pointer hover:text-fg">Ver prompt</summary>
             <p className="mt-1 p-2 bg-surface-2 rounded text-[10px] font-mono leading-relaxed">{data.prompt}</p>
           </details>
         )}
@@ -5224,7 +5098,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         {/* Key insights */}
         {!!analysis.key_insights && (
           <div className="bg-[var(--color-warm-muted)] border border-[var(--color-warm)] rounded-[var(--radius-md)] p-4">
-            <h4 className="text-[11px] font-semibold text-[var(--color-warm)] uppercase tracking-wider mb-1">Key Insights</h4>
+            <h4 className="text-[11px] font-semibold text-[var(--color-warm)] uppercase tracking-wider mb-1">Insights clave</h4>
             <p className="text-[12px] text-fg-muted">{String(analysis.key_insights)}</p>
           </div>
         )}
@@ -5248,7 +5122,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         {/* Estimated script */}
         {!!analysis.estimated_script && (
           <div className="bg-surface-0 border border-edge rounded-[var(--radius-md)] p-4">
-            <h4 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Estimated Script</h4>
+            <h4 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Script estimado</h4>
             <p className="text-[12px] text-fg-muted leading-relaxed">{String(analysis.estimated_script)}</p>
           </div>
         )}
@@ -5265,7 +5139,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 </div>
                 <p className="text-[11px] text-fg-muted">{scene.description}</p>
                 <details className="mt-1 text-[9px] text-fg-faint">
-                  <summary className="cursor-pointer hover:text-fg">Image prompt</summary>
+                  <summary className="cursor-pointer hover:text-fg">Prompt de imagen</summary>
                   <p className="mt-1 font-mono bg-surface-2 p-1.5 rounded text-[9px]">{scene.image_prompt}</p>
                 </details>
               </div>
@@ -5276,7 +5150,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         {/* Style guide */}
         {!!analysis.style_guide && (
           <div className="bg-surface-2 rounded-[var(--radius-sm)] p-3">
-            <span className="text-[10px] text-fg-faint font-medium">Visual Style</span>
+            <span className="text-[10px] text-fg-faint font-medium">Estilo visual</span>
             <p className="text-[11px] text-fg-muted mt-1">{String(analysis.style_guide)}</p>
           </div>
         )}
@@ -5304,7 +5178,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
 
         {data.adaptedScript && (
           <div className="bg-surface-0 border border-edge rounded-[var(--radius-md)] p-4">
-            <h4 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Your Script</h4>
+            <h4 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Tu script</h4>
             <p className="text-[13px] text-fg leading-relaxed">{data.adaptedScript}</p>
           </div>
         )}
@@ -5316,7 +5190,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
               <div className="flex-1 space-y-1">
                 <p className="text-[11px] text-fg-muted">&ldquo;{scene.script}&rdquo;</p>
                 <details className="text-[9px] text-fg-faint">
-                  <summary className="cursor-pointer hover:text-fg">Image prompt</summary>
+                  <summary className="cursor-pointer hover:text-fg">Prompt de imagen</summary>
                   <p className="mt-1 font-mono bg-surface-2 p-1.5 rounded text-[9px]">{scene.imagePrompt}</p>
                 </details>
               </div>
@@ -5388,7 +5262,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 <p className="text-[12px] text-fg-muted mb-2">{slide.body}</p>
               )}
               <details className="mt-1">
-                <summary className="text-[9px] text-fg-faint cursor-pointer hover:text-fg-muted">Image prompt</summary>
+                <summary className="text-[9px] text-fg-faint cursor-pointer hover:text-fg-muted">Prompt de imagen</summary>
                 <p className="mt-1 font-mono text-[10px] text-fg-faint leading-relaxed">{slide.image_prompt}</p>
               </details>
             </div>
@@ -5880,7 +5754,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   link.click();
                 });
               }}
-              className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
             >
               <Film size={14} />
               Download All ({data.creatives.filter((c) => c.url).length})
@@ -6198,10 +6072,20 @@ function EntryFramePanel({
     setLoading(true);
     try {
       const pose = ENTRY_POSES[selectedPose];
-      // "Solo fondo": use background asset directly — no generation needed
+      // "Solo fondo": use background asset if available, else generate empty version of base image
       if (pose.emptyRoom) {
-        if (!backgroundUrl) throw new Error("No background selected. Pick a background in the config panel first.");
-        onGenerated(backgroundUrl);
+        if (backgroundUrl) {
+          onGenerated(backgroundUrl);
+          return;
+        }
+        if (!avatarUrl) throw new Error("No base image available to derive empty room from.");
+        // No background asset — generate empty version of the base image
+        const job = await createImageEdit(
+          [avatarUrl],
+          `Remove the person entirely from this scene. Keep the exact same environment, lighting, colors, composition, camera angle, and every spatial detail identical — but completely empty. No person visible anywhere in frame. The room/setting is ready, waiting. Vertical 9:16, photorealistic. NO text, watermarks.`
+        );
+        const result = await pollImageGen(job.request_id);
+        if (result.image_url) onGenerated(result.image_url);
         return;
       }
       if (!avatarUrl) return;
@@ -6225,7 +6109,9 @@ function EntryFramePanel({
         <span className="text-[10px] font-medium text-purple-400">Entry Frame</span>
         <span className="text-[9px] text-fg-faint">
           {isEmptyRoom
-            ? "— Kling anima: fondo vacío → persona en frame, luego Lipsync"
+            ? backgroundUrl
+              ? "— Usa el fondo seleccionado. Kling anima: fondo vacío → persona en frame, luego Lipsync"
+              : "— Sin fondo asset: genera una versión vacía del escenario base. Kling anima entrada, luego Lipsync"
             : "— Kling animates entry → this image, then Lipsync V3 syncs lips"}
         </span>
       </div>
@@ -7000,7 +6886,7 @@ function CurationPanel({
                     )}
                     {!isScene1 && (v as { prompt?: string }).prompt && (
                       <details className="text-[9px] text-fg-faint">
-                        <summary className="cursor-pointer hover:text-fg">Show prompt</summary>
+                        <summary className="cursor-pointer hover:text-fg">Ver prompt</summary>
                         <p className="mt-1 p-1.5 bg-surface-2 rounded text-[9px] font-mono leading-relaxed break-words">
                           {(v as { prompt?: string }).prompt}
                         </p>
@@ -7056,7 +6942,7 @@ function CurationPanel({
                   <input
                     value={editPrompt}
                     onChange={(e) => setEditPrompt(e.target.value)}
-                    placeholder="Describe what to change..."
+                    placeholder="Describí qué cambiar..."
                     className="flex-1 h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-warm)]"
                     onKeyDown={(e) => e.key === "Enter" && handleEditImage()}
                     autoFocus
@@ -7067,7 +6953,7 @@ function CurationPanel({
                     className={cn(
                       "px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-sm)] transition-colors",
                       !editLoading && editPrompt.trim()
-                        ? "text-white bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+                        ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
                         : "text-fg-faint bg-surface-1 cursor-not-allowed"
                     )}
                   >
@@ -7313,7 +7199,7 @@ function CarouselTypeSelector({
             className={cn(
               "w-7 h-7 rounded-[var(--radius-sm)] text-[11px] font-medium transition-colors cursor-pointer",
               numSlides === n
-                ? "bg-[var(--color-warm)] text-white"
+                ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]"
                 : "bg-surface-2 text-fg-muted hover:text-fg"
             )}
           >
@@ -7417,7 +7303,7 @@ function CurationFixGrid({ picks, brand, config }: {
               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                 <button
                   onClick={() => openEdit(i)}
-                  className="flex-1 text-[9px] font-medium text-white bg-[var(--color-warm)] hover:opacity-90 rounded px-2 py-1 cursor-pointer"
+                  className="flex-1 text-[9px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 rounded px-2 py-1 cursor-pointer"
                 >
                   Edit
                 </button>
@@ -7502,7 +7388,7 @@ function CurationFixGrid({ picks, brand, config }: {
             <button
               onClick={handleFix}
               disabled={loading || selectedImageUrls.length === 0}
-              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer disabled:opacity-40"
+              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer disabled:opacity-40"
             >
               {loading ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
               {loading ? "Generating..." : "Apply Edit"}
@@ -7511,5 +7397,550 @@ function CurationFixGrid({ picks, brand, config }: {
         </div>
       )}
     </>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// UGC Config Panel — premium, grouped sections + presets
+// ──────────────────────────────────────────────────────────────────
+
+type UGCPreset = {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  config: Partial<ToolConfig>;
+};
+
+const UGC_PRESETS: UGCPreset[] = [
+  {
+    id: "fast",
+    name: "UGC Rápido",
+    emoji: "⚡",
+    description: "Estándar · iPhone · Sin hook",
+    config: {
+      ugcMode: "standard",
+      lipsyncMethod: "heygen",
+      visualStyle: "iphone",
+      hookType: "none",
+    },
+  },
+  {
+    id: "narrative-cine",
+    name: "Narrativo Cine",
+    emoji: "🎬",
+    description: "Narrativo · Cinematic · Hook distraído",
+    config: {
+      ugcMode: "narrative",
+      lipsyncMethod: "synclipsync",
+      visualStyle: "cinematic",
+      hookType: "distracted",
+      creativeMode: "frame-to-frame",
+    },
+  },
+  {
+    id: "editorial",
+    name: "Editorial Fashion",
+    emoji: "✨",
+    description: "Studio · Luz profesional · Sin hook",
+    config: {
+      ugcMode: "standard",
+      lipsyncMethod: "synclipsync",
+      visualStyle: "studio",
+      hookType: "none",
+    },
+  },
+  {
+    id: "vlog",
+    name: "Vlog Casual",
+    emoji: "📱",
+    description: "iPhone · Hook distraído · HeyGen",
+    config: {
+      ugcMode: "standard",
+      lipsyncMethod: "heygen",
+      visualStyle: "iphone",
+      hookType: "distracted",
+    },
+  },
+];
+
+function UGCConfigPanel({
+  config,
+  setConfig,
+}: {
+  config: ToolConfig;
+  setConfig: React.Dispatch<React.SetStateAction<ToolConfig>>;
+}) {
+  const activePreset = UGC_PRESETS.find((p) =>
+    Object.entries(p.config).every(([k, v]) => (config as Record<string, unknown>)[k] === v)
+  );
+
+  const applyPreset = (preset: UGCPreset) => {
+    setConfig((prev) => ({ ...prev, ...preset.config }));
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* ── Presets bar ──────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Presets</span>
+          {activePreset && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-warm-muted)] text-[var(--color-warm-strong)] font-medium">
+              {activePreset.name} activo
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {UGC_PRESETS.map((p) => {
+            const isActive = activePreset?.id === p.id;
+            return (
+              <button
+                key={p.id}
+                onClick={() => applyPreset(p)}
+                className={cn(
+                  "group relative text-left p-3 rounded-[var(--radius-md)] border transition-all cursor-pointer",
+                  isActive
+                    ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)]"
+                    : "border-edge bg-surface-1 hover:border-edge-strong hover:bg-surface-2"
+                )}
+              >
+                <div className="flex items-start gap-2 mb-1.5">
+                  <span className="text-[16px] leading-none">{p.emoji}</span>
+                  <span className={cn(
+                    "text-[12px] font-semibold leading-tight",
+                    isActive ? "text-fg" : "text-fg"
+                  )}>{p.name}</span>
+                </div>
+                <p className="text-[10px] text-fg-faint leading-snug">{p.description}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Section: Narrativa ───────────────────────────────── */}
+      <UGCSection title="Narrativa" subtitle="Estructura del video">
+        <UGCField label="Modo">
+          <SegToggle
+            value={config.ugcMode}
+            onChange={(v) => setConfig((p) => ({ ...p, ugcMode: v as ToolConfig["ugcMode"] }))}
+            options={[
+              { id: "standard", label: "Estándar" },
+              { id: "narrative", label: "Narrativo" },
+            ]}
+          />
+          <FieldHint>
+            {config.ugcMode === "standard" ? "Una locación, foco en el avatar." : "Múltiples ambientes, estilo cortometraje."}
+          </FieldHint>
+        </UGCField>
+
+        {config.ugcMode === "narrative" && (
+          <UGCField label="Escenas creativas">
+            <SegToggle
+              value={config.creativeMode}
+              onChange={(v) => setConfig((p) => ({ ...p, creativeMode: v as ToolConfig["creativeMode"] }))}
+              options={[
+                { id: "single-frame", label: "Single Frame" },
+                { id: "frame-to-frame", label: "Frame to Frame" },
+              ]}
+            />
+            <FieldHint>
+              {config.creativeMode === "single-frame" ? "Kling anima desde una imagen." : "Kling interpola hacia la siguiente escena."}
+            </FieldHint>
+          </UGCField>
+        )}
+      </UGCSection>
+
+      {/* ── Section: Dirección visual ────────────────────────── */}
+      <UGCSection title="Dirección visual" subtitle="Estética y look del material">
+        <UGCField label="Estilo visual">
+          <select
+            value={config.visualStyle}
+            onChange={(e) => setConfig((p) => ({ ...p, visualStyle: e.target.value as ToolConfig["visualStyle"] }))}
+            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg outline-none focus:border-[var(--color-warm)] cursor-pointer"
+          >
+            <option value="iphone">iPhone — UGC nativo handheld</option>
+            <option value="cinematic">Cinematic — dramático, anamórfico</option>
+            <option value="studio">Studio — limpio, comercial</option>
+            <option value="custom">Custom — definís vos</option>
+          </select>
+          {config.visualStyle === "custom" && (
+            <textarea
+              value={config.visualStyleCustom}
+              onChange={(e) => setConfig((p) => ({ ...p, visualStyleCustom: e.target.value }))}
+              placeholder="FORMAT: Vertical 9:16... LIGHTING: ... STYLE: ..."
+              rows={3}
+              className="w-full mt-2 px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[11px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-warm)] resize-none"
+            />
+          )}
+        </UGCField>
+      </UGCSection>
+
+      {/* ── Section: Hook de entrada ─────────────────────────── */}
+      <UGCSection title="Hook de entrada" subtitle="Primeros segundos del video (scene 1)">
+        <UGCField label="Tipo">
+          <select
+            value={config.hookType}
+            onChange={(e) => setConfig((p) => ({ ...p, hookType: e.target.value as ToolConfig["hookType"] }))}
+            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg outline-none focus:border-[var(--color-warm)] cursor-pointer"
+          >
+            <option value="none">Sin hook</option>
+            <option value="distracted">Distraído → mira a cámara</option>
+            <option value="empty-room">Solo fondo → aparece</option>
+            <option value="walks-in">Entra al frame</option>
+            <option value="looks-down">Mira abajo → levanta vista</option>
+            <option value="phone-flip">Flip del celu → selfie</option>
+          </select>
+          <FieldHint>
+            {config.hookType === "none" && "Sin animación de entrada — arranca directo con lipsync."}
+            {config.hookType === "distracted" && "Persona mirando al costado → gira a cámara."}
+            {config.hookType === "empty-room" && "Fondo vacío → persona aparece en frame."}
+            {config.hookType === "walks-in" && "Persona entrando al frame desde el costado."}
+            {config.hookType === "looks-down" && "Persona mirando abajo → levanta la vista."}
+            {config.hookType === "phone-flip" && "Back de celu → flip a selfie camera."}
+          </FieldHint>
+        </UGCField>
+
+        {config.hookType !== "none" && (
+          <UGCField label="Modo del hook">
+            <SegToggle
+              value={config.hookMode}
+              onChange={(v) => setConfig((p) => ({ ...p, hookMode: v as ToolConfig["hookMode"] }))}
+              options={[
+                { id: "standard", label: "Llegada del avatar" },
+                { id: "fooh", label: "FOOH surrealista" },
+              ]}
+            />
+            {config.hookMode === "standard" ? (
+              <FieldHint>El avatar aparece con una animación de entrada.</FieldHint>
+            ) : (
+              <div className="mt-2 space-y-1.5">
+                <FieldHint>Escena surrealista (sin avatar) → transición a UGC.</FieldHint>
+                <textarea
+                  value={config.foohPrompt}
+                  onChange={(e) => setConfig((p) => ({ ...p, foohPrompt: e.target.value }))}
+                  placeholder="Ej: A giant floating hoodie drifts through the Buenos Aires skyline at golden hour..."
+                  rows={3}
+                  className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[11px] text-fg placeholder:text-fg-faint focus:outline-none focus:border-[var(--color-warm)] resize-none leading-relaxed"
+                />
+              </div>
+            )}
+          </UGCField>
+        )}
+      </UGCSection>
+
+      {/* ── Section: Técnico ─────────────────────────────────── */}
+      <UGCSection title="Técnico" subtitle="Motor de lipsync">
+        <UGCField label="Lipsync engine">
+          <SegToggle
+            value={config.lipsyncMethod}
+            onChange={(v) => setConfig((p) => ({ ...p, lipsyncMethod: v as ToolConfig["lipsyncMethod"] }))}
+            options={[
+              { id: "heygen", label: "HeyGen Avatar 4" },
+              { id: "synclipsync", label: "Sync Lipsync V3" },
+            ]}
+          />
+          <FieldHint>
+            {config.lipsyncMethod === "heygen" ? "Imagen → HeyGen directo. Más rápido." : "Imagen → Kling → lipsync. Movimiento más natural."}
+          </FieldHint>
+        </UGCField>
+      </UGCSection>
+    </div>
+  );
+}
+
+function UGCSection({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="bg-surface-1/50 border border-edge rounded-[var(--radius-md)] overflow-hidden">
+      <header className="px-4 py-3 border-b border-edge-subtle bg-surface-1">
+        <h3 className="text-[12px] font-semibold text-fg tracking-tight">{title}</h3>
+        {subtitle && <p className="text-[10px] text-fg-faint mt-0.5">{subtitle}</p>}
+      </header>
+      <div className="p-4 space-y-4">{children}</div>
+    </section>
+  );
+}
+
+function UGCField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] font-medium text-fg-muted uppercase tracking-wider">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function FieldHint({ children }: { children: React.ReactNode }) {
+  if (!children) return null;
+  return <p className="text-[10px] text-fg-faint leading-relaxed mt-1.5">{children}</p>;
+}
+
+function SegToggle({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { id: string; label: string }[];
+}) {
+  return (
+    <div className="inline-flex bg-surface-2 rounded-[var(--radius-sm)] p-0.5 gap-0.5">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onChange(o.id)}
+          className={cn(
+            "px-3 py-1 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+            value === o.id ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+
+// ──────────────────────────────────────────────────────────────────
+// Voice Settings Panel — ElevenLabs tuning (collapsible)
+// ──────────────────────────────────────────────────────────────────
+
+const VOICE_PRESETS = [
+  { id: "natural", label: "Natural", emoji: "🎙️", stability: 0.5, style: 0.0, speed: 1.0, hint: "Balance expresividad/estabilidad. Default recomendado." },
+  { id: "stable", label: "Estable", emoji: "📻", stability: 0.75, style: 0.0, speed: 1.0, hint: "Voz consistente, poca variación emocional. Bueno para contenido corporativo." },
+  { id: "expressive", label: "Expresiva", emoji: "🎭", stability: 0.3, style: 0.4, speed: 1.0, hint: "Más emoción y variación. Bueno para UGC dinámico." },
+  { id: "slow-calm", label: "Calma", emoji: "🌙", stability: 0.6, style: 0.1, speed: 0.9, hint: "Ligeramente más lenta y calma. ASMR / reflexivo." },
+  { id: "energetic", label: "Energética", emoji: "⚡", stability: 0.35, style: 0.5, speed: 1.05, hint: "Rápida y expresiva. Hooks y ads de alto impacto." },
+];
+
+function VoiceSettingsPanel({
+  config,
+  setConfig,
+}: {
+  config: ToolConfig;
+  setConfig: React.Dispatch<React.SetStateAction<ToolConfig>>;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const activePreset = VOICE_PRESETS.find(
+    (p) =>
+      Math.abs(p.stability - config.voiceStability) < 0.01 &&
+      Math.abs(p.style - config.voiceStyle) < 0.01 &&
+      Math.abs(p.speed - config.voiceSpeed) < 0.01
+  );
+
+  const applyPreset = (p: (typeof VOICE_PRESETS)[0]) => {
+    setConfig((prev) => ({
+      ...prev,
+      voiceStability: p.stability,
+      voiceStyle: p.style,
+      voiceSpeed: p.speed,
+    }));
+  };
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-3 py-2 rounded-[var(--radius-sm)] bg-surface-2 border border-edge hover:border-edge-strong transition-colors cursor-pointer"
+      >
+        <div className="flex items-center gap-2">
+          <Mic size={12} className="text-fg-faint" />
+          <span className="text-[11px] font-medium text-fg-muted uppercase tracking-wider">Voz ElevenLabs v3</span>
+          <span className="text-[10px] text-fg-faint">
+            · {activePreset ? activePreset.label : "Custom"} · vel {config.voiceSpeed.toFixed(2)}x
+          </span>
+        </div>
+        <ChevronRight size={12} className={cn("text-fg-faint transition-transform", open && "rotate-90")} />
+      </button>
+
+      {open && (
+        <div className="space-y-4 p-3 rounded-[var(--radius-sm)] border border-edge bg-surface-1">
+          {/* Presets */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Presets</span>
+            <div className="grid grid-cols-5 gap-1.5">
+              {VOICE_PRESETS.map((p) => {
+                const isActive = activePreset?.id === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => applyPreset(p)}
+                    title={p.hint}
+                    className={cn(
+                      "flex flex-col items-center py-2 px-1 rounded-[var(--radius-sm)] border text-center transition-all cursor-pointer",
+                      isActive
+                        ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)]"
+                        : "border-edge bg-surface-2 hover:border-edge-strong"
+                    )}
+                  >
+                    <span className="text-[14px] leading-none mb-0.5">{p.emoji}</span>
+                    <span className="text-[9px] font-medium text-fg-muted">{p.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Sliders */}
+          <Slider
+            label="Estabilidad"
+            hint="0 = muy expresivo · 1 = muy estable/monótono"
+            value={config.voiceStability}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(v) => setConfig((p) => ({ ...p, voiceStability: v }))}
+          />
+          <Slider
+            label="Estilo / Emoción"
+            hint="0 = natural · 1 = exagerado"
+            value={config.voiceStyle}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(v) => setConfig((p) => ({ ...p, voiceStyle: v }))}
+          />
+          <Slider
+            label="Similaridad al clon"
+            hint="0 = libre · 1 = fiel al clon original"
+            value={config.voiceSimilarityBoost}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(v) => setConfig((p) => ({ ...p, voiceSimilarityBoost: v }))}
+          />
+          <Slider
+            label="Velocidad"
+            hint="0.7 = lento · 1.0 = normal · 1.2 = rápido"
+            value={config.voiceSpeed}
+            min={0.7}
+            max={1.2}
+            step={0.05}
+            onChange={(v) => setConfig((p) => ({ ...p, voiceSpeed: v }))}
+          />
+
+          {/* Speaker boost */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.voiceSpeakerBoost}
+              onChange={(e) => setConfig((p) => ({ ...p, voiceSpeakerBoost: e.target.checked }))}
+              className="accent-[var(--color-warm)]"
+            />
+            <span className="text-[11px] text-fg-muted">Speaker boost — mejora claridad y similaridad</span>
+          </label>
+
+          <p className="text-[10px] text-fg-faint leading-relaxed pt-1 border-t border-edge-subtle">
+            Cambiá <strong>Estabilidad</strong> bajando si la voz suena muy plana. Subí <strong>Estilo</strong>{" "}
+            para más emoción. <strong>Velocidad</strong> afecta al lip-sync y a la duración de las scenes.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Slider({
+  label,
+  hint,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+}) {
+  const pct = ((value - min) / (max - min)) * 100;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label className="text-[11px] font-medium text-fg-muted tracking-tight">{label}</label>
+        <span className="text-[11px] tabular-nums font-medium text-fg bg-surface-2 border border-edge rounded-full px-2 py-0.5 min-w-[44px] text-center">
+          {value.toFixed(2)}
+        </span>
+      </div>
+      <div className="relative h-6 flex items-center">
+        <div className="absolute left-0 right-0 h-[3px] bg-surface-3 rounded-full" />
+        <div
+          className="absolute left-0 h-[3px] bg-[var(--color-warm)] rounded-full pointer-events-none transition-[width] duration-100"
+          style={{ width: `${pct}%` }}
+        />
+        <div
+          className="absolute w-3.5 h-3.5 rounded-full bg-[var(--color-warm)] shadow-[0_0_0_3px_var(--color-warm-muted)] pointer-events-none transition-[left] duration-100"
+          style={{ left: `calc(${pct}% - 7px)` }}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        />
+      </div>
+      {hint && <p className="text-[9.5px] text-fg-faint leading-tight">{hint}</p>}
+    </div>
+  );
+}
+
+
+// ──────────────────────────────────────────────────────────────────
+// Per-scene Avatar toggle — controls whether the avatar appears in the scene
+// ──────────────────────────────────────────────────────────────────
+
+function AvatarToggle({ scene }: { scene: { id: string; _useAvatar?: boolean } & Record<string, unknown> }) {
+  // tick to force re-render on mutation
+  const [, force] = useState(0);
+  const useAvatar = scene._useAvatar !== false;
+
+  const toggle = () => {
+    scene._useAvatar = useAvatar ? false : true;
+    // when disabling avatar on a talking scene, switch downstream sceneType to creative
+    // so lipsync handler skips HeyGen and uses Kling + voiceover overlay instead
+    if (!useAvatar === false) {
+      // turning OFF
+      if (scene.sceneType === "talking") {
+        scene.sceneType = "creative";
+      }
+    }
+    force((x) => x + 1);
+  };
+
+  return (
+    <button
+      onClick={toggle}
+      title={useAvatar ? "Avatar aparece en esta escena" : "Sin avatar — solo producto / acción / voz en off"}
+      className={cn(
+        "inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-semibold rounded-full border transition-colors cursor-pointer",
+        useAvatar
+          ? "text-fg bg-surface-2 border-edge hover:border-edge-strong"
+          : "text-amber-400 bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20"
+      )}
+    >
+      <span>{useAvatar ? "👤" : "🚫"}</span>
+      {useAvatar ? "Avatar ON" : "Avatar OFF"}
+    </button>
   );
 }

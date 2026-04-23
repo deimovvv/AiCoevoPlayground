@@ -53,6 +53,12 @@ export interface ToolConfig {
   adStyle: string;
   referenceImages: File[];
   allowFaces: boolean;
+  // ElevenLabs voice settings (global per pipeline run)
+  voiceStability: number;           // 0.0–1.0, 0.5 = "Natural"
+  voiceSimilarityBoost: number;     // 0.0–1.0, 0.8 default
+  voiceStyle: number;               // 0.0–1.0, 0 = natural. Subir para más emoción.
+  voiceSpeed: number;               // 0.7–1.2, 1.0 = normal
+  voiceSpeakerBoost: boolean;       // true por default
 }
 
 export const DEFAULT_CONFIG: ToolConfig = {
@@ -77,6 +83,11 @@ export const DEFAULT_CONFIG: ToolConfig = {
   adStyle: "photorealistic",
   referenceImages: [],
   allowFaces: true,
+  voiceStability: 0.5,
+  voiceSimilarityBoost: 0.8,
+  voiceStyle: 0.0,
+  voiceSpeed: 1.0,
+  voiceSpeakerBoost: true,
 };
 
 // ── Tool Config Schema (what the form shows) ─────────────
@@ -119,6 +130,8 @@ export interface ScriptScene {
   image_prompt: string;
   sceneType?: string;
   location?: string;
+  /** Background asset ID override per scene. If undefined/null → use config.selectedBackgroundId global. If "none" → force no background (text-only) */
+  backgroundId?: string | null;
   _showProduct?: boolean;
   /** false = skip avatar references, use text-to-image for this scene */
   _useAvatar?: boolean;
@@ -132,6 +145,7 @@ export function normalizeScene(s: Record<string, string>, index: number): Script
     title: s.title || s.act || `Scene ${index + 1}`,
     script: s.script || s.speech || s.copy || s.text || s.audio || s.dialogue || s.narration || s.voiceover || "",
     image_prompt: s.image_prompt || s.visuals || s.visual || s.visual_prompt || s.scene_description || "",
+    backgroundId: undefined,
   };
 }
 

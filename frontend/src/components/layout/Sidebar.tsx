@@ -11,6 +11,7 @@ import {
     TrendingUp,
     Target,
     Zap,
+    LayoutGrid,
 } from "lucide-react";
 import { Link, useLocation } from "react-router";
 import { cn } from "../../lib/utils";
@@ -42,16 +43,17 @@ export function Sidebar() {
     const sections: MenuSection[] = [
         {
             items: [
+                { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={18} /> },
                 { label: "Brand Kit", href: "/dashboard/brand", exact: true, icon: <Palette size={18} /> },
-                { label: "Generate", href: "/dashboard/generate", icon: <Wand2 size={18} /> },
-                { label: "Content", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} /> },
+                { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} /> },
+                { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} /> },
             ],
         },
         {
-            title: "SETTINGS",
+            title: "AJUSTES",
             items: [
-                { label: "Integrations", href: "/dashboard/integrations", exact: true, icon: <Plug size={18} /> },
-                { label: "Automations", href: "/dashboard/automations", exact: true, icon: <Zap size={18} /> },
+                { label: "Integraciones", href: "/dashboard/integrations", exact: true, icon: <Plug size={18} /> },
+                { label: "Automatizaciones", href: "/dashboard/automations", exact: true, icon: <Zap size={18} /> },
             ],
         },
         {
@@ -61,7 +63,7 @@ export function Sidebar() {
                 label: "Performance",
                 icon: <BarChart3 size={18} />,
                 items: [
-                    { label: "Organic", href: "/dashboard/performance/organic", icon: <TrendingUp size={16} /> },
+                    { label: "Orgánico", href: "/dashboard/performance/organic", icon: <TrendingUp size={16} /> },
                     { label: "Ads", href: "/dashboard/performance/ads", icon: <Target size={16} /> },
                 ],
             },
@@ -115,7 +117,7 @@ export function Sidebar() {
             <div className="border-t border-edge">
                 <div className="p-3">
                     <NavLink
-                        item={{ label: "Settings", href: "/dashboard/settings", icon: <Settings size={18} /> }}
+                        item={{ label: "Ajustes", href: "/dashboard/settings", icon: <Settings size={18} /> }}
                         active={location.pathname === "/dashboard/settings"}
                     />
                 </div>

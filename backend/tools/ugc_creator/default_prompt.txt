@@ -7,6 +7,13 @@ Create a 4-scene UGC video script for **{brand_name}**.
 {brand_guidance}
 {/brand_guidance}
 
+{?design_system}
+━━━ VISUAL SYSTEM ━━━
+{design_system}
+
+Respect these visual rules strictly.
+{/design_system}
+
 {?avatars}
 ━━━ CHARACTER ━━━
 {avatars}
@@ -90,6 +97,12 @@ SHOT VARIATION between scenes:
 - Scene 2 (Story 1): Medium shot on 35mm f/1.8, waist up, hands gesturing with product
 - Scene 3 (Story 2): Medium-close on 50mm f/1.8, product in sharp focus at chest height
 - Scene 4 (CTA): Medium shot on 35mm f/2.0, confident smile, product held toward camera
+
+CRITICAL — DEFAULT CTA BEHAVIOR:
+- NEVER auto-apply any branded "action" (e.g., pointing down gestures, link-in-bio gestures, specific arm poses) to the final scene unless the user's script or visual direction EXPLICITLY requests it.
+- If the user's visual description says "plano producto" (product shot), "plano neutro", "producto solo", or similar: generate a product-focused shot WITHOUT person gesturing. The product is the hero.
+- If the user's visual description is vague for Scene 4, default to: medium shot, person holds product toward camera with a calm confident expression. NO special gestures.
+- The brand may have a library of "ACTION" definitions in its context. Treat those as AVAILABLE OPTIONS, not mandatory templates. Only use them when the script specifically names them or describes the same movement.
 
 EXAMPLE PROMPT:
 "Elias looking directly into camera with a warm curious expression, wearing the BUZOS black hoodie. He holds the Hoodie Chocolote unfolded at chest height showing the full front design to the viewer. Shot on 50mm f/1.4, tight close-up, shallow depth of field with soft bokeh background. Warm natural window light from the left creating gentle shadows on his face, real apartment setting with blurred shelves behind, natural skin texture with visible pores, vertical 9:16, ultra-realistic iPhone-quality photo."

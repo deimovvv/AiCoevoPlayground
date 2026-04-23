@@ -11,6 +11,13 @@ CAMPAIGN TYPE:
 {brand_guidance}
 {/brand_guidance}
 
+{?design_system}
+━━━ VISUAL SYSTEM ━━━
+{design_system}
+
+Respect these visual rules strictly.
+{/design_system}
+
 {?visual_guide}
 ━━━ VISUAL GUIDE (extracted from your reference images) ━━━
 {visual_guide}

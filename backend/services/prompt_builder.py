@@ -42,6 +42,32 @@ def _format_asset_list(items: list, label: str) -> str:
     return f"{label}:\n" + "\n".join(lines)
 
 
+def _format_design_system(ds: dict) -> str:
+    """Format brand design system for injection into image/video prompts. Empty string if none."""
+    if not ds:
+        return ""
+
+    parts = []
+    if ds.get("photoStyle"):
+        parts.append(f"Photography style: {ds['photoStyle']}")
+    if ds.get("composition"):
+        parts.append(f"Composition: {ds['composition']}")
+    if ds.get("colorTreatment"):
+        parts.append(f"Color treatment: {ds['colorTreatment']}")
+    if ds.get("lighting"):
+        parts.append(f"Lighting: {ds['lighting']}")
+    if ds.get("visualDos"):
+        parts.append("Always show:\n" + "\n".join(f"- {x}" for x in ds["visualDos"]))
+    if ds.get("visualDonts"):
+        parts.append("Never show:\n" + "\n".join(f"- {x}" for x in ds["visualDonts"]))
+    if ds.get("references"):
+        parts.append(f"Visual references: {ds['references']}")
+
+    if not parts:
+        return ""
+    return "BRAND DESIGN SYSTEM:\n" + "\n\n".join(parts)
+
+
 def build_context_variables(brand: dict, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
     """
     Build the full dictionary of template variables from brand data.
@@ -61,6 +87,9 @@ def build_context_variables(brand: dict, extra: Optional[Dict[str, str]] = None)
 
         # Voice presets
         "voices": "",
+
+        # Design system (for image/video tools)
+        "design_system": _format_design_system(brand.get("designSystem", {})),
     }
 
     # Voice presets

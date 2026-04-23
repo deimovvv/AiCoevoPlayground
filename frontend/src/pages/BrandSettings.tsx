@@ -21,6 +21,8 @@ import {
   Palette,
   Sparkles,
   Dna,
+  Camera,
+  X,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
@@ -45,10 +47,12 @@ import {
   addGuidanceFromUrl,
   addGuidanceFromPdf,
   generateBrandDNA,
+  extractDesignSystem,
+  updateDesignSystem,
   addProductImage,
   generateTTS,
 } from "../lib/api";
-import type { Avatar, Product, ClothingItem, BackgroundItem, MoodboardItem } from "../lib/api";
+import type { Avatar, Product, ClothingItem, BackgroundItem, MoodboardItem, DesignSystem } from "../lib/api";
 import { cn } from "../lib/utils";
 import { PromptsCard } from "../components/PromptsCard";
 
@@ -58,7 +62,7 @@ export function BrandSettings() {
   if (!activeBrand) {
     return (
       <div className="flex items-center justify-center h-64 text-fg-muted text-[14px]">
-        Select a brand from the switcher to configure it
+        Seleccioná una marca desde el switcher para configurarla
       </div>
     );
   }
@@ -71,15 +75,20 @@ export function BrandSettings() {
           {activeBrand.name}
         </h1>
         <p className="text-[14px] text-fg-muted mt-1">
-          Configure brand context, assets, and settings
+          Configurá contexto, assets y ajustes de la marca
         </p>
       </div>
 
-      {/* Brand DNA — full width */}
+      {/* Brand System — source document, full width */}
+      <GuidanceCard />
+
+      {/* Brand DNA — extracted strategy, full width */}
       <BrandDNACard />
 
+      {/* Design System — extracted visual rules, full width */}
+      <DesignSystemCard />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GuidanceCard />
         <VoicesCard />
         <AvatarsCard />
         <ClothingCard />
@@ -93,7 +102,7 @@ export function BrandSettings() {
   );
 }
 
-// ── Brand Guidance Card ─────────────────────────────────────
+// ── Brand System Card (source document) ─────────────────────
 
 function GuidanceCard() {
   const { activeBrand, refreshBrands } = useBrand();
@@ -128,7 +137,7 @@ function GuidanceCard() {
       await refreshBrands();
       setEditing(false);
     } catch (err) {
-      console.error("Failed to save:", err);
+      console.error("Error al guardar:", err);
     } finally {
       setSaving(false);
     }
@@ -142,12 +151,12 @@ function GuidanceCard() {
     try {
       const result = await addGuidanceFromUrl(activeBrand.id, url.trim());
       await refreshBrands();
-      setUrlSuccess(`Added ${result.added_chars.toLocaleString()} chars from URL`);
+      setUrlSuccess(`${result.added_chars.toLocaleString()} caracteres agregados desde URL`);
       setUrl("");
       setShowUrlInput(false);
       setTimeout(() => setUrlSuccess(null), 4000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch URL");
+      setError(err instanceof Error ? err.message : "No se pudo traer la URL");
     } finally {
       setUrlLoading(false);
     }
@@ -163,7 +172,7 @@ function GuidanceCard() {
       setPdfSuccess(`Added ${result.added_chars.toLocaleString()} chars from ${result.pages} pages`);
       setTimeout(() => setPdfSuccess(null), 4000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to parse PDF");
+      setError(err instanceof Error ? err.message : "No se pudo leer el PDF");
     } finally {
       setPdfLoading(false);
       if (pdfRef.current) pdfRef.current.value = "";
@@ -173,8 +182,8 @@ function GuidanceCard() {
   return (
     <Card
       icon={<FileText size={16} />}
-      title="Brand Guidance"
-      description="The core context document that informs all AI-generated content"
+      title="Brand System"
+      description="Documento fuente de la marca — estrategia, voz, audiencia, diseño, messaging. De acá se extraen el Brand DNA y el Design System."
       action={
         !editing ? (
           <button
@@ -182,7 +191,7 @@ function GuidanceCard() {
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium text-fg-muted hover:text-fg bg-surface-1 hover:bg-surface-2 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
           >
             <Pencil size={12} />
-            Edit
+            Editar
           </button>
         ) : undefined
       }
@@ -196,7 +205,7 @@ function GuidanceCard() {
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium text-fg-muted hover:text-fg bg-surface-0 border border-edge hover:border-[var(--color-edge-strong)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"
             >
               <Globe size={12} />
-              Import from URL
+              Importar desde URL
             </button>
             <button
               onClick={() => pdfRef.current?.click()}
@@ -204,7 +213,7 @@ function GuidanceCard() {
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium text-fg-muted hover:text-fg bg-surface-0 border border-edge hover:border-[var(--color-edge-strong)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"
             >
               {pdfLoading ? <Loader2 size={12} className="animate-spin" /> : <FileUp size={12} />}
-              Upload PDF
+              Subir PDF
             </button>
             <input
               ref={pdfRef}
@@ -233,10 +242,10 @@ function GuidanceCard() {
               <button
                 onClick={handleUrlImport}
                 disabled={urlLoading || !url.trim()}
-                className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-white rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
               >
                 {urlLoading ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
-                Fetch
+                Traer
               </button>
             </div>
           )}
@@ -270,7 +279,7 @@ function GuidanceCard() {
             onChange={(e) => setDraft(e.target.value)}
             className="w-full bg-surface-0 border border-edge rounded-[var(--radius-sm)] px-3 py-2.5 text-[13px] text-fg outline-none resize-none focus:border-[var(--color-edge-focus)] transition-colors leading-relaxed"
             rows={10}
-            placeholder="Describe the brand: tone, audience, values, communication style, language..."
+            placeholder="Describí la marca: tono, audiencia, valores, estilo de comunicación, idioma..."
             autoFocus
           />
           <div className="flex gap-2 justify-end">
@@ -278,15 +287,15 @@ function GuidanceCard() {
               onClick={() => setEditing(false)}
               className="px-3 py-1.5 text-[12px] font-medium text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
             >
-              Cancel
+              Cancelar
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-white rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer flex items-center gap-1.5"
             >
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              Save
+              Guardar
             </button>
           </div>
         </div>
@@ -297,7 +306,7 @@ function GuidanceCard() {
           </p>
         </div>
       ) : (
-        <EmptyState onClick={handleEdit} label="Add brand guidance" />
+        <EmptyState onClick={handleEdit} label="Agregar Brand System" />
       )}
     </Card>
   );
@@ -332,7 +341,7 @@ function AvatarsCard() {
       setDescription("");
       setFile(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      setError(err instanceof Error ? err.message : "Falló la subida");
     } finally {
       setUploading(false);
     }
@@ -344,7 +353,7 @@ function AvatarsCard() {
       await deleteAvatar(activeBrand.id, avatarId);
       await refreshBrands();
     } catch (err) {
-      console.error("Delete failed:", err);
+      console.error("Error al eliminar:", err);
     } finally {
       setDeleting(null);
     }
@@ -354,7 +363,7 @@ function AvatarsCard() {
     <Card
       icon={<ImageIcon size={16} />}
       title={`Avatars (${avatars.length})`}
-      description="People/models used in content generation"
+      description="Personas/modelos usados en generación de contenido"
       action={
         <button
           onClick={() => setShowUpload(!showUpload)}
@@ -372,13 +381,13 @@ function AvatarsCard() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Avatar name"
+            placeholder="Nombre del avatar"
             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
           />
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (e.g. Hombre de 32 años, argentino, piel morena clara, barba corta, casual urbano)"
+            placeholder="Descripción (ej. Hombre de 32 años, argentino, piel morena clara, barba corta, casual urbano)"
             rows={3}
             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none resize-none focus:border-[var(--color-edge-focus)] transition-colors"
           />
@@ -401,7 +410,7 @@ function AvatarsCard() {
             ) : (
               <div className="space-y-1">
                 <Upload size={16} className="mx-auto text-fg-faint" />
-                <p className="text-[12px] text-fg-faint">Click to select image</p>
+                <p className="text-[12px] text-fg-faint">Click para seleccionar imagen</p>
               </div>
             )}
           </div>
@@ -415,12 +424,12 @@ function AvatarsCard() {
               onClick={() => { setShowUpload(false); setName(""); setDescription(""); setFile(null); setError(null); }}
               className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
             >
-              Cancel
+              Cancelar
             </button>
             <button
               onClick={handleUpload}
               disabled={uploading || !file || !name.trim()}
-              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-white rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               Upload
@@ -431,7 +440,7 @@ function AvatarsCard() {
 
       {/* Avatar grid */}
       {avatars.length === 0 && !showUpload ? (
-        <EmptyState onClick={() => setShowUpload(true)} label="Upload first avatar" />
+        <EmptyState onClick={() => setShowUpload(true)} label="Subí el primer avatar" />
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {avatars.map((a) => (
@@ -514,7 +523,7 @@ function ProductsCard() {
       setDescription("");
       setFile(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      setError(err instanceof Error ? err.message : "Falló la subida");
     } finally {
       setUploading(false);
     }
@@ -526,7 +535,7 @@ function ProductsCard() {
       await deleteProduct(activeBrand.id, productId);
       await refreshBrands();
     } catch (err) {
-      console.error("Delete failed:", err);
+      console.error("Error al eliminar:", err);
     } finally {
       setDeleting(null);
     }
@@ -535,8 +544,8 @@ function ProductsCard() {
   return (
     <Card
       icon={<Package size={16} />}
-      title={`Products (${products.length})`}
-      description="Product images available for content generation"
+      title={`Productos (${products.length})`}
+      description="Imágenes de productos disponibles para generación"
       action={
         <button
           onClick={() => setShowUpload(!showUpload)}
@@ -554,14 +563,14 @@ function ProductsCard() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Product name"
+            placeholder="Nombre del producto"
             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
           />
           <div className="space-y-1">
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Description — or click 'AI Describe' after selecting an image"
+              placeholder="Descripción — o click en 'Describir con IA' después de seleccionar una imagen"
               rows={2}
               className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none resize-none focus:border-[var(--color-edge-focus)] transition-colors"
             />
@@ -584,7 +593,7 @@ function ProductsCard() {
                 className="flex items-center gap-1.5 text-[11px] text-[var(--color-warm)] hover:underline cursor-pointer"
               >
                 <Sparkles size={11} />
-                AI Describe
+                Describir con IA
               </button>
             )}
           </div>
@@ -607,7 +616,7 @@ function ProductsCard() {
             ) : (
               <div className="space-y-1">
                 <Upload size={16} className="mx-auto text-fg-faint" />
-                <p className="text-[12px] text-fg-faint">Click to select image</p>
+                <p className="text-[12px] text-fg-faint">Click para seleccionar imagen</p>
               </div>
             )}
           </div>
@@ -621,12 +630,12 @@ function ProductsCard() {
               onClick={() => { setShowUpload(false); setName(""); setDescription(""); setFile(null); setError(null); }}
               className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
             >
-              Cancel
+              Cancelar
             </button>
             <button
               onClick={handleUpload}
               disabled={uploading || !file || !name.trim()}
-              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-white rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               Upload
@@ -637,7 +646,7 @@ function ProductsCard() {
 
       {/* Products list */}
       {products.length === 0 && !showUpload ? (
-        <EmptyState onClick={() => setShowUpload(true)} label="Upload first product" />
+        <EmptyState onClick={() => setShowUpload(true)} label="Subí el primer producto" />
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {products.map((p) => (
@@ -651,7 +660,7 @@ function ProductsCard() {
                   await addProductImage(activeBrand.id, p.id, file);
                   await refreshBrands();
                 } catch (err) {
-                  console.error("Add image failed:", err);
+                  console.error("Error al agregar imagen:", err);
                 }
               }}
               onUpdate={async (newName, newDesc) => {
@@ -751,7 +760,7 @@ function ProductTile({
       </div>
       {/* Add first extra photo button — only when no extras yet */}
       {(product.images || []).length === 0 && (
-        <label className="absolute top-1 right-1 p-1 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title="Add more photos (up to 3)">
+        <label className="absolute top-1 right-1 p-1 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title="Agregar más fotos (hasta 3)">
           <Plus size={10} />
           <input type="file" accept="image/*" className="hidden" onChange={(e) => {
             const f = e.target.files?.[0];
@@ -780,8 +789,8 @@ function ProductTile({
                 AI
               </button>
               <div className="flex-1" />
-              <button onClick={() => setEditing(false)} className="text-[9px] text-fg-faint cursor-pointer">Cancel</button>
-              <button onClick={handleSave} className="text-[9px] text-[var(--color-warm)] font-medium cursor-pointer">Save</button>
+              <button onClick={() => setEditing(false)} className="text-[9px] text-fg-faint cursor-pointer">Cancelar</button>
+              <button onClick={handleSave} className="text-[9px] text-[var(--color-warm)] font-medium cursor-pointer">Guardar</button>
             </div>
           </div>
         ) : (
@@ -838,7 +847,7 @@ function ClothingCard() {
       setTags("");
       setFile(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      setError(err instanceof Error ? err.message : "Falló la subida");
     } finally {
       setUploading(false);
     }
@@ -850,7 +859,7 @@ function ClothingCard() {
       await deleteClothing(activeBrand.id, itemId);
       await refreshBrands();
     } catch (err) {
-      console.error("Delete failed:", err);
+      console.error("Error al eliminar:", err);
     } finally {
       setDeleting(null);
     }
@@ -859,8 +868,8 @@ function ClothingCard() {
   return (
     <Card
       icon={<Shirt size={16} />}
-      title={`Clothing (${clothing.length})`}
-      description="Wardrobe items available for avatar outfits"
+      title={`Prendas (${clothing.length})`}
+      description="Prendas disponibles para outfits de avatars"
       action={
         <button
           onClick={() => setShowUpload(!showUpload)}
@@ -878,13 +887,13 @@ function ClothingCard() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Item name (e.g. Jogger Negro)"
+            placeholder="Nombre (ej. Jogger Negro)"
             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
           />
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (e.g. Jogger de algodón orgánico, corte recto, cintura elástica, color negro liso)"
+            placeholder="Descripción (ej. Jogger de algodón orgánico, corte recto, cintura elástica, color negro liso)"
             rows={3}
             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none resize-none focus:border-[var(--color-edge-focus)] transition-colors"
           />
@@ -892,7 +901,7 @@ function ClothingCard() {
             type="text"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
-            placeholder="Tags (comma separated: casual, negro, algodón)"
+            placeholder="Tags (separadas por coma: casual, negro, algodón)"
             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
           />
           <div
@@ -914,7 +923,7 @@ function ClothingCard() {
             ) : (
               <div className="space-y-1">
                 <Upload size={16} className="mx-auto text-fg-faint" />
-                <p className="text-[12px] text-fg-faint">Click to select image</p>
+                <p className="text-[12px] text-fg-faint">Click para seleccionar imagen</p>
               </div>
             )}
           </div>
@@ -928,12 +937,12 @@ function ClothingCard() {
               onClick={() => { setShowUpload(false); setName(""); setDescription(""); setTags(""); setFile(null); setError(null); }}
               className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
             >
-              Cancel
+              Cancelar
             </button>
             <button
               onClick={handleUpload}
               disabled={uploading || !file || !name.trim()}
-              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-white rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               Upload
@@ -944,7 +953,7 @@ function ClothingCard() {
 
       {/* Clothing grid */}
       {clothing.length === 0 && !showUpload ? (
-        <EmptyState onClick={() => setShowUpload(true)} label="Upload first clothing item" />
+        <EmptyState onClick={() => setShowUpload(true)} label="Subí la primera prenda" />
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {clothing.map((c) => (
@@ -1071,7 +1080,7 @@ function VoicesCard() {
   };
 
   const handleSave = async () => {
-    if (!name.trim() || !voiceId.trim()) { setError("Name and Voice ID are required"); return; }
+    if (!name.trim() || !voiceId.trim()) { setError("Nombre y Voice ID son requeridos"); return; }
     setSaving(true);
     setError(null);
     try {
@@ -1079,7 +1088,7 @@ function VoicesCard() {
       await refreshBrands();
       setName(""); setVoiceId(""); setShowAdd(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save voice");
+      setError(err instanceof Error ? err.message : "No se pudo guardar la voz");
     } finally {
       setSaving(false);
     }
@@ -1098,8 +1107,8 @@ function VoicesCard() {
   return (
     <Card
       icon={<Mic size={16} />}
-      title={`Voice Presets (${voices.length})`}
-      description="ElevenLabs voice IDs for TTS generation"
+      title={`Voces (${voices.length})`}
+      description="IDs de voces de ElevenLabs para generación TTS"
     >
       <div className="space-y-3">
         {voices.length === 0 && !showAdd && (
@@ -1117,7 +1126,7 @@ function VoicesCard() {
               className={cn(
                 "w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors cursor-pointer",
                 playingId === v.id
-                  ? "bg-[var(--color-warm)] text-white"
+                  ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]"
                   : "bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3"
               )}
             >
@@ -1145,14 +1154,14 @@ function VoicesCard() {
 
         {showAdd && (
           <div className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] p-4 space-y-3">
-            <p className="text-[12px] font-medium text-fg-secondary">Add Voice</p>
+            <p className="text-[12px] font-medium text-fg-secondary">Agregar voz</p>
 
             <div className="space-y-1.5">
               <label className="text-[11px] text-fg-faint font-medium">Display Name</label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="E.g., Sofia — Spanish Female"
+                placeholder="Ej. Sofia — Voz femenina"
                 className="w-full h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
               />
             </div>
@@ -1205,7 +1214,7 @@ function VoicesCard() {
                 className={cn(
                   "flex items-center gap-1.5 px-4 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] transition-colors",
                   !saving && name.trim() && voiceId.trim()
-                    ? "text-white bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+                    ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
                     : "text-fg-faint bg-surface-2 cursor-not-allowed opacity-50"
                 )}
               >
@@ -1222,7 +1231,7 @@ function VoicesCard() {
             className="flex items-center gap-2 text-[12px] text-fg-muted hover:text-fg transition-colors cursor-pointer"
           >
             <Plus size={13} />
-            Add Voice ID
+            Agregar Voice ID
           </button>
         )}
       </div>
@@ -1263,7 +1272,7 @@ function BackgroundsCard() {
       setTags("");
       setFile(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      setError(err instanceof Error ? err.message : "Falló la subida");
     } finally {
       setUploading(false);
     }
@@ -1275,7 +1284,7 @@ function BackgroundsCard() {
       await deleteBackground(activeBrand.id, itemId);
       await refreshBrands();
     } catch (err) {
-      console.error("Delete failed:", err);
+      console.error("Error al eliminar:", err);
     } finally {
       setDeleting(null);
     }
@@ -1284,8 +1293,8 @@ function BackgroundsCard() {
   return (
     <Card
       icon={<Mountain size={16} />}
-      title={`Backgrounds (${backgrounds.length})`}
-      description="Background scenes and settings for UGC and content generation"
+      title={`Fondos (${backgrounds.length})`}
+      description="Escenas y fondos para UGC y generación de contenido"
       action={
         <button
           onClick={() => setShowUpload(!showUpload)}
@@ -1302,13 +1311,13 @@ function BackgroundsCard() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Background name (e.g. Living con luz natural)"
+            placeholder="Nombre del fondo (ej. Living con luz natural)"
             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
           />
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (e.g. Living moderno con paredes blancas, piso de madera, luz natural lateral)"
+            placeholder="Descripción (ej. Living moderno con paredes blancas, piso de madera, luz natural lateral)"
             rows={3}
             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none resize-none focus:border-[var(--color-edge-focus)] transition-colors"
           />
@@ -1316,7 +1325,7 @@ function BackgroundsCard() {
             type="text"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
-            placeholder="Tags (comma separated: interior, natural, moderno)"
+            placeholder="Tags (separadas por coma: interior, natural, moderno)"
             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
           />
           <div
@@ -1338,7 +1347,7 @@ function BackgroundsCard() {
             ) : (
               <div className="space-y-1">
                 <Upload size={16} className="mx-auto text-fg-faint" />
-                <p className="text-[12px] text-fg-faint">Click to select background image</p>
+                <p className="text-[12px] text-fg-faint">Click para seleccionar imagen de fondo</p>
               </div>
             )}
           </div>
@@ -1352,12 +1361,12 @@ function BackgroundsCard() {
               onClick={() => { setShowUpload(false); setName(""); setDescription(""); setTags(""); setFile(null); setError(null); }}
               className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
             >
-              Cancel
+              Cancelar
             </button>
             <button
               onClick={handleUpload}
               disabled={uploading || !file || !name.trim()}
-              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-white rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               Upload
@@ -1367,7 +1376,7 @@ function BackgroundsCard() {
       )}
 
       {backgrounds.length === 0 && !showUpload ? (
-        <EmptyState onClick={() => setShowUpload(true)} label="Upload first background" />
+        <EmptyState onClick={() => setShowUpload(true)} label="Subí el primer fondo" />
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {backgrounds.map((bg) => (
@@ -1460,7 +1469,7 @@ function MoodboardsCard() {
       setDescription("");
       setFile(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      setError(err instanceof Error ? err.message : "Falló la subida");
     } finally {
       setUploading(false);
     }
@@ -1472,7 +1481,7 @@ function MoodboardsCard() {
       await deleteMoodboard(activeBrand.id, itemId);
       await refreshBrands();
     } catch (err) {
-      console.error("Delete failed:", err);
+      console.error("Error al eliminar:", err);
     } finally {
       setDeleting(null);
     }
@@ -1482,7 +1491,7 @@ function MoodboardsCard() {
     <Card
       icon={<Palette size={16} />}
       title={`Moodboard (${moodboards.length}/5)`}
-      description="Visual style references — one active at a time in each tool"
+      description="Referencias de estilo visual — uno activo por tool"
       action={
         !atLimit ? (
           <button
@@ -1503,13 +1512,13 @@ function MoodboardsCard() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Moodboard name (e.g. Verano editorial 2025)"
+            placeholder="Nombre del moodboard (ej. Verano editorial 2025)"
             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
           />
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (e.g. Tonos cálidos, luz natural, estética editorial minimalista, paleta terracota)"
+            placeholder="Descripción (ej. Tonos cálidos, luz natural, estética editorial minimalista, paleta terracota)"
             rows={2}
             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none resize-none focus:border-[var(--color-edge-focus)] transition-colors"
           />
@@ -1540,12 +1549,12 @@ function MoodboardsCard() {
               onClick={() => { setShowUpload(false); setName(""); setDescription(""); setFile(null); setError(null); }}
               className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
             >
-              Cancel
+              Cancelar
             </button>
             <button
               onClick={handleUpload}
               disabled={uploading || !file || !name.trim()}
-              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-white rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               Upload
@@ -1555,7 +1564,7 @@ function MoodboardsCard() {
       )}
 
       {moodboards.length === 0 && !showUpload ? (
-        <EmptyState onClick={() => setShowUpload(true)} label="Upload first moodboard" />
+        <EmptyState onClick={() => setShowUpload(true)} label="Subí el primer moodboard" />
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {moodboards.map((m) => (
@@ -1666,7 +1675,7 @@ function BrandDNACard() {
     <Card
       icon={<Dna size={18} />}
       title="Brand DNA"
-      description={dna ? "AI-extracted brand identity" : "Generate structured brand identity from your guidance"}
+      description={dna ? "Identidad de marca extraída por IA — usada en prompts de copy (scripts, captions, ads)" : "Destilá el brand guidance en datos estructurados (colores, tono, audiencia, etc.) que se inyectan en todas las tools"}
       action={
         <button
           onClick={handleGenerate}
@@ -1675,11 +1684,11 @@ function BrandDNACard() {
             "flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] transition-all cursor-pointer disabled:opacity-40",
             dna
               ? "text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3"
-              : "bg-[var(--color-warm)] text-white hover:opacity-90"
+              : "bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90"
           )}
         >
           {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-          {dna ? "Regenerate" : "Generate DNA"}
+          {dna ? "Regenerar" : "Generar DNA"}
         </button>
       }
     >
@@ -1692,14 +1701,14 @@ function BrandDNACard() {
 
       {!dna && !generating && (
         <p className="text-[13px] text-fg-faint text-center py-4">
-          Add brand guidance (URL or PDF) first, then click Generate DNA.
+          Agregá brand guidance (URL o PDF) primero, después click en "Generar DNA".
         </p>
       )}
 
       {generating && !dna && (
         <div className="flex items-center justify-center gap-2 py-8 text-fg-muted">
           <Loader2 size={16} className="animate-spin" />
-          <span className="text-[13px]">Analyzing brand context with AI...</span>
+          <span className="text-[13px]">Analizando contexto con IA...</span>
         </div>
       )}
 
@@ -1708,7 +1717,7 @@ function BrandDNACard() {
           {/* Colors */}
           {dna.colors && dna.colors.length > 0 && (
             <div>
-              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Color Palette</h4>
+              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Paleta de colores</h4>
               <div className="flex flex-wrap gap-2">
                 {dna.colors.map((c, i) => (
                   <div key={i} className="flex items-center gap-2 bg-surface-0 border border-edge rounded-[var(--radius-sm)] px-3 py-2">
@@ -1731,7 +1740,7 @@ function BrandDNACard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {dna.tone && dna.tone.length > 0 && (
               <div>
-                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Brand Tone</h4>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Tono de marca</h4>
                 <div className="flex flex-wrap gap-1.5">
                   {dna.tone.map((t, i) => (
                     <span key={i} className="text-[11px] px-2.5 py-1 bg-[var(--color-warm-muted)] text-[var(--color-warm)] rounded-full font-medium">
@@ -1743,7 +1752,7 @@ function BrandDNACard() {
             )}
             {dna.keywords && dna.keywords.length > 0 && (
               <div>
-                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Keywords</h4>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Palabras clave</h4>
                 <div className="flex flex-wrap gap-1.5">
                   {dna.keywords.map((k, i) => (
                     <span key={i} className="text-[11px] px-2.5 py-1 bg-surface-2 text-fg-muted rounded-full">{k}</span>
@@ -1756,7 +1765,7 @@ function BrandDNACard() {
           {/* Personality */}
           {dna.personality && (
             <div>
-              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Brand Personality</h4>
+              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Personalidad</h4>
               <p className="text-[13px] text-fg-muted leading-relaxed italic">&ldquo;{dna.personality}&rdquo;</p>
             </div>
           )}
@@ -1764,7 +1773,7 @@ function BrandDNACard() {
           {/* Audience */}
           {dna.audience && (
             <div>
-              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Target Audience</h4>
+              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Audiencia</h4>
               <p className="text-[13px] text-fg-muted leading-relaxed">{dna.audience}</p>
             </div>
           )}
@@ -1772,7 +1781,7 @@ function BrandDNACard() {
           {/* Unique Value */}
           {dna.unique_value && (
             <div>
-              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Unique Value</h4>
+              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Valor único</h4>
               <p className="text-[13px] text-fg leading-relaxed font-medium">{dna.unique_value}</p>
             </div>
           )}
@@ -1781,7 +1790,7 @@ function BrandDNACard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {dna.competitors && dna.competitors.length > 0 && (
               <div>
-                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Competitors</h4>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Competidores</h4>
                 <div className="flex flex-wrap gap-1.5">
                   {dna.competitors.map((c, i) => (
                     <span key={i} className="text-[11px] px-2.5 py-1 bg-surface-2 text-fg-muted rounded-full">{c}</span>
@@ -1791,17 +1800,17 @@ function BrandDNACard() {
             )}
             {fonts && (fonts.headline || fonts.body) && (
               <div>
-                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Suggested Fonts</h4>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Tipografías sugeridas</h4>
                 <div className="space-y-1">
                   {fonts.headline && (
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-fg-faint w-16">Headline:</span>
+                      <span className="text-[10px] text-fg-faint w-16">Titular:</span>
                       <span className="text-[12px] text-fg font-medium">{fonts.headline}</span>
                     </div>
                   )}
                   {fonts.body && (
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-fg-faint w-16">Body:</span>
+                      <span className="text-[10px] text-fg-faint w-16">Cuerpo:</span>
                       <span className="text-[12px] text-fg font-medium">{fonts.body}</span>
                     </div>
                   )}
@@ -1812,6 +1821,264 @@ function BrandDNACard() {
         </div>
       )}
     </Card>
+  );
+}
+
+
+// ── Design System Card ──────────────────────────────────────
+
+function DesignSystemCard() {
+  const { activeBrand, refreshBrands } = useBrand();
+  const [extracting, setExtracting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<DesignSystem>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!activeBrand) return null;
+
+  const ds = activeBrand.designSystem;
+  const hasContext = !!activeBrand.brandContext?.trim();
+
+  const handleExtract = async () => {
+    setExtracting(true);
+    setError(null);
+    try {
+      await extractDesignSystem(activeBrand.id);
+      await refreshBrands();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falló la extracción");
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const handleEdit = () => {
+    setDraft(ds || {});
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await updateDesignSystem(activeBrand.id, draft);
+      await refreshBrands();
+      setEditing(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!hasContext && !ds) return null;
+
+  return (
+    <Card
+      icon={<Camera size={18} />}
+      title="Design System"
+      description={ds ? "Reglas visuales extraídas por IA — usadas en prompts de tools de imagen/video" : "Destilá la dirección visual del brand guidance — se inyecta en todas las tools que generan imágenes"}
+      action={
+        <div className="flex items-center gap-2">
+          {ds && !editing && (
+            <button
+              onClick={handleEdit}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 transition-all cursor-pointer"
+            >
+              <Pencil size={12} />
+              Editar
+            </button>
+          )}
+          {editing ? (
+            <>
+              <button
+                onClick={() => setEditing(false)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 transition-all cursor-pointer"
+              >
+                <X size={12} />
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90 transition-all cursor-pointer disabled:opacity-40"
+              >
+                {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                Guardar
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handleExtract}
+              disabled={extracting || !hasContext}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] transition-all cursor-pointer disabled:opacity-40",
+                ds
+                  ? "text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3"
+                  : "bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90"
+              )}
+            >
+              {extracting ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              {ds ? "Re-extraer" : "Extraer del guidance"}
+            </button>
+          )}
+        </div>
+      }
+    >
+      {error && (
+        <div className="flex items-center gap-2 text-[12px] text-red-400 mb-4">
+          <AlertCircle size={14} />
+          {error}
+        </div>
+      )}
+
+      {!ds && !extracting && !editing && (
+        <p className="text-[13px] text-fg-faint text-center py-4">
+          Agregá brand guidance (URL o PDF) primero, después click en "Extraer del guidance".
+        </p>
+      )}
+
+      {extracting && !ds && (
+        <div className="flex items-center justify-center gap-2 py-8 text-fg-muted">
+          <Loader2 size={16} className="animate-spin" />
+          <span className="text-[13px]">Extrayendo reglas visuales con IA...</span>
+        </div>
+      )}
+
+      {editing && (
+        <div className="space-y-4">
+          <DesignField label="Estilo fotográfico" value={draft.photoStyle || ""} onChange={(v) => setDraft({ ...draft, photoStyle: v })} rows={3} />
+          <DesignField label="Composición" value={draft.composition || ""} onChange={(v) => setDraft({ ...draft, composition: v })} rows={2} />
+          <DesignField label="Tratamiento de color" value={draft.colorTreatment || ""} onChange={(v) => setDraft({ ...draft, colorTreatment: v })} rows={2} />
+          <DesignField label="Iluminación" value={draft.lighting || ""} onChange={(v) => setDraft({ ...draft, lighting: v })} rows={2} />
+          <DesignListField label="Siempre mostrar (dos)" items={draft.visualDos || []} onChange={(items) => setDraft({ ...draft, visualDos: items })} />
+          <DesignListField label="Nunca mostrar (don'ts)" items={draft.visualDonts || []} onChange={(items) => setDraft({ ...draft, visualDonts: items })} />
+          <DesignField label="Referencias visuales" value={draft.references || ""} onChange={(v) => setDraft({ ...draft, references: v })} rows={2} />
+        </div>
+      )}
+
+      {ds && !editing && (
+        <div className="space-y-4">
+          {ds.photoStyle && (
+            <div>
+              <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Estilo fotográfico</h4>
+              <p className="text-[13px] text-fg-muted leading-relaxed">{ds.photoStyle}</p>
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {ds.composition && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Composición</h4>
+                <p className="text-[13px] text-fg-muted leading-relaxed">{ds.composition}</p>
+              </div>
+            )}
+            {ds.colorTreatment && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Tratamiento de color</h4>
+                <p className="text-[13px] text-fg-muted leading-relaxed">{ds.colorTreatment}</p>
+              </div>
+            )}
+            {ds.lighting && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Iluminación</h4>
+                <p className="text-[13px] text-fg-muted leading-relaxed">{ds.lighting}</p>
+              </div>
+            )}
+            {ds.references && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Referencias</h4>
+                <p className="text-[13px] text-fg-muted leading-relaxed">{ds.references}</p>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {ds.visualDos && ds.visualDos.length > 0 && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Siempre mostrar</h4>
+                <ul className="space-y-1">
+                  {ds.visualDos.map((x, i) => (
+                    <li key={i} className="text-[12px] text-fg-muted flex items-start gap-1.5">
+                      <Check size={12} className="text-green-400 mt-0.5 shrink-0" />
+                      <span>{x}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {ds.visualDonts && ds.visualDonts.length > 0 && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Nunca mostrar</h4>
+                <ul className="space-y-1">
+                  {ds.visualDonts.map((x, i) => (
+                    <li key={i} className="text-[12px] text-fg-muted flex items-start gap-1.5">
+                      <X size={12} className="text-red-400 mt-0.5 shrink-0" />
+                      <span>{x}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function DesignField({ label, value, onChange, rows = 2 }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1.5">{label}</label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows}
+        className="w-full bg-surface-0 border border-edge rounded-[var(--radius-sm)] px-3 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors resize-none"
+      />
+    </div>
+  );
+}
+
+function DesignListField({ label, items, onChange }: { label: string; items: string[]; onChange: (items: string[]) => void }) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const t = draft.trim();
+    if (!t) return;
+    onChange([...items, t]);
+    setDraft("");
+  };
+  const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i));
+
+  return (
+    <div>
+      <label className="block text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1.5">{label}</label>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {items.map((it, i) => (
+          <span key={i} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 bg-surface-2 text-fg-muted rounded-full">
+            {it}
+            <button onClick={() => remove(i)} className="hover:text-red-400 cursor-pointer">
+              <X size={10} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
+          placeholder="Agregar item..."
+          className="flex-1 bg-surface-0 border border-edge rounded-[var(--radius-sm)] px-3 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
+        />
+        <button
+          onClick={add}
+          className="px-3 py-1.5 text-[11px] bg-surface-2 hover:bg-surface-3 text-fg-muted rounded-[var(--radius-sm)] cursor-pointer transition-colors"
+        >
+          <Plus size={12} />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1851,8 +2118,8 @@ function LogoCard() {
   return (
     <Card
       icon={<ImageIcon size={16} />}
-      title="Brand Logo"
-      description="Used in ad compositions and branded content"
+      title="Logo de marca"
+      description="Usado en composiciones de ads y contenido de marca"
     >
       {logo?.imageUrl ? (
         <div className="space-y-2">
@@ -1872,7 +2139,7 @@ function LogoCard() {
             </button>
           </div>
           <label className="flex items-center gap-1.5 text-[11px] text-fg-muted hover:text-fg cursor-pointer">
-            <Upload size={11} /> Replace
+            <Upload size={11} /> Reemplazar
             <input type="file" accept="image/*" className="hidden" onChange={(e) => {
               const f = e.target.files?.[0];
               if (f) handleUpload(f);
@@ -1888,7 +2155,7 @@ function LogoCard() {
             : "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
         )}>
           {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-          {uploading ? "Uploading..." : "Upload brand logo"}
+          {uploading ? "Subiendo..." : "Subir logo de marca"}
           <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => {
             const f = e.target.files?.[0];
             if (f) handleUpload(f);

@@ -74,6 +74,16 @@ export interface BrandDNA {
     unique_value?: string;
 }
 
+export interface DesignSystem {
+    photoStyle?: string;
+    composition?: string;
+    colorTreatment?: string;
+    lighting?: string;
+    visualDos?: string[];
+    visualDonts?: string[];
+    references?: string;
+}
+
 export interface Brand {
     id: string;
     name: string;
@@ -88,6 +98,7 @@ export interface Brand {
     logo?: { filename: string; imageUrl: string };
     fonts?: BrandFonts;
     dna?: BrandDNA;
+    designSystem?: DesignSystem;
 }
 
 export interface ChatMessage {
@@ -198,6 +209,27 @@ export async function generateBrandDNA(brandId: string): Promise<{ dna: BrandDNA
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Failed to generate DNA" }));
         throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || "Failed to generate Brand DNA");
+    }
+    return res.json();
+}
+
+export async function extractDesignSystem(brandId: string): Promise<{ designSystem: DesignSystem; brand: Brand }> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/extract-design-system`, { method: "POST" });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "No se pudo extraer el design system" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || "No se pudo extraer el design system");
+    }
+    return res.json();
+}
+
+export async function updateDesignSystem(brandId: string, designSystem: DesignSystem): Promise<Brand> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ designSystem }),
+    });
+    if (!res.ok) {
+        throw new Error("No se pudo guardar el design system");
     }
     return res.json();
 }
@@ -582,6 +614,12 @@ export interface TTSRequest {
     voice_id?: string;
     model_id?: string;
     output_format?: string;
+    // Voice settings (ElevenLabs voice_settings)
+    stability?: number;           // 0.0–1.0, 0.5 = Natural (default)
+    similarity_boost?: number;    // 0.0–1.0, default 0.8
+    style?: number;               // 0.0–1.0, 0 = natural (default)
+    use_speaker_boost?: boolean;  // default true
+    speed?: number;               // 0.7–1.2, default 1.0
 }
 
 export interface TTSResult {

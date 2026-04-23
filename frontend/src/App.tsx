@@ -17,6 +17,7 @@ import { ContentPage } from "./pages/ContentPage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { AutomationsPage } from "./pages/AutomationsPage";
 import { PerformancePage } from "./pages/PerformancePage";
+import { ChatPage } from "./pages/ChatPage";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -52,7 +53,8 @@ function App() {
           </BrandProvider>
         }
       >
-        <Route index element={<BrandSettings />} />
+        <Route index element={<Dashboard />} />
+        <Route path="chat" element={<ChatPage />} />
         <Route path="content" element={<ContentPage />} />
         <Route path="brand" element={<BrandSettings />} />
         <Route path="integrations" element={<IntegrationsPage />} />

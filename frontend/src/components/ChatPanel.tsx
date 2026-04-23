@@ -19,6 +19,48 @@ interface ChatSession {
 
 const STORAGE_KEY = "coevo-chat-history";
 
+// ── Quick starters ──────────────────────────────────────────
+
+const QUICK_STARTERS: { emoji: string; label: string; hint: string; prompt: string }[] = [
+  {
+    emoji: "💡",
+    label: "Ideá 5 hooks para TikTok",
+    hint: "Ganchos de 3 segundos para parar el scroll",
+    prompt: "Ideá 5 hooks de 3 segundos para TikTok de {brand}. Que sean provocadores, visuales, y que inviten a seguir mirando. Especificá el tipo de gancho (pregunta, shock, curiosidad, before/after, reveal).",
+  },
+  {
+    emoji: "📝",
+    label: "Brief para UGC",
+    hint: "Script + dirección para un video UGC",
+    prompt: "Armá un brief para un video UGC de {brand}: objetivo, tono, estructura de 4 escenas (hook, problema, solución, CTA), y un script base que después puedo ajustar.",
+  },
+  {
+    emoji: "🎯",
+    label: "Analizá la marca",
+    hint: "Diagnóstico estratégico breve",
+    prompt: "En 5 bullets: ¿cuál es el diferencial real de {brand} vs sus competidores? ¿Qué posicionamiento explota mejor? ¿Qué oportunidades de contenido veo que no están usando?",
+  },
+  {
+    emoji: "✍️",
+    label: "Copy para Instagram",
+    hint: "Caption + CTA para feed",
+    prompt: "Escribí 3 variantes de copy para un post de Instagram de {brand}: una emocional, una directa, una con humor. Incluí hashtags y CTA para cada una.",
+  },
+  {
+    emoji: "🎬",
+    label: "Plan de 1 semana",
+    hint: "Calendario editorial por plataforma",
+    prompt: "Armá un plan de contenido de 1 semana para {brand} en IG + TikTok. 7 días, 1-2 piezas por día, mix de formatos (reel, carrusel, story, UGC). Indicá objetivo de cada pieza.",
+  },
+  {
+    emoji: "🔍",
+    label: "Competidores a mirar",
+    hint: "Benchmarks y referencias",
+    prompt: "Listá 5 marcas a las que {brand} debería mirar de cerca (directos + indirectos + aspiracionales). Por cada una: qué hace bien, qué aplicar, qué evitar.",
+  },
+];
+
+
 function loadHistory(): ChatSession[] {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
@@ -93,7 +135,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
     const session: ChatSession = {
       id: generateId(),
       brandId: activeBrand.id,
-      title: "New chat",
+      title: "Nuevo chat",
       messages: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -164,7 +206,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
         })
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to get response");
+      setError(err instanceof Error ? err.message : "No se pudo obtener respuesta");
     } finally {
       setLoading(false);
       inputRef.current?.focus();
@@ -183,7 +225,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
       <div className="flex-1 flex items-center justify-center text-fg-muted">
         <div className="text-center space-y-2">
           <Bot size={32} className="mx-auto text-fg-faint" />
-          <p className="text-[14px]">Select a brand to start chatting</p>
+          <p className="text-[14px]">Seleccioná una marca para empezar a chatear</p>
         </div>
       </div>
     );
@@ -192,7 +234,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
   if (!activeBrand) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <p className="text-[13px] text-fg-faint text-center">Select a brand to start chatting</p>
+        <p className="text-[13px] text-fg-faint text-center">Seleccioná una marca para empezar a chatear</p>
       </div>
     );
   }
@@ -205,16 +247,45 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
         <div className="flex-1 overflow-y-auto">
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
-              <div className="text-center space-y-3 max-w-md px-4">
-                <div className="w-10 h-10 rounded-full bg-[var(--color-warm-muted)] flex items-center justify-center mx-auto">
-                  <Bot size={20} className="text-[var(--color-warm)]" />
+              <div className="text-center space-y-6 max-w-2xl px-4 w-full">
+                <div className="space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-[var(--color-warm-muted)] flex items-center justify-center mx-auto">
+                    <Bot size={22} className="text-[var(--color-warm-strong)]" />
+                  </div>
+                  <p className="text-fg text-[20px] font-semibold tracking-tight">
+                    ¿Qué querés crear para {activeBrand.name}?
+                  </p>
+                  <p className="text-fg-muted text-[13px]">
+                    Pedime copy, ideas de campaña, scripts, o cualquier cosa creativa.
+                  </p>
                 </div>
-                <p className="text-fg text-[16px] font-medium">
-                  What do you want to create for {activeBrand.name}?
-                </p>
-                <p className="text-fg-muted text-[13px]">
-                  Ask me to write copy, brainstorm campaign ideas, generate scripts, or anything creative.
-                </p>
+
+                {/* Quick starters */}
+                <div className="space-y-2 text-left">
+                  <p className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest text-center">
+                    Empezá con
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {QUICK_STARTERS.map((q) => (
+                      <button
+                        key={q.label}
+                        onClick={() => {
+                          setInput(q.prompt.replace("{brand}", activeBrand.name));
+                          inputRef.current?.focus();
+                        }}
+                        className="group text-left px-3 py-2.5 bg-surface-1 hover:bg-surface-2 border border-edge hover:border-edge-strong rounded-[var(--radius-md)] transition-all cursor-pointer"
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="text-[14px] leading-none mt-0.5">{q.emoji}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] font-medium text-fg leading-tight">{q.label}</p>
+                            <p className="text-[10px] text-fg-faint mt-0.5 leading-snug line-clamp-1">{q.hint}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
@@ -229,7 +300,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
                   </div>
                   <div className="flex items-center gap-2 text-fg-muted text-[13px] pt-1">
                     <Loader2 size={14} className="animate-spin" />
-                    Thinking...
+                    Pensando...
                   </div>
                 </div>
               )}
@@ -255,7 +326,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={`Message ${activeBrand.name} assistant...`}
+                placeholder={`Mensaje al assistant de ${activeBrand.name}...`}
                 rows={1}
                 className="flex-1 bg-transparent text-fg text-[14px] placeholder:text-fg-faint outline-none resize-none max-h-[120px]"
                 style={{ minHeight: "24px" }}
@@ -271,7 +342,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
                 className={cn(
                   "p-1.5 rounded-[var(--radius-sm)] transition-colors shrink-0 cursor-pointer",
                   input.trim() && !loading
-                    ? "bg-[var(--color-warm)] text-white hover:opacity-90"
+                    ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90"
                     : "text-fg-faint"
                 )}
               >
@@ -291,19 +362,19 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
               <AssetChipGroup
                 items={(activeBrand.products || []).map((p) => ({ id: p.id, name: p.name, tag: `[producto: ${p.name}]` }))}
                 icon={<Package size={10} />}
-                label="Products"
+                label="Productos"
                 onSelect={(tag) => setInput((prev) => `${prev}${prev ? " " : ""}${tag} `)}
               />
               <AssetChipGroup
                 items={(activeBrand.voicePresets || []).map((v) => ({ id: v.id, name: v.name, tag: `[voz: ${v.name}]` }))}
                 icon={<Mic size={10} />}
-                label="Voices"
+                label="Voces"
                 onSelect={(tag) => setInput((prev) => `${prev}${prev ? " " : ""}${tag} `)}
               />
               <AssetChipGroup
                 items={(activeBrand.backgrounds || []).map((bg) => ({ id: bg.id, name: bg.name, tag: `[fondo: ${bg.name}]` }))}
                 icon={<Mountain size={10} />}
-                label="Backgrounds"
+                label="Fondos"
                 onSelect={(tag) => setInput((prev) => `${prev}${prev ? " " : ""}${tag} `)}
               />
 
@@ -335,13 +406,13 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
                   className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-fg-faint bg-surface-1 border border-edge rounded-full hover:bg-surface-2 hover:text-fg transition-colors cursor-pointer"
                 >
                   <Wand2 size={10} />
-                  All Tools
+                  Todas las tools
                 </button>
               </div>
             </div>
 
             <p className="text-[11px] text-fg-faint text-center">
-              Gemini 2.5 Flash — context-aware for {activeBrand.name}
+              Gemini 2.5 Flash — con contexto de {activeBrand.name}
             </p>
           </div>
         </div>
@@ -356,7 +427,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
             className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-fg-muted hover:text-fg bg-surface-1 hover:bg-surface-2 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
           >
             <Plus size={11} />
-            New
+            Nuevo
           </button>
         </div>
 
@@ -364,7 +435,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
           {brandSessions.length === 0 ? (
             <div className="px-3 py-8 text-center">
               <MessageSquare size={20} className="mx-auto text-fg-faint mb-2" />
-              <p className="text-[12px] text-fg-faint">No chats yet</p>
+              <p className="text-[12px] text-fg-faint">Sin chats todavía</p>
             </div>
           ) : (
             brandSessions.map((session) => (
@@ -463,17 +534,89 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         {isUser ? (
           <User size={14} className="text-fg-secondary" />
         ) : (
-          <Bot size={14} className="text-[var(--color-warm)]" />
+          <Bot size={14} className="text-[var(--color-warm-strong)]" />
         )}
       </div>
       <div
         className={cn(
           "max-w-[85%] text-[14px] leading-relaxed whitespace-pre-wrap",
-          isUser ? "text-fg text-right" : "text-fg-secondary"
+          isUser ? "text-fg text-right" : "text-fg-secondary space-y-3"
         )}
       >
-        {message.content}
+        <div>{message.content}</div>
+        {!isUser && <CreateWithThis content={message.content} />}
       </div>
+    </div>
+  );
+}
+
+// ── Handoff: chat reply → tool ──────────────────────────────
+
+const HANDOFF_TOOLS: { id: string; label: string; emoji: string }[] = [
+  { id: "ugc_creator", label: "UGC Creator", emoji: "🎬" },
+  { id: "video_ad_creator", label: "Video Ad Creator", emoji: "🎞️" },
+  { id: "fashion_reel", label: "Fashion Reel", emoji: "👗" },
+  { id: "static_ad", label: "Static Ad", emoji: "🖼️" },
+  { id: "carousel_creator", label: "Carousel", emoji: "📑" },
+  { id: "product_spotlight", label: "Product Spotlight", emoji: "💡" },
+];
+
+const CHAT_HANDOFF_KEY = "coevo-chat-handoff";
+
+function CreateWithThis({ content }: { content: string }) {
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  const handoff = (toolId: string) => {
+    sessionStorage.setItem(
+      CHAT_HANDOFF_KEY,
+      JSON.stringify({ from: "chat", brief: content, tool: toolId })
+    );
+    setOpen(false);
+    navigate(`/dashboard/generate/${toolId}`);
+  };
+
+  if (!content.trim()) return null;
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-[var(--color-warm-strong)] bg-[var(--color-warm-muted)] hover:bg-[var(--color-warm-subtle)] border border-[var(--color-warm-muted)] hover:border-[var(--color-warm)] rounded-full transition-all cursor-pointer"
+      >
+        <Wand2 size={11} />
+        Crear con esto
+        <ChevronDown size={10} className={cn("transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 w-56 bg-surface-1 border border-edge rounded-[var(--radius-md)] shadow-lg overflow-hidden z-20">
+          <div className="px-3 py-2 border-b border-edge-subtle">
+            <p className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Elegí una tool</p>
+          </div>
+          <div className="py-1 max-h-64 overflow-y-auto">
+            {HANDOFF_TOOLS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => handoff(t.id)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-2 cursor-pointer transition-colors"
+              >
+                <span className="text-[13px]">{t.emoji}</span>
+                <span className="text-[12px] font-medium text-fg">{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

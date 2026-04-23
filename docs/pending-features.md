@@ -68,16 +68,36 @@ Skills por step (script specialist, image specialist, etc.) → fase posterior, 
 **Lo que NO hay que construir:**
 - Los pipelines (ya existen)
 - La lógica de selección de tool (Claude lo decide)
-- Nuevo backend (mismos endpoints REST)
+- Nuevo backend (para la opción A — ver abajo)
 
-**Lo que hay que construir:**
-- 5-6 skill schemas (uno por pipeline principal)
-- Glue code: cuando Claude llama una skill → POST al endpoint correspondiente + polling
-- Devolver resultado a Claude para que lo presente en el chat
+**Constraint técnico importante:**
+Los pipelines actuales se orquestan desde el frontend (`ToolRunPage` corre cada step con aprobación humana). NO hay un endpoint backend tipo `POST /api/generate/ugc_creator` que corra el pipeline completo. Esto afecta el scope.
+
+**Dos caminos posibles:**
+
+### Opción A — Agent "navegador" (1-2 días)
+El agente entiende el pedido, elige la tool, resuelve los asset IDs, y redirige a `ToolRunPage` con la config pre-cargada. El usuario revisa y corre el pipeline manualmente.
+- **Valor:** saltás el setup (navegar + elegir tool + configurar assets)
+- **Lo que hay que construir:**
+  - Service `agent.py` con Claude API + tool_use
+  - 5-6 skill schemas
+  - Glue code que traduce skill call → navegación + config pre-cargada (sessionStorage, mismo pattern que Content Analyzer handoff)
+  - Toggle "Agent Mode" en el ChatPanel
+- **Pipeline intacto:** el usuario sigue teniendo control total de cada step
+
+### Opción B — Agent "ejecutor" (1-2 semanas)
+El agente corre el pipeline completo de punta a punta, sin navegación.
+- **Requiere:**
+  - Endpoints backend que orquesten todos los steps de cada pipeline (nueva capa)
+  - Manejo de estado async multi-step en el backend (job queue implícito)
+  - UI de progreso en el chat (streaming de updates mientras corre cada step)
+  - Checkpoint único al final (aprobación del resultado completo)
+
+**Recomendación: A primero.** Captura el 80% del valor con el 20% del trabajo. Las skills definidas en A se reutilizan 1:1 en B cuando se justifique.
 
 **Cuándo:** Después de que los pipelines sean estables (Phase 5). No tiene sentido agentizar pipelines que fallan manualmente.
 
-**Relación con Automation:** El mismo agente que corre desde el chat puede correr desde un cron. La instrucción viene del calendario editorial en vez del usuario.
+**Relación con Automation:** El mismo agente que corre desde el chat puede correr desde un cron. Para automation de verdad (sin usuario mirando), necesitás la Opción B — el pipeline corre solo en backend sin frontend abierto.
 
 ---
 
@@ -226,3 +246,50 @@ URL de la marca (sitio, landing, Instagram, etc.)
 - Actualmente: FFmpeg burns subtítulos simples, Remotion solo para preview
 - Goal: Remotion exporta video con subtítulos animados word-by-word
 - Requiere: Chromium en servidor
+
+---
+
+## 12. Video Editor (capa post-render)
+
+**Concepto:** Editor "ligero" para refinar un video ya generado sin re-correr el pipeline completo. NO es un timeline multi-track tipo CapCut — es una capa de refinamiento sobre el output de las tools de video (UGC Creator, Video Ad Creator, Fashion Reel, Product Clip).
+
+**Flujo:**
+```
+/dashboard/content → click en una generación de video → "Editar"
+  → /dashboard/edit/:generationId
+  → Editor abre con el video + sus escenas + audio + subtítulos
+  → Ajustes disponibles (ver abajo)
+  → Re-render con FFmpeg → nueva versión guardada
+```
+
+**Features del editor (ordenadas por ROI):**
+
+| Feature | Valor | Esfuerzo |
+|---|---|---|
+| **Swap de escena puntual** (regenerar solo 1 escena) | Muy alto | Bajo (ya casi existe en pipeline) |
+| **Overlay de música** (pick track + volumen + fade in/out) | Alto | Bajo |
+| **Editor de subtítulos** (texto, timing, estilo) | Alto | Medio |
+| **Trim/reordenar escenas** generadas | Alto | Medio |
+| **Selector de cover/thumbnail** (qué frame usar para el preview) | Medio | Bajo |
+| **Split/merge de clips** | Bajo | Alto |
+| **Transiciones entre escenas** | Bajo | Alto |
+
+**Lo que NO hace:**
+- Import de videos externos
+- Multi-track timeline
+- Keyframes / animación manual
+- Efectos / filtros / color grading
+- Cualquier cosa que CapCut/Premiere hace mejor
+
+Si el equipo necesita esas capacidades, exporta de Coevo y edita en CapCut/Descript.
+
+**Arquitectura:**
+- Nueva página `/dashboard/edit/:generationId`
+- Lee la generación (escenas, audio URL, subtítulos SRT) desde `generations.json`
+- Cada tipo de edit es independiente — no hay "pipeline" secuencial, son toggles
+- Re-render on-demand con FFmpeg (concatenación + música + subs nuevos)
+- Guarda nueva versión como generation separada (history)
+
+**Prerequisito:** Feature #1 (Generation Persistence) — necesitás que las generaciones guarden todo su estado (escenas individuales, audio, subs) para poder editarlas después.
+
+**Cuándo:** Después de Phase 5. Es polish, no funcionalidad core. Los pipelines tienen que estar sólidos antes de sumar refinement layer.

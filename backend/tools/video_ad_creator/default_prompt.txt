@@ -7,6 +7,13 @@ Each frame is a keyframe that will be animated frame-to-frame. The 10 frames tog
 {brand_guidance}
 {/brand_guidance}
 
+{?design_system}
+━━━ VISUAL SYSTEM ━━━
+{design_system}
+
+Respect these visual rules strictly.
+{/design_system}
+
 {?products}
 ━━━ PRODUCT ━━━
 {products}

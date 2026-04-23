@@ -65,8 +65,14 @@ app.mount("/static/products", StaticFiles(directory=str(brands.get_products_dir(
 class TTSRequest(BaseModel):
     text: str
     voice_id: Optional[str] = None
-    model_id: str = "eleven_multilingual_v2"
+    model_id: str = "eleven_v3"
     output_format: str = "mp3_44100_128"
+    # Voice settings (ElevenLabs voice_settings)
+    stability: Optional[float] = 0.5              # "Natural" ≈ 0.5 (balance expresividad/estabilidad)
+    similarity_boost: Optional[float] = 0.8       # fidelidad al clon
+    style: Optional[float] = 0.0                  # exageración de estilo (0 = natural)
+    use_speaker_boost: Optional[bool] = True
+    speed: Optional[float] = 1.0                  # velocidad de reproducción (0.7–1.2)
 
 
 class LipSyncRequest(BaseModel):
@@ -94,11 +100,22 @@ class BrandDNA(BaseModel):
     competitors: Optional[list[str]] = None      # known competitors
     unique_value: Optional[str] = None           # unique value proposition
 
+
+class DesignSystem(BaseModel):
+    photoStyle: Optional[str] = None             # Overall visual/photography style
+    composition: Optional[str] = None            # Framing, layout, product placement
+    colorTreatment: Optional[str] = None         # Saturation, filters, color grading
+    lighting: Optional[str] = None               # Lighting direction
+    visualDos: Optional[list[str]] = None        # What to ALWAYS show
+    visualDonts: Optional[list[str]] = None      # What to NEVER show
+    references: Optional[str] = None             # Reference brands/moodboard description
+
 class UpdateBrandRequest(BaseModel):
     name: Optional[str] = None
     brandContext: Optional[str] = None
     fonts: Optional[BrandFonts] = None
     dna: Optional[BrandDNA] = None
+    designSystem: Optional[DesignSystem] = None
 
 
 class GenerateCopyRequest(BaseModel):
@@ -313,6 +330,8 @@ def update_brand(brand_id: str, req: UpdateBrandRequest):
         brand["fonts"] = req.fonts.model_dump(exclude_none=True)
     if req.dna is not None:
         brand["dna"] = req.dna.model_dump(exclude_none=True)
+    if req.designSystem is not None:
+        brand["designSystem"] = req.designSystem.model_dump(exclude_none=True)
     brands.save_brands(all_brands)
     return brand
 
@@ -471,6 +490,59 @@ Rules:
         return {"dna": dna, "fonts": brand.get("fonts"), "brand": brand}
     except json.JSONDecodeError:
         return {"dna": None, "raw": content, "error": "Failed to parse DNA — raw response returned"}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Gemini error: {str(e)[:200]}")
+
+
+@app.post("/api/brands/{brand_id}/extract-design-system")
+async def extract_design_system(brand_id: str):
+    """Analyze brand context with Gemini and extract structured Design System for image/video tools."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    context = brand.get("brandContext", "").strip()
+    if not context:
+        raise HTTPException(status_code=400, detail="La marca no tiene contexto todavía. Agregá guidance desde URL o PDF primero.")
+
+    system_prompt = """Sos un director creativo experto en identidad visual de marca. Analizá el documento de marca y extraé el sistema de diseño visual — solo la parte que sirve para guiar la generación de imágenes y videos.
+
+BRAND CONTEXT:
+""" + context[:12000] + """
+
+Respondé con SOLO un objeto JSON en español:
+{
+  "photoStyle": "2-4 oraciones describiendo el estilo visual general (lifestyle, editorial, documental, etc.) — qué tipo de imágenes representan la marca",
+  "composition": "1-3 oraciones sobre reglas de composición, framing, cómo se muestra el producto, integración en escena",
+  "colorTreatment": "1-2 oraciones sobre tratamiento de color: saturación, filtros, color grading, contraste",
+  "lighting": "1-2 oraciones sobre dirección de iluminación: natural, estudio, cálida, dramática, etc.",
+  "visualDos": ["cosa1 que SIEMPRE se muestra", "cosa2", "cosa3"],
+  "visualDonts": ["cosa1 que NUNCA se muestra", "cosa2", "cosa3"],
+  "references": "1-2 oraciones mencionando marcas o referencias visuales admiradas, si se mencionan en el brief"
+}
+
+Reglas:
+- Extraé SOLO lo visual/fotográfico. No voz, no messaging, no audiencia.
+- Si el documento no menciona algo explícitamente, inferilo del posicionamiento e industria.
+- visualDos y visualDonts: 3-5 items cada uno, concretos y accionables para un generador de imágenes.
+- Mantené cada campo conciso — van a inyectarse en prompts."""
+
+    try:
+        content = await copy_gen._call_gemini(system_prompt, "Extraé el design system ahora.")
+        content = content.strip()
+        if content.startswith("```json"):
+            content = content.replace("```json", "").replace("```", "").strip()
+        elif content.startswith("```"):
+            content = content.replace("```", "").strip()
+
+        design_system = json.loads(content)
+        brand["designSystem"] = design_system
+        brands.save_brands(all_brands)
+
+        return {"designSystem": design_system, "brand": brand}
+    except json.JSONDecodeError:
+        return {"designSystem": None, "raw": content, "error": "Failed to parse design system — raw response returned"}
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Gemini error: {str(e)[:200]}")
 
@@ -1239,6 +1311,11 @@ async def text_to_speech(req: TTSRequest):
             voice_id=req.voice_id,
             model_id=req.model_id,
             output_format=req.output_format,
+            stability=req.stability,
+            similarity_boost=req.similarity_boost,
+            style=req.style,
+            use_speaker_boost=req.use_speaker_boost,
+            speed=req.speed,
         )
         return StreamingResponse(
             io.BytesIO(audio_bytes),
@@ -1449,6 +1526,11 @@ async def tts_generate_and_upload(req: TTSRequest):
             voice_id=req.voice_id,
             model_id=req.model_id,
             output_format=req.output_format,
+            stability=req.stability,
+            similarity_boost=req.similarity_boost,
+            style=req.style,
+            use_speaker_boost=req.use_speaker_boost,
+            speed=req.speed,
         )
         # Upload to Fal Storage
         fal_url = await kling_video.upload_image(
@@ -1468,6 +1550,11 @@ async def tts_generate_file(req: TTSRequest):
             voice_id=req.voice_id,
             model_id=req.model_id,
             output_format=req.output_format,
+            stability=req.stability,
+            similarity_boost=req.similarity_boost,
+            style=req.style,
+            use_speaker_boost=req.use_speaker_boost,
+            speed=req.speed,
         )
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3", dir="./tmp")
         tmp.write(audio_bytes)

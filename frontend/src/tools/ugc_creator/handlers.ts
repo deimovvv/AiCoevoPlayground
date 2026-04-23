@@ -17,6 +17,7 @@ import {
   analyzePoseReference,
   backgroundImageUrl,
 } from "../../lib/api";
+import { resolveSceneBackground } from "../shared/resolveBackground";
 
 // ── Visual Style Prompts ─────────────────────────────────
 
@@ -309,7 +310,7 @@ export const handleBaseImage: StepHandler = async (ctx) => {
 
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
-  const selectedBackground = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
+  const selectedBackground = resolveSceneBackground(firstScene, config, activeBrand);
   const selectedMoodboard = (activeBrand.moodboards || []).find((m) => m.id === config.selectedMoodboardId);
   const selectedClothingItems = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
 
@@ -587,10 +588,21 @@ export const handleMultishot: StepHandler = async (ctx) => {
       const sceneLocation = (scene as Record<string, unknown>).location as string || "";
       const cleanDirection = sceneDirection.replace(/Shot on \d+mm[^.]*\.|Shot from [^.]*\.|product only[^.]*\.|no person[^.]*/gi, "").trim();
 
-      // In narrative mode, include the scene's specific location in prompt
-      const locationContext = isNarrativeMode && sceneLocation
-        ? `SETTING: ${sceneLocation}. `
-        : "";
+      // Per-scene background: override base image reference when set specifically
+      const sceneBackground = resolveSceneBackground(scene, config, activeBrand);
+
+      // Location prompt: prefer per-scene background description > narrative location > nothing
+      let locationContext = "";
+      if (sceneBackground && scene.backgroundId !== undefined) {
+        // Scene has EXPLICIT background (not inherited from config) — make it dominant
+        const bgDesc = sceneBackground.description || sceneBackground.name;
+        locationContext = `SETTING: ${bgDesc}. This scene takes place in this EXACT location, NOT in the same setting as scene 1. `;
+      } else if (scene.backgroundId === null) {
+        // Explicitly no background — let Nano Banana generate from prompt only
+        locationContext = sceneLocation ? `SETTING: ${sceneLocation}. ` : "";
+      } else if (isNarrativeMode && sceneLocation) {
+        locationContext = `SETTING: ${sceneLocation}. `;
+      }
 
       // Narrative mode: frame-in / frame-out transition hints
       // Talking scenes receive a cut — they need a strong frame-IN (avatar arriving/beginning to speak)
@@ -640,11 +652,15 @@ export const handleMultishot: StepHandler = async (ctx) => {
         (sceneShowProduct !== false && productMentionedInDirection)
       );
 
+      // Per-scene background image reference (only when scene has an EXPLICIT backgroundId)
+      const hasExplicitSceneBg = scene.backgroundId !== undefined && scene.backgroundId !== null && !!sceneBackground?.imageUrl;
+      const sceneBgRef: string[] = hasExplicitSceneBg ? [sceneBackground!.imageUrl] : [];
+
       const sceneRefs: string[] = isProductOnly
-        ? (selectedProduct?.imageUrl ? [selectedProduct.imageUrl] : [baseImageResult.url])
+        ? (selectedProduct?.imageUrl ? [selectedProduct.imageUrl, ...sceneBgRef] : [baseImageResult.url, ...sceneBgRef])
         : includeProduct
-          ? [baseImageResult.url, selectedProduct!.imageUrl]
-          : [baseImageResult.url];
+          ? [baseImageResult.url, selectedProduct!.imageUrl, ...sceneBgRef]
+          : [baseImageResult.url, ...sceneBgRef];
 
       const variations = await Promise.all(
         Array.from({ length: NUM_VARIATIONS }, async (_, vi) => {
@@ -654,11 +670,14 @@ export const handleMultishot: StepHandler = async (ctx) => {
           const styleBlock = getVisualStyle(config as Record<string, unknown>) + " ";
 
           // Build reference header so model knows what each reference image is
+          const bgRefLine = hasExplicitSceneBg
+            ? `Image ${includeProduct ? 3 : 2}: the setting/location — place the person INSIDE this environment, match the lighting and ambiance of this reference.\n`
+            : "";
           const refHeader = isProductOnly
             ? ""
             : includeProduct
-              ? `REFERENCE IMAGES:\nImage 1: the person — use this EXACT face, hair, body, clothing.\nImage 2: "${productName}" — use this EXACT product, same packaging, same color, same design.\n\n`
-              : `REFERENCE IMAGES:\nImage 1: the person — use this EXACT face, hair, body, clothing.\n\n`;
+              ? `REFERENCE IMAGES:\nImage 1: the person — use this EXACT face, hair, body, clothing.\nImage 2: "${productName}" — use this EXACT product, same packaging, same color, same design.\n${bgRefLine}\n`
+              : `REFERENCE IMAGES:\nImage 1: the person — use this EXACT face, hair, body, clothing.\n${bgRefLine}\n`;
 
           // When a specific visual direction is provided (>40 chars), it's intentional and detailed —
           // use it directly without overriding with generic camera/action variations.
@@ -729,7 +748,8 @@ export const handleMultishot: StepHandler = async (ctx) => {
   const scene1 = multishotResults[0];
   const hookType = (config as Record<string, unknown>).hookType as string || "none";
   const hookMode = (config as Record<string, unknown>).hookMode as string || "standard";
-  if (scene1?.entryFrameUrl && hookType !== "none") {
+  // Use entry frame whenever one exists — either from config hookType or manual generation
+  if (scene1?.entryFrameUrl) {
     const isFooh = hookMode === "fooh";
     const motionPrompt = isFooh
       ? "Surrealist scene dissolves and transitions into a real-world UGC setting. Smooth cinematic transition, visual energy flowing from the fantastical into the personal. The world shifts from extraordinary to intimate."
@@ -819,18 +839,27 @@ function getAudioDuration(blob: Blob): Promise<number> {
 }
 
 export const handleVoice: StepHandler = async (ctx) => {
-  const { activeBrand, config, getScriptScenes, audioCache, setAudioCache } = ctx;
+  const { activeBrand, config, getScriptScenes, setAudioCache } = ctx;
   const scenes = getScriptScenes();
   const voiceId = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
+
+  // Voice settings from config — applied to every scene
+  const voiceOpts = {
+    stability: config.voiceStability,
+    similarity_boost: config.voiceSimilarityBoost,
+    style: config.voiceStyle,
+    speed: config.voiceSpeed,
+    use_speaker_boost: config.voiceSpeakerBoost,
+  };
 
   const voiceResults: Array<{ sceneId: string; title: string; script: string; audioUrl: string; falUrl: string; durationSecs: number }> = [];
 
   for (const scene of scenes) {
     if (scene.script) {
       // Generate TTS and upload to Fal in one call — so lipsync can reuse the fal_url
-      const { fal_url } = await generateTTSAndUpload({ text: scene.script, voice_id: voiceId });
+      const { fal_url } = await generateTTSAndUpload({ text: scene.script, voice_id: voiceId, ...voiceOpts });
       // Also generate local audio for playback preview
-      const ttsResult = await generateTTS({ text: scene.script, voice_id: voiceId });
+      const ttsResult = await generateTTS({ text: scene.script, voice_id: voiceId, ...voiceOpts });
       setAudioCache(scene.id, { url: ttsResult.audioUrl, blob: ttsResult.audioBlob });
       const durationSecs = await getAudioDuration(ttsResult.audioBlob);
       voiceResults.push({
@@ -973,12 +1002,19 @@ export const handleLipsync: StepHandler = async (ctx) => {
 
   for (let i = 0; i < curationData.length; i++) {
     const scene = curationData[i];
-    const sceneType = sceneTypeMap[scene.sceneId] || "talking";
+    let sceneType = sceneTypeMap[scene.sceneId] || "talking";
+
+    const scriptScene = scenes.find((s) => s.id === scene.sceneId) || scenes[i];
+
+    // Avatar OFF → force creative lipsync path (Kling + audio overlay), no face-lipsync
+    const sceneUseAvatar = (scriptScene as { _useAvatar?: boolean } | undefined)?._useAvatar;
+    if (sceneUseAvatar === false && sceneType === "talking") {
+      sceneType = "creative";
+    }
 
     const voiceEntry = Array.isArray(voiceData)
       ? voiceData.find((v) => v.sceneId === scene.sceneId) || voiceData[i]
       : undefined;
-    const scriptScene = scenes.find((s) => s.id === scene.sceneId) || scenes[i];
     const scriptText = voiceEntry?.script || scriptScene?.script || "";
     // Talking scenes without audio are skipped — creative scenes always get animated (no audio needed)
     if (!scriptText && sceneType !== "creative") continue;

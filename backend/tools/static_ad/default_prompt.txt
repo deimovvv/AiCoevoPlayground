@@ -9,6 +9,13 @@ Create a static ad composition for **{brand_name}** — a single image ready to 
 Use the brand's color palette, tone, and identity throughout the composition.
 {/brand_guidance}
 
+{?design_system}
+━━━ VISUAL SYSTEM ━━━
+{design_system}
+
+Respect these visual rules strictly — they define how this brand looks.
+{/design_system}
+
 {?products}
 ━━━ PRODUCT ━━━
 {products}

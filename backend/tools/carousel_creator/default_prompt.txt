@@ -9,6 +9,13 @@ Create a carousel ad for **{brand_name}** — a set of slides that tell a cohesi
 Use the brand's color palette, tone, and identity consistently across ALL slides.
 {/brand_guidance}
 
+{?design_system}
+━━━ VISUAL SYSTEM ━━━
+{design_system}
+
+Respect these visual rules strictly across every slide.
+{/design_system}
+
 {?products}
 ━━━ PRODUCT ━━━
 {products}

@@ -63,6 +63,21 @@ async def _get_duration(path: Path) -> float:
         return 0.0
 
 
+async def _has_audio_stream(path: Path) -> bool:
+    """Check if a media file contains at least one audio stream."""
+    proc = await asyncio.create_subprocess_exec(
+        "ffprobe", "-v", "error",
+        "-select_streams", "a:0",
+        "-show_entries", "stream=codec_type",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        str(path),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    return b"audio" in stdout
+
+
 def _build_subtitle_filter(
     subtitles: List[dict],
     font_size: int = 42,
@@ -272,26 +287,58 @@ async def concat_videos(
         await asyncio.gather(*download_tasks)
 
         # 2. Normalize segments to consistent format
+        # CRITICAL: every segment must have an audio stream (even silent) so
+        # `-c copy` concat doesn't drop audio on mixed inputs (e.g., silent hook
+        # videos from Kling concatenated with lipsynced scenes that have audio).
         normalized_paths = []
         segment_durations = []
         for i, seg_path in enumerate(segment_paths):
             norm_path = work_dir / f"norm_{i:03d}.mp4"
+            has_audio = await _has_audio_stream(seg_path)
+
+            if has_audio:
+                args = [
+                    "ffmpeg", "-y",
+                    "-i", str(seg_path),
+                    "-c:v", "libx264",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-ar", "44100",
+                    "-ac", "2",
+                    "-r", "30",
+                    "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
+                    str(norm_path),
+                ]
+            else:
+                # Add silent stereo audio track matching the video duration
+                args = [
+                    "ffmpeg", "-y",
+                    "-i", str(seg_path),
+                    "-f", "lavfi",
+                    "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+                    "-c:v", "libx264",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-ar", "44100",
+                    "-ac", "2",
+                    "-r", "30",
+                    "-pix_fmt", "yuv420p",
+                    "-shortest",
+                    "-map", "0:v:0",
+                    "-map", "1:a:0",
+                    "-movflags", "+faststart",
+                    str(norm_path),
+                ]
+
             proc = await asyncio.create_subprocess_exec(
-                "ffmpeg", "-y",
-                "-i", str(seg_path),
-                "-c:v", "libx264",
-                "-c:a", "aac",
-                "-ar", "44100",
-                "-r", "30",
-                "-pix_fmt", "yuv420p",
-                "-movflags", "+faststart",
-                str(norm_path),
+                *args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             _, stderr = await proc.communicate()
             if proc.returncode != 0:
-                raise RuntimeError(f"FFmpeg normalize failed for segment {i}: {stderr.decode()[-500:]}")
+                raise RuntimeError(f"FFmpeg normalize failed for segment {i} (has_audio={has_audio}): {stderr.decode()[-500:]}")
             normalized_paths.append(norm_path)
             dur = await _get_duration(norm_path)
             segment_durations.append(dur)
@@ -366,9 +413,45 @@ async def concat_videos(
                         rendered = True
 
             if not rendered:
-                shutil.copy2(concat_path, output_path)
+                # Subs render failed — re-encode concat output cleanly instead of raw copy
+                proc = await asyncio.create_subprocess_exec(
+                    "ffmpeg", "-y",
+                    "-i", str(concat_path),
+                    "-c:v", "libx264",
+                    "-preset", "fast",
+                    "-crf", "20",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-ar", "44100",
+                    "-ac", "2",
+                    "-movflags", "+faststart",
+                    str(output_path),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    raise RuntimeError(f"FFmpeg re-encode (fallback) failed: {stderr.decode()[-500:]}")
         else:
-            shutil.copy2(concat_path, output_path)
+            # No subs path — re-encode for clean output (concat -c copy can produce broken timestamps)
+            proc = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-y",
+                "-i", str(concat_path),
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "20",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-ar", "44100",
+                "-ac", "2",
+                "-movflags", "+faststart",
+                str(output_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                raise RuntimeError(f"FFmpeg re-encode (no-subs) failed: {stderr.decode()[-500:]}")
 
         # 5. Get final duration
         duration = await _get_duration(output_path)

@@ -9,6 +9,13 @@ Your job is to create a professional fashion editorial photograph for **{brand_n
 The editorial must embody the brand's identity: its aesthetics, target audience, visual language, and positioning in the market.
 {/brand_guidance}
 
+{?design_system}
+━━━ VISUAL SYSTEM ━━━
+{design_system}
+
+Respect these visual rules strictly.
+{/design_system}
+
 {?avatars}
 ━━━ MODEL / AVATAR ━━━
 {avatars}

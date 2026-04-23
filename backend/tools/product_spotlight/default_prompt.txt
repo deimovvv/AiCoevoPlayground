@@ -9,6 +9,13 @@ Your job is to generate a professional product placement photograph for **{brand
 Use the brand's visual identity, tone, and aesthetic to guide the overall look, color grading, and mood of the photograph.
 {/brand_guidance}
 
+{?design_system}
+━━━ VISUAL SYSTEM ━━━
+{design_system}
+
+Respect these visual rules strictly.
+{/design_system}
+
 {?products}
 ━━━ PRODUCT ━━━
 {products}

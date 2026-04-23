@@ -52,9 +52,9 @@ export function ContentPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-[22px] font-semibold text-fg tracking-tight">Content</h1>
+                <h1 className="text-[22px] font-semibold text-fg tracking-tight">Contenido</h1>
                 <p className="text-[14px] text-fg-muted mt-1">
-                    All generated content for {activeBrand?.name || "your brand"}
+                    Todo el contenido generado para {activeBrand?.name || "tu marca"}
                 </p>
             </div>
 
@@ -66,15 +66,15 @@ export function ContentPage() {
                         type="text"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search content..."
+                        placeholder="Buscar contenido..."
                         className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] pl-9 pr-3 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
                     />
                 </div>
 
                 <div className="flex bg-surface-1 border border-edge rounded-[var(--radius-sm)] p-0.5">
                     {([
-                        { value: "all" as const, label: "All" },
-                        { value: "image" as const, label: "Images", icon: <Image size={12} /> },
+                        { value: "all" as const, label: "Todo" },
+                        { value: "image" as const, label: "Imágenes", icon: <Image size={12} /> },
                         { value: "video" as const, label: "Videos", icon: <Video size={12} /> },
                         { value: "copy" as const, label: "Copy", icon: <FileText size={12} /> },
                     ]).map((t) => (
@@ -125,12 +125,12 @@ export function ContentPage() {
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                     <FolderOpen size={40} className="text-fg-faint mb-3" />
                     <p className="text-[14px] text-fg-muted">
-                        {generations.length === 0 ? "No content yet" : "No matches"}
+                        {generations.length === 0 ? "Todavía no hay contenido" : "Sin resultados"}
                     </p>
                     <p className="text-[13px] text-fg-faint mt-1">
                         {generations.length === 0
-                            ? "Run a pipeline from Generate to create content"
-                            : "Try a different filter or search term"
+                            ? "Corré un pipeline desde Generar para crear contenido"
+                            : "Probá otro filtro o término de búsqueda"
                         }
                     </p>
                 </div>
@@ -179,7 +179,7 @@ export function ContentPage() {
                                 <Trash2 size={18} className="text-error" />
                             </div>
                             <div>
-                                <h3 className="text-[14px] font-semibold text-fg">Delete generation?</h3>
+                                <h3 className="text-[14px] font-semibold text-fg">¿Eliminar generación?</h3>
                                 <p className="text-[12px] text-fg-muted mt-0.5">This action cannot be undone.</p>
                             </div>
                         </div>
@@ -198,7 +198,7 @@ export function ContentPage() {
                                 }}
                                 className="px-4 py-2 text-[13px] font-medium text-white bg-[var(--color-error)] hover:opacity-90 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
                             >
-                                Delete
+                                Eliminar
                             </button>
                         </div>
                     </div>
@@ -414,7 +414,7 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                     {gen.scenes && gen.scenes.length > 0 && (
                         <div className="space-y-2">
                             <h3 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider">
-                                {gen.type === "image" ? "Creatives" : "Scenes"} ({gen.scenes.length})
+                                {gen.type === "image" ? "Creativos" : "Escenas"} ({gen.scenes.length})
                             </h3>
                             {gen.scenes.some((s) => s.imageUrl) ? (
                                 <div className="grid grid-cols-2 gap-2">
@@ -470,7 +470,7 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                             <a
                                 href={fullVideoUrl}
                                 download={`${gen.title.replace(/[^a-zA-Z0-9]/g, "_")}.mp4`}
-                                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-[13px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
+                                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
                             >
                                 <Download size={14} />
                                 Download

@@ -40,8 +40,8 @@ const TOOL_LABELS: Record<string, string> = {
 
 const TOOL_GROUPS: Array<{ label: string; ids: string[] }> = [
   { label: "Video", ids: ["ugc_creator", "video_ad_creator", "fashion_reel", "product_clip"] },
-  { label: "Images", ids: ["static_ad", "carousel_creator", "ad_creative_lab", "product_spotlight", "fashion_editorial", "avatar_creator", "content_analyzer"] },
-  { label: "Other", ids: ["chat"] },
+  { label: "Imágenes", ids: ["static_ad", "carousel_creator", "ad_creative_lab", "product_spotlight", "fashion_editorial", "avatar_creator", "content_analyzer"] },
+  { label: "Otros", ids: ["chat"] },
 ];
 
 export function PromptsCard() {
@@ -72,7 +72,7 @@ export function PromptsCard() {
     <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] lg:col-span-2">
       <div className="px-5 py-4 border-b border-edge flex items-center gap-2.5">
         <Code2 size={16} className="text-fg-muted" />
-        <h2 className="text-[14px] font-semibold text-fg">Prompt Templates</h2>
+        <h2 className="text-[14px] font-semibold text-fg">Templates de prompts</h2>
         <span className="text-[11px] text-fg-faint ml-auto">
           {Object.keys(overrides).length} custom
         </span>
@@ -80,7 +80,7 @@ export function PromptsCard() {
 
       <div className="p-4">
         <p className="text-[12px] text-fg-muted mb-4">
-          Each tool uses a prompt template with dynamic variables like{" "}
+          Cada tool usa un template con variables dinámicas como{" "}
           <code className="text-[11px] bg-surface-2 px-1 py-0.5 rounded">
             {"{brand_name}"}
           </code>{" "}
@@ -88,7 +88,7 @@ export function PromptsCard() {
           <code className="text-[11px] bg-surface-2 px-1 py-0.5 rounded">
             {"{brand_guidance}"}
           </code>
-          . Customize per-brand or use defaults.
+          . Personalizá por marca o usá los defaults.
         </p>
 
         {loading ? (
@@ -97,7 +97,7 @@ export function PromptsCard() {
           </div>
         ) : templates.length === 0 ? (
           <p className="text-[13px] text-fg-faint text-center py-8">
-            No prompt templates found
+            No se encontraron templates
           </p>
         ) : (
           <div className="space-y-5">
@@ -203,7 +203,7 @@ function ToolPromptRow({
       onSaved(draft);
       setMode("view");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save");
+      setError(e instanceof Error ? e.message : "No se pudo guardar");
     } finally {
       setSaving(false);
     }
@@ -220,7 +220,7 @@ function ToolPromptRow({
       setDraft(def);
       setMode("view");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to reset");
+      setError(e instanceof Error ? e.message : "No se pudo restaurar");
     } finally {
       setSaving(false);
     }
@@ -235,7 +235,7 @@ function ToolPromptRow({
       setPreviewText(text);
       setMode("preview");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to preview");
+      setError(e instanceof Error ? e.message : "No se pudo previsualizar");
     } finally {
       setLoadingContent(false);
     }
@@ -279,7 +279,7 @@ function ToolPromptRow({
               )}
             >
               <Pencil size={11} />
-              Edit
+              Editar
             </button>
             <button
               onClick={handlePreview}
@@ -296,7 +296,7 @@ function ToolPromptRow({
               ) : (
                 <Eye size={11} />
               )}
-              Preview
+              Vista previa
             </button>
 
             <div className="flex-1" />
@@ -308,7 +308,7 @@ function ToolPromptRow({
                 className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-fg-muted hover:text-[var(--color-error)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"
               >
                 <RotateCcw size={11} />
-                Reset to Default
+                Restaurar default
               </button>
             )}
           </div>
@@ -336,19 +336,19 @@ function ToolPromptRow({
                   onClick={() => setMode("view")}
                   className="px-3 py-1.5 text-[12px] font-medium text-fg-muted hover:text-fg rounded-[var(--radius-sm)] transition-colors cursor-pointer"
                 >
-                  Cancel
+                  Cancelar
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
                 >
                   {saving ? (
                     <Loader2 size={12} className="animate-spin" />
                   ) : (
                     <Save size={12} />
                   )}
-                  Save Override
+                  Guardar override
                 </button>
               </div>
             </>

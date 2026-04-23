@@ -1,44 +1,61 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
 
 /* ============================================================
    Coevo Studio — Design Tokens
-   Direction: Dark, editorial, premium workspace
-   Depth: Fine borders + subtle shadows
-   Foundation: Near-black neutral
-   Spacing base: 4px
-   Radius: 6px / 12px / 16px (rounded, modern)
+   Default theme: DARK (editorial, premium)
+   Light theme:   activated via [data-theme="light"] on <html>
+   Palette:       Pink #FACDEA · Lime #BCFC11 · Mint #D4FCF1
    ============================================================ */
 
 @theme {
-  /* --- Surfaces (lifted grays for premium feel) --- */
+  /* ──────────── DARK (default) ──────────── */
+
+  /* Surfaces */
   --color-canvas: #0c0c0c;
   --color-surface-0: #141416;
   --color-surface-1: #1c1c1f;
   --color-surface-2: #252528;
   --color-surface-3: #2e2e32;
 
-  /* --- Foreground (pure neutral, no blue tint) --- */
+  /* Foreground */
   --color-fg: #eeeeee;
   --color-fg-secondary: #aaaaaa;
   --color-fg-muted: #777777;
   --color-fg-faint: #555555;
 
-  /* --- Borders (stronger for visibility) --- */
+  /* Borders */
   --color-edge: rgba(255, 255, 255, 0.10);
   --color-edge-subtle: rgba(255, 255, 255, 0.06);
   --color-edge-strong: rgba(255, 255, 255, 0.18);
   --color-edge-focus: rgba(200, 200, 200, 0.35);
 
-  /* --- Brand accent (neutral for general UI) --- */
+  /* Accent (neutral) */
   --color-accent: #cccccc;
   --color-accent-muted: rgba(204, 204, 204, 0.10);
 
-  /* --- Warm accent (bordeaux / terracotta — brand signature) --- */
-  --color-warm: #c45830;
-  --color-warm-muted: rgba(196, 88, 48, 0.12);
-  --color-warm-subtle: rgba(196, 88, 48, 0.06);
+  /* Warm accent — soft pink (brand signature) */
+  --color-warm: #FACDEA;
+  --color-warm-strong: #E89CC8;
+  --color-warm-muted: rgba(250, 205, 234, 0.15);
+  --color-warm-subtle: rgba(250, 205, 234, 0.08);
+  --color-warm-fg: #1a1a1a;
 
-  /* --- Semantic (adapted for dark backgrounds) --- */
+  /* Action accent — electric lime */
+  --color-action: #BCFC11;
+  --color-action-strong: #A8E500;
+  --color-action-muted: rgba(188, 252, 17, 0.18);
+  --color-action-subtle: rgba(188, 252, 17, 0.09);
+  --color-action-fg: #0a0a0a;
+
+  /* Calm accent — soft mint */
+  --color-calm: #D4FCF1;
+  --color-calm-strong: #9FE8D4;
+  --color-calm-muted: rgba(212, 252, 241, 0.15);
+  --color-calm-subtle: rgba(212, 252, 241, 0.08);
+  --color-calm-fg: #0a0a0a;
+
+  /* Semantic */
   --color-success: #3DBF8A;
   --color-success-muted: rgba(61, 191, 138, 0.12);
   --color-warning: #E4AB1B;
@@ -46,22 +63,34 @@
   --color-error: #E96565;
   --color-error-muted: rgba(233, 101, 101, 0.12);
 
-  /* --- Controls (dark fields, subtle borders) --- */
+  /* Controls */
   --color-control-bg: #0a0a0a;
   --color-control-border: rgba(255, 255, 255, 0.12);
   --color-control-focus: var(--color-edge-focus);
 
-  /* --- Typography --- */
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Glass */
+  --glass-bg: rgba(255, 255, 255, 0.04);
+  --glass-bg-hover: rgba(255, 255, 255, 0.07);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(255, 255, 255, 0.16);
+  --glass-sheen: rgba(255, 255, 255, 0.06);
+
+  /* Body gradient hotspots */
+  --bg-hotspot-1: rgba(250, 205, 234, 0.05);
+  --bg-hotspot-2: rgba(212, 252, 241, 0.04);
+  --bg-hotspot-3: rgba(188, 252, 17, 0.02);
+
+  /* Typography */
+  --font-sans: "Inter", "Neue Haas Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Consolas", ui-monospace, monospace;
 
-  /* --- Radius (rounded, modern) --- */
+  /* Radius */
   --radius-sm: 6px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 22px;
 
-  /* --- Spacing base: 4px --- */
+  /* Spacing */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -70,10 +99,65 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  /* --- Shadows --- */
+  /* Shadows */
   --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.2);
   --shadow-modal: 0 8px 40px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-dropdown: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* ──────────── LIGHT theme override ──────────── */
+[data-theme="light"] {
+  --color-canvas: #fafaf8;
+  --color-surface-0: #ffffff;
+  --color-surface-1: #f5f5f3;
+  --color-surface-2: #ececea;
+  --color-surface-3: #e2e2df;
+
+  --color-fg: #0a0a0a;
+  --color-fg-secondary: #333333;
+  --color-fg-muted: #6b6b6b;
+  --color-fg-faint: #9a9a9a;
+
+  --color-edge: rgba(10, 10, 10, 0.08);
+  --color-edge-subtle: rgba(10, 10, 10, 0.04);
+  --color-edge-strong: rgba(10, 10, 10, 0.16);
+  --color-edge-focus: rgba(10, 10, 10, 0.35);
+
+  --color-accent: #0a0a0a;
+  --color-accent-muted: rgba(10, 10, 10, 0.06);
+
+  --color-warm-muted: rgba(250, 205, 234, 0.35);
+  --color-warm-subtle: rgba(250, 205, 234, 0.18);
+
+  --color-action-muted: rgba(188, 252, 17, 0.25);
+  --color-action-subtle: rgba(188, 252, 17, 0.12);
+
+  --color-calm-muted: rgba(212, 252, 241, 0.40);
+  --color-calm-subtle: rgba(212, 252, 241, 0.20);
+
+  --color-success: #0F8558;
+  --color-success-muted: rgba(15, 133, 88, 0.10);
+  --color-warning: #B8820E;
+  --color-warning-muted: rgba(184, 130, 14, 0.10);
+  --color-error: #CC2E2E;
+  --color-error-muted: rgba(204, 46, 46, 0.08);
+
+  --color-control-bg: #ffffff;
+  --color-control-border: rgba(10, 10, 10, 0.12);
+
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-hover: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(10, 10, 10, 0.06);
+  --glass-border-hover: rgba(10, 10, 10, 0.12);
+  --glass-sheen: rgba(255, 255, 255, 0.55);
+
+  --bg-hotspot-1: rgba(250, 205, 234, 0.45);
+  --bg-hotspot-2: rgba(212, 252, 241, 0.40);
+  --bg-hotspot-3: rgba(188, 252, 17, 0.08);
+
+  --shadow-card: 0 1px 3px rgba(10, 10, 10, 0.06), 0 1px 2px rgba(10, 10, 10, 0.03);
+  --shadow-modal: 0 20px 60px rgba(10, 10, 10, 0.12), 0 4px 12px rgba(10, 10, 10, 0.06);
+  --shadow-dropdown: 0 8px 24px rgba(10, 10, 10, 0.10);
 }
 
 /* ============================================================
@@ -86,6 +170,39 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.005em;
+  background-image:
+    radial-gradient(ellipse 70% 50% at 10% -10%, var(--bg-hotspot-1), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 95% 15%, var(--bg-hotspot-2), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 50% 110%, var(--bg-hotspot-3), transparent 65%);
+  background-attachment: fixed;
+}
+
+/* Premium typography tightening for headings */
+h1, h2, h3 {
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+/* Coevo logo — white PNG, inverts for light theme */
+.coevo-logo {
+  filter: none;
+}
+[data-theme="light"] .coevo-logo {
+  filter: invert(1);
+}
+
+/* Sheen effect for premium glass cards */
+.glass-sheen {
+  position: relative;
+}
+.glass-sheen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--glass-sheen) 0%, transparent 40%);
 }
 
 /* ============================================================
