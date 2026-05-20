@@ -21,6 +21,7 @@ const PRIMARY_NAV: NavItem[] = [
     { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={15} /> },
     { label: "Chat", href: "/dashboard/chat", exact: true, icon: <MessageSquare size={15} /> },
     { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={15} /> },
+    { label: "Lab", href: "/dashboard/lab", exact: true, icon: <FlaskConical size={15} /> },
     { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={15} /> },
     { label: "Performance", href: "/dashboard/performance/organic", icon: <BarChart3 size={15} /> },
 ];

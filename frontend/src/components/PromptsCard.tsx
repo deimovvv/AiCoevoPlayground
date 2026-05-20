@@ -33,14 +33,13 @@ const TOOL_LABELS: Record<string, string> = {
   carousel_creator: "Carousel Creator",
   ad_creative_lab: "Ad Creative Lab",
   product_spotlight: "Product Spotlight",
-  fashion_editorial: "Fashion Editorial",
-  avatar_creator: "Avatar Creator",
+  avatar_creator: "Avatar",
   chat: "Chat Assistant",
 };
 
 const TOOL_GROUPS: Array<{ label: string; ids: string[] }> = [
   { label: "Video", ids: ["ugc_creator", "video_ad_creator", "fashion_reel", "product_clip"] },
-  { label: "Imágenes", ids: ["static_ad", "carousel_creator", "ad_creative_lab", "product_spotlight", "fashion_editorial", "avatar_creator", "content_analyzer"] },
+  { label: "Imágenes", ids: ["static_ad", "carousel_creator", "ad_creative_lab", "product_spotlight", "avatar_creator", "content_analyzer"] },
   { label: "Otros", ids: ["chat"] },
 ];
 

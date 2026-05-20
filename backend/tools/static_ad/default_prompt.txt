@@ -79,7 +79,18 @@ PRODUCT PLACEMENT:
 - Shot on a clean surface or floating with brand-colored background
 - Lit professionally: soft key light with subtle rim for separation
 - Product must look IDENTICAL to the reference photo — same angle, same labels visible
-- If model present: model interacts with product naturally
+
+MODEL + PRODUCT INTERACTION (IMPORTANT):
+{?product_is_worn}
+- The model WEARS or USES the product directly (e.g. wearing the garment, holding the product in hand)
+- Show it in context of natural use — never draped, over shoulder, or styled as decoration unless explicitly requested
+{/product_is_worn}
+{?product_is_not_worn}
+- The model does NOT wear or hold the product. They pose naturally in frame as a separate subject.
+- The product is shown on its own as the hero — on a surface, floating, or in a clean product shot area of the composition
+- DO NOT drape it over the shoulder, do NOT style it as an accessory, do NOT hold it — this is a product ad, not a merch lookbook
+- The model adds lifestyle context but doesn't interact physically with the product
+{/product_is_not_worn}
 
 COMPOSITION LAYOUT:
 - Use the rule of thirds or golden ratio

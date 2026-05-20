@@ -102,6 +102,18 @@
 - Gemini generates character brief from brand context
 - Saves avatar directly to brand kit
 
+### Manual Lab (images + video, brand-agnostic)
+**Path:** `/dashboard/lab` · **Tool ID (persistence):** `manual_lab` · **No pipeline, no curation.**
+A chat-style sandbox for one-shot Nano Banana 2 / Kling V3 generations. Designed for internal use when you just need a single image or short clip and don't want to go through a full pipeline.
+- **Brand-agnostic by default**: works without an active brand. Optional toggle "Usar assets de {brand}" pulls avatars/products/clothing/backgrounds into the asset picker.
+- **Reference tagging**: every uploaded or picked reference is auto-numbered `image1`, `image2`, …. Click a chip or type `[image1]` in the prompt to embed it. On submit, tokens expand into `Image N: …` lines that the model receives.
+- **Modes**:
+  - *Image* — Nano Banana 2 (`createImageEdit` if refs, else `createTextToImage`). Params: aspect ratio, resolution.
+  - *Video* — Kling V3 Pro (`createKlingVideo`). First reference is the start frame. Params: duration.
+- **Multi-turn chaining**: every result has "Usar como ref" (adds to references) and "Animar" (switches to video mode with that frame as the start image).
+- **Tool suggestion**: when the prompt is non-trivial, Gemini (`/api/manual/suggest-tool`) optionally surfaces a banner pointing to a structured pipeline (e.g. "Esto se ve como un carrusel — usar Carousel Creator"). Non-blocking.
+- **Persistence**: every result is saved as a `Generation` with `toolId="manual_lab"` and `brandId=null` (or the active brand id if the assets toggle is on). History is loaded on page mount via `fetchManualGenerations()` (`GET /api/generations?brandId=__none__`).
+
 ## Coming Soon
 
 ### Reel Creator (video)

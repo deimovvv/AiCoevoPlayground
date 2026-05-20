@@ -1,11 +1,9 @@
 /**
  * Product Spotlight — Step Handlers
- * ──────────────────────────────────
- * Reusable by fashion_editorial and other image tools.
  */
 
 import type { StepHandler } from "../types";
-import { generateToolPrompt, createImageEdit, pollImageGen, saveGeneration } from "../../lib/api";
+import { generateToolPrompt, createImageEdit, createTextToImage, pollImageGen } from "../../lib/api";
 
 // ── Prompt (Gemini via PromptBuilder) ────────────────────
 
@@ -23,7 +21,6 @@ export const handlePrompt: StepHandler = async (ctx) => {
   if (config.language) extraVars.language = config.language;
 
   const objectiveKey: Record<string, string> = {
-    fashion_editorial: "pose_direction",
     product_spotlight: "setting_description",
   };
   const key = objectiveKey[tool.id];
@@ -86,7 +83,9 @@ export const handleGenerate: StepHandler = async (ctx) => {
     finalPrompt += ` Visual style moodboard reference: replicate the aesthetic, color palette, and mood of the style reference image.`;
   }
 
-  const job = await createImageEdit(imageUrls, finalPrompt, config.aspectRatio, config.resolution);
+  const job = imageUrls.length === 0
+    ? await createTextToImage(finalPrompt, config.aspectRatio, config.resolution)
+    : await createImageEdit(imageUrls, finalPrompt, config.aspectRatio, config.resolution);
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
@@ -121,18 +120,7 @@ export const handleVariations: StepHandler = async (ctx) => {
 
   const allVariations = [{ id: "original", url: genResult.url, label: "Original" }, ...variations];
 
-  // Save to content library
-  try {
-    await saveGeneration({
-      brandId: activeBrand.id,
-      toolId: tool.id,
-      title: `${tool.name} — ${selectedProduct?.name || "Photo"} — ${new Date().toLocaleDateString()}`,
-      type: "image",
-      thumbnailUrl: genResult.url,
-      scenes: allVariations.map((v) => ({ id: v.id, title: v.label, imageUrl: v.url })),
-      metadata: { numVariations: allVariations.length },
-    });
-  } catch { /* silent */ }
+  // Persistence handled by autoSaveStep in ToolRunPage — no manual saveGeneration here.
 
   return { result: allVariations };
 };

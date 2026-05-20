@@ -7,8 +7,8 @@
 
 import type { StepHandler } from "../types";
 import {
-  generateToolPrompt, createImageEdit, pollImageGen,
-  concatVideos, saveGeneration,
+  generateToolPrompt, createImageEdit, createTextToImage, pollImageGen,
+  concatVideos,
 } from "../../lib/api";
 
 const API_BASE = "http://localhost:8000";
@@ -85,7 +85,9 @@ export const handleBaseImage: StepHandler = async (ctx) => {
 
   if (selectedProduct?.imageUrl) imageUrls.push(selectedProduct.imageUrl);
 
-  const job = await createImageEdit(imageUrls, scriptData.frames[0].prompt, config.aspectRatio, config.resolution);
+  const job = imageUrls.length === 0
+    ? await createTextToImage(scriptData.frames[0].prompt, config.aspectRatio, config.resolution)
+    : await createImageEdit(imageUrls, scriptData.frames[0].prompt, config.aspectRatio, config.resolution);
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
@@ -201,18 +203,7 @@ export const handleRender: StepHandler = async (ctx) => {
 
   const result = await concatVideos(videoUrls, undefined, false);
 
-  const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
-  try {
-    await saveGeneration({
-      brandId: activeBrand.id,
-      toolId: tool.id,
-      title: `Product Clip — ${selectedProduct?.name || "Product"} — ${new Date().toLocaleDateString()}`,
-      type: "video",
-      status: "completed",
-      outputUrl: result.video_url,
-      metadata: { duration: result.duration, numSegments: result.num_segments },
-    });
-  } catch { /* silent */ }
+  // Persistence handled by autoSaveStep in ToolRunPage — no manual saveGeneration here.
 
   return {
     result: {

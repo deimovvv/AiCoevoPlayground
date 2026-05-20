@@ -13,11 +13,26 @@ REST API (Fal queue pattern):
 
 import os
 import httpx
-from typing import Optional
+from typing import Dict, Optional
 
 FAL_BASE = "https://queue.fal.run"
-FAL_MODEL = "fal-ai/kling-video/v3/pro/image-to-video"  # Full path for submit
+FAL_MODEL = "fal-ai/kling-video/v3/pro/image-to-video"  # Default — full path for submit
 FAL_MODEL_BASE = "fal-ai/kling-video"  # Base model for status/result (no subpath per Fal docs)
+
+# Kling model variants exposed to the frontend. Add more as Fal releases them.
+KLING_MODELS: Dict[str, str] = {
+    "v3-pro":      "fal-ai/kling-video/v3/pro/image-to-video",
+    "v2-6-pro":    "fal-ai/kling-video/v2.6/pro/image-to-video",
+    "v2-6-std":    "fal-ai/kling-video/v2.6/standard/image-to-video",
+    "v2-5-turbo":  "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
+}
+
+
+def resolve_model(model_id: Optional[str]) -> str:
+    """Map a frontend-friendly model id to its full Fal path. Falls back to default."""
+    if not model_id:
+        return FAL_MODEL
+    return KLING_MODELS.get(model_id, FAL_MODEL)
 
 
 def _get_key() -> str:
@@ -112,11 +127,17 @@ async def create_video(
     duration: str = "10",
     negative_prompt: Optional[str] = None,
     aspect_ratio: str = "9:16",
+    model: Optional[str] = None,
+    end_image_url: Optional[str] = None,
 ) -> str:
     """
-    Submit an image-to-video generation job to Kling via Fal.
-    Returns a request_id for status polling.
+    Submit an image-to-video (or frame-to-frame, if end_image_url given) job
+    to Kling via Fal. Returns a request_id for status polling.
+
+    `model` is a friendly id (`v3-pro`, `v2-6-pro`, ...) — see KLING_MODELS.
     """
+    fal_path = resolve_model(model)
+
     payload = {
         "prompt": prompt or DEFAULT_PROMPT,
         "start_image_url": image_url,
@@ -124,13 +145,15 @@ async def create_video(
         "negative_prompt": negative_prompt or DEFAULT_NEGATIVE,
         "generate_audio": False,  # We'll add audio via lip sync later
     }
+    if end_image_url:
+        payload["end_image_url"] = end_image_url
 
-    print(f"[kling] Submitting job to {FAL_MODEL}...")
+    print(f"[kling] Submitting job to {fal_path}...")
     print(f"[kling] Image URL (first 100 chars): {image_url[:100]}")
 
     async with httpx.AsyncClient(timeout=30) as client:
         res = await client.post(
-            f"{FAL_BASE}/{FAL_MODEL}",
+            f"{FAL_BASE}/{fal_path}",
             headers=_headers(),
             json=payload,
         )

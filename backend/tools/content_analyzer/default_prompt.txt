@@ -46,6 +46,19 @@ The character wears these items. Describe by name in each prompt.
 {creative_direction}
 {/creative_direction}
 
+{?asset_swap_rules}
+━━━ ASSET SWAP RULES (USER-CONFIRMED — STRICT) ━━━
+These mappings come from the user confirming detected_assets vs brand kit. They are LAW for this run:
+
+{asset_swap_rules}
+
+For EVERY scene that mentioned the original asset:
+  • The "script" field must reference the BRAND asset's name (or pronoun) — NEVER the original.
+  • The "image_prompt" must visually describe the SAME brand asset, in the SAME role (held/worn/featured) as the original.
+  • script and image_prompt MUST AGREE per scene — if the script says "esta remera bordo", the image_prompt must show a burgundy t-shirt being worn or shown by the avatar.
+  • Do NOT inherit colors, garment types, or product types from the original video that were swapped — use ONLY the brand asset's attributes.
+{/asset_swap_rules}
+
 ━━━ ADAPTATION RULES ━━━
 
 KEEP from original:
@@ -94,6 +107,19 @@ CONSISTENCY (CRITICAL):
 - Same wardrobe throughout
 - Same lighting mood across all frames
 - Match the original's visual consistency
+
+PER-SCENE SCRIPT ↔ IMAGE COHERENCE (CRITICAL):
+For each scene, the "script" and the "image_prompt" MUST describe the SAME object/garment/action.
+- If the script says "este buzo de chocolate" → image_prompt MUST show the character wearing/holding a chocolate-brown hoodie.
+- If the script says "esta remera azul" → image_prompt MUST show a blue t-shirt being shown/worn.
+- NEVER let the script mention one product while the image_prompt shows a different one.
+- If a brand asset has been swapped in (see ASSET SWAP RULES if present), BOTH the script AND the image_prompt of every scene must consistently reference the BRAND asset — not the source video's asset.
+- Cross-check before writing each scene: read your own script line and confirm the image_prompt depicts exactly what's mentioned.
+
+STRUCTURAL ROLE PRESERVATION:
+- If the original video had the product featured (held to camera) in scene N, the regen scene N must also feature the BRAND product (held to camera).
+- If the original had a wide shot establishing the location in scene 1, the regen scene 1 must also be a wide shot of the setting.
+- Preserve the rhythm of close-ups vs wide shots from the source.
 
 ━━━ OUTPUT FORMAT (STRICT) ━━━
 

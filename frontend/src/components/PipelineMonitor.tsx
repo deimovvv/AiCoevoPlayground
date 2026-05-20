@@ -318,7 +318,7 @@ export function PipelineMonitor({
     const getStepDotStyle = (status: StepStatus) => {
         switch (status) {
             case "done": return "bg-success text-white";
-            case "running": return "bg-[var(--color-warm)] text-white";
+            case "running": return "bg-[var(--color-warm)] text-[var(--color-warm-fg)]";
             case "review": return "bg-warning text-black";
             case "error": return "bg-error text-white";
             default: return "bg-surface-2 text-fg-faint border border-edge";
@@ -428,7 +428,7 @@ export function PipelineMonitor({
                                             <audio ref={audioRef} src={audioUrl} onEnded={() => setAudioPlaying(false)} className="hidden" />
                                             <button
                                                 onClick={toggleAudio}
-                                                className="cursor-pointer w-12 h-12 rounded-full bg-[var(--color-warm)] text-white flex items-center justify-center hover:opacity-90 transition-opacity"
+                                                className="cursor-pointer w-12 h-12 rounded-full bg-[var(--color-warm)] text-[var(--color-warm-fg)] flex items-center justify-center hover:opacity-90 transition-opacity"
                                             >
                                                 {audioPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
                                             </button>

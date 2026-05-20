@@ -33,6 +33,7 @@ import {
   Zap,
   X,
   Mountain,
+  ChevronDown,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
@@ -41,18 +42,22 @@ import {
   generateCopy, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen,
   createFalLipSync, pollFalLipSync, concatVideos, saveGeneration,
   generateToolPrompt, createKlingVideo, pollKlingVideo,
+  createKlingFrameToFrame, createSeedanceReferenceToVideo, pollSeedanceVideo,
   uploadAvatar, uploadClothing, uploadBackground, uploadMoodboard,
   createHeyGenAvatar4, pollHeyGenAvatar4,
   fetchSystemVoices,
   fetchBrandActions,
   getTikTokTopVideos,
+  classifyReferenceImage,
   type TikTokVideo,
   type ActionCategory,
 } from "../lib/api";
 import { cn } from "../lib/utils";
 import { ImageEditPanel } from "../components/ImageEditPanel";
+import { ComposeOverlay } from "../components/ComposeOverlay";
 import { UGCPlayer } from "../remotion/UGCPlayer";
 import { TOOL_DEFINITIONS } from "../tools/registry";
+import { autoSaveStep, getActiveGenId, setActiveGenId, clearActiveGen } from "../tools/shared/autoSave";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -192,6 +197,11 @@ const STEP_META: Record<
     icon: <Eye size={15} />,
     description: "Analizá el video con Gemini Vision",
   },
+  map_assets: {
+    label: "Mapeo de assets",
+    icon: <Wand2 size={15} />,
+    description: "Confirmá qué assets de tu brand kit usar (detectados automáticamente)",
+  },
   adapt: {
     label: "Adaptar",
     icon: <Wand2 size={15} />,
@@ -261,8 +271,8 @@ interface ToolConfig {
   customScript: string;
   videoDuration: string;
   ugcMode: "standard" | "narrative";
-  lipsyncMethod: "heygen" | "synclipsync";
-  creativeMode: "single-frame" | "frame-to-frame";
+  lipsyncMethod: "heygen";
+  creativeMode: "single-frame" | "frame-to-frame" | "auto";
   visualStyle: "iphone" | "cinematic" | "studio" | "custom" | "editorial";
   visualStyleCustom: string;
   reelMode: "story" | "looks";
@@ -275,6 +285,9 @@ interface ToolConfig {
   voiceStyle: number;
   voiceSpeed: number;
   voiceSpeakerBoost: boolean;
+  // Image model
+  imageModel: "nano-banana-2" | "gpt-image-2";
+  referenceMode: "style" | "composition";
 }
 
 const DEFAULT_CONFIG: ToolConfig = {
@@ -290,7 +303,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   platform: "instagram",
   language: "es",
   notes: "",
-  numVariations: 3,
+  numVariations: 1,
   locationRef: "",
   styleRef: "",
   productIsWorn: false,
@@ -309,7 +322,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   videoDuration: "15",
   ugcMode: "standard",
   lipsyncMethod: "heygen",
-  creativeMode: "single-frame",
+  creativeMode: "auto",
   visualStyle: "iphone",
   visualStyleCustom: "",
   reelMode: "story",
@@ -321,6 +334,8 @@ const DEFAULT_CONFIG: ToolConfig = {
   voiceStyle: 0.0,
   voiceSpeed: 1.0,
   voiceSpeakerBoost: true,
+  imageModel: "nano-banana-2",
+  referenceMode: "style",
 };
 
 // ── Mock data for preview ─────────────────────────────────
@@ -436,6 +451,7 @@ export function ToolRunPage() {
   const [searchParams] = useSearchParams();
   const generationId = searchParams.get("gen");
   const handoffKey = searchParams.get("handoff");
+  const autoStartFromUrl = searchParams.get("autoStart") === "1";
   const { activeBrand } = useBrand();
   const [tool, setTool] = useState<ToolEntry | null>(null);
   const [loading, setLoading] = useState(true);
@@ -444,6 +460,7 @@ export function ToolRunPage() {
   const [activeStep, setActiveStep] = useState(0);
   const [started, setStarted] = useState(false);
   const [config, setConfig] = useState<ToolConfig>(DEFAULT_CONFIG);
+  const [agentInfo, setAgentInfo] = useState<{ reasoning?: string; warnings?: string[] } | null>(null);
   const [mockRunning, setMockRunning] = useState(false);
   const [curationSelections, setCurationSelections] = useState<Record<string, string>>({}); // sceneId → variationId
   const [audioCache, setAudioCache] = useState<Record<string, { url: string; blob: Blob }>>({}); // sceneId → {url, blob}
@@ -487,6 +504,128 @@ export function ToolRunPage() {
       });
   }, [toolId]);
 
+  // If URL has ?gen=, register it as the active draft for auto-save.
+  // If NOT — we're starting fresh — clear any stale genId in sessionStorage
+  // so the next autoSaveStep creates a new generation instead of overwriting
+  // the previous one. Without this, every new UGC/Fashion Reel run for the
+  // same brand kept replacing the previous saved generation in Contenido.
+  useEffect(() => {
+    if (!tool || !activeBrand) return;
+    if (generationId) {
+      setActiveGenId(tool.id, activeBrand.id, generationId);
+    } else {
+      clearActiveGen(tool.id, activeBrand.id);
+    }
+  }, [generationId, tool, activeBrand]);
+
+  // Auto-save whenever a step transitions to done/review with a result.
+  // Debounced via ref to avoid firing on every partial state change.
+  const lastSavedSignatureRef = useRef<string>("");
+  useEffect(() => {
+    if (!tool || !activeBrand || !started) return;
+    const doneSteps = steps.filter((s) => (s.status === "done" || s.status === "review") && s.result);
+    if (doneSteps.length === 0) return;
+
+    // Signature = which steps have a result (by id) → only save when new results appear
+    const signature = doneSteps.map((s) => s.id).join("|");
+    if (signature === lastSavedSignatureRef.current) return;
+    lastSavedSignatureRef.current = signature;
+
+    // Derive payload from the last completed step
+    const lastStep = doneSteps[doneSteps.length - 1];
+    const result = lastStep.result as Record<string, unknown> | undefined;
+    const isVideoTool = tool.pipeline.some((p) => p === "render" || p === "animate" || p === "lipsync");
+    // Find the best thumbnail across known result shapes:
+    // images[0] (Static Ad / Ad Creative Lab) | slides[0] (Carousel) | scenes[0] (UGC) |
+    // selections[0].selectedUrl (UGC curation) | url / image_url / thumbnailUrl
+    const firstUrlInArray = (arr: unknown): string | undefined => {
+      if (!Array.isArray(arr)) return undefined;
+      for (const item of arr) {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") {
+          const obj = item as Record<string, unknown>;
+          const u = obj.url || obj.imageUrl || obj.image_url || obj.selectedUrl;
+          if (typeof u === "string" && u) return u;
+        }
+      }
+      return undefined;
+    };
+    const thumbnail = (result?.thumbnailUrl as string)
+      || (result?.url as string)
+      || (result?.image_url as string)
+      || firstUrlInArray(result?.images)
+      || firstUrlInArray(result?.slides)
+      || firstUrlInArray(result?.scenes)
+      || firstUrlInArray(result?.selections)
+      || firstUrlInArray(result?.frames);
+    // outputUrl resolution:
+    //  - Always prefer explicit outputUrl / video_url / videoUrl (covers all naming styles)
+    //  - For VIDEO tools, NEVER fall back to result.url — that's typically the base_image PNG
+    //    and would get saved as outputUrl for the whole generation (breaks playback in
+    //    Contenido: the <video> tag tries to load a PNG and spins forever).
+    //  - For image tools, falling back to result.url is fine (e.g. static_ad final image).
+    let outputUrl: string | undefined =
+      (result?.outputUrl as string)
+      || (result?.video_url as string)
+      || (result?.videoUrl as string);
+    if (!outputUrl && !isVideoTool) {
+      outputUrl = result?.url as string;
+    }
+
+    // Extract scenes from common shapes: images[] | slides[] | scenes[] | variations with selections
+    let scenesPayload: Array<Record<string, unknown>> | undefined;
+    if (Array.isArray(result?.images)) {
+      scenesPayload = (result!.images as Array<{ id?: string; url?: string; label?: string }>).map((img, i) => ({
+        id: img.id || `scene_${i}`,
+        title: img.label || `Scene ${i + 1}`,
+        imageUrl: img.url,
+      }));
+    } else if (Array.isArray(result?.slides)) {
+      scenesPayload = (result!.slides as Array<{ id?: string; url?: string; title?: string }>).map((s, i) => ({
+        id: s.id || `slide_${i}`,
+        title: s.title || `Slide ${i + 1}`,
+        imageUrl: s.url,
+      }));
+    } else if (Array.isArray(result?.selections)) {
+      scenesPayload = (result!.selections as Array<{ sceneId?: string; title?: string; selectedUrl?: string }>).map((s, i) => ({
+        id: s.sceneId || `scene_${i}`,
+        title: s.title || `Scene ${i + 1}`,
+        imageUrl: s.selectedUrl,
+      }));
+    }
+
+    // Build metadata from top-level result fields that aren't complex objects
+    const metadata: Record<string, unknown> = {};
+    if (result) {
+      for (const k of ["headline", "subline", "cta", "colors", "prompt", "script"] as const) {
+        const v = result[k];
+        if (typeof v === "string" && v) metadata[k] = v;
+      }
+      if (Array.isArray(result.images)) metadata.numVariations = (result.images as unknown[]).length;
+      if (Array.isArray(result.slides)) metadata.numSlides = (result.slides as unknown[]).length;
+    }
+
+    const lastPipelineStep = steps[steps.length - 1];
+    const isFullyDone = lastPipelineStep?.status === "done" && !!lastPipelineStep?.result;
+
+    autoSaveStep({
+      activeBrand,
+      tool,
+      config,
+      steps,
+      curationSelections,
+      payload: {
+        title: `${tool.name} — ${new Date().toLocaleDateString()}`,
+        type: isVideoTool ? "video" : "image",
+        status: isFullyDone ? "completed" : "in_progress",
+        thumbnailUrl: thumbnail,
+        outputUrl: outputUrl,
+        scenes: scenesPayload,
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+      },
+    }).catch(() => { /* handled inside */ });
+  }, [steps, tool, activeBrand, started, config, curationSelections]);
+
   // Load saved generation pipeline state if ?gen= param present
   useEffect(() => {
     if (!generationId || !tool) return;
@@ -526,25 +665,156 @@ export function ToolRunPage() {
       .catch(() => { /* generation not found or no pipeline state */ });
   }, [generationId, tool]);
 
-  // Apply handoff from chat ("Crear con esto" button)
+  // Apply handoff from chat ("Crear con esto" / "Crear automáticamente")
   useEffect(() => {
     if (!tool) return;
     try {
       const raw = sessionStorage.getItem("coevo-chat-handoff");
       if (!raw) return;
-      const h = JSON.parse(raw) as { from: string; brief?: string; tool?: string };
+      const h = JSON.parse(raw) as {
+        from: string;
+        mode?: "auto" | "manual";
+        brief?: string;
+        tool?: string;
+        config?: Partial<ToolConfig> & Record<string, unknown>;
+        reasoning?: string;
+        warnings?: string[];
+        /** When true (set from chat's "Generar" button), auto-run the pipeline after config is applied. */
+        autoStart?: boolean;
+        attachments?: Array<{
+          dataUrl: string;
+          fileName?: string;
+          mimeType?: string;
+          classification?: { type: string; suggested_slot: string; description: string };
+        }>;
+        // Per-slide attachments — used by the IG replication flow so each generated slide
+        // uses its own composition reference. Length should match config.numSlides.
+        // Empty entries (no dataUrl) are kept to preserve index alignment.
+        perSlideAttachments?: Array<{
+          dataUrl: string;
+          fileName?: string;
+          mimeType?: string;
+        }>;
+      };
       if (h.from !== "chat" || h.tool !== tool.id) return;
       sessionStorage.removeItem("coevo-chat-handoff");
-      if (h.brief) {
+
+      // Helper: turn a base64 dataUrl into a File (returns null on failure).
+      const dataUrlToFile = (dataUrl: string, fileName: string, mimeOverride?: string): File | null => {
+        try {
+          const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+          if (!m) return null;
+          const [, mime, b64] = m;
+          const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+          const blob = new Blob([bytes], { type: mimeOverride || mime });
+          return new File([blob], fileName, { type: mimeOverride || mime });
+        } catch {
+          return null;
+        }
+      };
+
+      // Convert attached dataURLs back to File objects (will be merged into referenceImages
+      // in the single setConfig call below, to avoid race conditions between setters).
+      const attachmentFiles: File[] = [];
+      if (h.attachments && h.attachments.length > 0) {
+        for (const att of h.attachments) {
+          const file = dataUrlToFile(att.dataUrl, att.fileName || `chat-attachment-${Date.now()}.png`, att.mimeType);
+          if (file) attachmentFiles.push(file);
+          else console.warn("[handoff] attachment dataUrl format invalid");
+        }
+        console.log(`[handoff] ${attachmentFiles.length} attachments converted to Files (out of ${h.attachments.length})`);
+      }
+
+      // Per-slide attachment files (index-aligned with the slides). Empty entries become null
+      // and are filtered out below — but we keep the alignment until the carousel handler reads them.
+      const perSlideFiles: File[] = [];
+      if (h.perSlideAttachments && h.perSlideAttachments.length > 0) {
+        for (let i = 0; i < h.perSlideAttachments.length; i++) {
+          const att = h.perSlideAttachments[i];
+          if (!att?.dataUrl) continue;
+          const file = dataUrlToFile(att.dataUrl, att.fileName || `slide-${i + 1}.jpg`, att.mimeType);
+          if (file) perSlideFiles.push(file);
+        }
+        console.log(`[handoff] ${perSlideFiles.length} per-slide attachments converted (out of ${h.perSlideAttachments.length})`);
+      }
+
+      if (h.mode === "auto" && h.config) {
+        // Auto mode: apply the full resolved config from the agent
+        setConfig((prev) => {
+          const next: ToolConfig = { ...prev };
+          // Whitelist of fields we allow the agent to set (keeps type safety + security)
+          const allowedKeys: (keyof ToolConfig)[] = [
+            "selectedAvatarId", "selectedProductId", "selectedClothingIds",
+            "selectedBackgroundId", "selectedVoiceId", "objective", "tone",
+            "platform", "language", "numVariations", "aspectRatio", "resolution",
+            "subtitleEngine", "videoDuration", "ugcMode", "visualStyle",
+            "visualStyleCustom", "hookType", "hookMode", "lipsyncMethod",
+            "creativeMode", "reelMode", "adStyle", "adTemplate", "carouselType",
+            "numSlides", "voiceStability", "voiceSimilarityBoost", "voiceStyle",
+            "voiceSpeed", "voiceSpeakerBoost", "productIsWorn",
+            // Reference / Compose / Template behavior — needed for IG replicate flow
+            "referenceMode", "composeMode", "overlayTemplate", "templateColorMode",
+            "imageModel", "settingOverride", "includeCopy",
+            // Static Ad batch
+            "staticAdBatch", "staticAdCategory",
+            // Full scene-by-scene script when the agent detected a structured brief —
+            // without this, multi-scene scripts pasted in chat get aplastados into "objective"
+            "customScript",
+          ];
+          for (const k of allowedKeys) {
+            const v = (h.config as Record<string, unknown>)[k];
+            if (v !== undefined && v !== null) {
+              (next as Record<string, unknown>)[k] = v;
+            }
+          }
+          // Ensure objective carries the brief if agent left it empty
+          if (!next.objective && h.brief) next.objective = h.brief;
+          // Merge attachment Files into referenceImages in the same setter (avoids race condition)
+          if (attachmentFiles.length > 0) {
+            next.referenceImages = [...prev.referenceImages, ...attachmentFiles].slice(0, 10);
+          }
+          if (perSlideFiles.length > 0) {
+            next.perSlideTemplates = perSlideFiles;
+          }
+          return next;
+        });
+        // Store reasoning + warnings for visible banner
+        if (h.reasoning || h.warnings?.length) {
+          setAgentInfo({ reasoning: h.reasoning, warnings: h.warnings });
+        }
+      } else if (h.brief) {
+        // Manual mode: just append brief to objective + apply attachments if any
         setConfig((prev) => ({
           ...prev,
           objective: prev.objective ? `${prev.objective}\n\n${h.brief}` : h.brief!,
+          referenceImages: attachmentFiles.length > 0
+            ? [...prev.referenceImages, ...attachmentFiles].slice(0, 10)
+            : prev.referenceImages,
+          perSlideTemplates: perSlideFiles.length > 0 ? perSlideFiles : prev.perSlideTemplates,
         }));
+      } else if (attachmentFiles.length > 0 || perSlideFiles.length > 0) {
+        // No config + no brief, but attachments came through → still apply them
+        setConfig((prev) => ({
+          ...prev,
+          referenceImages: attachmentFiles.length > 0
+            ? [...prev.referenceImages, ...attachmentFiles].slice(0, 10)
+            : prev.referenceImages,
+          perSlideTemplates: perSlideFiles.length > 0 ? perSlideFiles : prev.perSlideTemplates,
+        }));
+      }
+
+      // Auto-start the pipeline when the chat's "Generar" button was used.
+      // Wait one tick for config setters to commit before kicking off step 0.
+      if ((h.autoStart || autoStartFromUrl) && !started) {
+        setTimeout(() => {
+          setStarted(true);
+          setActiveStep(0);
+        }, 150);
       }
     } catch (err) {
       console.error("[chat-handoff] parse error:", err);
     }
-  }, [tool]);
+  }, [tool, autoStartFromUrl, started]);
 
   // Apply handoff from Content Analyzer routing
   useEffect(() => {
@@ -558,7 +828,21 @@ export function ToolRunPage() {
         from: string;
         contentMode?: "visual" | "voiceover";
         adaptData?: { scenes?: Array<{ frame: number; script: string; imagePrompt: string; sceneType: string }>; adaptedScript?: string; styleNotes?: string };
-        analyzeData?: { analysis?: { content_type?: string; key_insights?: string; style_guide?: string; visual_style?: string } };
+        analyzeData?: { analysis?: {
+          content_type?: string;
+          key_insights?: string;
+          style_guide?: string;
+          visual_style?: string;
+          // Continuity metadata — drives whether downstream tools chain scenes or generate them independently
+          narrative_shape?: "transformation" | "showcase" | "story" | "cyclic";
+          state_continuity?: boolean;
+          stateful_elements?: string[];
+          // Visual DNA — gets prepended to every generation prompt so the look & feel of the source is replicated
+          visual_signature?: string;
+          lighting_style?: string;
+          palette_temperature?: string;
+          framing_signature?: string;
+        } };
         selectedAvatarIds?: string[];
         selectedProductIds?: string[];
         selectedClothingIds?: string[];
@@ -614,18 +898,40 @@ export function ToolRunPage() {
         };
 
         const isModelReel = tool.id === "fashion_reel";
-        const customScenes = adaptData.scenes.map((s, i) => ({
-          id: `act_${i + 1}`,
-          title: `Scene ${i + 1}`,
-          // Model Reel and visual-only UGC: no script, all scenes are creative
-          script: (isVisual || isModelReel) ? "" : stripBilingual(s.script),
-          visual: s.imagePrompt,
-          shot: detectShotType(s.imagePrompt),
-          sceneType: (isVisual || isModelReel) ? "creative" : (s.imagePrompt.length > s.script.length * 2 ? "creative" : "talking"),
-        }));
+        const customScenes = adaptData.scenes.map((s, i) => {
+          const cleanScript = (s.script || "").trim();
+          // Scene type rule:
+          //  - Fashion Reel or visual-only mode → always creative (no talking by design)
+          //  - Otherwise: if the scene has a meaningful script line → talking, else b-roll/creative.
+          //  - The OLD rule compared imagePrompt.length vs script.length*2, which always
+          //    favored creative because image prompts are verbose 3-4 sentence English while
+          //    scripts are short Spanish. Result: every UGC came out 100% creative.
+          const hasMeaningfulScript = cleanScript.length > 5;
+          return {
+            id: `act_${i + 1}`,
+            title: `Scene ${i + 1}`,
+            script: (isVisual || isModelReel) ? "" : stripBilingual(s.script),
+            visual: s.imagePrompt,
+            shot: detectShotType(s.imagePrompt),
+            sceneType: (isVisual || isModelReel)
+              ? "creative"
+              : (hasMeaningfulScript ? "talking" : "creative"),
+          };
+        });
         const modelReelObjective = analyzeData?.analysis?.key_insights
           ? String(analyzeData.analysis.key_insights).slice(0, 200)
           : "";
+        // Continuity hints from the analyzer — drives chain mode in fashion_reel multishot
+        const narrativeShape = analyzeData?.analysis?.narrative_shape;
+        const stateContinuity = analyzeData?.analysis?.state_continuity === true;
+        const statefulElements = Array.isArray(analyzeData?.analysis?.stateful_elements)
+          ? analyzeData.analysis.stateful_elements
+          : [];
+        // Visual DNA from the source — used to recreate the look & feel of the analyzed video
+        const visualSignature = analyzeData?.analysis?.visual_signature || "";
+        const lightingStyle = analyzeData?.analysis?.lighting_style || "";
+        const paletteTemperature = analyzeData?.analysis?.palette_temperature || "";
+        const framingSignature = analyzeData?.analysis?.framing_signature || "";
         setConfig((prev) => ({
           ...prev,
           ...assetUpdates,
@@ -633,7 +939,16 @@ export function ToolRunPage() {
           visualStyle: isModelReel ? (isEditorial ? "editorial" : "cinematic") : visualStyle,
           ugcMode: isModelReel ? "standard" : ugcMode,
           customScript: JSON.stringify(customScenes, null, 2),
-        }));
+          // Continuity metadata propagated to the tool's handlers
+          narrativeShape,
+          stateContinuity,
+          statefulElements,
+          // Visual signature propagated — handlers prepend it to scene prompts (unless user overrides via styleRef)
+          visualSignature,
+          lightingStyle,
+          paletteTemperature,
+          framingSignature,
+        } as ToolConfig));
       } else if (tool.id === "carousel_creator" && adaptData.scenes?.length) {
         const outline = adaptData.scenes.map((s, i) => `Slide ${i + 1}: ${s.script || s.imagePrompt}`).join("\n");
         setConfig((prev) => ({ ...prev, ...assetUpdates, objective: adaptData.adaptedScript || outline, notes: outline }));
@@ -662,9 +977,8 @@ export function ToolRunPage() {
     if (tool.id === "carousel_creator" || tool.id === "static_ad") {
       setConfig((prev) => ({ ...prev, aspectRatio: "4:5" }));
     }
-    if (tool.id === "fashion_reel") {
-      setConfig((prev) => ({ ...prev, visualStyle: prev.visualStyle === "iphone" ? "editorial" : prev.visualStyle }));
-    }
+    // Fashion Reel: keep whatever style the user has set (default is iphone
+    // — overriding to editorial was the old default before we standardized).
   }, [tool]);
 
   // Auto-select first avatar/product if available
@@ -1393,7 +1707,6 @@ export function ToolRunPage() {
         if (config.objective) {
           // Map objective to tool-specific variable name
           const objectiveKey: Record<string, string> = {
-            fashion_editorial: "pose_direction",
             product_spotlight: "setting_description",
           };
           const key = objectiveKey[tool!.id];
@@ -1668,6 +1981,48 @@ export function ToolRunPage() {
         </div>
       </div>
 
+      {/* Agent banner — shown when arriving via "Crear automáticamente" */}
+      {agentInfo && (
+        <div className="bg-[var(--color-warm-muted)] border border-[var(--color-warm-muted)] rounded-[var(--radius-md)] p-4 space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Wand2 size={14} className="text-[var(--color-warm-strong)]" />
+              <h4 className="text-[12px] font-semibold text-fg tracking-tight">
+                Configuración generada por el agente
+              </h4>
+            </div>
+            <button
+              onClick={() => setAgentInfo(null)}
+              className="text-fg-faint hover:text-fg cursor-pointer shrink-0"
+              title="Ocultar"
+            >
+              <X size={13} />
+            </button>
+          </div>
+          {agentInfo.reasoning && (
+            <p className="text-[12px] text-fg-secondary leading-relaxed">
+              {agentInfo.reasoning}
+            </p>
+          )}
+          {agentInfo.warnings && agentInfo.warnings.length > 0 && (
+            <div className="space-y-1 pt-1 border-t border-[var(--color-warm-muted)]">
+              <p className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">
+                Ojo con esto
+              </p>
+              {agentInfo.warnings.map((w, i) => (
+                <div key={i} className="flex items-start gap-1.5 text-[11px] text-fg-muted">
+                  <AlertCircle size={10} className="text-amber-500 mt-0.5 shrink-0" />
+                  <span>{w}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] text-fg-faint italic pt-1">
+            Revisá los campos abajo y ajustá lo que no te cierre antes de Start.
+          </p>
+        </div>
+      )}
+
       {/* Main layout */}
       <div className="flex gap-6 min-h-[500px]">
         {/* Steps sidebar */}
@@ -1778,6 +2133,11 @@ export function ToolRunPage() {
               onRegenerate={() => handleRunStep(activeStep)}
               onReRunFromHere={() => reRunFromStep(activeStep)}
               onUpdateStepResult={(sid, res) => setSteps((prev) => prev.map((s) => s.id === sid ? { ...s, result: res } : s))}
+              onInvalidateDownstream={(sid) => setSteps((prev) => {
+                const idx = prev.findIndex((s) => s.id === sid);
+                if (idx < 0) return prev;
+                return prev.map((s, i) => (i > idx && s.result ? { ...s, status: "stale" as StepStatus } : s));
+              })}
             />
           )}
         </div>
@@ -1849,19 +2209,6 @@ const TOOL_SCHEMAS: Record<string, ToolSchema> = {
     objectivePlaceholder: "Describe the desired setting. E.g., 'rustic cafe table with morning window light, warm earthy tones, shallow depth of field'...",
     showNotes: false,
   },
-  fashion_editorial: {
-    showAvatar: true, avatarLabel: "Model / Avatar", avatarSublabel: "The model for the editorial", avatarRequired: true,
-    showProduct: true, productLabel: "Accessories / Product",
-    showClothing: true, clothingLabel: "Garments", clothingSublabel: "multi-select — each garment is styled",
-    showBackground: true, showMoodboard: true,
-    showVoice: false, showTone: false, showPlatform: false, showLanguage: false, showVariations: true,
-    objectiveLabel: "Pose Direction",
-    objectivePlaceholder: "Describe the pose and mood. E.g., 'confident power stance, hand in pocket, looking slightly off camera, moody editorial feel'...",
-    showNotes: false,
-    showLocationRef: true,
-    showStyleRef: true,
-  },
-
   ad_creative_lab: {
     showAvatar: false, showProduct: true, productLabel: "Product",
     showClothing: false, showBackground: false, showMoodboard: true,
@@ -2040,11 +2387,22 @@ function ConfigPanel({
   onMockPreview: () => void;
 }) {
   const { activeBrand, refreshBrands } = useBrand();
-  const schema = TOOL_DEFINITIONS[tool.id]?.schema ?? TOOL_SCHEMAS[tool.id] ?? DEFAULT_SCHEMA;
+  const baseSchema = TOOL_DEFINITIONS[tool.id]?.schema ?? TOOL_SCHEMAS[tool.id] ?? DEFAULT_SCHEMA;
+  // Runtime schema overrides (e.g. Avatar tool opens the avatar picker in "poses" mode)
+  const schema = tool.id === "avatar_creator" && config.avatarToolMode === "poses"
+    ? { ...baseSchema, showAvatar: true, avatarRequired: true }
+    : baseSchema;
   const [systemVoices, setSystemVoices] = useState<Array<{ id: string; name: string; language: string }>>([]);
   const [actionCategories, setActionCategories] = useState<ActionCategory[]>([]);
   const [actionPickerScene, setActionPickerScene] = useState<number | null>(null);
   const [actionPickerTab, setActionPickerTab] = useState<string>("");
+  const [refClassification, setRefClassification] = useState<{
+    type: string;
+    confidence: number;
+    description: string;
+    suggested_slot: string;
+  } | null>(null);
+  const [classifyingRef, setClassifyingRef] = useState(false);
 
   useEffect(() => {
     fetchSystemVoices().then(setSystemVoices).catch(() => {});
@@ -2067,6 +2425,24 @@ function ConfigPanel({
         Select a brand from the switcher to configure this tool
       </div>
     );
+  }
+
+  // ── Brand readiness check (per tool) ───────────────────────
+  // Surface to the user what's missing before they hit Generate.
+  const readinessIssues: Array<{ severity: "error" | "warn"; msg: string }> = [];
+  const ds = activeBrand.designSystem;
+  const dna = activeBrand.dna;
+  const hasBrandContext = !!(activeBrand.brandContext && activeBrand.brandContext.length > 100);
+  const hasDesignSystem = !!(ds?.photoStyle);
+  const hasPalette = !!(dna?.colors && dna.colors.length > 0 && dna.colors[0].hex);
+
+  if (!hasBrandContext) readinessIssues.push({ severity: "error", msg: "Sin Brand System cargado — el output va a salir genérico. Cargá contexto en BrandSettings." });
+  else if (!hasDesignSystem) readinessIssues.push({ severity: "warn", msg: "Sin Design System extraído — sin reglas visuales claras. Apretá 'Extraer' en BrandSettings." });
+  if (!hasPalette && (tool.id === "static_ad" || tool.id === "carousel_creator" || tool.id === "ad_creative_lab")) {
+    readinessIssues.push({ severity: "warn", msg: "Sin paleta con hex en Brand DNA — los colores van a ser aproximados. Re-extraé el Brand DNA." });
+  }
+  if ((tool.id === "static_ad" || tool.id === "carousel_creator") && (!activeBrand.products || activeBrand.products.length === 0)) {
+    readinessIssues.push({ severity: "warn", msg: "Sin productos cargados — el ad no va a tener un sujeto claro. Subí al menos uno." });
   }
 
   // Build settings columns dynamically so empty tools don't have a row of dropdowns
@@ -2104,43 +2480,135 @@ function ConfigPanel({
         )}
       </div>
 
+      {/* Brand readiness banner — shows what's missing before generating */}
+      {readinessIssues.length > 0 && (
+        <div className="space-y-1.5">
+          {readinessIssues.map((issue, i) => (
+            <div
+              key={i}
+              className={cn(
+                "px-3 py-2 rounded-[var(--radius-sm)] border flex items-start gap-2 text-[11px]",
+                issue.severity === "error"
+                  ? "bg-red-500/10 border-red-500/30 text-red-300"
+                  : "bg-amber-500/10 border-amber-500/30 text-amber-300"
+              )}
+            >
+              <span className="shrink-0 leading-none">{issue.severity === "error" ? "⚠" : "ⓘ"}</span>
+              <span className="leading-relaxed">{issue.msg}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Content Analyzer — URL input at top (primary input) */}
       {tool.id === "content_analyzer" && (
         <ContentAnalyzerInput config={config} setConfig={setConfig} />
       )}
 
-      {/* Avatar style selector (Avatar Creator) */}
+      {/* Avatar tool mode toggle + style selector */}
       {tool.id === "avatar_creator" && (
-        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
-          <label className="text-[12px] font-semibold text-fg-secondary">Estilo de avatar</label>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { id: "realistic", label: "Realistic", desc: "Photorealistic" },
-              { id: "editorial", label: "Editorial", desc: "High-fashion" },
-              { id: "3d", label: "3D Render", desc: "CGI character" },
-              { id: "illustrated", label: "Illustrated", desc: "2D illustration" },
-              { id: "anime", label: "Anime", desc: "Japanese style" },
-              { id: "cinematic", label: "Cinematic", desc: "Film quality" },
-            ].map((style) => {
-              const selected = ((config as Record<string, unknown>).avatarStyle || "realistic") === style.id;
-              return (
+        <>
+          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+            <label className="text-[12px] font-semibold text-fg-secondary">¿Qué querés hacer?</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setConfig((p) => ({ ...p, avatarToolMode: "create" }))}
+                className={cn(
+                  "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
+                  config.avatarToolMode !== "poses"
+                    ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                    : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
+                )}
+              >
+                <div className="font-semibold">Crear nuevo avatar</div>
+                <div className="text-[9px] text-fg-faint mt-0.5">Gemini arma un perfil desde el brand context y genera la pose sheet</div>
+              </button>
+              <button
+                onClick={() => setConfig((p) => ({ ...p, avatarToolMode: "poses" }))}
+                className={cn(
+                  "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
+                  config.avatarToolMode === "poses"
+                    ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                    : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
+                )}
+              >
+                <div className="font-semibold">Poses de un avatar existente</div>
+                <div className="text-[9px] text-fg-faint mt-0.5">Tomás un avatar del Brand Kit y generás la pose sheet en fondo blanco</div>
+              </button>
+            </div>
+          </div>
+
+          {config.avatarToolMode === "poses" && (
+            <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+              <label className="text-[12px] font-semibold text-fg-secondary">Guardar como</label>
+              <div className="inline-flex bg-surface-2 rounded-[var(--radius-sm)] p-0.5 gap-0.5">
                 <button
-                  key={style.id}
-                  onClick={() => setConfig((p) => ({ ...(p as Record<string, unknown>), avatarStyle: style.id } as typeof p))}
+                  onClick={() => setConfig((p) => ({ ...p, avatarPosesSave: "new" }))}
                   className={cn(
-                    "px-3 py-2 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
-                    selected
-                      ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
-                      : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
+                    "px-3 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+                    config.avatarPosesSave !== "replace" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]" : "text-fg-faint hover:text-fg"
                   )}
                 >
-                  <div className="font-semibold">{style.label}</div>
-                  <div className="text-[9px] text-fg-faint mt-0.5">{style.desc}</div>
+                  Avatar nuevo
                 </button>
-              );
-            })}
+                <button
+                  onClick={() => setConfig((p) => ({ ...p, avatarPosesSave: "replace" }))}
+                  className={cn(
+                    "px-3 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+                    config.avatarPosesSave === "replace" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]" : "text-fg-faint hover:text-fg"
+                  )}
+                >
+                  Reemplazar imagen del original
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+            <label className="text-[12px] font-semibold text-fg-secondary">Estilo de avatar</label>
+            <p className="text-[10px] text-fg-faint">
+              Si estás usando un avatar de referencia (modo poses, o subida manual),
+              elegí <strong>&ldquo;Heredar referencia&rdquo;</strong> para que el resultado
+              respete la estética del original — no forces un estilo encima.
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: "inherit", label: "Heredar referencia", desc: "Sin override — copia el estilo del avatar/foto que pasaste" },
+                { id: "realistic", label: "Realistic", desc: "Photorealistic" },
+                { id: "editorial", label: "Editorial", desc: "High-fashion" },
+                { id: "3d", label: "3D Render", desc: "CGI character" },
+                { id: "illustrated", label: "Illustrated", desc: "2D illustration" },
+                { id: "anime", label: "Anime", desc: "Japanese style" },
+                { id: "cinematic", label: "Cinematic", desc: "Film quality" },
+              ].map((style) => {
+                // Default to "inherit" when in poses mode (using existing avatar as anchor),
+                // otherwise default to "realistic" for create-from-scratch flows.
+                const cfgStyle = (config as Record<string, unknown>).avatarStyle as string | undefined;
+                const defaultStyle = config.avatarToolMode === "poses" ? "inherit" : "realistic";
+                const currentStyle = cfgStyle || defaultStyle;
+                const selected = currentStyle === style.id;
+                const isInherit = style.id === "inherit";
+                return (
+                  <button
+                    key={style.id}
+                    onClick={() => setConfig((p) => ({ ...(p as Record<string, unknown>), avatarStyle: style.id } as typeof p))}
+                    className={cn(
+                      "px-3 py-2 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
+                      selected
+                        ? (isInherit
+                            ? "border-blue-400 bg-blue-500/10 text-blue-200"
+                            : "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg")
+                        : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted",
+                    )}
+                  >
+                    <div className="font-semibold">{style.label}</div>
+                    <div className="text-[9px] text-fg-faint mt-0.5">{style.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* UGC production settings — presets + grouped sections */}
@@ -2189,6 +2657,50 @@ function ConfigPanel({
       )}
 
       {/* Fashion Reel — mode + visual style */}
+      {/* Heredado del análisis — cuando Fashion Reel viene de Content Analyzer,
+          mostramos QUÉ instrucciones se propagaron, para que el usuario las vea
+          antes de generar (transparencia: "qué se va a mandar al modelo"). */}
+      {tool.id === "fashion_reel" && (() => {
+        const c = config as unknown as Record<string, unknown>;
+        const sig = (c.visualSignature as string) || "";
+        const lighting = (c.lightingStyle as string) || "";
+        const palette = (c.paletteTemperature as string) || "";
+        const framing = (c.framingSignature as string) || "";
+        const customScript = (c.customScript as string) || "";
+        let sceneCount = 0;
+        try { const p = JSON.parse(customScript); if (Array.isArray(p)) sceneCount = p.length; } catch { /* ignore */ }
+        const hasInherited = sig || lighting || palette || framing || sceneCount > 0;
+        if (!hasInherited) return null;
+        return (
+          <div className="bg-blue-500/5 border border-blue-500/30 rounded-[var(--radius-md)] p-4 space-y-2">
+            <div className="text-[11px] font-semibold text-blue-300 flex items-center gap-1.5">
+              <Sparkles size={12} /> Heredado del análisis del video
+            </div>
+            <p className="text-[10px] text-fg-faint">Esto es lo que se va a aplicar a TODAS las escenas para recrear el look del video original:</p>
+            <div className="space-y-1.5 text-[11px]">
+              {sceneCount > 0 && (
+                <div className="flex gap-2"><span className="text-fg-faint w-20 shrink-0">Escenas</span><span className="text-fg">{sceneCount} (del guion adaptado)</span></div>
+              )}
+              {sig && (
+                <div className="flex gap-2"><span className="text-fg-faint w-20 shrink-0">Visual DNA</span><span className="text-fg-muted leading-snug">{sig}</span></div>
+              )}
+              {lighting && (
+                <div className="flex gap-2"><span className="text-fg-faint w-20 shrink-0">Iluminación</span><span className="text-fg-muted leading-snug">{lighting}</span></div>
+              )}
+              {palette && (
+                <div className="flex gap-2"><span className="text-fg-faint w-20 shrink-0">Paleta</span><span className="text-fg-muted leading-snug">{palette}</span></div>
+              )}
+              {framing && (
+                <div className="flex gap-2"><span className="text-fg-faint w-20 shrink-0">Encuadre</span><span className="text-fg-muted leading-snug">{framing}</span></div>
+              )}
+            </div>
+            <p className="text-[9px] text-fg-faint pt-1 border-t border-blue-500/20">
+              El guion completo (con el image_prompt de cada escena) lo ves y editás en el paso <strong>Script</strong>. Esto es la "firma visual" que se prepend a cada generación.
+            </p>
+          </div>
+        );
+      })()}
+
       {tool.id === "fashion_reel" && (
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-4">
           {/* Mode toggle */}
@@ -2242,20 +2754,216 @@ function ConfigPanel({
 
       {/* Ad Template selector (Static Ad) */}
       {tool.id === "static_ad" && (
-        <TemplateSelector
-          selectedId={config.adTemplate}
-          onSelect={(id) => setConfig((p) => ({ ...p, adTemplate: id }))}
+        <>
+          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
+            <label className="text-[12px] font-semibold text-fg-secondary">Modo de salida</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setConfig((p) => ({ ...p, includeCopy: true }))}
+                className={cn(
+                  "px-3 py-2 text-[11px] font-semibold rounded-[var(--radius-sm)] border transition-all cursor-pointer text-left",
+                  config.includeCopy !== false
+                    ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] border-[var(--color-warm)]"
+                    : "bg-surface-2 text-fg-muted border-edge hover:text-fg"
+                )}
+              >
+                <div className="font-semibold">Con texto</div>
+                <div className="text-[9px] opacity-80 mt-0.5">Ad listo: headline + logo</div>
+              </button>
+              <button
+                onClick={() => setConfig((p) => ({ ...p, includeCopy: false }))}
+                className={cn(
+                  "px-3 py-2 text-[11px] font-semibold rounded-[var(--radius-sm)] border transition-all cursor-pointer text-left",
+                  config.includeCopy === false
+                    ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] border-[var(--color-warm)]"
+                    : "bg-surface-2 text-fg-muted border-edge hover:text-fg"
+                )}
+              >
+                <div className="font-semibold">Sin texto</div>
+                <div className="text-[9px] opacity-80 mt-0.5">Editorial limpio, sin overlays</div>
+              </button>
+            </div>
+          </div>
+          {/* Batch quantity picker */}
+          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
+            <label className="text-[12px] font-semibold text-fg-secondary">Cantidad de ads</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {([1, 3, 5, 10, "all"] as const).map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setConfig((p) => ({ ...p, staticAdBatch: n }))}
+                  className={cn(
+                    "px-3 py-1.5 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer",
+                    config.staticAdBatch === n
+                      ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                      : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
+                  )}
+                >
+                  {n === "all" ? "Todos (40)" : n}
+                </button>
+              ))}
+            </div>
+            {config.staticAdBatch !== 1 && (
+              <p className="text-[10px] text-fg-faint italic">
+                Genera {config.staticAdBatch === "all" ? "todos los 40" : `${config.staticAdBatch}`} ads, cada uno con un template distinto random{config.staticAdCategory ? ` de la categoría ${config.staticAdCategory}` : ""}. Tu selección manual de template se ignora.
+              </p>
+            )}
+          </div>
+
+          {/* Category filter (only when batch > 1) */}
+          {config.staticAdBatch !== 1 && (
+            <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
+              <label className="text-[12px] font-semibold text-fg-secondary">Filtro de categoría <span className="text-fg-faint font-normal">(opcional)</span></label>
+              <div className="flex gap-1.5 flex-wrap">
+                {(["", "brand", "promo", "social_proof", "educational", "comparison", "ugc"]).map((cat) => (
+                  <button
+                    key={cat || "all"}
+                    onClick={() => setConfig((p) => ({ ...p, staticAdCategory: cat }))}
+                    className={cn(
+                      "px-2.5 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium border transition-all cursor-pointer capitalize",
+                      config.staticAdCategory === cat
+                        ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                        : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
+                    )}
+                  >
+                    {cat === "" ? "Todas" : cat.replace("_", " ")}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Template selector — only relevant when batch === 1 */}
+          {config.staticAdBatch === 1 && (
+            <TemplateSelector
+              selectedId={config.adTemplate}
+              onSelect={(id) => setConfig((p) => ({ ...p, adTemplate: id }))}
+            />
+          )}
+        </>
+      )}
+
+      {/* Instagram Importer — for Carousel only. Lets the user paste an IG URL,
+          scrape via Apify, and choose which slide to use as template. */}
+      {tool.id === "carousel_creator" && (
+        <InstagramCarouselImporter
+          onUseAsTemplate={(slideDataUrl) => {
+            // Convert dataURL to File and inject as referenceImages
+            try {
+              const m = slideDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+              if (!m) return;
+              const [, mime, b64] = m;
+              const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+              const blob = new Blob([bytes], { type: mime });
+              const file = new File([blob], `ig-template-${Date.now()}.jpg`, { type: mime });
+              setConfig((p) => ({ ...p, referenceImages: [file], referenceMode: "composition" }));
+            } catch (err) {
+              console.error("[ig-importer] failed to attach slide:", err);
+            }
+          }}
         />
       )}
 
-      {/* Carousel type selector */}
+      {/* Carousel coherence banner — shows which mode the generation will use */}
+      {tool.id === "carousel_creator" && activeBrand && (() => {
+        const ds = (activeBrand as Record<string, unknown>).designSystem as Record<string, unknown> | undefined;
+        const hasTemplate = config.referenceImages.length > 0;
+        const hasDesignSystem = !!ds && (
+          !!ds.photoStyle || !!ds.composition || !!ds.colorTreatment ||
+          (Array.isArray(ds.visualDos) && (ds.visualDos as unknown[]).length > 0)
+        );
+        if (hasTemplate) {
+          return (
+            <div className="px-3 py-2 rounded-[var(--radius-sm)] bg-[var(--color-action-muted)] border border-[var(--color-action)] flex items-center gap-2">
+              <Check size={12} className="text-[var(--color-action-strong)] shrink-0" />
+              <p className="text-[11px] text-fg-muted">
+                <span className="font-semibold text-fg">Template cargado</span> — todos los slides van a respetar este layout
+              </p>
+            </div>
+          );
+        }
+        if (hasDesignSystem) {
+          return (
+            <div className="px-3 py-2 rounded-[var(--radius-sm)] bg-[var(--color-warm-subtle)] border border-[var(--color-warm-muted)] flex items-start gap-2">
+              <Sparkles size={12} className="text-[var(--color-warm-strong)] shrink-0 mt-0.5" />
+              <p className="text-[11px] text-fg-muted leading-relaxed">
+                <span className="font-semibold text-fg">Sin template visual</span> — los slides van a compartir paleta y estilo del Design System, pero el layout puede variar entre slides. Para mejor coherencia: subí una imagen como template arriba.
+              </p>
+            </div>
+          );
+        }
+        return (
+          <div className="px-3 py-2 rounded-[var(--radius-sm)] bg-amber-500/10 border border-amber-500/30 flex items-start gap-2">
+            <span className="text-amber-400 shrink-0 text-[14px] leading-none">⚠</span>
+            <p className="text-[11px] text-fg-muted leading-relaxed">
+              <span className="font-semibold text-fg">Sin Design System ni template</span> — el carousel no va a ser coherente entre slides. Cargá un Design System en BrandSettings o subí una imagen como template arriba.
+            </p>
+          </div>
+        );
+      })()}
+
+      {/* Carousel — Quick / Compose mode toggle */}
       {tool.id === "carousel_creator" && (
-        <CarouselTypeSelector
-          selectedType={config.carouselType}
-          numSlides={config.numSlides}
-          onSelectType={(id) => setConfig((p) => ({ ...p, carouselType: id }))}
-          onChangeSlides={(n) => setConfig((p) => ({ ...p, numSlides: n }))}
-        />
+        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
+          <label className="text-[12px] font-semibold text-fg-secondary">Modo de salida</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setConfig((p) => ({ ...p, composeMode: "quick" }))}
+              className={cn(
+                "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
+                config.composeMode !== "compose"
+                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                  : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
+              )}
+            >
+              <div className="font-semibold">Quick — texto en imagen</div>
+              <div className="text-[9px] text-fg-faint mt-0.5">Rápido. La IA mete el texto en pixel. Tipografía aproximada.</div>
+            </button>
+            <button
+              onClick={() => setConfig((p) => ({ ...p, composeMode: "compose" }))}
+              className={cn(
+                "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
+                config.composeMode === "compose"
+                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                  : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
+              )}
+            >
+              <div className="font-semibold">Compose — overlay con brand fonts</div>
+              <div className="text-[9px] text-fg-faint mt-0.5">Imagen limpia + texto editable con tipografía REAL de la marca.</div>
+            </button>
+          </div>
+          {config.composeMode === "compose" && (
+            <p className="text-[10px] text-fg-faint italic mt-1">
+              Después de generar las imágenes vas a poder editar el copy live, cambiar el template y exportar PNG con Awesome Serif / Montserrat / la tipografía de la marca.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Carousel — slide count picker (sin tipos predefinidos: el contenido sale del Creative Direction) */}
+      {tool.id === "carousel_creator" && (
+        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
+          <label className="text-[12px] font-semibold text-fg-secondary">Cantidad de slides</label>
+          <div className="flex gap-1.5 flex-wrap">
+            {[2, 3, 4, 5, 6, 7, 8, 10].map((n) => (
+              <button
+                key={n}
+                onClick={() => setConfig((p) => ({ ...p, numSlides: n }))}
+                className={cn(
+                  "px-3 py-1.5 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer",
+                  config.numSlides === n
+                    ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                    : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
+                )}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-fg-faint">
+            La estructura del carousel sale del Creative Direction de abajo (ej: "antes / después", "5 razones para...", "lookbook editorial").
+          </p>
+        </div>
       )}
 
       {/* Animation mode selector (Product Clip, Video Ad Creator) */}
@@ -2292,15 +3000,48 @@ function ConfigPanel({
       )}
 
       {/* Reference image(s) + Graphics uploaders */}
-      {(tool.id === "ad_creative_lab" || tool.id === "static_ad" || tool.id === "content_analyzer" || tool.id === "product_clip" || tool.id === "ugc_creator" || tool.id === "fashion_reel") && (
+      {/* Fashion Reel — explica el reparto de roles entre inputs, para que no sea
+          confuso pasar pose + escena + look&feel a la vez. Cada input controla UNA cosa. */}
+      {tool.id === "fashion_reel" && (
+        <div className="bg-surface-1 border border-blue-500/30 rounded-[var(--radius-md)] p-3 space-y-1.5">
+          <div className="text-[11px] font-semibold text-blue-300 flex items-center gap-1.5">
+            <ImageIcon size={12} /> Cómo se reparten los inputs
+          </div>
+          <p className="text-[10px] text-fg-muted leading-relaxed">
+            Cada referencia controla <strong>una sola cosa</strong> — no se pisan entre sí:
+          </p>
+          <ul className="text-[10px] text-fg-muted space-y-0.5 pl-1">
+            <li>📐 <strong>Pose</strong> (abajo, &ldquo;Referencia de POSE&rdquo;) → solo postura + encuadre</li>
+            <li>🏞️ <strong>Escena + luz</strong> → seleccioná un <strong>Background</strong> del brand kit</li>
+            <li>🎨 <strong>Look &amp; feel</strong> (estética/color) → seleccioná un <strong>Moodboard</strong> del brand kit</li>
+            <li>👤 <strong>Identidad</strong> → el <strong>Avatar</strong> elegido</li>
+            <li>👕 <strong>Prendas / producto</strong> → Clothing / Products del kit</li>
+          </ul>
+          <p className="text-[9px] text-fg-faint pt-0.5">
+            Si pasás varios, el motor toma de cada uno solo su rol (la pose no aporta luz, el fondo no aporta pose, etc).
+          </p>
+        </div>
+      )}
+
+      {(schema.showReference || tool.id === "content_analyzer") && (
         <div className={cn("gap-4", tool.id === "static_ad" ? "grid grid-cols-2" : "space-y-4")}>
           {/* Reference Image — single for Static Ad, multiple for Ad Creative Lab */}
           <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-[12px] font-semibold text-fg-secondary">
-                {tool.id === "content_analyzer" ? "Upload Video" : (tool.id === "ugc_creator" || tool.id === "fashion_reel") ? "Composition Reference" : (tool.id === "static_ad" || tool.id === "product_clip") ? "Reference Image" : "Reference Images"}
+                {tool.id === "content_analyzer" ? "Upload Video"
+                  : tool.id === "fashion_reel" ? "Referencia de POSE"
+                  : tool.id === "ugc_creator" ? "Composition Reference"
+                  : tool.id === "carousel_creator" ? "Template del Carousel"
+                  : (tool.id === "static_ad" || tool.id === "product_clip") ? "Reference Image"
+                  : "Reference Images"}
                 <span className="text-fg-faint font-normal ml-1">
-                  {tool.id === "content_analyzer" ? "(MP4, WebM — or use URL above)" : (tool.id === "ugc_creator" || tool.id === "fashion_reel") ? "(optional — pose/setting reference for first scene)" : (tool.id === "static_ad" || tool.id === "product_clip") ? "(style/mood reference)" : "(campaign style references)"}
+                  {tool.id === "content_analyzer" ? "(MP4, WebM — or use URL above)"
+                    : tool.id === "fashion_reel" ? "(solo postura y encuadre — no toma luz ni escena)"
+                    : tool.id === "ugc_creator" ? "(optional — pose/setting reference for first scene)"
+                    : tool.id === "carousel_creator" ? "(layout / tipografía / estilo que respetan TODOS los slides)"
+                    : (tool.id === "static_ad" || tool.id === "product_clip") ? "(style/mood reference)"
+                    : "(campaign style references)"}
                 </span>
               </label>
               <span className="text-[10px] text-fg-faint">{config.referenceImages.length} uploaded</span>
@@ -2326,24 +3067,187 @@ function ConfigPanel({
               "flex items-center justify-center gap-1.5 py-2 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[10px] transition-all",
               "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
             )}>
-              <Plus size={11} /> {tool.id === "content_analyzer" ? "Upload video" : (tool.id === "static_ad" || tool.id === "product_clip") ? "Upload reference" : "Add references"}
+              <Plus size={11} /> {tool.id === "content_analyzer" ? "Upload video"
+                : tool.id === "carousel_creator" ? "Subir template"
+                : (tool.id === "static_ad" || tool.id === "product_clip") ? "Upload reference"
+                : "Add references"}
               <input
                 type="file"
                 accept={tool.id === "content_analyzer" ? "video/*" : "image/*"}
-                multiple={tool.id !== "static_ad" && tool.id !== "content_analyzer" && tool.id !== "product_clip"}
+                multiple={tool.id !== "static_ad" && tool.id !== "content_analyzer" && tool.id !== "product_clip" && tool.id !== "carousel_creator"}
                 className="hidden"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const files = Array.from(e.target.files || []);
                   if (files.length > 0) {
                     setConfig((p) => ({
                       ...p,
-                      referenceImages: tool.id === "static_ad" ? [files[0]] : [...p.referenceImages, ...files].slice(0, 10),
+                      referenceImages: tool.id === "static_ad" || tool.id === "carousel_creator" ? [files[0]] : [...p.referenceImages, ...files].slice(0, 10),
+                      // Carousel: when a template is uploaded, default to "composition" — that's the use case
+                      referenceMode: tool.id === "carousel_creator" ? "composition" : p.referenceMode,
                     }));
+                    // Auto-classify the uploaded reference (only for image tools, not video)
+                    if (tool.id !== "content_analyzer" && files[0].type.startsWith("image/")) {
+                      setRefClassification(null);
+                      setClassifyingRef(true);
+                      try {
+                        console.log("[ref-classify] analyzing uploaded image...");
+                        const classification = await classifyReferenceImage(files[0]);
+                        console.log("[ref-classify] result:", classification);
+                        setRefClassification(classification);
+                      } catch (err) {
+                        console.error("[ref-classify] failed:", err);
+                      } finally {
+                        setClassifyingRef(false);
+                      }
+                    }
                   }
                   e.target.value = "";
                 }}
               />
             </label>
+
+            {/* Loading state while classifying */}
+            {classifyingRef && tool.id === "static_ad" && (
+              <div className="mt-2 p-2.5 bg-surface-1 border border-edge rounded-[var(--radius-sm)] flex items-center gap-2">
+                <Loader2 size={12} className="animate-spin text-[var(--color-warm-strong)]" />
+                <span className="text-[11px] text-fg-muted">Analizando la referencia con IA...</span>
+              </div>
+            )}
+
+            {/* Auto-classification suggestion banner */}
+            {refClassification && !classifyingRef && tool.id === "static_ad" && (() => {
+              const slotMap: Record<string, { label: string; emoji: string }> = {
+                product:    { label: "un producto",          emoji: "📦" },
+                avatar:     { label: "una persona",          emoji: "👤" },
+                background: { label: "un fondo / locación",  emoji: "🏙️" },
+                moodboard:  { label: "un moodboard",         emoji: "🎨" },
+                reference:  { label: "una escena completa",  emoji: "🔍" },
+              };
+              const slot = slotMap[refClassification.suggested_slot] || slotMap.reference;
+              const isReference = refClassification.suggested_slot === "reference";
+
+              return (
+                <div className="mt-2 p-2.5 bg-[var(--color-warm-muted)] border border-[var(--color-warm-muted)] rounded-[var(--radius-sm)] space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] font-semibold text-[var(--color-warm-strong)] uppercase tracking-wider mb-0.5">
+                        {slot.emoji} {isReference ? "Análisis visual" : `Parece ${slot.label}`}
+                      </div>
+                      <p className="text-[10px] text-fg-muted leading-relaxed">
+                        {refClassification.description}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setRefClassification(null)}
+                      className="text-fg-faint hover:text-fg cursor-pointer shrink-0"
+                      title="Cerrar"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+
+                  {!isReference && (
+                    <p className="text-[10px] text-fg-faint leading-relaxed italic">
+                      Hoy la imagen se usa solo como referencia visual (estilo o composición). Si querés que sea {slot.label} literal en el ad, subila al Brand Kit.
+                    </p>
+                  )}
+
+                  {isReference && (
+                    <p className="text-[10px] text-fg-faint leading-relaxed italic">
+                      Elegí abajo cómo querés usarla: <b>Estilo</b> (copia mood/colores) o <b>Composición</b> (copia layout + setting).
+                    </p>
+                  )}
+
+                  {!isReference && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => setRefClassification(null)}
+                        className="flex-1 px-2 py-1 text-[10px] font-medium text-[var(--color-warm-strong)] bg-surface-1 hover:bg-surface-2 border border-edge rounded-[var(--radius-sm)] cursor-pointer"
+                      >
+                        Dejar como referencia
+                      </button>
+                      <Link
+                        to="/dashboard/brand"
+                        onClick={() => setRefClassification(null)}
+                        className="flex-1 px-2 py-1 text-[10px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 rounded-[var(--radius-sm)] cursor-pointer text-center"
+                      >
+                        Ir a Brand Kit →
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Reference mode toggle — for image tools that support style/composition switching */}
+            {(tool.id === "static_ad" || tool.id === "carousel_creator") && config.referenceImages.length > 0 && (
+              <div className="pt-2 border-t border-edge-subtle mt-2 space-y-1.5">
+                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">
+                  {tool.id === "carousel_creator" ? "Cómo usar el template" : "Cómo usar la referencia"}
+                </span>
+                <div className="inline-flex bg-surface-2 rounded-[var(--radius-sm)] p-0.5 gap-0.5 w-full">
+                  <button
+                    onClick={() => setConfig((p) => ({ ...p, referenceMode: "style" }))}
+                    className={cn(
+                      "flex-1 px-2 py-1 text-[10px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+                      config.referenceMode !== "composition" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                    )}
+                  >
+                    Estilo
+                  </button>
+                  <button
+                    onClick={() => setConfig((p) => ({ ...p, referenceMode: "composition" }))}
+                    className={cn(
+                      "flex-1 px-2 py-1 text-[10px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+                      config.referenceMode === "composition" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                    )}
+                  >
+                    Composición
+                  </button>
+                </div>
+                <p className="text-[9px] text-fg-faint leading-relaxed">
+                  {tool.id === "carousel_creator" && config.referenceMode === "composition"
+                    ? "Cada slide respeta el layout/framing exacto del template — solo cambia el contenido. Mejor con GPT Image 2."
+                    : tool.id === "carousel_creator"
+                    ? "Cada slide hereda el mood/colores/iluminación del template — el layout puede variar entre slides."
+                    : config.referenceMode === "composition"
+                    ? "Copia el layout/framing exacto de la referencia. Mejor con GPT Image 2."
+                    : "Copia colores, mood e iluminación. La composición la decide el modelo."}
+                </p>
+
+                {/* Template color mode — Carousel only, when in Composición mode */}
+                {tool.id === "carousel_creator" && config.referenceMode === "composition" && (
+                  <div className="pt-2 border-t border-edge-subtle space-y-1.5">
+                    <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">Colores</span>
+                    <div className="inline-flex bg-surface-2 rounded-[var(--radius-sm)] p-0.5 gap-0.5 w-full">
+                      <button
+                        onClick={() => setConfig((p) => ({ ...p, templateColorMode: "brand" }))}
+                        className={cn(
+                          "flex-1 px-2 py-1 text-[10px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+                          config.templateColorMode !== "template" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                        )}
+                      >
+                        De la marca
+                      </button>
+                      <button
+                        onClick={() => setConfig((p) => ({ ...p, templateColorMode: "template" }))}
+                        className={cn(
+                          "flex-1 px-2 py-1 text-[10px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+                          config.templateColorMode === "template" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                        )}
+                      >
+                        Del template
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-fg-faint leading-relaxed">
+                      {config.templateColorMode === "template"
+                        ? "Mantiene los colores literales del template. Usalo cuando el template es oficial de la marca."
+                        : "Re-colorea el template con la paleta del Brand DNA. Usalo cuando el template es de otra marca y solo querés el layout."}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Graphics — logo, badges, icons (Static Ad only) */}
@@ -2428,7 +3332,7 @@ function ConfigPanel({
       )}
 
       {/* Asset selection — only render sections that this tool uses */}
-      {(schema.showAvatar || schema.showProduct || schema.showClothing || schema.showBackground) && (
+      {(schema.showAvatar || schema.showProduct || schema.showClothing || schema.showBackground || schema.showMoodboard) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {schema.showAvatar && (
             <AssetSelector
@@ -2492,7 +3396,7 @@ function ConfigPanel({
                   onSelect: (id: string) => setConfig((p) => ({ ...p, selectedProductId: p.selectedProductId === id ? null : id })),
                 })}
               />
-              {config.selectedProductId && tool.id === "ugc_creator" && (
+              {config.selectedProductId && config.selectedAvatarId && (tool.id === "ugc_creator" || tool.id === "static_ad") && (
                 <label className="flex items-center gap-2 px-4 py-2 bg-surface-1 border border-edge rounded-[var(--radius-sm)] cursor-pointer">
                   <input
                     type="checkbox"
@@ -2501,13 +3405,25 @@ function ConfigPanel({
                     className="accent-[var(--color-warm)]"
                   />
                   <span className="text-[12px] text-fg-muted">
-                    The product is what the avatar <strong>wears</strong> (not held in hands)
+                    El modelo <strong>usa</strong> el producto (lo lleva puesto o lo sostiene) — si está apagado, el producto se muestra aparte como hero del ad
                   </span>
                 </label>
               )}
             </div>
           )}
 
+          {/* Heads-up when user selected a product AND has clothing visible:
+              clarify the interaction so they don't end up with avatar wearing AND
+              holding the same garment (common confusion when product = clothing). */}
+          {schema.showClothing && schema.showProduct && config.selectedProductId && (
+            <div className="px-3 py-2 rounded-[var(--radius-sm)] bg-surface-1 border border-edge-subtle text-[11px] text-fg-muted leading-relaxed">
+              <strong className="text-fg">Cómo se combinan Product + Clothing:</strong> el <strong>Product</strong> es lo que el avatar <em>sostiene/muestra</em> (a menos que actives "el modelo usa el producto" arriba — ahí se vuelve lo que lleva puesto). El <strong>Clothing</strong> es lo que el avatar <em>lleva puesto</em>.
+              <br />
+              · Si querés <strong>vender una prenda mientras la lleva puesta</strong> → seleccioná sólo Product + activá "usa el producto". No selecciones clothing.
+              <br />
+              · Si querés <strong>mostrar la prenda en mano</strong> mientras lleva otra cosa → Product (sin "usa") + Clothing (otra prenda).
+            </div>
+          )}
           {schema.showClothing && (
             <AssetSelector
               label={schema.clothingLabel || "Clothing"}
@@ -2731,6 +3647,34 @@ function ConfigPanel({
           </div>
         )}
 
+        {/* Image model selector — only for image-generation tools (shows when tool uses images) */}
+        {["static_ad", "carousel_creator", "ad_creative_lab", "product_spotlight"].includes(tool.id) && (
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-fg-faint">Modelo de imagen</label>
+            <div className="inline-flex bg-surface-1 rounded-[var(--radius-sm)] p-0.5 gap-0.5">
+              <button
+                onClick={() => setConfig((p) => ({ ...p, imageModel: "nano-banana-2" }))}
+                className={cn(
+                  "px-3 py-1 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+                  config.imageModel !== "gpt-image-2" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                )}
+              >Nano Banana 2</button>
+              <button
+                onClick={() => setConfig((p) => ({ ...p, imageModel: "gpt-image-2" }))}
+                className={cn(
+                  "px-3 py-1 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+                  config.imageModel === "gpt-image-2" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                )}
+              >GPT Image 2</button>
+            </div>
+            <p className="text-[10px] text-fg-faint leading-relaxed">
+              {config.imageModel === "gpt-image-2"
+                ? "OpenAI GPT Image 2 — mejor para editar sobre una imagen base o hacer ajustes precisos."
+                : "Nano Banana 2 (default) — mejor para combinar múltiples referencias (avatar + producto + fondo)."}
+            </p>
+          </div>
+        )}
+
         {/* Aspect Ratio + Resolution + Subtitles — hidden for analysis-only tools */}
         {tool.id !== "content_analyzer" && <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1.5">
@@ -2774,6 +3718,76 @@ function ConfigPanel({
             </div>
           )}
         </div>}
+
+        {/* Motor de video — consolida engine de animación + lipsync (cuando aplica).
+            Una sola sección para que el usuario vea TODO lo del pipeline de video en
+            un solo lugar, sin saltar entre top de la página y panel de abajo. */}
+        {schema.showAnimationEngine && (
+          <div className="space-y-3 p-3 rounded-[var(--radius-md)] bg-surface-1/50 border border-edge-subtle">
+            <div className="text-[11px] font-semibold text-fg-muted uppercase tracking-wider">
+              Motor de video
+            </div>
+
+            {/* Animación */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-fg-faint">Animación</label>
+              <select
+                value={config.animationEngine}
+                onChange={(e) => setConfig((p) => ({ ...p, animationEngine: e.target.value as ToolConfig["animationEngine"] }))}
+                className="w-full h-8 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg outline-none focus:border-[var(--color-edge-focus)]"
+              >
+                <option value="kling">Kling V3 Pro (image-to-video)</option>
+                <option value="seedance">Seedance 2.0 (multi-reference + lipsync nativo)</option>
+              </select>
+              <p className="text-[10px] text-fg-faint">
+                {config.animationEngine === "seedance"
+                  ? "Un solo modelo genera visual + lipsync. Más caro pero coherencia entre escenas. No usa HeyGen."
+                  : "Kling anima las escenas creativas. Las talking pasan por HeyGen Avatar 4 para el lipsync."}
+              </p>
+            </div>
+
+            {/* Modo de animación de clips — solo Fashion Reel + engine Kling.
+                Seedance no tiene frame-to-frame (es reference-to-video). */}
+            {tool.id === "fashion_reel" && config.animationEngine === "kling" && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-fg-faint">Modo de clip</label>
+                <select
+                  value={config.creativeMode}
+                  onChange={(e) => setConfig((p) => ({ ...p, creativeMode: e.target.value as ToolConfig["creativeMode"] }))}
+                  className="w-full h-8 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg outline-none focus:border-[var(--color-edge-focus)]"
+                >
+                  <option value="auto">Auto (f2f en modo Looks, single en Story)</option>
+                  <option value="single-frame">Single frame (modelo se mueve en su lugar)</option>
+                  <option value="frame-to-frame">Frame-to-frame (transición look A → look B)</option>
+                </select>
+                <p className="text-[10px] text-fg-faint">
+                  {config.creativeMode === "frame-to-frame"
+                    ? "Cada clip transiciona de un look/pose al siguiente. Ideal catálogo / lookbook."
+                    : config.creativeMode === "single-frame"
+                      ? "Cada imagen se anima en su lugar (sway, movimiento de pelo, pose)."
+                      : "El sistema elige: frame-to-frame entre looks (modo Looks), single en narrativo (modo Story)."}
+                </p>
+              </div>
+            )}
+
+            {/* Hook de entrada — solo Fashion Reel + Kling. Genera la escena vacía y
+                anima a la modelo entrando (f2f vacío → modelo). */}
+            {tool.id === "fashion_reel" && config.animationEngine === "kling" && (
+              <label className="flex items-start gap-2 cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={(config as unknown as Record<string, unknown>).entryHook === true}
+                  onChange={(e) => setConfig((p) => ({ ...(p as Record<string, unknown>), entryHook: e.target.checked } as typeof p))}
+                  className="mt-0.5 accent-[var(--color-warm)]"
+                />
+                <span className="text-[11px] text-fg-muted leading-snug">
+                  <strong className="text-fg">Hook de entrada</strong> — la modelo entra a la escena.
+                  Genera la escena vacía (mismo fondo) y anima f2f vacío → modelo entrando en la escena 1.
+                </span>
+              </label>
+            )}
+          </div>
+        )}
 
         {/* Video Duration — only for video tools with script step */}
         {tool.category === "video" && tool.pipeline?.includes("script") && (
@@ -2831,6 +3845,35 @@ function ConfigPanel({
               placeholder={schema.objectivePlaceholder}
               className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-3 py-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-none leading-relaxed"
             />
+          </div>
+        )}
+
+        {/* Setting / Locación override — pisa el setting que infiere Gemini del brand context */}
+        {tool.id !== "content_analyzer" && tool.id !== "avatar_creator" && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-medium text-fg-faint">
+                Setting / Locación <span className="text-fg-faint italic">(opcional)</span>
+              </label>
+              {config.settingOverride && (
+                <button
+                  onClick={() => setConfig((p) => ({ ...p, settingOverride: "" }))}
+                  className="text-[9px] text-fg-faint hover:text-fg cursor-pointer"
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+            <input
+              type="text"
+              value={config.settingOverride}
+              onChange={(e) => setConfig((p) => ({ ...p, settingOverride: e.target.value }))}
+              placeholder='ej: "baño moderno familiar con luz natural" — pisa el setting que infiere Gemini del brand'
+              className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-3 py-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
+            />
+            <p className="text-[10px] text-fg-faint italic">
+              Si la marca tiene un setting cargado (ej: taller, oficina) y querés cambiarlo solo para esta corrida, escribilo acá.
+            </p>
           </div>
         )}
 
@@ -3107,6 +4150,7 @@ function StepPanel({
   onRegenerate,
   onReRunFromHere,
   onUpdateStepResult,
+  onInvalidateDownstream,
 }: {
   tool: ToolEntry;
   step: StepState;
@@ -3123,6 +4167,7 @@ function StepPanel({
   onRegenerate: () => void;
   onReRunFromHere: () => void;
   onUpdateStepResult?: (stepId: string, result: unknown) => void;
+  onInvalidateDownstream?: (stepId: string) => void;
 }) {
   const meta = STEP_META[step.id] || {
     label: step.id,
@@ -3130,6 +4175,7 @@ function StepPanel({
     description: "",
   };
   const { activeBrand } = useBrand();
+  const [showResetModal, setShowResetModal] = useState(false);
 
   return (
     <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] overflow-hidden">
@@ -3179,11 +4225,12 @@ function StepPanel({
           )}
           {(step.status === "done" || step.status === "stale") && (
             <button
-              onClick={onReRunFromHere}
+              onClick={() => setShowResetModal(true)}
+              title="Resetea este paso a 'activo' para volver a correrlo. Los pasos siguientes quedan marcados como desactualizados pero conservan sus resultados. No corre nada solo — tenés que apretar Run después."
               className="flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-1 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
             >
               <RotateCcw size={12} />
-              Re-run from here
+              Resetear paso
             </button>
           )}
         </div>
@@ -3200,15 +4247,7 @@ function StepPanel({
             brandName={activeBrand?.name || ""}
           />
         ) : step.status === "running" ? (
-          <div className="flex flex-col items-center py-12 gap-3">
-            <Loader2
-              size={24}
-              className="animate-spin text-[var(--color-warm)]"
-            />
-            <p className="text-[13px] text-fg-muted">
-              Running {meta.label}...
-            </p>
-          </div>
+          <RunningStep label={meta.label} config={config} activeBrand={activeBrand} />
         ) : step.status === "review" && step.id === "route" ? (
           <RoutePanel allSteps={allSteps} config={config} />
         ) : step.status === "review" && (step.id === "curation" || step.id === "multishot") ? (
@@ -3225,6 +4264,7 @@ function StepPanel({
         ) : step.status === "review" ? (
           <DoneStep stepId={step.id} result={step.result} audioCache={audioCache} config={config} allSteps={allSteps}
             onUpdateStepResult={onUpdateStepResult}
+            onInvalidateDownstream={onInvalidateDownstream}
             getScriptScenes={() => {
               const sr = allSteps.find((s: StepState) => s.id === "script")?.result as Record<string, unknown> | undefined;
               if (!sr?.scenes) return [];
@@ -3236,11 +4276,12 @@ function StepPanel({
             {step.status === "stale" && (
               <div className="bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-4 py-2 mb-4 flex items-center gap-2">
                 <AlertCircle size={12} className="text-fg-faint" />
-                <span className="text-[11px] text-fg-faint">Previous step changed — this result may be outdated</span>
+                <span className="text-[11px] text-fg-faint">Paso anterior cambió — re-generá este paso para aplicar el cambio (apretá &ldquo;Resetear paso&rdquo; arriba o navegá y dale Run).</span>
               </div>
             )}
             <DoneStep stepId={step.id} result={step.result} audioCache={audioCache} config={config} allSteps={allSteps}
               onUpdateStepResult={onUpdateStepResult}
+              onInvalidateDownstream={onInvalidateDownstream}
               getScriptScenes={() => {
                 const sr = allSteps.find((s: StepState) => s.id === "script")?.result as Record<string, unknown> | undefined;
                 if (!sr?.scenes) return [];
@@ -3263,6 +4304,141 @@ function StepPanel({
           </div>
         )}
       </div>
+
+      {/* Reset step confirmation modal — replaces the alarming "Re-run from here"
+          with a clear explanation of what actually happens. */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowResetModal(false)} />
+          <div className="relative bg-surface-0 border border-edge rounded-[var(--radius-md)] p-6 max-w-md w-full mx-4 space-y-4 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-[var(--color-warm)]/15 flex items-center justify-center shrink-0">
+                <RotateCcw size={18} className="text-[var(--color-warm)]" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-[15px] font-semibold text-fg">
+                  ¿Resetear el paso &ldquo;{meta.label}&rdquo;?
+                </h3>
+                <p className="text-[12px] text-fg-muted mt-1 leading-relaxed">
+                  Esto marca el paso como activo y los siguientes como desactualizados.
+                  <strong className="text-fg"> No corre nada automáticamente</strong> —
+                  tenés que apretar &ldquo;Run&rdquo; después si querés regenerar.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-[var(--radius-sm)] p-3 text-[11px] text-amber-200 leading-relaxed">
+              <p className="font-semibold mb-0.5">💡 Si solo querés avanzar al Render:</p>
+              <p>No uses este botón. Cliqueá el paso <strong>Render</strong> en la barra de pasos y dale Run. Usa todo lo que ya animaste.</p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="px-4 py-2 text-[12px] font-medium text-fg-muted hover:text-fg bg-surface-2 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setShowResetModal(false);
+                  onReRunFromHere();
+                }}
+                className="px-4 py-2 text-[12px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 rounded-[var(--radius-sm)] transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <RotateCcw size={12} />
+                Resetear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Running step (with inputs preview) ─────────────────────
+
+function RunningStep({
+  label,
+  config,
+  activeBrand,
+}: {
+  label: string;
+  config: ToolConfig;
+  activeBrand: Brand | null;
+}) {
+  const selectedAvatar = activeBrand?.avatars?.find((a) => a.id === config.selectedAvatarId);
+  const selectedProduct = activeBrand?.products?.find((p) => p.id === config.selectedProductId);
+  const selectedBackground = activeBrand?.backgrounds?.find((b) => b.id === config.selectedBackgroundId);
+  const selectedMoodboard = activeBrand?.moodboards?.find((m) => m.id === config.selectedMoodboardId);
+  const selectedClothing = (activeBrand?.clothing || []).filter((c) => config.selectedClothingIds?.includes(c.id));
+  const refFile = config.referenceImages?.[0];
+  const [refPreview, setRefPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!refFile) { setRefPreview(null); return; }
+    const url = URL.createObjectURL(refFile);
+    setRefPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [refFile]);
+
+  type Chip = { kind: string; label: string; thumb?: string | null; hint?: string };
+  const chips: Chip[] = [];
+  if (refPreview) chips.push({ kind: "Referencia", label: config.referenceMode === "composition" ? "Composición" : "Estilo", thumb: refPreview, hint: "pisa layout+setting" });
+  if (selectedAvatar) chips.push({ kind: "Avatar", label: selectedAvatar.name, thumb: selectedAvatar.imageUrl ? avatarImageUrl(selectedAvatar.imageUrl) : null });
+  for (const c of selectedClothing) chips.push({ kind: "Ropa", label: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : null });
+  if (selectedProduct) chips.push({ kind: "Producto", label: selectedProduct.name, thumb: selectedProduct.imageUrl ? productImageUrl(selectedProduct.imageUrl) : null });
+  if (selectedBackground) chips.push({ kind: "Fondo", label: selectedBackground.name, thumb: selectedBackground.imageUrl ? backgroundImageUrl(selectedBackground.imageUrl) : null });
+  if (selectedMoodboard) chips.push({ kind: "Moodboard", label: selectedMoodboard.name, thumb: selectedMoodboard.imageUrl ? moodboardImageUrl(selectedMoodboard.imageUrl) : null });
+
+  const imageModelLabel = config.imageModel === "gpt-image-2" ? "GPT Image 2" : "Nano Banana 2";
+
+  return (
+    <div className="py-10 space-y-5">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 size={26} className="animate-spin text-[var(--color-warm)]" />
+        <div className="text-center space-y-1">
+          <p className="text-[14px] font-semibold text-fg">Generando {label}…</p>
+          <p className="text-[11px] text-fg-faint">
+            Modelo: <span className="text-fg-muted">{imageModelLabel}</span>
+            {config.aspectRatio && <> · {config.aspectRatio}</>}
+            {config.resolution && <> · {config.resolution}</>}
+          </p>
+        </div>
+      </div>
+
+      {chips.length > 0 && (
+        <div className="max-w-2xl mx-auto space-y-2">
+          <p className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider text-center">
+            Inputs que se están usando ({chips.length})
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            {chips.map((c, i) => (
+              <div
+                key={i}
+                className="inline-flex items-center gap-1.5 h-7 pl-1 pr-2.5 rounded-full border border-edge bg-surface-2"
+                title={c.hint || c.label}
+              >
+                {c.thumb ? (
+                  <img src={c.thumb} alt={c.label} className="w-5 h-5 rounded-full object-cover" />
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-surface-3" />
+                )}
+                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">{c.kind}:</span>
+                <span className="text-[10px] font-medium text-fg-muted max-w-[140px] truncate">{c.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {config.objective && (
+        <div className="max-w-2xl mx-auto bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-3 py-2">
+          <p className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Dirección creativa</p>
+          <p className="text-[11px] text-fg-muted leading-relaxed italic">"{config.objective}"</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -3640,7 +4816,7 @@ function ActiveStep({
 
 // ── Done step ──────────────────────────────────────────────
 
-function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes, config, allSteps = [], onUpdateStepResult }: {
+function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes, config, allSteps = [], onUpdateStepResult, onInvalidateDownstream }: {
   stepId: string;
   result?: unknown;
   audioCache?: Record<string, { url: string; blob: Blob }>;
@@ -3648,6 +4824,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   config?: ToolConfig;
   allSteps?: StepState[];
   onUpdateStepResult?: (stepId: string, result: unknown) => void;
+  onInvalidateDownstream?: (stepId: string) => void;
 }) {
   const meta = STEP_META[stepId];
   const { activeBrand } = useBrand();
@@ -3662,6 +4839,10 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   const [editRefUrls, setEditRefUrls] = useState<string[]>([]);
   const [editingImageId, setEditingImageId] = useState<string | null>(null);
   const [regenSceneId, setRegenSceneId] = useState<string | null>(null);
+  // Tracks which scene's base-frame editor panel is open in the Lipsync step DONE view.
+  // Lets the user swap the image of a single clip and auto re-run lipsync without
+  // going back to multishot/curation.
+  const [editingFrameSceneId, setEditingFrameSceneId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [selectedRefIdx, setSelectedRefIdx] = useState<number | null>(null);
@@ -3669,6 +4850,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [sceneTypes, setSceneTypes] = useState<Record<string, "talking" | "creative">>({});
   const [selectedShots, setSelectedShots] = useState<Record<string, string>>({});
+  const [activeHeroId, setActiveHeroId] = useState<string | null>(null);
 
   // ── Avatar Creator: Brief step ───────────────────────────
   if (stepId === "brief" && result) {
@@ -3722,23 +4904,84 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   // ── Avatar Creator: Generate step ────────────────────────
   if (stepId === "generate" && result) {
     const gen = result as { url: string; styleLabel: string; brief: Record<string, string> };
+    const isEditing = editingImageId === "avatar_gen";
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Check size={14} className="text-[var(--color-success)]" />
-          <span className="text-[13px] font-medium text-fg">Reference sheet generated — {gen.styleLabel} style</span>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2">
+            <Check size={14} className="text-[var(--color-success)]" />
+            <span className="text-[13px] font-medium text-fg">Reference sheet generated — {gen.styleLabel} style</span>
+          </div>
+          {gen.url && (
+            <button
+              onClick={() => setEditingImageId(isEditing ? null : "avatar_gen")}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-sm)] bg-surface-2 hover:bg-surface-3 text-fg-muted hover:text-fg cursor-pointer transition-colors"
+            >
+              <Pencil size={11} />
+              {isEditing ? "Cerrar editor" : "Editar imagen"}
+            </button>
+          )}
         </div>
         {gen.url && (
-          <div className="rounded-[var(--radius-md)] overflow-hidden border border-edge bg-surface-2">
+          <button
+            type="button"
+            onClick={() => setLightboxUrl(gen.url)}
+            className="block w-full rounded-[var(--radius-md)] overflow-hidden border border-edge bg-surface-2 cursor-zoom-in"
+            title="Click para ver a tamaño completo"
+          >
             <img src={gen.url} alt="Avatar reference sheet" className="w-full object-contain" />
-          </div>
+          </button>
         )}
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 text-[12px] text-fg-muted">
           <span className="font-medium text-fg">{gen.brief?.name}</span>
           {gen.brief?.age && <span className="text-fg-faint"> · {gen.brief.age}</span>}
           {gen.brief?.personality && <span className="text-fg-faint"> · {gen.brief.personality}</span>}
         </div>
-        <p className="text-[11px] text-fg-faint">Approve to save this avatar to your brand library. It will be available in UGC Creator and other tools immediately.</p>
+
+        {/* Inline image editor — refine the generated avatar before approving.
+            Edits replace the generated URL so the next step (Save) uses the
+            edited version. */}
+        {isEditing && gen.url && (
+          <div className="border-t border-edge pt-3">
+            <ImageEditPanel
+              imageUrl={gen.url}
+              aspectRatio="1:1"
+              resolution="2K"
+              selectedProductId={config?.selectedProductId}
+              onImageUpdated={(newUrl) => {
+                gen.url = newUrl;
+                if (onUpdateStepResult) onUpdateStepResult("generate", { ...gen });
+                setEditingImageId(null);
+              }}
+              onClose={() => setEditingImageId(null)}
+            />
+          </div>
+        )}
+
+        <p className="text-[11px] text-fg-faint">
+          Approve to save this avatar to your brand library. It will be available in UGC Creator and other tools immediately.
+          {gen.url && <span className="ml-1">Si querés ajustar algo antes (pose, expresión, ropa), apretá <strong>&quot;Editar imagen&quot;</strong> arriba.</span>}
+        </p>
+
+        {lightboxUrl && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-8 cursor-zoom-out"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <img
+              src={lightboxUrl}
+              alt="Avatar zoom"
+              className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setLightboxUrl(null)}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -3960,6 +5203,35 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 {hasAiSuggestion && (
                   <span className="text-[9px] text-fg-faint italic">IA</span>
                 )}
+                {/* Engine pill — surfaces which model will animate THIS scene so
+                    the user knows what to expect before launching. */}
+                {config?.animationEngine && (() => {
+                  const engine = config.animationEngine === "seedance" ? "seedance" : "kling";
+                  const isTalking = displayType === "talking";
+                  let label = "";
+                  let cls = "";
+                  if (engine === "seedance" && isTalking) {
+                    label = "🎬 Seedance + audio";
+                    cls = "bg-blue-500/10 border-blue-500/30 text-blue-300";
+                  } else if (engine === "seedance") {
+                    label = "🎬 Seedance creative";
+                    cls = "bg-blue-500/10 border-blue-500/30 text-blue-300";
+                  } else if (isTalking) {
+                    label = "🎬 Kling + HeyGen";
+                    cls = "bg-amber-500/10 border-amber-500/30 text-amber-300";
+                  } else {
+                    label = "🎬 Kling animation";
+                    cls = "bg-amber-500/10 border-amber-500/30 text-amber-300";
+                  }
+                  return (
+                    <span
+                      className={`text-[9px] font-medium border rounded px-1.5 py-0.5 ${cls}`}
+                      title="Modelo que va a animar esta escena (definido en ConfigPanel)"
+                    >
+                      {label}
+                    </span>
+                  );
+                })()}
                 {/* Avatar on/off toggle */}
                 <AvatarToggle scene={scene} />
                 {/* Location chip (narrative mode) */}
@@ -4042,29 +5314,11 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             </div>
 
             {/* Per-scene background override */}
-            <div className="px-3 py-2 border-t border-edge bg-surface-1/40 flex items-center gap-2 flex-wrap">
-              <Mountain size={10} className="text-fg-faint" />
-              <span className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider">Fondo de esta escena</span>
-              <select
-                defaultValue={scene.backgroundId === null ? "__none__" : scene.backgroundId || ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  scene.backgroundId = v === "" ? undefined : v === "__none__" ? null : v;
-                }}
-                className="h-6 px-1.5 rounded border border-edge bg-surface-1 text-[10px] text-fg-muted outline-none cursor-pointer"
-              >
-                <option value="">Usar el del ConfigPanel</option>
-                <option value="__none__">Sin fondo (solo texto)</option>
-                {(activeBrand?.backgrounds || []).map((bg) => (
-                  <option key={bg.id} value={bg.id}>{bg.name}</option>
-                ))}
-              </select>
-              <span className="text-[9px] text-fg-faint italic ml-auto">
-                {scene.backgroundId === null ? "Nano Banana genera solo desde el prompt" :
-                 scene.backgroundId ? "Usa esta imagen como referencia visual" :
-                 "Hereda del ConfigPanel global"}
-              </span>
-            </div>
+            <ScenesBackgroundPicker
+              scene={scene}
+              backgrounds={activeBrand?.backgrounds || []}
+              globalBackgroundId={config.selectedBackgroundId}
+            />
           </div>
           );
         })}
@@ -4102,6 +5356,9 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           if (onUpdateStepResult) {
             onUpdateStepResult("base_image", { ...(result as Record<string, unknown>), url: editResult.image_url });
           }
+          // Editing the base invalidates downstream steps (multishot uses the base as
+          // its anchor) — mark them stale so the user knows to re-generate to propagate.
+          if (onInvalidateDownstream) onInvalidateDownstream("base_image");
           setEditMode(false);
           setEditPromptText("");
         }
@@ -4640,10 +5897,73 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         const videoResult = await pollHeyGenAvatar4(job.request_id);
         if (videoResult.video_url) {
           seg.videoUrl = videoResult.video_url;
+          // Persist the new video URL so it survives navigation away (and reopening
+          // a saved generation from Contenido will keep the edited clip).
+          if (onUpdateStepResult) onUpdateStepResult("lipsync", [...segments]);
         }
       } catch { /* silent */ } finally {
         setRegenSceneId(null);
       }
+    };
+
+    // Combined regen for a single scene: voice first, then lipsync with the new audio.
+    // Used after the user edits the scene's script text inline — one click regenerates
+    // both, only for that scene, without touching the others.
+    const handleRegenScene = async (seg: typeof segments[0]) => {
+      await handleRegenVoice(seg);
+      // handleRegenVoice already updated latestVoice cache + voice step state,
+      // so handleRegenLipsync will pick up the new audio.
+      await handleRegenLipsync(seg);
+    };
+
+    // Fallback resolver: older generations didn't always persist `imageUrl` on the
+    // lipsync segment. Look up the base frame from upstream steps (curation first —
+    // it's the user's chosen variation — then multishot, then base_image).
+    const resolveBaseFrameUrl = (sceneId: string): string | undefined => {
+      if (allSteps) {
+        const curation = allSteps.find((s) => s.id === "curation")?.result as Array<{ sceneId: string; selectedUrl?: string }> | { selections?: Array<{ sceneId: string; selectedUrl?: string }> } | undefined;
+        if (Array.isArray(curation)) {
+          const entry = curation.find((c) => c.sceneId === sceneId);
+          if (entry?.selectedUrl) return entry.selectedUrl;
+        } else if (curation && "selections" in curation && Array.isArray(curation.selections)) {
+          const entry = curation.selections.find((c) => c.sceneId === sceneId);
+          if (entry?.selectedUrl) return entry.selectedUrl;
+        }
+        const multishot = allSteps.find((s) => s.id === "multishot")?.result as Array<{ sceneId: string; variations?: Array<{ url?: string }> }> | undefined;
+        if (Array.isArray(multishot)) {
+          const ms = multishot.find((m) => m.sceneId === sceneId);
+          if (ms?.variations?.[0]?.url) return ms.variations[0].url;
+        }
+        const base = allSteps.find((s) => s.id === "base_image")?.result as { url?: string } | undefined;
+        if (base?.url) return base.url;
+      }
+      return undefined;
+    };
+
+    // Replace the base frame for ONE clip — but DO NOT auto-run lipsync.
+    // The user wants to inspect the new frame before paying the lipsync cost / wait.
+    // We mark the segment as having a "pending" frame change so the UI can show a
+    // banner prompting the user to apply it.
+    const handleFrameUpdated = (seg: typeof segments[0], newUrl: string) => {
+      // Stash the old video URL so we can show "stale lipsync" warning until applied
+      (seg as Record<string, unknown>).pendingFrameUrl = newUrl;
+      if (onUpdateStepResult) onUpdateStepResult("lipsync", [...segments]);
+    };
+
+    // User confirms: commit the pending frame and run lipsync.
+    const handleApplyPendingFrame = async (seg: typeof segments[0]) => {
+      const pending = (seg as Record<string, unknown>).pendingFrameUrl as string | undefined;
+      if (!pending) return;
+      seg.imageUrl = pending;
+      delete (seg as Record<string, unknown>).pendingFrameUrl;
+      if (onUpdateStepResult) onUpdateStepResult("lipsync", [...segments]);
+      await handleRegenLipsync(seg);
+    };
+
+    // User discards: drop the pending frame change.
+    const handleDiscardPendingFrame = (seg: typeof segments[0]) => {
+      delete (seg as Record<string, unknown>).pendingFrameUrl;
+      if (onUpdateStepResult) onUpdateStepResult("lipsync", [...segments]);
     };
 
     return (
@@ -4678,6 +5998,12 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             const voiceEntry = getVoiceEntry(seg.sceneId);
             const hasAudio = !!voiceEntry?.audioUrl;
             const isRegen = regenSceneId === seg.sceneId;
+            const isEditingFrame = editingFrameSceneId === seg.sceneId;
+            // Resolve base frame URL: prefer the one persisted on the lipsync segment,
+            // fall back to upstream steps for older generations that didn't store it.
+            const baseFrameUrl = seg.imageUrl || resolveBaseFrameUrl(seg.sceneId);
+            // Pending frame change — the user edited the image but hasn't applied it yet
+            const pendingFrameUrl = (seg as Record<string, unknown>).pendingFrameUrl as string | undefined;
             return (
               <div key={seg.sceneId} className="bg-surface-0 border border-edge rounded-[var(--radius-md)] overflow-hidden">
                 <div className="aspect-[9/16] relative">
@@ -4691,52 +6017,232 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   {isRegen && (
                     <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2">
                       <Loader2 size={20} className="animate-spin text-white" />
-                      <p className="text-[10px] text-white/70">Regenerating...</p>
+                      <p className="text-[10px] text-white/70">Regenerando esta escena...</p>
                     </div>
                   )}
                 </div>
                 <div className="p-2.5 space-y-2">
-                  <span className="text-[11px] text-fg font-medium">Scene {i + 1}: {seg.title}</span>
-                  {seg.scriptText && (
-                    <p className="text-[10px] text-fg-faint leading-relaxed">&ldquo;{seg.scriptText}&rdquo;</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-fg font-medium">Scene {i + 1}: {seg.title}</span>
+                    <span className="text-[9px] text-fg-faint">Edit + Regen sin tocar las otras</span>
+                  </div>
+
+                  {/* Base frame preview row — clickable. Shows the image used for lipsync
+                      and opens the editor inline. If no frame is found upstream, disable
+                      the click with an informative tooltip. */}
+                  <button
+                    type="button"
+                    onClick={() => baseFrameUrl && setEditingFrameSceneId(isEditingFrame ? null : seg.sceneId)}
+                    disabled={!baseFrameUrl}
+                    title={baseFrameUrl ? "Cambiar el frame base de esta escena" : "Frame base no disponible en esta generación"}
+                    className={cn(
+                      "w-full flex items-center gap-2 p-1.5 rounded-[var(--radius-sm)] border transition-colors text-left",
+                      baseFrameUrl
+                        ? (isEditingFrame
+                            ? "border-[var(--color-warm)] bg-[var(--color-warm)]/10 cursor-pointer"
+                            : "border-edge hover:border-edge-strong hover:bg-surface-1 cursor-pointer")
+                        : "border-edge bg-surface-1 opacity-50 cursor-not-allowed",
+                    )}
+                  >
+                    {baseFrameUrl ? (
+                      <img src={baseFrameUrl} alt="Frame base" className="w-10 h-10 object-cover rounded-[var(--radius-sm)]" />
+                    ) : (
+                      <div className="w-10 h-10 bg-surface-2 rounded-[var(--radius-sm)] flex items-center justify-center">
+                        <ImageIcon size={12} className="text-fg-faint" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-medium text-fg">{isEditingFrame ? "Cerrar editor" : "Frame base"}</p>
+                      <p className="text-[9px] text-fg-faint truncate">
+                        {baseFrameUrl ? "Click para editar" : "No disponible en esta gen"}
+                      </p>
+                    </div>
+                    <ImageIcon size={12} className={cn(baseFrameUrl ? "text-fg-muted" : "text-fg-faint")} />
+                  </button>
+
+                  {/* Pending frame preview — big new image so the user can ACTUALLY
+                      see what was generated, with a small "actual" thumbnail to compare.
+                      Click either image to open lightbox at full size. */}
+                  {pendingFrameUrl && (
+                    <div className="border border-amber-500/40 bg-amber-500/5 rounded-[var(--radius-sm)] p-2 space-y-2">
+                      <p className="text-[10px] font-semibold text-amber-400 flex items-center gap-1">
+                        <ImageIcon size={10} /> Frame nuevo generado — revisalo antes de aplicar
+                      </p>
+                      {/* New image — full width inside the card, click to zoom */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setLightboxUrl(pendingFrameUrl)}
+                          className="w-full block cursor-zoom-in"
+                          title="Click para ver a tamaño real"
+                        >
+                          <img
+                            src={pendingFrameUrl}
+                            alt="Frame nuevo"
+                            className="w-full aspect-[9/16] object-cover rounded border-2 border-amber-500/60"
+                          />
+                        </button>
+                        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-amber-500 text-black text-[9px] font-semibold rounded">
+                          Nuevo
+                        </span>
+                        {baseFrameUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setLightboxUrl(baseFrameUrl)}
+                            title="Frame actual (click para ver grande)"
+                            className="absolute bottom-1.5 right-1.5 w-16 aspect-[9/16] rounded border-2 border-white/70 shadow-lg overflow-hidden cursor-zoom-in hover:scale-110 transition-transform"
+                          >
+                            <img
+                              src={baseFrameUrl}
+                              alt="Frame actual"
+                              className="w-full h-full object-cover"
+                            />
+                            <span className="absolute top-0 left-0 right-0 bg-black/80 text-white text-[8px] font-medium text-center py-0.5">
+                              Actual
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleDiscardPendingFrame(seg)}
+                          disabled={isRegen}
+                          className="flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg cursor-pointer transition-colors"
+                        >
+                          <X size={10} /> Descartar
+                        </button>
+                        <button
+                          onClick={() => handleApplyPendingFrame(seg)}
+                          disabled={isRegen}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium transition-colors cursor-pointer",
+                            !isRegen
+                              ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90"
+                              : "bg-surface-1 text-fg-faint cursor-not-allowed",
+                          )}
+                          title="Usa este frame como base y re-runea el lipsync de esta escena"
+                        >
+                          <Check size={10} /> Aplicar + animar
+                        </button>
+                      </div>
+                    </div>
                   )}
-                  {/* Voice controls */}
+
+                  {/* Inline editable script — user edits here, then clicks "Regen escena" */}
+                  <textarea
+                    defaultValue={seg.scriptText || ""}
+                    onChange={(e) => { seg.scriptText = e.target.value; }}
+                    onBlur={() => {
+                      // Persist script edits in the lipsync step result so navigating
+                      // away (or reopening from Contenido) keeps them.
+                      if (onUpdateStepResult) onUpdateStepResult("lipsync", [...segments]);
+                    }}
+                    rows={3}
+                    placeholder="Texto que dice el avatar en esta escena..."
+                    className="w-full text-[11px] text-fg leading-relaxed bg-surface-1 border border-edge hover:border-edge-strong focus:border-[var(--color-warm)] rounded-[var(--radius-sm)] px-2 py-1.5 outline-none resize-none transition-colors"
+                  />
+
+                  {/* Action row */}
                   <div className="flex gap-1">
                     <button
                       onClick={() => handlePlayVoice(seg.sceneId)}
                       disabled={!hasAudio}
+                      title="Escuchar el audio actual"
                       className={cn(
-                        "flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium transition-colors cursor-pointer",
-                        hasAudio ? "bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg" : "bg-surface-1 text-fg-faint cursor-not-allowed"
+                        "flex-shrink-0 flex items-center justify-center gap-1 px-2 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium transition-colors cursor-pointer",
+                        hasAudio ? "bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg" : "bg-surface-1 text-fg-faint cursor-not-allowed",
                       )}
                     >
-                      <Play size={9} /> Voice
+                      <Play size={9} />
                     </button>
                     <button
-                      onClick={() => handleRegenVoice(seg)}
+                      onClick={() => handleRegenScene(seg)}
                       disabled={isRegen}
-                      className="flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg transition-colors cursor-pointer"
-                    >
-                      <Mic size={9} /> Regen Voice
-                    </button>
-                    <button
-                      onClick={() => handleRegenLipsync(seg)}
-                      disabled={isRegen || !hasAudio}
+                      title="Genera de nuevo voz + lipsync de ESTA escena solo. Las otras quedan intactas."
                       className={cn(
                         "flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium transition-colors cursor-pointer",
-                        !isRegen && hasAudio
-                          ? "bg-[var(--color-warm-muted)] text-[var(--color-warm)] hover:opacity-80"
-                          : "bg-surface-1 text-fg-faint cursor-not-allowed"
+                        !isRegen
+                          ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90"
+                          : "bg-surface-1 text-fg-faint cursor-not-allowed",
                       )}
                     >
-                      <RotateCcw size={9} /> Regen Lip-sync
+                      <RotateCcw size={10} /> Regen escena
                     </button>
                   </div>
+
+                  {/* Advanced — split voice / lipsync regen (collapsed under details) */}
+                  <details className="text-[9px] text-fg-faint">
+                    <summary className="cursor-pointer hover:text-fg-muted select-none">Avanzado: regen por separado</summary>
+                    <div className="flex gap-1 mt-1.5">
+                      <button
+                        onClick={() => handleRegenVoice(seg)}
+                        disabled={isRegen}
+                        className="flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg transition-colors cursor-pointer"
+                      >
+                        <Mic size={9} /> Solo voz
+                      </button>
+                      <button
+                        onClick={() => handleRegenLipsync(seg)}
+                        disabled={isRegen || !hasAudio}
+                        className={cn(
+                          "flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium transition-colors cursor-pointer",
+                          !isRegen && hasAudio
+                            ? "bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg"
+                            : "bg-surface-1 text-fg-faint cursor-not-allowed",
+                        )}
+                      >
+                        <RotateCcw size={9} /> Solo lip-sync
+                      </button>
+                    </div>
+                  </details>
+
+                  {/* Inline frame editor — opens when user clicks the Frame row above.
+                      The edit only STAGES the new image as pendingFrameUrl; it does
+                      NOT auto-run lipsync. The user reviews via the side-by-side
+                      preview panel above and decides whether to apply or discard. */}
+                  {isEditingFrame && baseFrameUrl && (
+                    <div className="pt-1 border-t border-edge">
+                      <ImageEditPanel
+                        imageUrl={baseFrameUrl}
+                        aspectRatio={config?.aspectRatio || "9:16"}
+                        resolution={config?.resolution || "1K"}
+                        selectedProductId={config?.selectedProductId}
+                        onImageUpdated={(newUrl) => {
+                          // Stash for review — don't auto-apply or auto-animate
+                          handleFrameUpdated(seg, newUrl);
+                          setEditingFrameSceneId(null);
+                        }}
+                        onClose={() => setEditingFrameSceneId(null)}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
+
+        {/* Lightbox — opens when user clicks the new / actual frame thumbnails above.
+            Click outside or on the image closes it. */}
+        {lightboxUrl && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-8 cursor-zoom-out"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <img
+              src={lightboxUrl}
+              alt="Frame zoom"
+              className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setLightboxUrl(null)}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -4870,14 +6376,27 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   // Generate All step — show all images (Static Ad)
   // Carousel generate_all — horizontal slide gallery
   if (stepId === "generate_all" && result && (result as Record<string, unknown>).slides && Array.isArray((result as Record<string, unknown>).slides)) {
-    const data = result as { slides: Array<{ id: string; url: string; label: string; headline: string; body: string; role: string }>; visualStyle?: string };
+    const data = result as {
+      slides: Array<{ id: string; url: string; label: string; headline: string; body: string; role: string }>;
+      visualStyle?: string;
+      composeMode?: "quick" | "compose";
+    };
     const slides = data.slides || [];
+    const isComposeMode = data.composeMode === "compose";
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-2">
           <Check size={14} className="text-[var(--color-success)]" />
           <span className="text-[13px] font-medium text-fg">Carousel — {slides.length} slides generated</span>
+          {isComposeMode && (
+            <span className="text-[10px] font-semibold text-[var(--color-warm-strong)] bg-[var(--color-warm-muted)] px-2 py-0.5 rounded uppercase tracking-wider">Compose Mode</span>
+          )}
         </div>
+
+        {/* Compose Mode editor — one ComposeOverlay per slide */}
+        {isComposeMode && config && allSteps[0]?.result ? (
+          <CarouselComposeEditor slides={slides} config={config} allSteps={allSteps} />
+        ) : null}
         {/* Horizontal scroll carousel preview */}
         <div className="flex gap-3 overflow-x-auto pb-3 -mx-2 px-2 snap-x snap-mandatory">
           {slides.map((slide, i) => (
@@ -4957,55 +6476,18 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   }
 
   if (stepId === "generate_all" && result) {
-    const data = result as { images: Array<{ id: string; url: string; label: string }>; headline?: string; subline?: string };
+    const data = result as { images: Array<{ id: string; url: string; label: string }>; headline?: string; subline?: string; cta?: string; colors?: string };
     const images = data.images || [];
+    const activeImg = images.find((i) => i.id === activeHeroId) || images[0];
+    const colorTokens = (data.colors || "").split(/[,;]+/).map((s) => s.trim()).filter(Boolean).slice(0, 5);
+
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Check size={14} className="text-[var(--color-success)]" />
-          <span className="text-[13px] font-medium text-fg">{images.length} creatives generated</span>
-        </div>
-        {data.headline && (
-          <div className="text-center space-y-1 mb-2">
-            <p className="text-[16px] font-bold text-fg">{data.headline}</p>
-            {data.subline && <p className="text-[12px] text-fg-muted">{data.subline}</p>}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Check size={14} className="text-[var(--color-success)]" />
+            <span className="text-[13px] font-medium text-fg">{images.length} creativo{images.length === 1 ? "" : "s"} generado{images.length === 1 ? "" : "s"}</span>
           </div>
-        )}
-        <div className="grid grid-cols-3 gap-3">
-          {images.map((img) => (
-            <div key={img.id} className="space-y-1.5">
-              <div
-                className="rounded-[var(--radius-sm)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors relative group"
-                onClick={() => img.url && setLightboxUrl(img.url)}
-              >
-                <img src={img.url} alt={img.label} className="w-full aspect-square object-cover" />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                  <Eye size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              </div>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setEditingImageId(editingImageId === img.id ? null : img.id)}
-                  className="flex-1 text-[9px] text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 rounded py-1 cursor-pointer text-center"
-                >
-                  {editingImageId === img.id ? "Cancel" : "Edit"}
-                </button>
-                <p className="flex-1 text-[10px] text-fg-faint text-center py-1">{img.label}</p>
-              </div>
-              {editingImageId === img.id && (
-                <ImageEditPanel
-                  imageUrl={img.url}
-                  aspectRatio={config?.aspectRatio || "4:5"}
-                  resolution={config?.resolution || "1K"}
-                  selectedProductId={config?.selectedProductId}
-                  onImageUpdated={(newUrl) => { img.url = newUrl; setEditingImageId(null); }}
-                  onClose={() => setEditingImageId(null)}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="flex justify-center gap-2 pt-2">
           <button
             onClick={async () => {
               for (const img of images) {
@@ -5022,12 +6504,113 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 } catch { /* */ }
               }
             }}
-            className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 rounded-[var(--radius-sm)] cursor-pointer"
           >
-            <Film size={14} />
-            Download All ({images.length})
+            <Film size={12} />
+            Descargar todos ({images.length})
           </button>
         </div>
+
+        {/* Split layout: hero image + copy sidebar */}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr,320px] gap-4 items-start">
+          {/* Hero image */}
+          <div className="space-y-2">
+            <div
+              className="rounded-[var(--radius-md)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors relative group bg-surface-2"
+              onClick={() => activeImg?.url && setLightboxUrl(activeImg.url)}
+            >
+              {activeImg?.url && <img src={activeImg.url} alt={activeImg.label} className="w-full object-contain max-h-[560px]" />}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
+                <Eye size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            </div>
+            {/* Thumbnails (variations) */}
+            {images.length > 1 && (
+              <div className="flex gap-2 flex-wrap">
+                {images.map((img) => (
+                  <button
+                    key={img.id}
+                    onClick={() => setActiveHeroId(img.id)}
+                    className={cn(
+                      "w-16 h-16 rounded-[var(--radius-sm)] overflow-hidden border-2 cursor-pointer transition-all",
+                      (activeImg?.id === img.id) ? "border-[var(--color-warm)] ring-2 ring-[var(--color-warm-muted)]" : "border-edge hover:border-edge-strong"
+                    )}
+                  >
+                    <img src={img.url} alt={img.label} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Copy sidebar */}
+          <div className="space-y-3 md:sticky md:top-4">
+            {data.headline && (
+              <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+                <div>
+                  <p className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Headline</p>
+                  <p className="text-[18px] font-bold text-fg leading-tight">{data.headline}</p>
+                </div>
+                {data.subline && (
+                  <div>
+                    <p className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Subline</p>
+                    <p className="text-[12px] text-fg-muted leading-relaxed">{data.subline}</p>
+                  </div>
+                )}
+                {data.cta && (
+                  <div>
+                    <p className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider mb-1">CTA</p>
+                    <span className="inline-block px-3 py-1 text-[11px] font-semibold bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)]">{data.cta}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {colorTokens.length > 0 && (
+              <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
+                <p className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider">Paleta</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {colorTokens.map((c, i) => (
+                    <div key={i} className="flex items-center gap-1.5 bg-surface-2 border border-edge rounded-full px-2 py-1">
+                      <span className="w-3 h-3 rounded-full border border-edge-subtle" style={{ background: c }} />
+                      <span className="text-[10px] text-fg-muted">{c}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeImg && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => setEditingImageId(editingImageId === activeImg.id ? null : activeImg.id)}
+                  className="w-full py-2 text-[12px] font-medium text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 rounded-[var(--radius-sm)] cursor-pointer"
+                >
+                  {editingImageId === activeImg.id ? "Cancelar" : "Editar imagen"}
+                </button>
+                <a
+                  href={activeImg.url}
+                  download={`static_ad_${activeImg.id}.png`}
+                  className="block w-full py-2 text-center text-[12px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 rounded-[var(--radius-sm)] cursor-pointer"
+                >
+                  Descargar
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {activeImg && editingImageId === activeImg.id && (
+          <ImageEditPanel
+            imageUrl={activeImg.url}
+            aspectRatio={config?.aspectRatio || "4:5"}
+            resolution={config?.resolution || "1K"}
+            selectedProductId={config?.selectedProductId}
+            onImageUpdated={(newUrl) => { activeImg.url = newUrl; setEditingImageId(null); }}
+            onClose={() => setEditingImageId(null)}
+          />
+        )}
+
         {lightboxUrl && (
           <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8 cursor-pointer" onClick={() => setLightboxUrl(null)}>
             <img src={lightboxUrl} alt="Full size" className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]" onClick={(e) => e.stopPropagation()} />
@@ -5154,6 +6737,299 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             <p className="text-[11px] text-fg-muted mt-1">{String(analysis.style_guide)}</p>
           </div>
         )}
+      </div>
+    );
+  }
+
+  // Map Assets step — detected assets vs brand kit, with confirmation dropdowns
+  if (stepId === "map_assets" && result) {
+    interface DetectedItem { id: string; description: string; scenes: number[] }
+    interface MatchItem { detected_id: string; description: string; scenes: number[]; suggested_brand_id: string | null; confidence: number; reason: string }
+    interface MapResult {
+      detected?: { persons?: DetectedItem[]; outfits?: DetectedItem[]; products?: DetectedItem[]; locations?: DetectedItem[] };
+      matches?: { persons?: MatchItem[]; outfits?: MatchItem[]; products?: MatchItem[]; locations?: MatchItem[] };
+      confirmations?: Record<string, string | null>;
+      // Per-item text overrides keyed by "cat:detected_id". When set, this text
+      // replaces the original detected description in the adapt step — lets the
+      // user keep the reference structure but change a detail (outfit, location
+      // vibe, etc.) even when the brand kit has no asset to map to.
+      overrides?: Record<string, string>;
+      // Per-garment role override keyed by "cat:detected_id" → "hero" | "wardrobe".
+      // Default is inferred: detected products = hero (featured), detected outfits =
+      // wardrobe (worn). The user can flip it — controls whether the item gets
+      // featured/close-up treatment or styling/background treatment in the output.
+      roles?: Record<string, "hero" | "wardrobe">;
+      skipped?: boolean;
+    }
+    const data = result as MapResult;
+
+    if (data.skipped) {
+      return (
+        <div className="text-center py-8 text-fg-faint text-[12px]">
+          No detectó assets en el video. Continuá al siguiente paso.
+        </div>
+      );
+    }
+
+    const matches = data.matches || {};
+    const confirmations = data.confirmations || {};
+
+    type CategoryKey = "persons" | "outfits" | "products" | "locations";
+    // Resolve full image URLs once so the dropdown previews render directly
+    const resolveImg = (cat: CategoryKey, relUrl?: string): string | undefined => {
+      if (!relUrl) return undefined;
+      if (cat === "persons") return avatarImageUrl(relUrl);
+      if (cat === "outfits") return clothingImageUrl(relUrl);
+      if (cat === "products") return productImageUrl(relUrl);
+      if (cat === "locations") return backgroundImageUrl(relUrl);
+      return relUrl;
+    };
+
+    // Garment-like categories (outfits + products) share a combined pool of clothing
+    // AND products — a brand may catalog a t-shirt they sell in either bucket, so both
+    // dropdowns must offer both. Each option keeps the right thumbnail resolver.
+    const clothingOpts = (activeBrand?.clothing || []).map((c) => ({ id: c.id, name: c.name, description: c.description, imageUrl: clothingImageUrl(c.imageUrl || "") }));
+    const productOpts = (activeBrand?.products || []).map((p) => ({ id: p.id, name: p.name, description: p.description, imageUrl: productImageUrl(p.imageUrl || "") }));
+    const garmentPool = [...clothingOpts, ...productOpts];
+
+    const categories: Array<{
+      key: CategoryKey;
+      label: string;
+      emoji: string;
+      brandAssets: Array<{ id: string; name: string; description?: string; imageUrl?: string }>;
+    }> = [
+      { key: "persons",   label: "Personas",  emoji: "👤", brandAssets: (activeBrand?.avatars || []).map((a) => ({ id: a.id, name: a.name, description: a.description, imageUrl: resolveImg("persons", a.imageUrl) })) },
+      { key: "outfits",   label: "Outfits / Prendas",   emoji: "👕", brandAssets: garmentPool },
+      { key: "products",  label: "Productos", emoji: "📦", brandAssets: garmentPool },
+      { key: "locations", label: "Locaciones", emoji: "🏞️", brandAssets: (activeBrand?.backgrounds || []).map((b) => ({ id: b.id, name: b.name, description: b.description, imageUrl: resolveImg("locations", b.imageUrl) })) },
+    ];
+
+    const setChoice = (cat: CategoryKey, detectedId: string, newBrandId: string | null) => {
+      if (!onUpdateStepResult) return;
+      const next: MapResult = {
+        ...data,
+        confirmations: { ...confirmations, [`${cat}:${detectedId}`]: newBrandId },
+      };
+      onUpdateStepResult("map_assets", next);
+    };
+
+    const addManual = (cat: CategoryKey, brandId: string) => {
+      if (!onUpdateStepResult) return;
+      const synthId = `manual_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const brandAsset = categories.find((c) => c.key === cat)?.brandAssets.find((b) => b.id === brandId);
+      const newMatch: MatchItem = {
+        detected_id: synthId,
+        description: brandAsset ? `Agregado manualmente: ${brandAsset.name}` : "Agregado manualmente",
+        scenes: [],
+        suggested_brand_id: brandId,
+        confidence: 1.0,
+        reason: "manual",
+      };
+      const next: MapResult = {
+        ...data,
+        matches: {
+          ...matches,
+          [cat]: [...(matches[cat] || []), newMatch],
+        },
+        confirmations: { ...confirmations, [`${cat}:${synthId}`]: brandId },
+      };
+      onUpdateStepResult("map_assets", next);
+    };
+
+    const removeEntry = (cat: CategoryKey, detectedId: string) => {
+      if (!onUpdateStepResult) return;
+      const filteredMatches = (matches[cat] || []).filter((m) => m.detected_id !== detectedId);
+      const newConfirmations = { ...confirmations };
+      delete newConfirmations[`${cat}:${detectedId}`];
+      const next: MapResult = {
+        ...data,
+        matches: { ...matches, [cat]: filteredMatches },
+        confirmations: newConfirmations,
+      };
+      onUpdateStepResult("map_assets", next);
+    };
+
+    const overrides = data.overrides || {};
+    const setOverride = (cat: CategoryKey, detectedId: string, text: string) => {
+      if (!onUpdateStepResult) return;
+      const nextOverrides = { ...overrides };
+      const trimmed = text.trim();
+      if (trimmed) nextOverrides[`${cat}:${detectedId}`] = trimmed;
+      else delete nextOverrides[`${cat}:${detectedId}`];
+      onUpdateStepResult("map_assets", { ...data, overrides: nextOverrides });
+    };
+
+    // Role: dynamic default (products → hero, outfits → wardrobe) with manual override.
+    const roles = data.roles || {};
+    const defaultRole = (cat: CategoryKey): "hero" | "wardrobe" =>
+      cat === "products" ? "hero" : "wardrobe";
+    const roleOf = (cat: CategoryKey, detectedId: string): "hero" | "wardrobe" =>
+      roles[`${cat}:${detectedId}`] || defaultRole(cat);
+    const setRole = (cat: CategoryKey, detectedId: string, role: "hero" | "wardrobe") => {
+      if (!onUpdateStepResult) return;
+      onUpdateStepResult("map_assets", { ...data, roles: { ...roles, [`${cat}:${detectedId}`]: role } });
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">Mapeo de assets — confirmá, ajustá o agregá</span>
+        </div>
+        <p className="text-[11px] text-fg-muted leading-relaxed bg-surface-1 border border-edge rounded-[var(--radius-sm)] p-2.5">
+          Para cada prenda/elemento detectado en el video: elegí con qué asset tuyo reemplazarlo,
+          o &ldquo;Ajustar&rdquo; para cambiar el texto. En prendas, el toggle
+          <span className="text-[var(--color-warm)] font-medium"> 🎯 Producto a vender</span> /
+          <span className="text-fg"> 👕 Solo la usa</span> define el rol:
+          <strong> &ldquo;Producto a vender&rdquo;</strong> = lo que estás promocionando (close-ups, foco del script).
+          <strong> &ldquo;Solo la usa&rdquo;</strong> = styling de fondo, la modelo lo lleva puesto pero no es el foco.
+        </p>
+
+        {categories.map(({ key, label, emoji, brandAssets }) => {
+          const items = matches[key] || [];
+          return (
+            <div key={key} className="bg-surface-0 border border-edge rounded-[var(--radius-md)] p-3 space-y-2.5">
+              <div className="text-[11px] font-semibold text-fg uppercase tracking-wider flex items-center justify-between">
+                <span>
+                  {emoji} {label} <span className="text-fg-faint normal-case">({items.length})</span>
+                </span>
+                {brandAssets.length === 0 && (
+                  <span className="text-fg-faint normal-case text-[10px]">brand kit vacío</span>
+                )}
+              </div>
+
+              {items.length === 0 ? (
+                <p className="text-[11px] text-fg-faint italic">No se detectó ninguno en el video. Podés agregar uno manualmente abajo.</p>
+              ) : (
+                items.map((item) => {
+                  const isManual = item.detected_id.startsWith("manual_");
+                  const confirmedId = confirmations[`${key}:${item.detected_id}`] ?? null;
+                  const confidencePct = Math.round((item.confidence || 0) * 100);
+                  const overrideKey = `${key}:${item.detected_id}`;
+                  const overrideText = overrides[overrideKey];
+                  const isEditingOverride = editingId === `ovr:${overrideKey}`;
+                  return (
+                    <div key={item.detected_id} className="bg-surface-1 rounded-[var(--radius-sm)] p-2.5 space-y-1.5 relative">
+                      {isManual && (
+                        <span className="absolute top-1.5 right-1.5 text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-warm-subtle)] text-[var(--color-warm)] uppercase tracking-wider">
+                          manual
+                        </span>
+                      )}
+                      {/* Original detected description — struck through when an override is active */}
+                      <p className={cn(
+                        "text-[12px] leading-snug pr-12",
+                        overrideText ? "text-fg-faint line-through decoration-1" : "text-fg-muted",
+                      )}>
+                        {item.description}
+                      </p>
+                      {/* Active override — what will actually be used */}
+                      {overrideText && !isEditingOverride && (
+                        <p className="text-[12px] text-blue-300 leading-snug flex items-start gap-1.5 pr-12">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 uppercase tracking-wider shrink-0 mt-0.5">cambiado</span>
+                          <span>{overrideText}</span>
+                        </p>
+                      )}
+                      {/* Inline editor */}
+                      {isEditingOverride && (
+                        <div className="space-y-1.5">
+                          <textarea
+                            defaultValue={overrideText || item.description}
+                            rows={2}
+                            autoFocus
+                            placeholder="Describí cómo querés que sea en TU versión (ej: 'mujer con vestido largo' / 'playa soleada de día')"
+                            className="w-full text-[12px] text-fg bg-surface-2 border border-[var(--color-edge-focus)] rounded-[var(--radius-sm)] px-2 py-1.5 outline-none resize-none"
+                            onBlur={(e) => { setOverride(key, item.detected_id, e.target.value); setEditingId(null); }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") { e.preventDefault(); setEditingId(null); }
+                            }}
+                          />
+                          <p className="text-[9px] text-fg-faint">Enter/click afuera para guardar · Esc para cancelar</p>
+                        </div>
+                      )}
+                      {item.scenes?.length > 0 && (
+                        <p className="text-[10px] text-fg-faint">Escenas: {item.scenes.join(", ")}</p>
+                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <AssetPickerDropdown
+                          options={brandAssets}
+                          value={confirmedId}
+                          onChange={(id) => setChoice(key, item.detected_id, id)}
+                        />
+                        {/* Role toggle — only for garment categories. Self-explanatory
+                            labels: what the item is FOR in the content. Default inferred
+                            from category; user flips with one click. */}
+                        {(key === "outfits" || key === "products") && (() => {
+                          const role = roleOf(key, item.detected_id);
+                          return (
+                            <button
+                              onClick={() => setRole(key, item.detected_id, role === "hero" ? "wardrobe" : "hero")}
+                              title={role === "hero" ? "Esta prenda es el PRODUCTO QUE VENDÉS en este contenido — recibe close-ups y el foco. Click para marcarla como 'solo la usa'." : "La modelo solo la USA para el look, no es el foco de venta. Click para marcarla como 'producto a vender'."}
+                              className={cn(
+                                "text-[10px] px-2 py-0.5 rounded-full cursor-pointer flex items-center gap-1 font-medium transition-colors",
+                                role === "hero"
+                                  ? "bg-[var(--color-warm)]/15 text-[var(--color-warm)] hover:bg-[var(--color-warm)]/25"
+                                  : "bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3",
+                              )}
+                            >
+                              {role === "hero" ? "🎯 Producto a vender" : "👕 Solo la usa"}
+                            </button>
+                          );
+                        })()}
+                        {/* Adjust / change text — works even when brand kit is empty */}
+                        {!isEditingOverride && (
+                          <button
+                            onClick={() => setEditingId(`ovr:${overrideKey}`)}
+                            className="text-[10px] px-2 py-0.5 rounded-full bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 cursor-pointer flex items-center gap-1"
+                          >
+                            <Pencil size={9} /> {overrideText ? "Editar cambio" : "Ajustar"}
+                          </button>
+                        )}
+                        {overrideText && !isEditingOverride && (
+                          <button
+                            onClick={() => setOverride(key, item.detected_id, "")}
+                            className="text-[10px] text-fg-faint hover:text-error cursor-pointer flex items-center gap-1"
+                          >
+                            <X size={9} /> Quitar cambio
+                          </button>
+                        )}
+                        {!isManual && item.suggested_brand_id && confirmedId === item.suggested_brand_id && (
+                          <span className={cn(
+                            "text-[10px] px-2 py-0.5 rounded-full",
+                            confidencePct >= 75 ? "bg-success-muted text-success" :
+                              confidencePct >= 50 ? "bg-warning-muted text-warning" :
+                                "bg-surface-2 text-fg-faint"
+                          )}>
+                            sugerido · {confidencePct}%
+                          </span>
+                        )}
+                        {!isManual && item.reason && !overrideText && (
+                          <span className="text-[10px] text-fg-faint italic">{item.reason}</span>
+                        )}
+                        {isManual && (
+                          <button
+                            onClick={() => removeEntry(key, item.detected_id)}
+                            className="text-[10px] text-fg-faint hover:text-error cursor-pointer flex items-center gap-1"
+                          >
+                            <X size={10} /> Quitar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+
+              {/* Add manually */}
+              {brandAssets.length > 0 && (
+                <AddManualButton brandAssets={brandAssets} onAdd={(id) => addManual(key, id)} />
+              )}
+            </div>
+          );
+        })}
+
+        <p className="text-[10px] text-fg-faint text-center">
+          Aprobá este paso cuando los mapeos estén OK. Lo elegido se aplica al tool destino.
+        </p>
       </div>
     );
   }
@@ -5803,9 +7679,185 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   }
 
   // Animate step — show video segments with play
+  // Result can come in 2 shapes:
+  //   - video_ad_creator: { segments: [{index, videoUrl, startFrame, endFrame, status}, ...] }
+  //   - fashion_reel:     [{sceneId, title, videoUrl, imageUrl}, ...]
+  //   - either of those wrapped in { variations: [...], selections: [...] } after approval
   if (stepId === "animate" && result) {
-    const data = result as { segments: Array<{ index: number; videoUrl: string; startFrame: number; endFrame: number; status: string }> };
-    const segments = data.segments || [];
+    interface VideoSeg {
+      key: string;
+      videoUrl: string;
+      label: string;
+      sublabel?: string;
+      status: string;
+    }
+
+    // Unwrap post-approval envelope
+    const unwrapped = Array.isArray(result)
+      ? result
+      : (result as Record<string, unknown>).segments
+        || (result as Record<string, unknown>).variations
+        || result;
+
+    // Fashion Reel editable path: result is a flat array of {sceneId,title,videoUrl,imageUrl,mode}.
+    // We render per-clip controls (regen + frame edit) so the user can fix ONE clip
+    // without re-animating the whole reel — same UX as the UGC lipsync step.
+    interface FRClip { sceneId: string; title: string; videoUrl: string; imageUrl: string; mode?: string; motionPrompt?: string }
+    // DoneStep doesn't receive `tool`, so detect Fashion Reel clips by their shape:
+    // each clip has a string `sceneId` AND a string `imageUrl` (video_ad_creator uses
+    // index/startFrame/endFrame instead, and UGC uses the lipsync step, not animate).
+    const firstClip = Array.isArray(unwrapped) ? (unwrapped[0] as Record<string, unknown> | undefined) : undefined;
+    const isFashionReelClips =
+      Array.isArray(unwrapped) &&
+      unwrapped.length > 0 &&
+      typeof firstClip?.imageUrl === "string" &&
+      typeof firstClip?.sceneId === "string";
+
+    if (isFashionReelClips) {
+      const clips = unwrapped as FRClip[];
+      const engine = (config?.animationEngine === "seedance" ? "seedance" : "kling");
+      const klingModel = ((config as Record<string, unknown> | undefined)?.videoModel as "v3-pro" | "v2-6-pro" | "v2-6-std" | "v2-5-turbo") || "v3-pro";
+
+      const persist = () => { if (onUpdateStepResult) onUpdateStepResult("animate", [...clips]); };
+      const defaultMotion = "Fashion model subtle natural movement — slight sway, confident pose, hair movement. Vertical 9:16.";
+
+      const regenClip = async (clip: FRClip, idx: number) => {
+        setRegenSceneId(clip.sceneId);
+        try {
+          let videoUrl = "";
+          // Use the clip's (possibly user-edited) motion prompt — this is what makes
+          // the prompt visible AND controllable per clip.
+          const motion = clip.motionPrompt?.trim() || defaultMotion;
+          if (engine === "seedance") {
+            const job = await createSeedanceReferenceToVideo({ prompt: motion, referenceImageUrls: [clip.imageUrl], duration: "5" });
+            const r = job.video_url ? { status: "completed", video_url: job.video_url } : await pollSeedanceVideo(job.request_id);
+            videoUrl = r.video_url || "";
+          } else if (clip.mode === "f2f" && idx < clips.length - 1) {
+            const next = clips[idx + 1];
+            const job = await createKlingFrameToFrame({ start_image_url: clip.imageUrl, end_image_url: next.imageUrl, prompt: motion, duration: "5", model: klingModel });
+            const r = await pollKlingVideo(job.request_id);
+            videoUrl = r.video_url || "";
+          } else {
+            const job = await createKlingVideo(clip.imageUrl, motion, "5", klingModel);
+            const r = await pollKlingVideo(job.request_id);
+            videoUrl = r.video_url || "";
+          }
+          if (videoUrl) { clip.videoUrl = videoUrl; persist(); }
+        } catch { /* silent */ } finally {
+          setRegenSceneId(null);
+        }
+      };
+
+      const successCount = clips.filter((c) => c.videoUrl).length;
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Check size={14} className="text-[var(--color-success)]" />
+            <span className="text-[13px] font-medium text-fg">{successCount}/{clips.length} clips animados — editá los que quieras sin tocar el resto</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {clips.map((clip, idx) => {
+              const isRegen = regenSceneId === clip.sceneId;
+              const isEditingFrame = editingFrameSceneId === clip.sceneId;
+              return (
+                <div key={clip.sceneId} className="bg-surface-0 border border-edge rounded-[var(--radius-md)] overflow-hidden">
+                  <div className="aspect-[9/16] relative">
+                    {clip.videoUrl ? (
+                      <video src={clip.videoUrl} controls className="w-full h-full object-contain bg-black" />
+                    ) : (
+                      <div className="w-full h-full bg-surface-2 flex items-center justify-center">
+                        <AlertCircle size={16} className="text-[var(--color-error)]" />
+                      </div>
+                    )}
+                    {isRegen && (
+                      <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2">
+                        <Loader2 size={20} className="animate-spin text-white" />
+                        <p className="text-[10px] text-white/70">Regenerando...</p>
+                      </div>
+                    )}
+                    {clip.mode === "f2f" && (
+                      <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-blue-500/80 text-white text-[8px] font-semibold">f2f →</span>
+                    )}
+                    {clip.mode === "entry" && (
+                      <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-purple-500/80 text-white text-[8px] font-semibold">🚪 entrada</span>
+                    )}
+                  </div>
+                  <div className="p-2 space-y-1.5">
+                    <span className="text-[10px] text-fg font-medium truncate block">{clip.title}</span>
+                    {/* Frame base — click para editar la imagen y re-animar */}
+                    <button
+                      type="button"
+                      onClick={() => setEditingFrameSceneId(isEditingFrame ? null : clip.sceneId)}
+                      className={cn(
+                        "w-full flex items-center gap-1.5 p-1 rounded-[var(--radius-sm)] border text-left transition-colors",
+                        isEditingFrame ? "border-[var(--color-warm)] bg-[var(--color-warm)]/10" : "border-edge hover:bg-surface-1",
+                      )}
+                    >
+                      <img src={clip.imageUrl} alt="frame" className="w-7 h-7 object-cover rounded" />
+                      <span className="text-[9px] text-fg-muted flex-1">{isEditingFrame ? "Cerrar" : "Editar frame base"}</span>
+                      <ImageIcon size={10} className="text-fg-faint" />
+                    </button>
+                    {/* Visible + editable motion prompt — exactly what gets sent to the
+                        video model for this clip. Edit it and Regen to apply. */}
+                    <details className="text-[9px] text-fg-faint">
+                      <summary className="cursor-pointer hover:text-fg-muted select-none">Ver / editar prompt de animación</summary>
+                      <textarea
+                        defaultValue={clip.motionPrompt || defaultMotion}
+                        onChange={(e) => { clip.motionPrompt = e.target.value; }}
+                        onBlur={persist}
+                        rows={3}
+                        className="w-full mt-1 text-[10px] text-fg bg-surface-1 border border-edge focus:border-[var(--color-warm)] rounded-[var(--radius-sm)] px-1.5 py-1 outline-none resize-none"
+                      />
+                    </details>
+                    <button
+                      onClick={() => regenClip(clip, idx)}
+                      disabled={isRegen}
+                      className={cn(
+                        "w-full flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium transition-colors cursor-pointer",
+                        !isRegen ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90" : "bg-surface-1 text-fg-faint cursor-not-allowed",
+                      )}
+                    >
+                      <RotateCcw size={9} /> Regen clip
+                    </button>
+                    {isEditingFrame && (
+                      <div className="pt-1 border-t border-edge">
+                        <ImageEditPanel
+                          imageUrl={clip.imageUrl}
+                          aspectRatio={config?.aspectRatio || "9:16"}
+                          resolution={config?.resolution || "1K"}
+                          selectedProductId={config?.selectedProductId}
+                          onImageUpdated={(newUrl) => { clip.imageUrl = newUrl; persist(); setEditingFrameSceneId(null); }}
+                          onClose={() => setEditingFrameSceneId(null)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-fg-faint text-center">
+            Editá el frame o regenerá clips individuales. Approve para renderizar el video final.
+          </p>
+          {lightboxUrl && (
+            <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-8 cursor-zoom-out" onClick={() => setLightboxUrl(null)}>
+              <img src={lightboxUrl} alt="zoom" className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]" onClick={(e) => e.stopPropagation()} />
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const segments: VideoSeg[] = Array.isArray(unwrapped)
+      ? unwrapped.map((s: Record<string, unknown>, i: number) => ({
+          key: String(s.sceneId || s.id || s.index || i),
+          videoUrl: String(s.videoUrl || ""),
+          label: String(s.title || (s.startFrame !== undefined ? `F${s.startFrame} → F${s.endFrame}` : `Scene ${i + 1}`)),
+          sublabel: s.startFrame !== undefined ? undefined : (s.sceneId ? String(s.sceneId) : undefined),
+          status: String(s.status || (s.videoUrl ? "done" : "failed")),
+        }))
+      : [];
+
     const successful = segments.filter((s) => s.videoUrl && s.status !== "failed");
 
     return (
@@ -5818,7 +7870,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         </div>
         <div className="grid grid-cols-3 gap-3">
           {segments.map((seg) => (
-            <div key={seg.index} className="bg-surface-0 border border-edge rounded-[var(--radius-md)] overflow-hidden">
+            <div key={seg.key} className="bg-surface-0 border border-edge rounded-[var(--radius-md)] overflow-hidden">
               <div className="aspect-[9/16]">
                 {seg.videoUrl ? (
                   <video src={seg.videoUrl} controls className="w-full h-full object-contain bg-black" />
@@ -5828,10 +7880,10 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   </div>
                 )}
               </div>
-              <div className="p-2 flex items-center justify-between">
-                <span className="text-[10px] text-fg font-medium">F{seg.startFrame} → F{seg.endFrame}</span>
+              <div className="p-2 flex items-center justify-between gap-2">
+                <span className="text-[10px] text-fg font-medium truncate">{seg.label}</span>
                 <span className={cn(
-                  "text-[9px] px-1.5 py-0.5 rounded",
+                  "text-[9px] px-1.5 py-0.5 rounded shrink-0",
                   seg.status === "done" ? "bg-success-muted text-success" : "bg-warning-muted text-warning"
                 )}>
                   {seg.status}
@@ -6230,41 +8282,69 @@ function RoutePanel({ allSteps, config }: { allSteps: StepState[]; config: ToolC
 
   const contentType = analyzeData?.analysis?.content_type || "";
   // isVisualOnly computed before suggestedId so we can pass it
+  // isVisualOnly: now defaults to TALKING. We only flag visual-only when there's a
+  // clear signal (specific content_type, or script literally empty). Before this fix,
+  // many UGC videos (a person selling in casual rioplatense) were being mis-flagged as
+  // visual-only because the script lacked specific keywords like "compra/visitá",
+  // and every scene then became "creative" — losing the talking structure of the source.
   const isVisualOnly = (() => {
-    const script = (analyzeData?.analysis?.estimated_script || "").toLowerCase();
+    const script = (analyzeData?.analysis?.estimated_script || "").trim();
     const ct = contentType.toLowerCase();
     const structure = (analyzeData?.analysis?.structure || "").toLowerCase();
-    if (!script || script.length < 10) return true;
-    // Content type or structure keywords suggest no brand VO
-    if (ct.includes("dance") || ct.includes("movement") || ct.includes("fashion-movement")) return true;
-    if (ct.includes("transition") || ct.includes("transformation")) return true;
-    if (ct.includes("baile") || ct.includes("movimiento") || ct.includes("transformación")) return true;
-    if (structure.includes("antes y después") || structure.includes("before") || structure.includes("transformación")) return true;
-    // Has brand call-to-action → it's voiceover content
-    const hasBrandVO = /\b(compra|descubrí|probá|conocé|visitá|link|swipe|shop|buy|discover|try|get yours|available|precio|oferta|discount|te cuento|te explico|quiero mostrarte)\b/i.test(script);
-    if (hasBrandVO) return false;
-    // Script looks like a trending audio (no product/brand purpose) → visual-only
-    const isAudioTrend = /\b(damn|look good|nobody tell me|i look|can't nobody|what the|mirror|feeling myself)\b/i.test(script);
+
+    // Truly empty script → visual-only
+    if (!script || script.length < 5) return true;
+
+    // Clear visual-only content types — no person speaking on camera
+    if (ct.includes("dance") || ct.includes("baile")) return true;
+    if (ct.includes("fashion-movement") || ct.includes("movement only")) return true;
+    if (ct.includes("transformation") && !ct.includes("ugc") && !ct.includes("testimonial")) return true;
+    if (ct.includes("transition")) return true;
+
+    // Trending audio overlay (recognizable lyrics/hooks) → visual-only
+    const isAudioTrend = /\b(damn|look good|nobody tell me|i look|can't nobody|what the|mirror|feeling myself|baby|love song)\b/i.test(script);
     if (isAudioTrend) return true;
-    // Short script with no brand purpose → visual-only
-    const isShortCasual = script.length < 100 && !hasBrandVO;
-    return isShortCasual;
+
+    // Everything else: default to TALKING. If there's any meaningful script, assume
+    // the person is speaking — that's the more conservative assumption for UGC.
+    return false;
   })();
   const suggestedId = detectSuggestedTool(contentType, isVisualOnly);
 
   const launch = (targetToolId: string) => {
+    // Resolve asset selections from the map_assets step (the new flow) — replaces
+    // the upfront avatar/product/clothing/background selectors that were removed
+    // from the CA schema. Falls back to config-level selections for backwards compat.
+    const mapStep = allSteps.find((s) => s.id === "map_assets");
+    const mapResult = mapStep?.result as { confirmations?: Record<string, string | null> } | undefined;
+    const confirmations = mapResult?.confirmations || {};
+
+    const collect = (catPrefix: "persons" | "outfits" | "products" | "locations"): string[] => {
+      const ids: string[] = [];
+      for (const [k, v] of Object.entries(confirmations)) {
+        if (k.startsWith(catPrefix + ":") && v) ids.push(v);
+      }
+      return Array.from(new Set(ids));  // dedupe
+    };
+
+    const mappedAvatars = collect("persons");
+    const mappedClothing = collect("outfits");
+    const mappedProducts = collect("products");
+    const mappedBackgrounds = collect("locations");
+
     const key = `handoff_${crypto.randomUUID()}`;
     sessionStorage.setItem(key, JSON.stringify({
       from: "content_analyzer",
       adaptData,
       analyzeData,
       contentMode: isVisualOnly ? "visual" : "voiceover",
-      selectedAvatarIds: config.selectedAvatarIds,
-      selectedProductIds: config.selectedProductIds,
-      selectedClothingIds: config.selectedClothingIds,
-      selectedAvatarId: config.selectedAvatarId,
-      selectedBackgroundId: config.selectedBackgroundId,
-      selectedProductId: config.selectedProductId,
+      // Prefer map_assets confirmations; fall back to config (legacy path)
+      selectedAvatarIds: mappedAvatars.length > 0 ? mappedAvatars : config.selectedAvatarIds,
+      selectedProductIds: mappedProducts.length > 0 ? mappedProducts : config.selectedProductIds,
+      selectedClothingIds: mappedClothing.length > 0 ? mappedClothing : config.selectedClothingIds,
+      selectedAvatarId: mappedAvatars[0] || config.selectedAvatarId,
+      selectedBackgroundId: mappedBackgrounds[0] || config.selectedBackgroundId,
+      selectedProductId: mappedProducts[0] || config.selectedProductId,
     }));
     navigate(`/dashboard/generate/${targetToolId}?handoff=${key}`);
   };
@@ -6427,11 +8507,19 @@ function CurationPanel({
   const scriptResult = scriptStep?.result as Record<string, unknown> | undefined;
   let scriptScenes: Array<{ id: string; title: string; script: string }> = [];
   if (scriptResult) {
+    // scenes can be stored as either:
+    //   - 2D array: [[{...}, {...}]]  (UGC creator — array of tone variants)
+    //   - 1D array: [{...}, {...}]    (fashion_reel and others — flat scene list)
     let rawArr: Array<Record<string, string>> = [];
+    const pickFirstSceneList = (v: unknown): Array<Record<string, string>> => {
+      if (!Array.isArray(v)) return [];
+      if (v.length > 0 && Array.isArray(v[0])) return v[0] as Array<Record<string, string>>;
+      return v as Array<Record<string, string>>;
+    };
     if (scriptResult.scenes) {
-      rawArr = ((scriptResult.scenes as Array<Array<Record<string, string>>>)[0]) || [];
+      rawArr = pickFirstSceneList(scriptResult.scenes);
     } else if (Array.isArray(scriptResult)) {
-      rawArr = (scriptResult as Array<Array<Record<string, string>>>)[0] || [];
+      rawArr = pickFirstSceneList(scriptResult);
     }
     scriptScenes = rawArr.map((s, i) => {
       let scriptText = s.script || s.speech || s.copy || s.text || s.audio || s.dialogue || s.narration || s.voiceover || s.action || "";
@@ -6613,7 +8701,9 @@ function CurationPanel({
         const sceneType = scene.sceneType ?? "talking";
         const isCreative = sceneType === "creative";
         const isFirstScene = sceneIndex === 0;
-        const isSyncLipsync = config?.lipsyncMethod === "synclipsync";
+        // synclipsync deprecated — always false. Kept as a constant to avoid touching
+        // downstream conditionals that depended on it.
+        const isSyncLipsync = false;
 
         // Per-scene frame-to-frame state (set by intelligent suggestion, togglable by user)
         const sceneF2F = scene.frameToFrame ?? false;
@@ -7026,6 +9116,228 @@ const TEMPLATE_CATEGORIES: Record<string, { label: string; color: string }> = {
   lifestyle: { label: "Lifestyle", color: "text-fg-secondary bg-surface-2" },
 };
 
+// ── Carousel Compose Editor (modo Compose) ─────────────────
+// Renderiza un <ComposeOverlay/> por cada slide para que el usuario edite el texto
+// y exporte PNG con la tipografía real del brand.
+// ── Instagram Carousel Importer ───────────────────────────────
+// Pastes an IG post URL, scrapes via Apify, and lets the user pick which slide
+// to use as the visual template for the carousel. Auto-fetches the chosen slide
+// as a data URL and hands it back to the parent via onUseAsTemplate.
+function InstagramCarouselImporter({ onUseAsTemplate }: { onUseAsTemplate: (slideDataUrl: string) => void }) {
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [post, setPost] = useState<{
+    type: "carousel" | "image" | "video";
+    thumbnail: string;
+    slides: Array<{ url: string }>;
+    username: string;
+    caption: string;
+    likesCount: number;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [chosenIdx, setChosenIdx] = useState<number>(0);
+  const [importingSlide, setImportingSlide] = useState(false);
+
+  const handleScrape = async () => {
+    if (!url.trim()) return;
+    setLoading(true);
+    setError(null);
+    setPost(null);
+    try {
+      const { scrapeInstagramPost } = await import("../lib/api");
+      const res = await scrapeInstagramPost(url.trim());
+      setPost(res);
+      setChosenIdx(0);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo scrapear el post");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUseSlide = async () => {
+    if (!post || !post.slides[chosenIdx]) return;
+    setImportingSlide(true);
+    try {
+      const slideUrl = post.slides[chosenIdx].url;
+      // Backend serves IG images as /static/ig-imports/... → prepend the API host
+      const fullUrl = slideUrl.startsWith("http") ? slideUrl : `http://localhost:8000${slideUrl}`;
+      const res = await fetch(fullUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status} al descargar la imagen`);
+      const blob = await res.blob();
+      const reader = new FileReader();
+      reader.onload = () => {
+        onUseAsTemplate(reader.result as string);
+        setImportingSlide(false);
+      };
+      reader.onerror = () => {
+        setError("No se pudo leer la imagen");
+        setImportingSlide(false);
+      };
+      reader.readAsDataURL(blob);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo descargar la imagen");
+      setImportingSlide(false);
+    }
+  };
+
+  return (
+    <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <label className="text-[12px] font-semibold text-fg-secondary">Importar de Instagram</label>
+          <p className="text-[10px] text-fg-faint mt-0.5">Pegá un link de un post o carousel para usar uno de sus slides como template</p>
+        </div>
+        {post && <span className="text-[10px] text-[var(--color-success)] font-semibold uppercase tracking-wider">@{post.username}</span>}
+      </div>
+
+      <div className="flex gap-1.5">
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://www.instagram.com/p/..."
+          className="flex-1 bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-warm)]"
+          onKeyDown={(e) => { if (e.key === "Enter") handleScrape(); }}
+        />
+        <button
+          onClick={handleScrape}
+          disabled={loading || !url.trim()}
+          className="px-3 py-1.5 text-[11px] font-semibold bg-surface-2 border border-edge text-fg-muted hover:text-fg hover:border-[var(--color-warm)] rounded-[var(--radius-sm)] disabled:opacity-50 cursor-pointer flex items-center gap-1"
+        >
+          {loading ? <Loader2 size={11} className="animate-spin" /> : <span>↓</span>}
+          {loading ? "Scrapeando..." : "Importar"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="text-[10px] text-[var(--color-error)]">{error}</div>
+      )}
+
+      {post && post.slides.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">
+              {post.type === "carousel" ? `${post.slides.length} slides` : post.type === "video" ? "Video post" : "Single image"}
+            </span>
+            <span className="text-[10px] text-fg-faint">♡ {post.likesCount.toLocaleString()}</span>
+          </div>
+
+          {/* Slides grid (clickable to choose) */}
+          <div className="grid grid-cols-5 gap-1.5">
+            {post.slides.map((s, i) => {
+              const thumbUrl = s.url.startsWith("http") ? s.url : `http://localhost:8000${s.url}`;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setChosenIdx(i)}
+                  className={cn(
+                    "relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border-2 transition-all cursor-pointer",
+                    chosenIdx === i ? "border-[var(--color-warm)] ring-2 ring-[var(--color-warm-muted)]" : "border-edge hover:border-edge-strong"
+                  )}
+                >
+                  <img src={thumbUrl} alt={`slide ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <div className="absolute top-1 left-1 bg-black/60 text-white text-[8px] font-bold px-1 py-0.5 rounded">
+                    {i + 1}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {post.caption && (
+            <details className="text-[10px] text-fg-muted">
+              <summary className="cursor-pointer hover:text-fg">Caption original</summary>
+              <p className="mt-1 italic leading-relaxed whitespace-pre-wrap">{post.caption.slice(0, 400)}{post.caption.length > 400 ? "..." : ""}</p>
+            </details>
+          )}
+
+          <button
+            onClick={handleUseSlide}
+            disabled={importingSlide}
+            className="w-full px-3 py-2 text-[11px] font-semibold bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            {importingSlide ? <Loader2 size={11} className="animate-spin" /> : <span>→</span>}
+            {importingSlide ? "Cargando..." : `Usar slide ${chosenIdx + 1} como template`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CarouselComposeEditor({
+  slides,
+  config,
+}: {
+  slides: Array<{ id: string; url: string; label: string; headline: string; body: string; role: string }>;
+  config: ToolConfig;
+  allSteps: StepState[];
+}) {
+  const { activeBrand } = useBrand();
+  const [activeSlideIdx, setActiveSlideIdx] = useState(0);
+
+  if (!activeBrand) return null;
+  const validSlides = slides.filter((s) => s.url);
+  if (validSlides.length === 0) return null;
+  const active = validSlides[activeSlideIdx] || validSlides[0];
+
+  // Map aspect ratio to output dimensions
+  const ratioMap: Record<string, [number, number]> = {
+    "4:5": [1080, 1350],
+    "9:16": [1080, 1920],
+    "1:1": [1080, 1080],
+    "16:9": [1920, 1080],
+    "3:4": [1080, 1440],
+  };
+  const [outW, outH] = ratioMap[config.aspectRatio || "4:5"] || [1080, 1350];
+
+  return (
+    <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+      <div>
+        <h3 className="text-[12px] font-semibold text-fg-secondary">Compose Mode — Editor de overlay</h3>
+        <p className="text-[10px] text-fg-faint mt-0.5">
+          Cambiá el copy, elegí el template de overlay y exportá el PNG con la tipografía real del brand.
+        </p>
+      </div>
+
+      {/* Slide selector */}
+      {validSlides.length > 1 && (
+        <div className="flex gap-1.5 flex-wrap">
+          {validSlides.map((s, i) => (
+            <button
+              key={s.id}
+              onClick={() => setActiveSlideIdx(i)}
+              className={cn(
+                "px-2.5 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium border transition-all cursor-pointer",
+                activeSlideIdx === i
+                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                  : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
+              )}
+            >
+              Slide {i + 1}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <ComposeOverlay
+        key={active.id}
+        imageUrl={active.url}
+        brand={activeBrand}
+        initialFields={{
+          eyebrow: active.role || "",
+          headline: active.headline || "",
+          subline: active.body || "",
+        }}
+        initialTemplateId={config.overlayTemplate || "editorial_bottom"}
+        outputWidth={outW}
+        outputHeight={outH}
+      />
+    </div>
+  );
+}
+
 function TemplateSelector({ selectedId, onSelect }: { selectedId: string; onSelect: (id: string) => void }) {
   const [templates, setTemplates] = useState<AdTemplate[]>([]);
   const [filterCat, setFilterCat] = useState<string>("all");
@@ -7432,7 +9744,7 @@ const UGC_PRESETS: UGCPreset[] = [
     description: "Narrativo · Cinematic · Hook distraído",
     config: {
       ugcMode: "narrative",
-      lipsyncMethod: "synclipsync",
+      lipsyncMethod: "heygen",
       visualStyle: "cinematic",
       hookType: "distracted",
       creativeMode: "frame-to-frame",
@@ -7445,7 +9757,7 @@ const UGC_PRESETS: UGCPreset[] = [
     description: "Studio · Luz profesional · Sin hook",
     config: {
       ugcMode: "standard",
-      lipsyncMethod: "synclipsync",
+      lipsyncMethod: "heygen",
       visualStyle: "studio",
       hookType: "none",
     },
@@ -7535,10 +9847,12 @@ function UGCConfigPanel({
           </FieldHint>
         </UGCField>
 
-        {config.ugcMode === "narrative" && (
+        {/* Frame mode — Kling-only. Seedance reference-to-video no usa frame único
+            ni interpolación entre escenas; siempre va con multi-ref. */}
+        {config.ugcMode === "narrative" && config.animationEngine === "kling" && (
           <UGCField label="Escenas creativas">
             <SegToggle
-              value={config.creativeMode}
+              value={config.creativeMode === "frame-to-frame" ? "frame-to-frame" : "single-frame"}
               onChange={(v) => setConfig((p) => ({ ...p, creativeMode: v as ToolConfig["creativeMode"] }))}
               options={[
                 { id: "single-frame", label: "Single Frame" },
@@ -7546,9 +9860,14 @@ function UGCConfigPanel({
               ]}
             />
             <FieldHint>
-              {config.creativeMode === "single-frame" ? "Kling anima desde una imagen." : "Kling interpola hacia la siguiente escena."}
+              {config.creativeMode === "frame-to-frame" ? "Kling interpola hacia la siguiente escena." : "Kling anima desde una imagen."}
             </FieldHint>
           </UGCField>
+        )}
+        {config.ugcMode === "narrative" && config.animationEngine === "seedance" && (
+          <FieldHint>
+            <strong className="text-fg">Seedance</strong> no usa frame-único ni interpolación — anima cada escena con multi-referencia. El selector de "Escenas creativas" no aplica.
+          </FieldHint>
         )}
       </UGCSection>
 
@@ -7630,22 +9949,9 @@ function UGCConfigPanel({
         )}
       </UGCSection>
 
-      {/* ── Section: Técnico ─────────────────────────────────── */}
-      <UGCSection title="Técnico" subtitle="Motor de lipsync">
-        <UGCField label="Lipsync engine">
-          <SegToggle
-            value={config.lipsyncMethod}
-            onChange={(v) => setConfig((p) => ({ ...p, lipsyncMethod: v as ToolConfig["lipsyncMethod"] }))}
-            options={[
-              { id: "heygen", label: "HeyGen Avatar 4" },
-              { id: "synclipsync", label: "Sync Lipsync V3" },
-            ]}
-          />
-          <FieldHint>
-            {config.lipsyncMethod === "heygen" ? "Imagen → HeyGen directo. Más rápido." : "Imagen → Kling → lipsync. Movimiento más natural."}
-          </FieldHint>
-        </UGCField>
-      </UGCSection>
+      {/* Motor de video (animación + lipsync) ahora vive arriba en Ajustes,
+          consolidado en una sola sección. Antes había DOS selectores en lugares
+          distintos (uno acá abajo, uno arriba) — confuso. */}
     </div>
   );
 }
@@ -7942,5 +10248,315 @@ function AvatarToggle({ scene }: { scene: { id: string; _useAvatar?: boolean } &
       <span>{useAvatar ? "👤" : "🚫"}</span>
       {useAvatar ? "Avatar ON" : "Avatar OFF"}
     </button>
+  );
+}
+
+
+// ──────────────────────────────────────────────────────────────────
+// Per-scene Background Picker — visual thumbnail popover
+// ──────────────────────────────────────────────────────────────────
+
+function ScenesBackgroundPicker({
+  scene,
+  backgrounds,
+  globalBackgroundId,
+}: {
+  scene: { id: string; backgroundId?: string | null } & Record<string, unknown>;
+  backgrounds: Array<{ id: string; name: string; description?: string; imageUrl?: string }>;
+  globalBackgroundId?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [, force] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  const setBg = (val: undefined | null | string) => {
+    scene.backgroundId = val;
+    force((x) => x + 1);
+    setOpen(false);
+  };
+
+  const current = backgrounds.find((b) => b.id === scene.backgroundId);
+  const globalBg = globalBackgroundId ? backgrounds.find((b) => b.id === globalBackgroundId) : undefined;
+  const isInherit = scene.backgroundId === undefined;
+
+  const currentLabel = scene.backgroundId === null
+    ? "Sin fondo"
+    : scene.backgroundId
+    ? current?.name || "Desconocido"
+    : globalBg
+    ? `Global: ${globalBg.name}`
+    : "Config global (sin fondo)";
+
+  const currentThumb = scene.backgroundId && current?.imageUrl
+    ? backgroundImageUrl(current.imageUrl)
+    : isInherit && globalBg?.imageUrl
+    ? backgroundImageUrl(globalBg.imageUrl)
+    : null;
+
+  const hint = scene.backgroundId === null
+    ? "Nano Banana genera desde el prompt"
+    : scene.backgroundId
+    ? "Usa esta imagen como referencia visual"
+    : globalBg
+    ? "Hereda del ConfigPanel"
+    : "ConfigPanel no tiene fondo — genera desde prompt";
+
+  return (
+    <div ref={ref} className="border-t border-edge bg-surface-1/40">
+      {/* Row: current selection + toggle */}
+      <div className="px-3 py-2 flex items-center gap-2 flex-wrap">
+        <Mountain size={10} className="text-fg-faint" />
+        <span className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider">Fondo</span>
+
+        <button
+          onClick={() => setOpen(!open)}
+          className="inline-flex items-center gap-1.5 h-7 pl-1 pr-2 rounded-full border border-edge bg-surface-1 hover:border-edge-strong hover:bg-surface-2 transition-colors cursor-pointer"
+        >
+          {currentThumb ? (
+            <div className="relative">
+              <img src={currentThumb} alt={currentLabel} className={cn("w-5 h-5 rounded-full object-cover", isInherit && "ring-1 ring-[var(--color-warm)] ring-offset-1 ring-offset-surface-1")} />
+              {isInherit && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--color-warm)] border border-surface-1" title="Heredado del ConfigPanel" />
+              )}
+            </div>
+          ) : (
+            <div className={cn(
+              "w-5 h-5 rounded-full flex items-center justify-center",
+              scene.backgroundId === null ? "bg-amber-500/20 text-amber-400" : "bg-surface-3 text-fg-faint"
+            )}>
+              {scene.backgroundId === null ? <X size={10} /> : <Settings2 size={9} />}
+            </div>
+          )}
+          <span className="text-[10px] font-medium text-fg-muted max-w-[120px] truncate">{currentLabel}</span>
+          <ChevronDown size={10} className={cn("text-fg-faint transition-transform", open && "rotate-180")} />
+        </button>
+
+        <span className="text-[9px] text-fg-faint italic ml-auto">{hint}</span>
+      </div>
+
+      {/* Expanded picker (inline, not absolute — avoids overflow clipping) */}
+      {open && (
+        <div className="px-3 pb-3 pt-1 space-y-1 border-t border-edge-subtle bg-surface-0/50">
+          <p className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider py-1">Elegí un fondo</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => setBg(undefined)}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium transition-colors cursor-pointer border",
+                scene.backgroundId === undefined
+                  ? "bg-[var(--color-warm-muted)] border-[var(--color-warm)] text-fg"
+                  : "border-edge bg-surface-1 text-fg-muted hover:border-edge-strong"
+              )}
+            >
+              {globalBg?.imageUrl ? (
+                <img src={backgroundImageUrl(globalBg.imageUrl)} alt={globalBg.name} className="w-4 h-4 rounded-full object-cover" />
+              ) : (
+                <Settings2 size={9} />
+              )}
+              {globalBg ? `Global: ${globalBg.name}` : "Config global"}
+              {scene.backgroundId === undefined && <Check size={9} className="text-[var(--color-warm-strong)]" />}
+            </button>
+            <button
+              onClick={() => setBg(null)}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium transition-colors cursor-pointer border",
+                scene.backgroundId === null
+                  ? "bg-amber-500/15 border-amber-500/40 text-amber-400"
+                  : "border-edge bg-surface-1 text-fg-muted hover:border-edge-strong"
+              )}
+            >
+              <X size={9} />
+              Sin fondo
+              {scene.backgroundId === null && <Check size={9} />}
+            </button>
+          </div>
+
+          {backgrounds.length > 0 && (
+            <>
+              <p className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider pt-2">Assets de la marca</p>
+              <div className="grid grid-cols-4 gap-1.5">
+                {backgrounds.map((bg) => {
+                  const isActive = scene.backgroundId === bg.id;
+                  const thumb = bg.imageUrl ? backgroundImageUrl(bg.imageUrl) : null;
+                  return (
+                    <button
+                      key={bg.id}
+                      onClick={() => setBg(bg.id)}
+                      title={bg.description || bg.name}
+                      className={cn(
+                        "relative rounded-[var(--radius-sm)] overflow-hidden border-2 transition-all cursor-pointer",
+                        isActive ? "border-[var(--color-warm)] ring-2 ring-[var(--color-warm-muted)]" : "border-transparent hover:border-edge-strong"
+                      )}
+                    >
+                      {thumb ? (
+                        <img src={thumb} alt={bg.name} className="w-full aspect-[4/3] object-cover" />
+                      ) : (
+                        <div className="w-full aspect-[4/3] bg-surface-2 flex items-center justify-center">
+                          <Mountain size={14} className="text-fg-faint" />
+                        </div>
+                      )}
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-1 py-0.5">
+                        <p className="text-[9px] font-medium text-white truncate text-left">{bg.name}</p>
+                      </div>
+                      {isActive && (
+                        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--color-warm)] flex items-center justify-center">
+                          <Check size={8} className="text-[var(--color-warm-fg)]" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Custom dropdown for the Map Assets step — shows thumbnail + name per option,
+ * plus a "No usar / skip" entry. Replaces the native <select> which can't
+ * render images.
+ */
+function AssetPickerDropdown({ options, value, onChange }: {
+  options: Array<{ id: string; name: string; imageUrl?: string }>;
+  value: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const selected = options.find((o) => o.id === value);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2 py-1 text-[12px] text-fg cursor-pointer min-w-[200px] flex items-center gap-2 hover:bg-surface-3"
+      >
+        {selected ? (
+          <>
+            {selected.imageUrl ? (
+              <img src={selected.imageUrl} alt={selected.name} className="w-6 h-6 object-cover rounded-sm shrink-0" />
+            ) : (
+              <div className="w-6 h-6 bg-surface-3 rounded-sm shrink-0" />
+            )}
+            <span className="truncate flex-1 text-left">{selected.name}</span>
+          </>
+        ) : (
+          <span className="text-fg-muted flex-1 text-left">— No usar / skip —</span>
+        )}
+        <ChevronDown size={12} className={cn("shrink-0 text-fg-faint transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 min-w-[260px] max-h-[320px] overflow-y-auto bg-surface-1 border border-edge rounded-[var(--radius-md)] shadow-lg p-1">
+          <button
+            onClick={() => { onChange(null); setOpen(false); }}
+            className={cn(
+              "w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] text-[12px] cursor-pointer",
+              value === null ? "bg-[var(--color-warm-subtle)] text-fg" : "text-fg-muted hover:bg-surface-2"
+            )}
+          >
+            <div className="w-6 h-6 rounded-sm border border-dashed border-edge flex items-center justify-center shrink-0">
+              <X size={10} className="text-fg-faint" />
+            </div>
+            <span className="flex-1 text-left">No usar / skip</span>
+          </button>
+          {options.length === 0 ? (
+            <div className="text-[10px] text-fg-faint p-2">No hay assets en esta categoría.</div>
+          ) : (
+            options.map((o) => (
+              <button
+                key={o.id}
+                onClick={() => { onChange(o.id); setOpen(false); }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] text-[12px] cursor-pointer",
+                  value === o.id ? "bg-[var(--color-warm-subtle)] text-fg" : "text-fg-muted hover:bg-surface-2"
+                )}
+              >
+                {o.imageUrl ? (
+                  <img src={o.imageUrl} alt={o.name} className="w-8 h-8 object-cover rounded-sm shrink-0" />
+                ) : (
+                  <div className="w-8 h-8 bg-surface-3 rounded-sm shrink-0" />
+                )}
+                <span className="truncate flex-1 text-left">{o.name}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * "+ Agregar manualmente" button for the Map Assets step. Opens a popover with
+ * the brand-kit options for the given category and inserts a synthetic detected
+ * entry pre-linked to the chosen asset.
+ */
+function AddManualButton({ brandAssets, onAdd }: {
+  brandAssets: Array<{ id: string; name: string; imageUrl?: string }>;
+  onAdd: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-[11px] text-fg-muted hover:text-fg cursor-pointer px-2.5 py-1 rounded-full border border-dashed border-edge hover:border-edge-strong w-full justify-center"
+      >
+        <Plus size={11} /> Agregar manualmente
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 min-w-[260px] max-h-[280px] overflow-y-auto bg-surface-1 border border-edge rounded-[var(--radius-md)] shadow-lg p-1">
+          {brandAssets.length === 0 ? (
+            <div className="text-[10px] text-fg-faint p-2">Nada en esta categoría del brand kit.</div>
+          ) : (
+            brandAssets.map((b) => (
+              <button
+                key={b.id}
+                onClick={() => { onAdd(b.id); setOpen(false); }}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] text-[12px] cursor-pointer text-fg-muted hover:bg-surface-2 hover:text-fg"
+              >
+                {b.imageUrl ? (
+                  <img src={b.imageUrl} alt={b.name} className="w-8 h-8 object-cover rounded-sm shrink-0" />
+                ) : (
+                  <div className="w-8 h-8 bg-surface-3 rounded-sm shrink-0" />
+                )}
+                <span className="truncate flex-1 text-left">{b.name}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }

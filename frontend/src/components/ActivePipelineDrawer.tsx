@@ -446,7 +446,7 @@ export function ActivePipelineDrawer({
                                                 <div className="flex items-center gap-3 bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3">
                                                     <button
                                                         onClick={toggleAudio}
-                                                        className="cursor-pointer w-10 h-10 rounded-full bg-[var(--color-warm)] text-white flex items-center justify-center hover:opacity-90 transition-opacity shrink-0"
+                                                        className="cursor-pointer w-10 h-10 rounded-full bg-[var(--color-warm)] text-[var(--color-warm-fg)] flex items-center justify-center hover:opacity-90 transition-opacity shrink-0"
                                                     >
                                                         {audioPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
                                                     </button>

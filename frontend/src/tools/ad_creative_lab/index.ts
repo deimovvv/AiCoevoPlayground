@@ -16,6 +16,8 @@ export const adCreativeLab: ToolDefinition = {
     showProduct: true, productLabel: "Product",
     showClothing: true, clothingLabel: "Garments", clothingSublabel: "what the model wears",
     showBackground: true,
+    showMoodboard: true,
+    showReference: true,
     showVoice: false,
     showTone: false,
     showPlatform: false,

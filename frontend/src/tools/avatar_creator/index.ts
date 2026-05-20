@@ -10,10 +10,15 @@ import { handleBrief, handleGenerate, handleSave } from "./handlers";
 
 export const avatarCreator: ToolDefinition = {
   schema: {
+    // showAvatar is overridden to true by ToolRunPage when avatarToolMode === "poses"
     showAvatar: false,
+    avatarLabel: "Avatar base",
+    avatarSublabel: "El avatar del Brand Kit sobre el que se genera la pose sheet",
     showProduct: false,
     showClothing: false,
     showBackground: false,
+    showMoodboard: true,
+    showReference: true,
     showVoice: false,
     showTone: false,
     showPlatform: false,
@@ -22,6 +27,7 @@ export const avatarCreator: ToolDefinition = {
     showNotes: false,
     objectiveLabel: "Avatar Direction",
     objectivePlaceholder: "Optional: describe what you're looking for. E.g., 'confident young woman for Gen Z streetwear brand' or 'professional man 30-40 for a fintech service'...",
+    inputsHint: "Subí imágenes de referencia (cara, vibe, fotos similares) para que Nano Banana las use como guía. Elegí un moodboard del Brand Kit para fijar la estética visual.",
   },
   stepHandlers: {
     brief: handleBrief,

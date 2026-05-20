@@ -37,6 +37,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
 const TOOL_PREVIEW_MEDIA: Record<string, { url: string; type: "image" | "video" }> = {
   video_ad_creator: { url: "/previews/videoadcreator.mp4", type: "video" },
   ugc_creator: { url: "/previews/ugccreator.mp4", type: "video" },
+  fashion_reel: { url: "/previews/agnatesttt.mp4", type: "video" },
   static_ad: { url: "/previews/staticad.png", type: "image" },
 };
 
@@ -47,11 +48,10 @@ const TOOL_TAGLINES: Record<string, string> = {
   static_ad: "40 templates de creativos estáticos",
   carousel_creator: "Carruseles consistentes para IG y LinkedIn",
   fashion_reel: "Reels editoriales de moda sin guion",
-  fashion_editorial: "Fotografía editorial de alta gama",
   product_clip: "Clips de producto frame-by-frame",
   product_spotlight: "Fotografía profesional en contexto",
   ad_creative_lab: "Batch de creativos desde referencias",
-  avatar_creator: "Avatars nuevos para tu marca",
+  avatar_creator: "Crear nuevos avatars o generar pose sheets para los que ya tenés",
   content_analyzer: "Analizá un video y adaptálo a tu marca",
 };
 
@@ -62,7 +62,6 @@ const TOOL_GRADIENTS: Record<string, string> = {
   static_ad: "from-amber-500/30 via-orange-500/20 to-red-500/30",
   carousel_creator: "from-emerald-500/30 via-teal-500/20 to-cyan-500/30",
   fashion_reel: "from-fuchsia-500/30 via-pink-500/20 to-rose-500/30",
-  fashion_editorial: "from-neutral-500/30 via-stone-500/20 to-zinc-500/30",
   product_clip: "from-sky-500/30 via-blue-500/20 to-indigo-500/30",
   product_spotlight: "from-yellow-500/30 via-amber-500/20 to-orange-500/30",
   ad_creative_lab: "from-violet-500/30 via-purple-500/20 to-fuchsia-500/30",

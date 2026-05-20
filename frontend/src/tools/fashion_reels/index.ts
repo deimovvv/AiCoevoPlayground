@@ -1,6 +1,6 @@
 import type { ToolDefinition } from "../types";
 import { handleScript, handleBaseImage, handleMultishot, handleCuration } from "../ugc_creator/handlers";
-import { createKlingVideo, pollKlingVideo, saveGeneration } from "../../lib/api";
+import { createKlingVideo, pollKlingVideo } from "../../lib/api";
 import type { StepHandler } from "../types";
 
 const handleAnimate: StepHandler = async (ctx) => {
@@ -22,18 +22,7 @@ const handleAnimate: StepHandler = async (ctx) => {
     });
   }
 
-  // Save to content
-  try {
-    await saveGeneration({
-      brandId: activeBrand.id,
-      toolId: tool.id,
-      title: `Fashion Reel — ${activeBrand.name} — ${new Date().toLocaleDateString()}`,
-      type: "video",
-      thumbnailUrl: curationData[0]?.selectedUrl,
-      scenes: animatedResults.map((r) => ({ id: r.sceneId, title: r.title })),
-      metadata: { numLooks: animatedResults.length },
-    });
-  } catch { /* silent */ }
+  // Persistence handled by autoSaveStep in ToolRunPage — no manual saveGeneration here.
 
   return { result: animatedResults };
 };
@@ -44,6 +33,8 @@ export const fashionReels: ToolDefinition = {
     showProduct: false,
     showClothing: true, clothingLabel: "Outfits", clothingSublabel: "each outfit = one look (multi-select)",
     showBackground: true,
+    showMoodboard: true,
+    showReference: true,
     showVoice: false, showTone: false, showPlatform: false, showLanguage: false, showVariations: true,
     objectiveLabel: "Direction / Mood",
     objectivePlaceholder: "Describe the overall visual direction...",

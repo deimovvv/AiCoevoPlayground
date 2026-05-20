@@ -9,7 +9,7 @@ import json
 import httpx
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-2.5-flash"  # reverted from 3-flash — verify exact 3.x name before upgrading
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
@@ -26,9 +26,18 @@ async def _call_gemini(system_prompt: str, user_msg: str) -> str:
     if not GEMINI_API_KEY:
         raise RuntimeError("Gemini API key not configured. Add GEMINI_API_KEY to your .env file.")
 
-    # Truncate very long prompts to avoid Gemini content filters on scraped web content
-    if len(system_prompt) > 15000:
-        system_prompt = system_prompt[:15000] + "\n\n[... truncated for length ...]"
+    # Gemini 2.5 Flash handles ~1M input tokens (~3M chars) fine. The old hard cap of 15k
+    # was destroying brand context for long docs. We allow up to 200k now, and if we have
+    # to truncate we preserve the END of the prompt (where JSON templates live) by cutting
+    # from the MIDDLE — we keep the first 60% and the last 40% so the schema/rules survive.
+    MAX_PROMPT_CHARS = 200_000
+    if len(system_prompt) > MAX_PROMPT_CHARS:
+        head_len = int(MAX_PROMPT_CHARS * 0.6)
+        tail_len = MAX_PROMPT_CHARS - head_len - 100  # buffer for the marker
+        head = system_prompt[:head_len]
+        tail = system_prompt[-tail_len:]
+        system_prompt = f"{head}\n\n[... middle truncated due to length, {len(system_prompt) - MAX_PROMPT_CHARS} chars cut ...]\n\n{tail}"
+        print(f"[gemini] Prompt truncated from {head_len + tail_len + (len(system_prompt) - MAX_PROMPT_CHARS)} to {len(system_prompt)} chars (kept head+tail)")
 
     full_text = f"{system_prompt}\n\n---\n\n{user_msg}"
     print(f"[gemini] Sending prompt ({len(full_text)} chars)")
@@ -212,6 +221,21 @@ REGLAS DE ESCRITURA:
 - Frases cortas, lenguaje real de persona. Nada de marketing copy genérico.
 - El script de cada escena debe sonar como algo que alguien diría EN ESE MOMENTO, no una presentación.
 - {lang_instruction}
+
+━━━ LONGITUD DEL SCRIPT POR ESCENA (CRÍTICO) ━━━
+Cada escena en UGC dura entre 4 y 8 segundos. A ritmo de habla natural eso son
+~10–22 palabras MÁXIMO por escena. Reglas duras:
+- Talking scene: 1 a 2 frases cortas. Nunca más de 22 palabras.
+- CTA: 1 frase + URL/lugar. Nunca más de 18 palabras.
+- Creative scene (voiceover): 0 a 12 palabras, o vacío si es b-roll silencioso.
+- Si el contenido no entra, CORTÁ — no comprimas todo en una sola escena. Mejor
+  sumar otra escena que escribir un párrafo. La gente NO habla en párrafos.
+
+EJEMPLOS DE LONGITUD CORRECTA:
+- BIEN (Hook, 12 palabras): "Che, posta. No tiene mucho sentido que estas remeras estén a este precio."
+- BIEN (CTA, 11 palabras): "Si te copó, entrá a Taller Santa Clara. Directo de fábrica."
+- MAL (demasiado largo, 60 palabras): "En serio, no te complicás. Para todos los días, sin vueltas. Yo uso las mías, las lavás, las usás y no cambian. Así que nada, si te copó este bordó o querés ver todos los otros colores que tenemos de remeras lisas, entrá a la web. Es directo y sin vueltas, en Taller Santa Clara."
+  → CORTÁ. Eso son 3 escenas distintas, no una sola.
 
 ━━━ TIPOS DE ESCENA ━━━
 - "talking": el avatar habla directo a cámara (gancho, CTA, confesión personal, testimonio)

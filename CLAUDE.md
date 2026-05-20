@@ -62,7 +62,7 @@ python -m uvicorn main:app --reload --port 8000
 ### Project Structure
 ```
 frontend/src/
-  pages/                    # Route-level components (14 pages)
+  pages/                    # Route-level components (15 pages)
     Home.tsx                  # Landing page
     Dashboard.tsx             # Brand list management
     Workspace.tsx             # Main workspace with ChatPanel
@@ -70,6 +70,7 @@ frontend/src/
     BrandSettings.tsx         # Brand configuration
     GeneratePage.tsx           # Tool registry and launcher
     ToolRunPage.tsx            # Step-by-step pipeline execution
+    ManualLab.tsx              # Brand-agnostic chat sandbox (Nano Banana + Kling, refs as image1/image2)
     ContentPage.tsx            # Content library
     GenerationPipeline.tsx     # Pipeline view
     ToolsPage.tsx              # Tool browser
@@ -106,6 +107,7 @@ backend/
     tts.py                   # ElevenLabs TTS
     image_gen.py             # Nano Banana 2 via Fal
     kling_video.py           # Kling V2.6 via Fal
+    manual_lab.py            # Manual Lab: Gemini-backed pipeline-suggestion service
     fal_lipsync.py           # Fal Fabric lip-sync
     heygen.py                # HeyGen integration (legacy)
     video_concat.py          # FFmpeg video concatenation
@@ -223,6 +225,7 @@ KLING_API_KEY=...      # optional
 - Ad Creative Lab: visual guide extraction + batch generation
 - Content Analyzer: video analysis with Gemini Vision
 - Product Clip: frame-to-frame product videos
+- Manual Lab: brand-agnostic chat sandbox at `/dashboard/lab` — direct Nano Banana 2 + Kling V3 with `[image1]`/`[image2]` reference tagging, multi-turn chaining (Use as ref / Animate), optional brand-asset toggle, and Gemini-based pipeline suggestion banner
 - ImageEditPanel: reusable edit component across all tools (product picker + quick actions)
 - 3-layer prompt system with response normalizer
 - Word-by-word karaoke subtitles (Remotion)

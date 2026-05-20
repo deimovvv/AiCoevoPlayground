@@ -5,7 +5,7 @@
  */
 
 import type { StepHandler } from "../types";
-import { generateToolPrompt, createImageEdit, pollImageGen, saveGeneration } from "../../lib/api";
+import { generateToolPrompt, createImageEdit, pollImageGen, matchDetectedAssets, type DetectedAssets } from "../../lib/api";
 
 const API_BASE = "http://localhost:8000";
 
@@ -52,6 +52,54 @@ export const handleAnalyze: StepHandler = async (ctx) => {
   };
 };
 
+// ── Map Assets — cross-reference detected assets vs brand kit ──
+// Replaces the upfront avatar/product/clothing/background selectors. The
+// analyzer extracts what's in the video, this step asks the matcher to
+// suggest the closest brand asset for each detection.
+
+export const handleMapAssets: StepHandler = async (ctx) => {
+  const { activeBrand, getStepResult } = ctx;
+
+  const analyzeData = getStepResult("analyze") as { analysis: Record<string, unknown> } | undefined;
+  if (!analyzeData?.analysis) throw new Error("No analysis found — analyze must run first.");
+
+  const detected = (analyzeData.analysis.detected_assets as DetectedAssets) || {};
+
+  // Empty detection? Skip the matcher call.
+  const hasAnything =
+    (detected.persons?.length || 0) +
+    (detected.outfits?.length || 0) +
+    (detected.products?.length || 0) +
+    (detected.locations?.length || 0) > 0;
+
+  if (!hasAnything) {
+    return {
+      result: {
+        detected,
+        matches: { persons: [], outfits: [], products: [], locations: [] },
+        confirmations: {},
+        skipped: true,
+      },
+      needsApproval: true,
+    };
+  }
+
+  const { matches } = await matchDetectedAssets({ brandId: activeBrand.id, detected });
+
+  // Initial confirmations = each suggested_brand_id pre-selected (user can change in the UI)
+  const confirmations: Record<string, string | null> = {};
+  for (const cat of ["persons", "outfits", "products", "locations"] as const) {
+    for (const m of matches[cat] || []) {
+      confirmations[`${cat}:${m.detected_id}`] = m.suggested_brand_id;
+    }
+  }
+
+  return {
+    result: { detected, matches, confirmations },
+    needsApproval: true,
+  };
+};
+
 // ── Adapt — use analysis to create content for YOUR brand ──
 
 export const handleAdapt: StepHandler = async (ctx) => {
@@ -60,24 +108,171 @@ export const handleAdapt: StepHandler = async (ctx) => {
   const analyzeData = getStepResult("analyze") as { analysis: Record<string, unknown> } | undefined;
   if (!analyzeData?.analysis) throw new Error("No analysis found.");
 
-  const selectedAvatars = (config.selectedAvatarIds?.length)
-    ? (activeBrand.avatars || []).filter((a) => config.selectedAvatarIds.includes(a.id))
-    : config.selectedAvatarId ? [activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId)].filter(Boolean) : [];
-  const selectedProducts = (config.selectedProductIds?.length)
-    ? (activeBrand.products || []).filter((p) => config.selectedProductIds.includes(p.id))
-    : config.selectedProductId ? [(activeBrand.products || []).find((p) => p.id === config.selectedProductId)].filter(Boolean) : [];
-  const selectedClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
+  // Pull confirmed mappings from the Map Assets step. These are the user-blessed
+  // detected_id → brand_id assignments. We use them to (a) seed the asset lists
+  // adapt will use, and (b) inject a strict per-scene mapping rule so Gemini doesn't
+  // drift (e.g., script saying "buzo" but image_prompt showing a tee).
+  interface MapMatch { detected_id: string; description: string; scenes: number[]; suggested_brand_id: string | null }
+  interface MapResult {
+    matches?: { persons?: MapMatch[]; outfits?: MapMatch[]; products?: MapMatch[]; locations?: MapMatch[] };
+    confirmations?: Record<string, string | null>;
+    overrides?: Record<string, string>;
+    roles?: Record<string, "hero" | "wardrobe">;
+  }
+  const mapStep = getStepResult("map_assets") as MapResult | undefined;
+  const confirmations = mapStep?.confirmations || {};
+  const overrides = mapStep?.overrides || {};
+  const roles = mapStep?.roles || {};
+
+  const confirmedIdsFor = (cat: "persons" | "outfits" | "products" | "locations"): string[] => {
+    const out: string[] = [];
+    for (const [key, value] of Object.entries(confirmations)) {
+      if (key.startsWith(cat + ":") && value) out.push(value);
+    }
+    return Array.from(new Set(out));
+  };
+
+  const mappedAvatarIds = confirmedIdsFor("persons");
+  const mappedClothingIds = confirmedIdsFor("outfits");
+  const mappedProductIds = confirmedIdsFor("products");
+  const mappedBackgroundIds = confirmedIdsFor("locations");
+
+  // The matcher now cross-references garments against BOTH clothing and products
+  // (a t-shirt the brand sells might be cataloged in either bucket). So a confirmed
+  // "outfit" id can point to a clothing OR a product asset, and vice versa. Resolve
+  // each confirmed id against both pools so nothing is silently dropped.
+  const clothingPool = activeBrand.clothing || [];
+  const productPool = activeBrand.products || [];
+  const findInEither = (id: string) =>
+    clothingPool.find((c) => c.id === id) || productPool.find((p) => p.id === id);
+
+  // Prefer Map-Assets-confirmed IDs over the old upfront-selector IDs (legacy).
+  const selectedAvatars = mappedAvatarIds.length
+    ? (activeBrand.avatars || []).filter((a) => mappedAvatarIds.includes(a.id))
+    : (config.selectedAvatarIds?.length)
+      ? (activeBrand.avatars || []).filter((a) => config.selectedAvatarIds.includes(a.id))
+      : config.selectedAvatarId ? [activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId)].filter(Boolean) : [];
+
+  // Resolve mapped product ids across both pools (garment cataloged as product OR clothing).
+  const selectedProducts = mappedProductIds.length
+    ? mappedProductIds.map(findInEither).filter((x): x is NonNullable<typeof x> => Boolean(x))
+    : (config.selectedProductIds?.length)
+      ? (activeBrand.products || []).filter((p) => config.selectedProductIds.includes(p.id))
+      : config.selectedProductId ? [(activeBrand.products || []).find((p) => p.id === config.selectedProductId)].filter(Boolean) : [];
+  // Resolve mapped outfit ids across both pools too.
+  const selectedClothing = mappedClothingIds.length
+    ? mappedClothingIds.map(findInEither).filter((x): x is NonNullable<typeof x> => Boolean(x))
+    : (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
+  void mappedBackgroundIds;
+
+  // Build per-detection rewrite directives so Gemini knows EXACTLY what to swap in.
+  // For each detected outfit/product the user mapped to a brand asset, emit:
+  //   "Source had <detected_description> in scenes [1,2]; in the adapted output use
+  //    <brand_asset_name> (<brand_asset_description>) — both the script AND the
+  //    image_prompt of those scenes MUST reference THIS asset, never the original."
+  const buildRewriteRules = (
+    cat: "outfits" | "products",
+    brandList: typeof selectedClothing | typeof selectedProducts,
+  ): string => {
+    const matches = mapStep?.matches?.[cat] || [];
+    const lines: string[] = [];
+    for (const m of matches) {
+      const brandId = confirmations[`${cat}:${m.detected_id}`];
+      if (!brandId) continue;
+      const brandAsset = brandList.find((b) => b && b.id === brandId);
+      if (!brandAsset) continue;
+      const brandDesc = brandAsset.description ? ` (${brandAsset.description})` : "";
+      const sceneList = m.scenes?.length ? `scenes ${m.scenes.join(", ")}` : "all relevant scenes";
+      lines.push(
+        `- The source video showed "${m.description}" in ${sceneList}. In your output you MUST replace it with "${brandAsset.name}"${brandDesc}. ` +
+        `BOTH the script and the image_prompt of those scenes MUST reference "${brandAsset.name}" — never the original "${m.description}". ` +
+        `Maintain the SAME role (held/worn/featured/foreground) the original asset had in each scene.`
+      );
+    }
+    return lines.join("\n");
+  };
+
+  const outfitRules = buildRewriteRules("outfits", selectedClothing);
+  const productRules = buildRewriteRules("products", selectedProducts);
+
+  // Text-override rules: for any detected item the user edited (e.g. changed
+  // "bikini" → "vestido largo", or "dark beach at night" → "sunny beach by day"),
+  // emit a directive so the adapt step keeps the reference structure but applies
+  // the user's change. Works for ALL categories — including locations/outfits where
+  // the brand kit is empty and there's no asset to map to.
+  const buildOverrideRules = (): string => {
+    const lines: string[] = [];
+    const catLabels: Record<string, string> = {
+      persons: "persona", outfits: "outfit/vestuario", products: "producto", locations: "locación/fondo",
+    };
+    for (const [key, newText] of Object.entries(overrides)) {
+      if (!newText?.trim()) continue;
+      const [cat, ...idParts] = key.split(":");
+      const detectedId = idParts.join(":");
+      const catMatches = (mapStep?.matches?.[cat as keyof NonNullable<MapResult["matches"]>] || []) as MapMatch[];
+      const match = catMatches.find((m) => m.detected_id === detectedId);
+      const original = match?.description || "(elemento original)";
+      const sceneList = match?.scenes?.length ? `escenas ${match.scenes.join(", ")}` : "las escenas relevantes";
+      const label = catLabels[cat] || cat;
+      lines.push(
+        `- En ${sceneList}, el video original mostraba como ${label}: "${original}". ` +
+        `En TU versión, cambialo por: "${newText.trim()}". ` +
+        `Mantené la MISMA estructura, encuadre y rol que tenía en el original, pero aplicá este cambio TANTO en el script como en el image_prompt de esas escenas.`
+      );
+    }
+    return lines.join("\n");
+  };
+  const overrideRules = buildOverrideRules();
+
+  // Role rules: hero garments get featured/close-up treatment; wardrobe garments are
+  // worn as styling/context. Default inferred (products=hero, outfits=wardrobe) but the
+  // user may have flipped any in the Map Assets step.
+  const buildRoleRules = (): string => {
+    const heroLines: string[] = [];
+    const wardrobeLines: string[] = [];
+    for (const cat of ["outfits", "products"] as const) {
+      const catMatches = (mapStep?.matches?.[cat] || []) as MapMatch[];
+      for (const m of catMatches) {
+        const explicit = roles[`${cat}:${m.detected_id}`];
+        const role = explicit || (cat === "products" ? "hero" : "wardrobe");
+        const label = m.description || "(prenda)";
+        if (role === "hero") heroLines.push(`"${label}"`);
+        else wardrobeLines.push(`"${label}"`);
+      }
+    }
+    const lines: string[] = [];
+    if (heroLines.length) {
+      lines.push(
+        `- PRODUCTOS PROTAGONISTAS (hero): ${heroLines.join(", ")}. Estos son el FOCO del contenido — ` +
+        `dales close-ups, planos de detalle, y que el script los mencione/destaque. Son lo que se está vendiendo.`
+      );
+    }
+    if (wardrobeLines.length) {
+      lines.push(
+        `- WARDROBE / STYLING: ${wardrobeLines.join(", ")}. La modelo los usa para completar el look, ` +
+        `pero NO son el foco — van naturales, sin close-ups dedicados, el script no se centra en ellos.`
+      );
+    }
+    return lines.join("\n");
+  };
+  const roleRules = buildRoleRules();
+
+  const allRewriteRules = [outfitRules, productRules, overrideRules, roleRules].filter(Boolean).join("\n");
 
   const extraVars: Record<string, string> = {
     video_analysis: JSON.stringify(analyzeData.analysis),
     language: config.language || "es",
   };
   if (config.objective) extraVars.creative_direction = config.objective;
+  if (allRewriteRules) extraVars.asset_swap_rules = allRewriteRules;
 
   let userMsg = "Adapt this video content for my brand. Respond with ONLY a JSON object.";
   if (selectedProducts.length > 0) userMsg += `\nMy products: ${selectedProducts.map((p) => p?.name).join(", ")}`;
   if (selectedAvatars.length > 0) userMsg += `\nMy characters: ${selectedAvatars.map((a) => `${a?.name}${a?.description ? ` (${a.description})` : ""}`).join(", ")}`;
   if (selectedClothing.length > 0) userMsg += `\nGarments: ${selectedClothing.map((c) => c.name).join(", ")}`;
+  if (allRewriteRules) {
+    userMsg += `\n\nSTRICT ASSET-SWAP RULES (user-confirmed mappings — every scene's script AND image_prompt must comply):\n${allRewriteRules}`;
+  }
 
   const { result } = await generateToolPrompt(activeBrand.id, "content_analyzer", userMsg, extraVars);
 
@@ -284,18 +479,7 @@ export const handleGenerateBatch: StepHandler = async (ctx) => {
 
   const successful = images.filter((img) => img.url);
 
-  // Save to content
-  try {
-    await saveGeneration({
-      brandId: activeBrand.id,
-      toolId: tool.id,
-      title: `Content Analyzer — ${selectedProducts[0]?.name || "Campaign"} — ${new Date().toLocaleDateString()}`,
-      type: "image",
-      thumbnailUrl: successful[0]?.url,
-      scenes: successful.map((img) => ({ id: `frame_${img.frame}`, title: `Frame ${img.frame}`, imageUrl: img.url, script: img.script })),
-      metadata: { numFrames: images.length, successful: successful.length },
-    });
-  } catch { /* silent */ }
+  // Persistence handled by autoSaveStep in ToolRunPage — no manual saveGeneration here.
 
   return {
     result: { images, successful: successful.length, total: images.length },

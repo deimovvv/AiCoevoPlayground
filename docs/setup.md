@@ -66,6 +66,20 @@ Frontend runs at: http://localhost:5173
 
 ## 3. Quick start (both at once)
 
+From the repo root:
+```bash
+./dev.sh
+```
+
+Starts backend (`:8000`) and frontend (`:5173`) together with prefixed logs. Ctrl+C kills both. Variants:
+```bash
+./dev.sh backend      # only backend
+./dev.sh frontend     # only frontend
+BACKEND_PORT=8001 FRONTEND_PORT=5174 ./dev.sh   # custom ports
+```
+
+Manual two-terminal flow (if `dev.sh` doesn't fit your setup):
+
 Terminal 1:
 ```bash
 cd backend && source .venv/bin/activate && python -m uvicorn main:app --reload --port 8000

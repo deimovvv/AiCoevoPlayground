@@ -12,6 +12,7 @@ import {
     Target,
     Zap,
     LayoutGrid,
+    FlaskConical,
 } from "lucide-react";
 import { Link, useLocation } from "react-router";
 import { cn } from "../../lib/utils";
@@ -46,6 +47,7 @@ export function Sidebar() {
                 { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={18} /> },
                 { label: "Brand Kit", href: "/dashboard/brand", exact: true, icon: <Palette size={18} /> },
                 { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} /> },
+                { label: "Manual Lab", href: "/dashboard/lab", exact: true, icon: <FlaskConical size={18} /> },
                 { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} /> },
             ],
         },

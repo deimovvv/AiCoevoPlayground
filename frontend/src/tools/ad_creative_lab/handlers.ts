@@ -6,7 +6,7 @@
 
 import type { StepHandler } from "../types";
 import {
-  generateToolPrompt, createImageEdit, pollImageGen, saveGeneration,
+  generateToolPrompt, createImageEdit, pollImageGen,
 } from "../../lib/api";
 
 const API_BASE = "http://localhost:8000";
@@ -216,24 +216,31 @@ export const handleGenerateBatch: StepHandler = async (ctx) => {
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
   const selectedClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
   const selectedBackground = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
+  const selectedMoodboard = (activeBrand.moodboards || []).find((m) => m.id === config.selectedMoodboardId);
 
-  // Collect reference images: avatar → clothing → product → background
+  // Collect reference images: avatar → clothing → product → background → moodboard
   // At minimum we need clothing OR product as reference
   const referenceUrls: string[] = [];
   if (selectedAvatar?.imageUrl) referenceUrls.push(selectedAvatar.imageUrl);
   selectedClothing.forEach((c) => { if (c.imageUrl) referenceUrls.push(c.imageUrl); });
   if (selectedProduct?.imageUrl) referenceUrls.push(selectedProduct.imageUrl);
   if (selectedBackground?.imageUrl) referenceUrls.push(selectedBackground.imageUrl);
+  if (selectedMoodboard?.imageUrl) referenceUrls.push(selectedMoodboard.imageUrl);
 
   if (referenceUrls.length === 0) {
     throw new Error("Select at least a product or garments as reference.");
   }
 
+  const imageModel = (config as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
+
   // Generate one image per prompt
   const results = await Promise.all(
     promptsData.prompts.map(async (p, i) => {
       try {
-        const job = await createImageEdit(referenceUrls, p.prompt, config.aspectRatio, config.resolution);
+        const moodNote = selectedMoodboard?.imageUrl
+          ? ` The LAST reference image is a moodboard — replicate its visual style, color palette, lighting, and mood. Do NOT copy people or objects literally.`
+          : "";
+        const job = await createImageEdit(referenceUrls, `${p.prompt}${moodNote}`, config.aspectRatio, config.resolution, imageModel);
         const result = await pollImageGen(job.request_id);
         return {
           id: `creative_${i + 1}`,
@@ -258,23 +265,7 @@ export const handleGenerateBatch: StepHandler = async (ctx) => {
 
   const successful = results.filter((r) => r.status === "done" && r.url);
 
-  // Save to content library
-  try {
-    await saveGeneration({
-      brandId: activeBrand.id,
-      toolId: tool.id,
-      title: `Ad Creatives — ${selectedProduct?.name || "Campaign"} — ${new Date().toLocaleDateString()}`,
-      type: "image",
-      thumbnailUrl: successful[0]?.url,
-      scenes: successful.map((r) => ({ id: r.id, title: r.style, imageUrl: r.url })),
-      metadata: {
-        numGenerated: results.length,
-        numSuccessful: successful.length,
-        aspectRatio: config.aspectRatio,
-        resolution: config.resolution,
-      },
-    });
-  } catch { /* silent */ }
+  // Persistence handled by autoSaveStep in ToolRunPage — no manual saveGeneration here.
 
   return {
     result: { creatives: results, totalGenerated: results.length, successful: successful.length },

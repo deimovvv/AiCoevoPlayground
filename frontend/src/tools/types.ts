@@ -59,6 +59,43 @@ export interface ToolConfig {
   voiceStyle: number;               // 0.0–1.0, 0 = natural. Subir para más emoción.
   voiceSpeed: number;               // 0.7–1.2, 1.0 = normal
   voiceSpeakerBoost: boolean;       // true por default
+  // Image model selection — nano-banana-2 (multi-ref composition) vs gpt-image-2 (single-base edit)
+  imageModel: "nano-banana-2" | "gpt-image-2";
+  // How the uploaded Reference Image should be interpreted
+  referenceMode: "style" | "composition";
+  // Static Ad: include copy/headline overlay or leave clean (editorial mode)
+  includeCopy: boolean;
+  // Avatar tool: "create" new from brand context | "poses" = generate pose sheet for an existing avatar
+  avatarToolMode: "create" | "poses";
+  // Avatar tool (poses mode): what to do after generating — "new" saves as new avatar, "replace" overwrites the source avatar
+  avatarPosesSave: "new" | "replace";
+  // Compose mode (Carousel/Static Ad): "quick" = text in image (fast) | "compose" = clean image + HTML overlay with brand fonts (perfect typography)
+  composeMode: "quick" | "compose";
+  // Selected overlay template id when composeMode = "compose"
+  overlayTemplate: string;
+  // Setting/Location override — when set, OVERRIDES any setting inferred from brand context.
+  // Use to break out of a brand's default scenario for a specific generation.
+  // Example: brand context says "workshop", but for this run you want "outdoor street, sunset".
+  settingOverride: string;
+  // Static Ad: how many ads to generate when batch mode is on
+  staticAdBatch: 1 | 3 | 5 | 10 | "all";
+  // Static Ad batch: optional category filter ("" = all categories)
+  staticAdCategory: string;
+  // Carousel: when a template is uploaded, decide if colors come from the brand or stay literal from the template
+  // "brand" → re-color with brand palette (default — for inspiration templates from other brands)
+  // "template" → keep template colors literal (for official brand templates)
+  templateColorMode: "brand" | "template";
+  // Video animation engine — controls how the `animate` step turns scene images into video.
+  //   "kling" → Kling V3 Pro image-to-video (single frame as start). Current default.
+  //   "seedance" → Seedance 2.0 reference-to-video (multi-ref: avatar + product + clothing + bg).
+  //                Better consistency when there are several brand assets to integrate.
+  //                Only affects creative/b-roll scenes in UGC (talking scenes still use lipsync).
+  animationEngine: "kling" | "seedance";
+  // Carousel: optional per-slide template references. When length matches numSlides, the handler
+  // uses perSlideTemplates[i] as the unique layout reference for slide i (instead of the same
+  // template for all slides). Used by the IG replication flow so each slide follows its
+  // corresponding original slide's composition. Empty/undefined → fall back to referenceImages.
+  perSlideTemplates?: File[];
 }
 
 export const DEFAULT_CONFIG: ToolConfig = {
@@ -73,7 +110,7 @@ export const DEFAULT_CONFIG: ToolConfig = {
   platform: "instagram",
   language: "es",
   notes: "",
-  numVariations: 3,
+  numVariations: 1,
   locationRef: "",
   styleRef: "",
   productIsWorn: false,
@@ -88,6 +125,18 @@ export const DEFAULT_CONFIG: ToolConfig = {
   voiceStyle: 0.0,
   voiceSpeed: 1.0,
   voiceSpeakerBoost: true,
+  imageModel: "nano-banana-2",
+  referenceMode: "style",
+  includeCopy: true,
+  avatarToolMode: "create",
+  avatarPosesSave: "new",
+  composeMode: "quick",
+  overlayTemplate: "editorial_bottom",
+  settingOverride: "",
+  staticAdBatch: 1,
+  staticAdCategory: "",
+  templateColorMode: "brand",
+  animationEngine: "kling",
 };
 
 // ── Tool Config Schema (what the form shows) ─────────────
@@ -105,6 +154,8 @@ export interface ToolSchema {
   showBackground: boolean;
   backgroundSublabel?: string;
   showMoodboard: boolean;
+  /** Reference image upload (style/composition ref). Universal for all image/video tools. */
+  showReference?: boolean;
   showVoice: boolean;
   showTone: boolean;
   showPlatform: boolean;
@@ -117,6 +168,8 @@ export interface ToolSchema {
   showStyleRef?: boolean;
   multiAvatar?: boolean;
   multiProduct?: boolean;
+  /** Show the animation engine selector (Kling vs Seedance). Only for video tools with an `animate` step. */
+  showAnimationEngine?: boolean;
   /** Describes what inputs are available and how they affect the output */
   inputsHint?: string;
 }

@@ -8,16 +8,18 @@
  */
 
 import type { ToolDefinition } from "../types";
-import { handleAnalyze, handleAdapt, handleRoute, handleGenerateBatch } from "./handlers";
+import { handleAnalyze, handleMapAssets, handleAdapt, handleRoute, handleGenerateBatch } from "./handlers";
 
 export const contentAnalyzer: ToolDefinition = {
   schema: {
-    showAvatar: true, avatarLabel: "Characters", avatarSublabel: "multi-select — people in the scene",
-    multiAvatar: true,
-    showProduct: true, productLabel: "Products",
-    multiProduct: true,
-    showClothing: true, clothingLabel: "Garments", clothingSublabel: "multi-select",
-    showBackground: true,
+    // Asset detection + mapping replaces these upfront selectors. The analyzer
+    // detects what's in the video and the Map Assets step lets the user confirm
+    // the mapping to their brand kit — once, after seeing the analysis.
+    showAvatar: false,
+    showProduct: false,
+    showClothing: false,
+    showBackground: false,
+    showMoodboard: false,
     showVoice: false,
     showTone: false,
     showPlatform: false,
@@ -29,10 +31,13 @@ export const contentAnalyzer: ToolDefinition = {
   },
   stepHandlers: {
     analyze: handleAnalyze,
+    map_assets: handleMapAssets,
     adapt: handleAdapt,
     route: handleRoute,
     generate_batch: handleGenerateBatch,
   },
-  approvalSteps: ["analyze", "adapt"],
-  autoRunSteps: ["adapt", "route"],
+  approvalSteps: ["analyze", "map_assets", "adapt"],
+  // map_assets is auto-run after analyze approval (the matcher runs without user input,
+  // but the result panel needs approval to confirm the mappings)
+  autoRunSteps: ["map_assets", "adapt", "route"],
 };

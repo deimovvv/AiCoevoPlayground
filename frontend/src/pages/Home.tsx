@@ -16,7 +16,7 @@ export function Home() {
                     <span>Coevo Studio</span>
                 </div>
                 <button onClick={() => navigate("/dashboard")} className="home-nav-cta">
-                    Open Dashboard <ArrowRight size={14} />
+                    Abrir Dashboard <ArrowRight size={14} />
                 </button>
             </nav>
 
@@ -32,21 +32,21 @@ export function Home() {
                     <br />
                     <span className="home-title-bold">Content Factory</span>
                     <br />
-                    <span className="home-title-serif">for Brands & Agencies</span>
+                    <span className="home-title-serif">for brands & agencies</span>
                 </h1>
 
                 <p className="home-subtitle">
-                    From brand brief to ready-to-publish UGC video in minutes.
+                    Del brief al video UGC listo para publicar en minutos.
                     <br />
-                    AI writes the script, generates the visuals, clones the voice, and renders the final cut.
+                    La IA escribe el guión, genera las imágenes, clona la voz y renderiza el corte final.
                 </p>
 
                 <div className="home-cta-row">
                     <button onClick={() => navigate("/dashboard")} className="home-btn-primary">
-                        Start Creating <ArrowRight size={15} />
+                        Empezar a crear <ArrowRight size={15} />
                     </button>
-                    <button className="home-btn-outline">
-                        Explore Tools
+                    <button onClick={() => navigate("/dashboard/generate")} className="home-btn-outline">
+                        Explorar tools
                         <Sparkles size={13} />
                     </button>
                 </div>
@@ -55,9 +55,9 @@ export function Home() {
             {/* ── Features strip ── */}
             <section className="home-features">
                 {[
-                    { icon: <Brain size={20} />, title: "Brand Context", desc: "Every tool adapts to your brand" },
-                    { icon: <Mic size={20} />, title: "Voice Cloning", desc: "ElevenLabs TTS with your voice" },
-                    { icon: <Video size={20} />, title: "Avatar Videos", desc: "HeyGen lip-sync from photos" },
+                    { icon: <Brain size={20} />, title: "Brand Context", desc: "Cada tool se adapta a tu marca" },
+                    { icon: <Mic size={20} />, title: "Voice Cloning", desc: "ElevenLabs TTS con tu voz" },
+                    { icon: <Video size={20} />, title: "Avatar Videos", desc: "Lip-sync desde una foto" },
                     { icon: <Layers size={20} />, title: "Multi-Tool", desc: "UGC, editorial, reels, ads" },
                 ].map((f) => (
                     <div key={f.title} className="home-feature-card">

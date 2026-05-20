@@ -21,7 +21,10 @@ export interface Avatar {
 export interface VoicePreset {
     id: string;
     name: string;
+    source?: "designed" | "cloned" | "system";
 }
+
+export type ProductType = "physical" | "digital" | "course" | "service" | "subscription" | "";
 
 export interface Product {
     id: string;
@@ -30,6 +33,10 @@ export interface Product {
     filename: string;
     imageUrl: string;
     images?: Array<{ filename: string; imageUrl: string; label?: string }>;
+    type?: ProductType;
+    price?: string;
+    url?: string;
+    category?: string;
 }
 
 export interface ClothingItem {
@@ -72,6 +79,7 @@ export interface BrandDNA {
     personality?: string;
     competitors?: string[];
     unique_value?: string;
+    forbidden_words?: string[];
 }
 
 export interface DesignSystem {
@@ -82,6 +90,37 @@ export interface DesignSystem {
     visualDos?: string[];
     visualDonts?: string[];
     references?: string;
+    casting?: string;
+    preferred_locations?: string[];
+    product_presentation?: string;
+    motion_rules?: string;
+}
+
+export type BusinessModel = "ecommerce" | "saas" | "academy" | "service" | "subscription" | "marketplace" | "d2c" | "agency" | "";
+
+export interface BrandBusiness {
+    model?: BusinessModel;
+    description?: string;
+    value_prop?: string;
+    target_market?: string;
+    revenue_streams?: string[];
+}
+
+export type BrandSourceType = "url" | "pdf" | "text" | "instagram" | "tiktok" | "reviews" | "audio_transcript";
+
+export interface BrandSource {
+    id: string;
+    type: BrandSourceType;
+    label?: string;
+    url?: string;
+    content?: string;
+    addedAt?: string;
+}
+
+export interface BrandCompetitor {
+    name: string;
+    url?: string;
+    notes?: string;
 }
 
 export interface Brand {
@@ -99,11 +138,54 @@ export interface Brand {
     fonts?: BrandFonts;
     dna?: BrandDNA;
     designSystem?: DesignSystem;
+    business?: BrandBusiness;
+    brandSources?: BrandSource[];
+    competitors?: BrandCompetitor[];
+    customerReviews?: string[];
 }
 
 export interface ChatMessage {
     role: "user" | "assistant";
     content: string;
+    /** Optional structured payload — used for special bubbles like IG replication results. */
+    meta?: {
+        kind: "ig_replicate";
+        result: InstagramReplicationResult;
+    };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Agent — natural language brief → tool + config
+// ══════════════════════════════════════════════════════════════
+
+export interface AgentResolveResult {
+    tool: string;
+    reasoning?: string;
+    config: Record<string, unknown>;
+    warnings?: string[];
+}
+
+export async function resolveAgentBrief(
+    brandId: string,
+    brief: string,
+    /** Optional prior resolved state — when present, the agent treats `brief` as a delta on top. */
+    previous?: { tool: string; config: Record<string, unknown> } | null,
+): Promise<AgentResolveResult> {
+    const res = await fetch(`${API_BASE}/api/agent/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            brandId,
+            brief,
+            previousConfig: previous?.config,
+            previousTool: previous?.tool,
+        }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Agent request failed" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Agent error (${res.status})`);
+    }
+    return res.json();
 }
 
 export async function sendChatMessage(
@@ -156,7 +238,19 @@ export async function deleteBrand(brandId: string): Promise<void> {
     if (!res.ok) throw new Error("Failed to delete brand");
 }
 
-export async function updateBrand(brandId: string, updates: { name?: string; brandContext?: string; fonts?: BrandFonts }): Promise<Brand> {
+export interface UpdateBrandPayload {
+    name?: string;
+    brandContext?: string;
+    fonts?: BrandFonts;
+    dna?: BrandDNA;
+    designSystem?: DesignSystem;
+    business?: BrandBusiness;
+    brandSources?: BrandSource[];
+    competitors?: BrandCompetitor[];
+    customerReviews?: string[];
+}
+
+export async function updateBrand(brandId: string, updates: UpdateBrandPayload): Promise<Brand> {
     const res = await fetch(`${API_BASE}/api/brands/${brandId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -204,7 +298,7 @@ export async function addGuidanceFromPdf(brandId: string, file: File): Promise<{
 //  Brand DNA
 // ══════════════════════════════════════════════════════════════
 
-export async function generateBrandDNA(brandId: string): Promise<{ dna: BrandDNA; fonts?: BrandFonts; brand: Brand }> {
+export async function generateBrandDNA(brandId: string): Promise<{ dna: BrandDNA; fonts?: BrandFonts; business?: BrandBusiness; brand: Brand }> {
     const res = await fetch(`${API_BASE}/api/brands/${brandId}/generate-dna`, { method: "POST" });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Failed to generate DNA" }));
@@ -218,6 +312,24 @@ export async function extractDesignSystem(brandId: string): Promise<{ designSyst
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "No se pudo extraer el design system" }));
         throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || "No se pudo extraer el design system");
+    }
+    return res.json();
+}
+
+export interface ExtractAllResult {
+    dna?: BrandDNA;
+    designSystem?: DesignSystem;
+    business?: BrandBusiness;
+    fonts?: BrandFonts;
+    errors?: Array<{ step: string; detail: string }>;
+    brand?: Brand;
+}
+
+export async function extractEverything(brandId: string): Promise<ExtractAllResult> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/extract-all`, { method: "POST" });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Extract-all failed" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || "Extract-all failed");
     }
     return res.json();
 }
@@ -304,6 +416,17 @@ export async function deleteAvatar(brandId: string, avatarId: string): Promise<v
     if (!res.ok) throw new Error("Failed to delete avatar");
 }
 
+export async function replaceAvatarImage(brandId: string, avatarId: string, image: File): Promise<{ id: string; imageUrl: string; filename: string; [k: string]: unknown }> {
+    const formData = new FormData();
+    formData.append("image", image);
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/avatars/${avatarId}/image`, {
+        method: "PATCH",
+        body: formData,
+    });
+    if (!res.ok) throw new Error("Failed to replace avatar image");
+    return res.json();
+}
+
 export async function addHeygenAvatar(
     brandId: string,
     talkingPhotoId: string,
@@ -349,11 +472,16 @@ export async function uploadProduct(
     name: string,
     imageFile: File,
     description = "",
+    extras: { type?: ProductType; price?: string; url?: string; category?: string } = {},
 ): Promise<Product> {
     const formData = new FormData();
     formData.append("name", name);
     formData.append("description", description);
     formData.append("image", imageFile);
+    if (extras.type) formData.append("type", extras.type);
+    if (extras.price) formData.append("price", extras.price);
+    if (extras.url) formData.append("url", extras.url);
+    if (extras.category) formData.append("category", extras.category);
 
     const res = await fetch(`${API_BASE}/api/brands/${brandId}/products`, {
         method: "POST",
@@ -365,6 +493,20 @@ export async function uploadProduct(
         throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to upload product (${res.status})`);
     }
 
+    return res.json();
+}
+
+export async function updateProduct(
+    brandId: string,
+    productId: string,
+    updates: { name?: string; description?: string; type?: ProductType; price?: string; url?: string; category?: string }
+): Promise<Product> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/products/${productId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error("Failed to update product");
     return res.json();
 }
 
@@ -544,13 +686,93 @@ export async function deleteVoicePreset(brandId: string, voiceId: string): Promi
     if (!res.ok) throw new Error("Failed to delete voice");
 }
 
+// ── Voice Design (text-to-voice) + Cloning ─────────────────
+
+export interface VoiceDesignPreview {
+    generated_voice_id: string;
+    audio_base_64: string;     // raw MP3 base64 (no data: prefix)
+    media_type: string;        // e.g. "audio/mpeg"
+    duration_secs?: number;
+}
+
+export async function createVoiceDesignPreviews(opts: {
+    voiceDescription: string;
+    text: string;
+    loudness?: number;
+    guidanceScale?: number;
+    seed?: number;
+}): Promise<VoiceDesignPreview[]> {
+    const res = await fetch(`${API_BASE}/api/voices/design/previews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            voice_description: opts.voiceDescription,
+            text: opts.text,
+            loudness: opts.loudness,
+            guidance_scale: opts.guidanceScale,
+            seed: opts.seed,
+        }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to design voice (${res.status})`);
+    }
+    const data = await res.json();
+    return data.previews || [];
+}
+
+export async function saveDesignedVoice(opts: {
+    brandId: string;
+    generatedVoiceId: string;
+    name: string;
+    voiceDescription: string;
+}): Promise<VoicePreset> {
+    const res = await fetch(`${API_BASE}/api/voices/design/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            brand_id: opts.brandId,
+            generated_voice_id: opts.generatedVoiceId,
+            name: opts.name,
+            voice_description: opts.voiceDescription,
+        }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to save voice (${res.status})`);
+    }
+    return res.json();
+}
+
+export async function cloneVoice(opts: {
+    brandId: string;
+    name: string;
+    description?: string;
+    files: File[];
+}): Promise<VoicePreset> {
+    const formData = new FormData();
+    formData.append("brand_id", opts.brandId);
+    formData.append("name", opts.name);
+    if (opts.description) formData.append("description", opts.description);
+    opts.files.forEach((f) => formData.append("files", f));
+    const res = await fetch(`${API_BASE}/api/voices/clone`, {
+        method: "POST",
+        body: formData,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to clone voice (${res.status})`);
+    }
+    return res.json();
+}
+
 // ══════════════════════════════════════════════════════════════
 //  Generations API
 // ══════════════════════════════════════════════════════════════
 
 export interface Generation {
     id: string;
-    brandId: string;
+    brandId: string | null;  // null for brand-agnostic Manual Lab runs
     toolId: string;
     title: string;
     type: "video" | "image" | "copy";
@@ -578,7 +800,7 @@ export async function fetchGenerations(brandId?: string): Promise<Generation[]> 
 }
 
 export async function saveGeneration(gen: {
-    brandId: string;
+    brandId: string | null;  // null for brand-agnostic Manual Lab runs
     toolId: string;
     title: string;
     type: "video" | "image" | "copy";
@@ -598,11 +820,147 @@ export async function saveGeneration(gen: {
     return res.json();
 }
 
+export async function updateGeneration(genId: string, gen: {
+    brandId: string | null;
+    toolId: string;
+    title: string;
+    type: "video" | "image" | "copy";
+    status?: string;
+    thumbnailUrl?: string;
+    outputUrl?: string;
+    scenes?: Array<Record<string, unknown>>;
+    metadata?: Record<string, unknown>;
+    pipelineState?: Record<string, unknown>;
+}): Promise<Generation> {
+    const res = await fetch(`${API_BASE}/api/generations/${genId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(gen),
+    });
+    if (!res.ok) throw new Error("Failed to update generation");
+    return res.json();
+}
+
+export async function fetchGeneration(genId: string): Promise<Generation> {
+    const res = await fetch(`${API_BASE}/api/generations/${genId}`);
+    if (!res.ok) throw new Error("Failed to fetch generation");
+    return res.json();
+}
+
 export async function deleteGeneration(genId: string): Promise<void> {
     const res = await fetch(`${API_BASE}/api/generations/${genId}`, {
         method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete generation");
+}
+
+/** Fetch only Manual Lab (brand-agnostic) generations. */
+export async function fetchManualGenerations(): Promise<Generation[]> {
+    const res = await fetch(`${API_BASE}/api/generations?brandId=__none__`);
+    if (!res.ok) throw new Error("Failed to fetch manual generations");
+    const data = await res.json();
+    return data.generations;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Manual Lab — tool suggestion
+// ══════════════════════════════════════════════════════════════
+
+export interface ManualLabSuggestion {
+    tool_id: string | null;
+    reason: string;
+}
+
+export async function suggestManualTool(opts: {
+    prompt: string;
+    mode: "image" | "video";
+    hasRefs: boolean;
+}): Promise<ManualLabSuggestion> {
+    const res = await fetch(`${API_BASE}/api/manual/suggest-tool`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: opts.prompt, mode: opts.mode, hasRefs: opts.hasRefs }),
+    });
+    if (!res.ok) return { tool_id: null, reason: "" };
+    return res.json();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Asset Detection + Matching (Content Analyzer)
+// ══════════════════════════════════════════════════════════════
+
+export interface DetectedAsset {
+    id: string;
+    description: string;
+    scenes: number[];
+}
+
+export interface DetectedAssets {
+    persons?: DetectedAsset[];
+    outfits?: DetectedAsset[];
+    products?: DetectedAsset[];
+    locations?: DetectedAsset[];
+}
+
+export interface AssetMatch {
+    detected_id: string;
+    description: string;
+    scenes: number[];
+    suggested_brand_id: string | null;
+    confidence: number;
+    reason: string;
+}
+
+export interface AssetMatches {
+    persons?: AssetMatch[];
+    outfits?: AssetMatch[];
+    products?: AssetMatch[];
+    locations?: AssetMatch[];
+}
+
+/** Given detected_assets from the analyzer + brand id, ask the backend to suggest brand-kit matches. */
+export async function matchDetectedAssets(opts: {
+    brandId: string;
+    detected: DetectedAssets;
+}): Promise<{ matches: AssetMatches }> {
+    const res = await fetch(`${API_BASE}/api/analyze/match-assets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandId: opts.brandId, detected: opts.detected }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Match failed" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "Match failed");
+    }
+    return res.json();
+}
+
+/**
+ * Enhance a casual Manual Lab prompt via Gemini Vision: returns a polished
+ * prompt optimized for the target image/video model, with the reference
+ * images actually inspected by Vision.
+ */
+export async function enhanceManualPrompt(opts: {
+    prompt: string;
+    refs: Array<{ tag: string; label: string; url: string }>;
+    mode: "image" | "video";
+    targetModel: ImageModel;
+}): Promise<{ enhanced: string }> {
+    const res = await fetch(`${API_BASE}/api/manual/enhance-prompt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            prompt: opts.prompt,
+            refs: opts.refs,
+            mode: opts.mode,
+            targetModel: opts.targetModel,
+        }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Enhance failed" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "Enhance failed");
+    }
+    return res.json();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -796,19 +1154,93 @@ export interface KlingVideoResult {
     video_url?: string;
 }
 
+/** Frontend-friendly Kling model ids (must match KLING_MODELS in backend). */
+export type KlingModel = "v3-pro" | "v2-6-pro" | "v2-6-std" | "v2-5-turbo";
+
 /**
- * Generate a short video from a static image using Kling V2.6.
+ * Seedance 2.0 reference-to-video: takes N reference images + prompt, returns
+ * a video that integrates elements from all of them. Polled via the same
+ * `pollKlingVideo` helper since Fal's queue API is uniform across providers
+ * — but the status/result URLs differ, so we provide dedicated pollers.
+ */
+export async function createSeedanceReferenceToVideo(opts: {
+    prompt: string;
+    referenceImageUrls: string[];
+    duration?: string;
+    aspectRatio?: string;
+    resolution?: string;
+    /** Optional audio URLs — when provided, Seedance lip-syncs the avatar to the audio. */
+    audioUrls?: string[];
+    /** Optional reference videos (motion/style refs). */
+    referenceVideoUrls?: string[];
+}): Promise<{ request_id: string; status: string; video_url?: string }> {
+    const res = await fetch(`${API_BASE}/api/seedance/reference-to-video`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            prompt: opts.prompt,
+            reference_image_urls: opts.referenceImageUrls,
+            duration: opts.duration || "5",
+            aspect_ratio: opts.aspectRatio || "9:16",
+            resolution: opts.resolution,
+            audio_urls: opts.audioUrls,
+            reference_video_urls: opts.referenceVideoUrls,
+        }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Seedance failed" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "Seedance failed");
+    }
+    return res.json();
+}
+
+export async function checkSeedanceStatus(requestId: string): Promise<KlingStatus> {
+    const res = await fetch(`${API_BASE}/api/seedance/status/${encodeURIComponent(requestId)}`);
+    if (!res.ok) throw new Error(`Seedance status failed (${res.status})`);
+    return res.json();
+}
+
+export async function getSeedanceResult(requestId: string): Promise<KlingStatus> {
+    const res = await fetch(`${API_BASE}/api/seedance/result/${encodeURIComponent(requestId)}`);
+    if (!res.ok) throw new Error(`Seedance result failed (${res.status})`);
+    return res.json();
+}
+
+/** Poll Seedance until done. Mirrors `pollKlingVideo`. */
+export async function pollSeedanceVideo(
+    requestId: string,
+    intervalMs = 5000,
+    maxAttempts = 120,
+): Promise<KlingStatus> {
+    if (requestId.startsWith("SYNC:")) {
+        return { request_id: requestId, status: "completed", video_url: requestId.slice(5), error: null };
+    }
+    for (let i = 0; i < maxAttempts; i++) {
+        const status = await checkSeedanceStatus(requestId);
+        if (status.status === "completed") {
+            return await getSeedanceResult(requestId);
+        }
+        if (status.status === "failed") return status;
+        await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    throw new Error("Seedance video generation timed out");
+}
+
+/**
+ * Generate a short video from a static image using Kling.
  * Accepts image URL or can upload an image file.
  */
 export async function createKlingVideo(
     imageUrl: string,
     prompt?: string,
     duration: string = "10",
+    model?: KlingModel,
 ): Promise<KlingVideoResult> {
     const formData = new FormData();
     formData.append("image_url", imageUrl);
     if (prompt) formData.append("prompt", prompt);
     formData.append("duration", duration);
+    if (model) formData.append("model", model);
 
     const res = await fetch(`${API_BASE}/api/kling/image-to-video`, {
         method: "POST",
@@ -831,6 +1263,7 @@ export async function createKlingFrameToFrame(opts: {
     end_image_url: string;
     prompt?: string;
     duration?: string;
+    model?: KlingModel;
 }): Promise<KlingVideoResult> {
     const res = await fetch(`${API_BASE}/api/kling/frame-to-frame`, {
         method: "POST",
@@ -956,17 +1389,21 @@ export interface ImageGenStatus {
  * imageUrls: array of image URLs (avatar, product, background)
  * prompt: what to generate
  */
+export type ImageModel = "nano-banana-2" | "gpt-image-2";
+
 export async function createImageEdit(
     imageUrls: string[],
     prompt: string,
     aspectRatio: string = "9:16",
     resolution: string = "1K",
+    model: ImageModel = "nano-banana-2",
 ): Promise<ImageGenResult> {
     const formData = new FormData();
     formData.append("prompt", prompt);
     formData.append("image_urls", JSON.stringify(imageUrls));
     formData.append("aspect_ratio", aspectRatio);
     formData.append("resolution", resolution);
+    formData.append("model", model);
 
     const res = await fetch(`${API_BASE}/api/image-gen/edit`, {
         method: "POST",
@@ -993,15 +1430,36 @@ export async function analyzePoseReference(imageFile: File): Promise<{ pose_desc
     return res.json();
 }
 
+export type ReferenceType = "product" | "person" | "scene" | "abstract" | "mixed";
+export type SuggestedSlot = "product" | "avatar" | "background" | "moodboard" | "reference";
+
+export async function classifyReferenceImage(imageFile: File): Promise<{
+    type: ReferenceType;
+    confidence: number;
+    description: string;
+    suggested_slot: SuggestedSlot;
+}> {
+    const formData = new FormData();
+    formData.append("image", imageFile);
+    const res = await fetch(`${API_BASE}/api/analyze/reference`, { method: "POST", body: formData });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : "Classification failed"));
+    }
+    return res.json();
+}
+
 export async function createTextToImage(
     prompt: string,
     aspectRatio: string = "1:1",
     resolution: string = "2K",
+    model: ImageModel = "nano-banana-2",
 ): Promise<ImageGenResult> {
     const formData = new FormData();
     formData.append("prompt", prompt);
     formData.append("aspect_ratio", aspectRatio);
     formData.append("resolution", resolution);
+    formData.append("model", model);
 
     const res = await fetch(`${API_BASE}/api/image-gen/text-to-image`, {
         method: "POST",
@@ -1505,6 +1963,85 @@ export interface TikTokVideo {
     plays: number;
     duration: number;
     created_at: string;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Instagram Scraper (via Apify)
+// ══════════════════════════════════════════════════════════════
+
+export interface InstagramPost {
+    url: string;
+    type: "carousel" | "image" | "video";
+    shortCode: string;
+    thumbnail: string;
+    slides: Array<{ url: string; originalUrl?: string; local?: boolean; alt?: string }>;
+    videoUrl?: string;
+    caption: string;
+    username: string;
+    likesCount: number;
+    commentsCount: number;
+    timestamp?: string;
+    alt?: string;
+}
+
+export async function scrapeInstagramPost(url: string): Promise<InstagramPost> {
+    const res = await fetch(`${API_BASE}/api/integrations/instagram/scrape`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Failed to scrape Instagram post" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail));
+    }
+    return res.json();
+}
+
+export interface InstagramSlideNarrative {
+    slide: number;
+    role: string;
+    describes: string;
+    text_seen: string;
+    adapted_for_brand?: {
+        visual?: string;
+        text?: string;
+    };
+}
+
+export interface InstagramReplicationResult {
+    scraped: InstagramPost;
+    narrative: InstagramSlideNarrative[];
+    brief: string;
+    numSlides: number;
+    platform: "instagram";
+    sourceUsername: string;
+    sourceUrl: string;
+}
+
+export async function replicateInstagramCarousel(url: string, brandId: string): Promise<InstagramReplicationResult> {
+    const res = await fetch(`${API_BASE}/api/integrations/instagram/replicate-analysis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, brandId }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Replicate analysis failed" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail));
+    }
+    return res.json();
+}
+
+export async function scrapeInstagramProfile(usernameOrUrl: string, postsLimit = 12): Promise<{ posts: InstagramPost[]; count: number }> {
+    const res = await fetch(`${API_BASE}/api/integrations/instagram/scrape-profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username_or_url: usernameOrUrl, posts_limit: postsLimit }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Failed to scrape profile" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail));
+    }
+    return res.json();
 }
 
 export async function getTikTokTopVideos(profileUrl: string, limit = 10): Promise<TikTokVideo[]> {

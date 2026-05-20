@@ -36,7 +36,7 @@ export function PerformancePage({ tab }: { tab: Tab }) {
                 <p className="text-[13px] text-fg-muted mt-1 mb-4">
                     Go to Integrations to connect your accounts
                 </p>
-                <button className="px-4 py-2 text-[13px] font-medium text-white bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer">
+                <button className="px-4 py-2 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer">
                     Set up Integrations
                 </button>
             </div>

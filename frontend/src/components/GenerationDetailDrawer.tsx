@@ -228,7 +228,7 @@ export function GenerationDetailDrawer({ generation, isOpen, onClose, onSaveCont
                                 <div className="border-t border-edge pt-4 mt-4">
                                     <label className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">Audio</label>
                                     <div className="mt-2 flex items-center gap-3 border border-edge rounded-[var(--radius-sm)] p-3 bg-surface-0">
-                                        <button className="cursor-pointer w-8 h-8 rounded-full bg-[var(--color-warm)] text-white flex items-center justify-center hover:opacity-90 shrink-0">
+                                        <button className="cursor-pointer w-8 h-8 rounded-full bg-[var(--color-warm)] text-[var(--color-warm-fg)] flex items-center justify-center hover:opacity-90 shrink-0">
                                             <Play size={12} className="ml-0.5" />
                                         </button>
                                         <div className="flex-1 flex items-end gap-px h-4">

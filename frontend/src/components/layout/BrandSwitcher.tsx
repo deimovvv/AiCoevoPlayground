@@ -1,6 +1,6 @@
 import { useBrand } from "../../lib/BrandContext";
 import { Loader2, FlaskConical, LayoutGrid } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { cn } from "../../lib/utils";
 
 const API_BASE = "http://localhost:8000";
@@ -8,6 +8,7 @@ const API_BASE = "http://localhost:8000";
 export function BrandSwitcher() {
   const { activeBrand, loading } = useBrand();
   const navigate = useNavigate();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -16,6 +17,33 @@ export function BrandSwitcher() {
           <Loader2 size={15} className="animate-spin" />
           <span className="text-[13px]">Cargando...</span>
         </div>
+      </div>
+    );
+  }
+
+  // On Manual Lab, the brand context is intentionally ignored.
+  // Show a muted state so it's obvious the active brand doesn't apply here.
+  const isLab = location.pathname.startsWith("/dashboard/lab");
+  if (isLab) {
+    return (
+      <div className="px-4 py-4 border-b border-edge">
+        <button
+          onClick={() => navigate("/dashboard/brands")}
+          className="w-full flex items-center gap-2.5 cursor-pointer rounded-[var(--radius-sm)] px-1 py-1 -mx-1 -my-1 hover:bg-surface-1 transition-colors group opacity-60"
+          title="Manual Lab no usa marca · click para volver a marcas"
+        >
+          <div className="w-8 h-8 rounded-[var(--radius-sm)] flex items-center justify-center shrink-0 bg-surface-2 border border-dashed border-edge">
+            <FlaskConical size={14} className="text-fg-faint" />
+          </div>
+          <div className="flex-1 min-w-0 text-left">
+            <div className="text-[13px] font-semibold text-fg-muted truncate leading-tight">
+              Manual Lab
+            </div>
+            <div className="text-[10px] text-fg-faint leading-tight mt-0.5">
+              Sin marca · generación libre
+            </div>
+          </div>
+        </button>
       </div>
     );
   }

@@ -9,11 +9,13 @@ import { cn } from "../lib/utils";
 const API_BASE = "http://localhost:8000";
 
 type ContentType = "all" | "image" | "video" | "copy";
+type StatusFilter = "all" | "draft" | "completed";
 type ViewMode = "grid" | "list";
 
 export function ContentPage() {
     const { activeBrand } = useBrand();
     const [filter, setFilter] = useState<ContentType>("all");
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [view, setView] = useState<ViewMode>("grid");
     const [search, setSearch] = useState("");
     const [generations, setGenerations] = useState<Generation[]>([]);
@@ -45,9 +47,13 @@ export function ContentPage() {
 
     const filtered = generations.filter((g) => {
         if (filter !== "all" && g.type !== filter) return false;
+        if (statusFilter === "draft" && g.status === "completed") return false;
+        if (statusFilter === "completed" && g.status !== "completed") return false;
         if (search && !g.title.toLowerCase().includes(search.toLowerCase())) return false;
         return true;
     });
+
+    const draftCount = generations.filter((g) => g.status !== "completed").length;
 
     return (
         <div className="space-y-6">
@@ -89,6 +95,27 @@ export function ContentPage() {
                             )}
                         >
                             {t.icon}
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex bg-surface-1 border border-edge rounded-[var(--radius-sm)] p-0.5">
+                    {([
+                        { value: "all" as const, label: "Todos" },
+                        { value: "draft" as const, label: `En proceso${draftCount > 0 ? ` (${draftCount})` : ""}` },
+                        { value: "completed" as const, label: "Terminados" },
+                    ]).map((t) => (
+                        <button
+                            key={t.value}
+                            onClick={() => setStatusFilter(t.value)}
+                            className={cn(
+                                "px-2.5 py-1.5 rounded-[var(--radius-sm)] text-[12px] font-medium transition-colors cursor-pointer",
+                                statusFilter === t.value
+                                    ? "bg-surface-2 text-fg"
+                                    : "text-fg-muted hover:text-fg"
+                            )}
+                        >
                             {t.label}
                         </button>
                     ))}
@@ -208,6 +235,12 @@ export function ContentPage() {
     );
 }
 
+function resolveMediaUrl(url?: string): string | undefined {
+    if (!url) return undefined;
+    if (url.startsWith("http") || url.startsWith("data:") || url.startsWith("blob:")) return url;
+    return `${API_BASE}${url}`;
+}
+
 function ContentCard({ gen, deleting, onDelete, onClick }: { gen: Generation; deleting: boolean; onDelete: () => void; onClick: () => void }) {
     const typeIcon = {
         image: <Image size={16} />,
@@ -216,13 +249,14 @@ function ContentCard({ gen, deleting, onDelete, onClick }: { gen: Generation; de
     };
 
     const date = new Date(gen.createdAt).toLocaleDateString();
+    const thumbUrl = resolveMediaUrl(gen.thumbnailUrl);
 
     return (
         <div onClick={onClick} className="bg-surface-1 border border-edge rounded-[var(--radius-md)] overflow-hidden group hover:border-[var(--color-edge-strong)] transition-colors cursor-pointer">
             {/* Thumbnail */}
             <div className="aspect-[4/3] bg-surface-2 flex items-center justify-center text-fg-faint relative overflow-hidden">
-                {gen.thumbnailUrl ? (
-                    <img src={gen.thumbnailUrl} alt={gen.title} className="w-full h-full object-cover" />
+                {thumbUrl ? (
+                    <img src={thumbUrl} alt={gen.title} className="w-full h-full object-cover" />
                 ) : (
                     typeIcon[gen.type]
                 )}
@@ -261,7 +295,7 @@ function ContentCard({ gen, deleting, onDelete, onClick }: { gen: Generation; de
                             ? "bg-success-muted text-success"
                             : "bg-warning-muted text-warning"
                     )}>
-                        {gen.status}
+                        {gen.status === "completed" ? "Terminado" : "En proceso"}
                     </span>
                 </div>
                 {gen.metadata && (
@@ -295,12 +329,13 @@ function ContentRow({ gen, deleting, onDelete, onClick }: { gen: Generation; del
         copy: <FileText size={14} />,
     };
     const date = new Date(gen.createdAt).toLocaleDateString();
+    const thumbUrl = resolveMediaUrl(gen.thumbnailUrl);
 
     return (
         <div onClick={onClick} className="flex items-center gap-3 px-4 py-3 bg-surface-1 border border-edge rounded-[var(--radius-sm)] hover:border-[var(--color-edge-strong)] transition-colors group cursor-pointer">
-            {gen.thumbnailUrl ? (
+            {thumbUrl ? (
                 <div className="w-10 h-10 rounded overflow-hidden shrink-0">
-                    <img src={gen.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                    <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
                 </div>
             ) : (
                 <div className="text-fg-muted">{typeIcon[gen.type]}</div>
@@ -372,9 +407,27 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                 <div className="p-6 space-y-6">
                     {/* Video / Image preview */}
                     {gen.type === "video" && fullVideoUrl ? (
-                        <div className="rounded-[var(--radius-md)] overflow-hidden border border-edge bg-black">
-                            <video src={fullVideoUrl} controls className="w-full" />
-                        </div>
+                        (() => {
+                            // Defensive: some old generations have an image URL stored as outputUrl
+                            // (bug fixed forward, but pre-existing data is stuck). Detect by extension
+                            // and render an image instead of spinning the <video> tag forever.
+                            const looksLikeImage = /\.(png|jpe?g|webp|gif)(\?|$)/i.test(fullVideoUrl);
+                            if (looksLikeImage) {
+                                return (
+                                    <div className="rounded-[var(--radius-md)] overflow-hidden border border-edge bg-surface-2">
+                                        <img src={fullVideoUrl} alt={gen.title} className="w-full" />
+                                        <p className="text-[10px] text-fg-faint p-2 italic">
+                                            ⚠ Esta generación se guardó con un archivo de imagen, no video. (Bug histórico — las nuevas se guardan bien.)
+                                        </p>
+                                    </div>
+                                );
+                            }
+                            return (
+                                <div className="rounded-[var(--radius-md)] overflow-hidden border border-edge bg-black">
+                                    <video src={fullVideoUrl} controls preload="metadata" className="w-full" />
+                                </div>
+                            );
+                        })()
                     ) : fullThumbUrl ? (
                         <div className="rounded-[var(--radius-md)] overflow-hidden border border-edge">
                             <img src={fullThumbUrl} alt={gen.title} className="w-full" />
@@ -394,6 +447,25 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                         <span className="text-[11px] text-fg-faint px-2 py-1 bg-surface-2 rounded">{gen.type}</span>
                         <span className="text-[11px] text-fg-faint px-2 py-1 bg-surface-2 rounded">{gen.toolId}</span>
                     </div>
+
+                    {/* Continue / Open in tool */}
+                    {gen.pipelineState ? (
+                        <Link
+                            to={`/dashboard/generate/${gen.toolId}?gen=${gen.id}`}
+                            className="flex items-center justify-center gap-2 w-full py-2.5 bg-[var(--color-warm)] hover:opacity-90 text-[var(--color-warm-fg)] font-semibold rounded-[var(--radius-sm)] text-[13px] transition-opacity cursor-pointer"
+                        >
+                            <Pencil size={13} />
+                            {gen.status === "completed" ? "Abrir en el tool" : "Continuar edición"}
+                        </Link>
+                    ) : (
+                        <div
+                            className="flex flex-col items-center justify-center gap-0.5 w-full py-2 bg-surface-2 border border-edge rounded-[var(--radius-sm)] text-[12px] text-fg-faint"
+                            title="Esta generación es anterior al sistema de auto-save. Solo vista."
+                        >
+                            <span className="font-medium">Generación antigua</span>
+                            <span className="text-[10px]">Sin estado guardado — solo vista</span>
+                        </div>
+                    )}
 
                     {/* Metadata */}
                     {gen.metadata && Object.keys(gen.metadata).length > 0 && (
@@ -418,19 +490,21 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                             </h3>
                             {gen.scenes.some((s) => s.imageUrl) ? (
                                 <div className="grid grid-cols-2 gap-2">
-                                    {gen.scenes.map((scene, i) => (
+                                    {gen.scenes.map((scene, i) => {
+                                        const sceneImg = resolveMediaUrl(scene.imageUrl);
+                                        return (
                                         <div key={scene.id || i} className="space-y-1 group/img">
-                                            {scene.imageUrl && (
+                                            {sceneImg && (
                                                 <div className="aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge relative cursor-pointer"
-                                                    onClick={() => window.open(scene.imageUrl as string, "_blank")}
+                                                    onClick={() => window.open(sceneImg, "_blank")}
                                                 >
-                                                    <img src={`${scene.imageUrl}`} alt={scene.title || `${i + 1}`} className="w-full h-full object-cover" />
+                                                    <img src={sceneImg} alt={scene.title || `${i + 1}`} className="w-full h-full object-cover" />
                                                     <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/30 transition-colors flex items-center justify-center gap-2">
                                                         <button
                                                             onClick={async (e) => {
                                                                 e.stopPropagation();
                                                                 try {
-                                                                    const res = await fetch(scene.imageUrl as string);
+                                                                    const res = await fetch(sceneImg);
                                                                     const blob = await res.blob();
                                                                     const url = URL.createObjectURL(blob);
                                                                     const a = document.createElement("a");
@@ -449,7 +523,8 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                                             )}
                                             <p className="text-[10px] text-fg-muted text-center">{scene.title || `Scene ${i + 1}`}</p>
                                         </div>
-                                    ))}
+                                    );
+                                    })}
                                 </div>
                             ) : (
                                 gen.scenes.map((scene, i) => (

@@ -152,6 +152,15 @@ poll status -> IN_QUEUE | IN_PROGRESS | COMPLETED
 GET result -> final URL
 ```
 
+### Manual Lab (brand-agnostic generation sandbox)
+A standalone page (`/dashboard/lab`) that bypasses the pipeline/curation system entirely. It lets internal users hit Nano Banana 2 / Kling V3 directly with chat-style references, optionally using brand assets but never requiring a brand.
+
+- Frontend: `frontend/src/pages/ManualLab.tsx`. Maintains references as `RefImage[]` (`tag: "image1"|"image2"|…`, url, source). On submit, `[imageN]` tokens in the prompt are rewritten to `Image N` and a `REFERENCE IMAGES:` block is prepended — same convention used by `fashion_reel/handlers.ts:buildRefDesc`.
+- Backend: re-uses existing `/api/image-gen/edit`, `/api/image-gen/text-to-image`, `/api/kling/image-to-video`. Two new pieces:
+  - `services/manual_lab.py` — Gemini-backed tool suggestion (`suggest_tool`) that decides if the prompt is better served by a structured pipeline.
+  - `POST /api/manual/suggest-tool` (body: `{prompt, mode, hasRefs}`) → `{tool_id, reason}`. Non-blocking; returns `{tool_id: null}` on any error.
+- Persistence: results are saved as standard `Generation` rows with `toolId="manual_lab"`. `SaveGenerationRequest.brandId` is now `Optional[str]`. The list endpoint accepts `brandId=__none__` to fetch only Manual Lab (brand-agnostic) entries.
+
 ## Brand Data Model
 
 ```json

@@ -1,0 +1,190 @@
+"""
+Manual Lab — Tool Suggestion Service
+─────────────────────────────────────
+Lightweight Gemini call that, given a free-form prompt the user is about to send
+to Nano Banana / Kling, decides whether one of the structured pipelines would
+serve them better. Non-blocking: returns either a tool_id + reason, or null.
+"""
+
+import base64
+import json
+from typing import Optional
+
+import httpx
+
+from services.copy_gen import _call_gemini
+from services.image_analysis import _call_vision
+
+
+SUGGESTABLE_TOOLS = {
+    "ugc_creator": "UGC video with avatar talking to camera. Lip-sync, multi-scene. Pick this when the user wants someone speaking on camera, testimonials, product demos with voice, reviews.",
+    "video_ad_creator": "Storyboard-driven video ad. Multi-frame animated with Kling. Pick when user wants a cinematic ad with multiple shots and a narrative arc.",
+    "fashion_reel": "Fashion/lifestyle reel — pure movement, no dialogue. Pick when user wants a model walking/posing across multiple shots, lookbook vibes, fashion editorial.",
+    "product_clip": "Frame-to-frame product video. No people. Pick when user wants e-commerce product motion, packshot animations, Amazon-style.",
+    "static_ad": "Single static ad creative with composition templates. Pick when user wants ONE polished still ad for Meta/IG.",
+    "carousel_creator": "Multi-slide carousel (3-6 slides). Pick when user mentions a carousel, swipe, or multi-slide post.",
+    "ad_creative_lab": "Batch of N ad creatives from a visual guide. Pick when user wants multiple variants for A/B testing.",
+    "product_spotlight": "Professional product photography variations. Pick when user wants product images in context with N variants.",
+}
+
+
+def is_configured() -> bool:
+    import os
+    return bool(os.getenv("GEMINI_API_KEY"))
+
+
+async def suggest_tool(prompt: str, mode: str, has_refs: bool) -> dict:
+    """
+    Returns: {"tool_id": str | None, "reason": str}
+
+    None means "stay in Manual Lab — no pipeline is a clearly better fit".
+    Only suggest when the match is strong; otherwise return null.
+    """
+    if not prompt or not prompt.strip():
+        return {"tool_id": None, "reason": ""}
+
+    tools_block = "\n".join([f"- {tid}: {desc}" for tid, desc in SUGGESTABLE_TOOLS.items()])
+
+    system_prompt = f"""You decide whether a user's free-form image/video generation request would be better served by one of the structured pipelines below, or by staying in Manual Lab (one-off generation).
+
+Manual Lab is good for: single shots, exploring an idea, quick edits, mixing arbitrary references. The user IS already in Manual Lab — you should ONLY suggest a pipeline when the match is *strong and obvious*. Otherwise return null.
+
+Available pipelines:
+{tools_block}
+
+User mode: {mode} (image or video)
+Has reference images attached: {has_refs}
+
+Respond with JSON ONLY in this exact shape:
+{{"tool_id": "<one of the ids above, or null>", "reason": "<one short sentence explaining why, in Spanish>"}}
+
+Rules:
+- Set tool_id to null unless the user's prompt clearly describes a multi-step or multi-shot output that Manual Lab cannot handle in one shot.
+- Single image, single shot, single edit → ALWAYS null.
+- Single short video clip from one image → ALWAYS null (Manual Lab handles this).
+- Mentions of "carrusel", "carousel", "múltiples slides", "swipe" → carousel_creator.
+- Mentions of "ugc", "testimonio", "hablando a cámara", "lip sync", "voiceover" → ugc_creator.
+- Mentions of "reel", "lookbook", "modelo caminando", "varias poses", "moda" → fashion_reel.
+- Mentions of "ad", "anuncio cinematográfico", "storyboard", "varias tomas" → video_ad_creator.
+- Mentions of "producto rotando", "packshot animado", "frame to frame" → product_clip.
+- Mentions of "varios variantes", "A/B test", "batch de creatividades" → ad_creative_lab.
+"""
+
+    user_msg = f"User prompt: {prompt.strip()[:1500]}"
+
+    try:
+        raw = await _call_gemini(system_prompt, user_msg)
+    except Exception:
+        return {"tool_id": None, "reason": ""}
+
+    clean = raw.strip().replace("```json", "").replace("```", "").strip()
+    try:
+        data = json.loads(clean)
+    except Exception:
+        return {"tool_id": None, "reason": ""}
+
+    tool_id = data.get("tool_id")
+    if tool_id and tool_id not in SUGGESTABLE_TOOLS:
+        tool_id = None
+    return {
+        "tool_id": tool_id,
+        "reason": str(data.get("reason", ""))[:240],
+    }
+
+
+# ══════════════════════════════════════════════════════════════
+#  Prompt Enhancement (Gemini Vision)
+# ══════════════════════════════════════════════════════════════
+
+ENHANCE_SYSTEM_PROMPT_IMAGE = """You are an expert image-editing prompt engineer for {model_name}.
+
+The user will give you a casual request in any language, optionally referencing attached images by [imageN] tokens. The attached images are passed to you as inline content in the same order as their tags. You can SEE them — describe what you see when relevant.
+
+Your job: rewrite the user's request as a polished, specific image-generation prompt that {model_name} will execute well. Output ONLY the final prompt text — no preamble, no explanations, no quotes.
+
+Rules:
+- Reference images by "Image 1", "Image 2", etc. (matching the position they were attached). Replace any [imageN] tokens with "Image N".
+- Start with a short "REFERENCE IMAGES:" block listing each image's role (e.g. "Image 1: the woman to feature", "Image 2: the garment to put on her") IF there are references. Skip the block if no references.
+- Be photographic and concrete: lighting, composition, framing, pose, materials, surface, depth.
+- If the user asks to change visible text (e.g. "que diga X en vez de Y"), be explicit: "Replace the text 'Y' (currently visible on the {{element}}) with 'X', preserving the original typography, color, weight, and placement."
+- If the user mentions framing/cropping ("que se vea entera", "full body", "tight crop"), be explicit about it.
+- Preserve the user's intent — DO NOT invent unrequested elements (background changes, mood, props) unless the user asked.
+- Output language: English (target models perform better in English) UNLESS the user wrote a long Spanish creative brief that should keep its character.
+- Aim for 1-3 sentences for simple edits, 3-6 sentences for complex composites. Don't pad.
+- End with terse style hints if missing: photorealistic, sharp focus, natural lighting — only when relevant.
+"""
+
+ENHANCE_SYSTEM_PROMPT_VIDEO = """You are an expert motion-prompt engineer for Kling V3 Pro (image-to-video).
+
+The user gives a casual request describing how a static image (Image 1, attached) should animate. Output a tight motion prompt that Kling will execute well. Output ONLY the final prompt — no preamble, no quotes.
+
+Rules:
+- Describe MOTION, not the scene: what moves, how it moves, camera behavior.
+- Be concrete: "subtle hair sway, fabric flowing left, slow push-in by camera" beats "dynamic motion".
+- 1-2 short sentences max. Kling prefers terse motion prompts.
+- Output in English.
+- If the user mentions a vibe (cinematic, calm, dramatic), include it.
+"""
+
+
+async def _fetch_image_bytes(url: str) -> tuple[bytes, str]:
+    """Resolve an image URL (http://, https://, /static/..., or data:) to (bytes, mime)."""
+    if url.startswith("data:"):
+        # data:image/png;base64,XXXX
+        header, _, b64 = url.partition(",")
+        mime = header.split(";")[0].split(":", 1)[-1] or "image/png"
+        return base64.b64decode(b64), mime
+
+    fetch_url = url
+    if url.startswith("/static/"):
+        fetch_url = f"http://localhost:8000{url}"
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        res = await client.get(fetch_url)
+        res.raise_for_status()
+        mime = res.headers.get("content-type", "image/jpeg").split(";")[0]
+        return res.content, mime
+
+
+async def enhance_prompt(
+    user_input: str,
+    refs: list[dict],  # [{tag, label, url}]
+    mode: str = "image",  # "image" | "video"
+    target_model: str = "nano-banana-2",
+) -> str:
+    """Take a casual user request + reference images and produce a polished prompt for the target model."""
+    user_input = (user_input or "").strip()
+    if not user_input:
+        return ""
+
+    # Try to fetch each ref's bytes for Vision input — skip refs we can't resolve
+    images: list[tuple[bytes, str]] = []
+    resolved_refs: list[dict] = []
+    for r in refs[:6]:  # cap to 6 to keep latency reasonable
+        url = r.get("url", "")
+        if not url:
+            continue
+        try:
+            data, mime = await _fetch_image_bytes(url)
+            images.append((data, mime))
+            resolved_refs.append(r)
+        except Exception as e:
+            print(f"[manual-enhance] Skipping ref {r.get('tag')}: {e}")
+
+    model_name = "Nano Banana 2" if target_model == "nano-banana-2" else "GPT Image 2"
+    system = (ENHANCE_SYSTEM_PROMPT_IMAGE if mode == "image" else ENHANCE_SYSTEM_PROMPT_VIDEO).format(model_name=model_name)
+
+    refs_block = ""
+    if resolved_refs:
+        refs_block = "Attached reference images (in order):\n" + "\n".join(
+            f"- [{r.get('tag')}] {r.get('label', '')}" for r in resolved_refs
+        )
+
+    full_prompt = f"{system}\n\n{refs_block}\n\nUser request:\n{user_input}\n\nFinal prompt:".strip()
+
+    if not images:
+        # No images resolved — fall back to text-only Gemini
+        return await _call_gemini(system, f"{refs_block}\n\nUser request:\n{user_input}\n\nFinal prompt:")
+
+    return await _call_vision(full_prompt, images)
+

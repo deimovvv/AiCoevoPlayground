@@ -12,11 +12,13 @@ import {
   createHeyGenAvatar4, pollHeyGenAvatar4,
   createSyncLipsync, pollSyncLipsync,
   createKlingVideo, createKlingFrameToFrame, pollKlingVideo,
+  createSeedanceReferenceToVideo, pollSeedanceVideo,
   overlayAudio,
-  concatVideos, saveGeneration,
+  concatVideos,
   analyzePoseReference,
-  backgroundImageUrl,
+  avatarImageUrl, clothingImageUrl, productImageUrl, backgroundImageUrl,
 } from "../../lib/api";
+import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstraints";
 import { resolveSceneBackground } from "../shared/resolveBackground";
 
 // ── Visual Style Prompts ─────────────────────────────────
@@ -72,17 +74,34 @@ export const handleScript: StepHandler = async (ctx) => {
     (c) => config.selectedClothingIds.includes(c.id)
   );
 
-  // Custom script bypass — skip Gemini, use user's script directly
-  const customScript = (config as Record<string, unknown>).customScript as string || "";
+  // Custom script bypass — skip Gemini, use user's script directly.
+  // Coerce defensively: the agent's response sometimes lands here as an actual
+  // array (parsed JSON) instead of a stringified one — when that happens, we
+  // re-stringify so the existing JSON.parse path below works untouched. Also
+  // handle the case where the field is missing or already an object.
+  const rawCustomScript = (config as unknown as Record<string, unknown>).customScript;
+  const customScript: string = typeof rawCustomScript === "string"
+    ? rawCustomScript
+    : Array.isArray(rawCustomScript)
+      ? JSON.stringify(rawCustomScript)
+      : rawCustomScript && typeof rawCustomScript === "object"
+        ? JSON.stringify(rawCustomScript)
+        : "";
   if (customScript.trim()) {
-    type CustomScene = { script: string; visual: string; sceneType?: string; location?: string; product?: boolean; avatar?: boolean };
+    type CustomScene = { script: string; visual: string; sceneType?: string; location?: string; product?: boolean; avatar?: boolean; backgroundId?: string | null; shot?: string; title?: string };
     let entries: CustomScene[] = [];
     try {
       const parsed = JSON.parse(customScript);
       if (Array.isArray(parsed)) {
         entries = parsed
           .map((s: string | CustomScene) => typeof s === "string" ? { script: s, visual: "" } : s)
-          .filter((s: CustomScene) => s.script?.trim());
+          // Keep scenes that have ANY signal: script text, OR sceneType=creative (silent b-roll
+          // legitimately has empty script), OR a visual direction (agent scaffold).
+          .filter((s: CustomScene) =>
+            s.script?.trim() ||
+            s.sceneType === "creative" ||
+            s.visual?.trim()
+          );
       }
     } catch {
       // Parse custom script text — supports formats:
@@ -153,7 +172,12 @@ export const handleScript: StepHandler = async (ctx) => {
 
     if (entries.length > 0) {
       const avatarDesc = selectedAvatar?.description || selectedAvatar?.name || "Person";
-      const productDesc = selectedProduct ? `${selectedProduct.name} visible in frame.` : "";
+      // Use the AI-extracted visual description (neutral, pixel-accurate) instead of the
+      // user-typed product name. User names like "remera azul clarito" bias the model's
+      // color decisions when the actual reference image is a different shade.
+      const productDesc = selectedProduct
+        ? `${selectedProduct.description || "the product"} visible in frame — match the reference exactly.`
+        : "";
       const bgDesc = selectedBackground?.description || selectedBackground?.name || "studio setting";
       const objective = config.objective || "";
 
@@ -202,14 +226,17 @@ export const handleScript: StepHandler = async (ctx) => {
           // No-avatar scene: pure text-to-image prompt — no identity context injected
           imagePrompt = entry.visual?.trim()
             ? `${entry.visual.trim()}. ${stylePrompt}`
-            : `${selectedProduct ? selectedProduct.name + " product shot" : "lifestyle scene"}. ${stylePrompt}`;
+            : `${selectedProduct ? (selectedProduct.description || "product") + " — product shot, match the reference exactly" : "lifestyle scene"}. ${stylePrompt}`;
         } else {
           const bgContext = bgNote ? `in ${bgNote}` : `in ${bgDesc}`;
+          // Use neutral pointer for clothing too — user-typed names with color/style adjectives bias the model.
           const clothingDesc = selectedClothing.length > 0
-            ? `wearing ${selectedClothing.map((c) => c.name).join(" and ")}`
+            ? `wearing the clothing item${selectedClothing.length > 1 ? "s" : ""} shown in the reference image${selectedClothing.length > 1 ? "s" : ""} exactly as pictured`
             : "";
           const productInteraction = selectedProduct
-            ? (config.productIsWorn ? `wearing ${selectedProduct.name}` : `holding ${selectedProduct.name}`)
+            ? (config.productIsWorn
+                ? "wearing the garment shown in the product reference image, exact color and design"
+                : "holding the product shown in the product reference image, exact color and design")
             : "";
 
           // Resolve shot type — avoid product-specific shots when no product selected
@@ -235,13 +262,16 @@ export const handleScript: StepHandler = async (ctx) => {
 
         return {
           id: `act_${i + 1}`,
-          title: i === 0 ? "Hook" : i === entries.length - 1 ? "CTA" : `Scene ${i + 1}`,
+          title: entry.title?.trim() || (i === 0 ? "Hook" : i === entries.length - 1 ? "CTA" : `Scene ${i + 1}`),
           script: entry.script.trim(),
           image_prompt: imagePrompt,
           ...(entry.sceneType ? { sceneType: entry.sceneType } : {}),
           ...(entry.location ? { location: entry.location } : {}),
           ...(typeof entry.product === "boolean" ? { _showProduct: entry.product } : {}),
           ...(entry.avatar === false ? { _useAvatar: false } : {}),
+          // Pass-through per-scene background override from the agent / custom script.
+          // undefined = inherit global, null = no background, string = explicit override.
+          ...(entry.backgroundId !== undefined ? { backgroundId: entry.backgroundId } : {}),
         };
       });
       return {
@@ -259,6 +289,11 @@ export const handleScript: StepHandler = async (ctx) => {
   if (selectedBackground) {
     notes += `\nBACKGROUND/SETTING: ${selectedBackground.name}`;
     if (selectedBackground.description) notes += ` — ${selectedBackground.description}`;
+    // Hard directive: with a brand background selected, every scene must happen
+    // INSIDE this location. Without this clause, Gemini tends to invent varied
+    // locations per scene (park, kitchen, street, etc.) which then make the
+    // image-gen step drift from the visual location anchor.
+    notes += `\nIMPORTANT: ALL SCENES TAKE PLACE IN THIS EXACT LOCATION. Do NOT invent other settings (park, kitchen, beach, office, outdoor, etc.). Every scene's image_prompt must describe action that happens INSIDE this setting only — what changes per scene is the avatar's action, framing, and angle, NOT the location.`;
   }
   if (selectedClothing.length > 0) {
     notes += `\nCLOTHING TO WEAR:`;
@@ -393,24 +428,31 @@ export const handleBaseImage: StepHandler = async (ctx) => {
     refDescriptions.push(`Image ${imgIdx}: ${poseNote}`);
     imgIdx++;
   }
+  // CRITICAL: never include the user-typed product/clothing NAME in the reference
+  // description — color adjectives in names ("remera azul clarito", "buzo bordó") bias
+  // Nano Banana away from the actual pixels. Use neutral pointers ("the garment shown
+  // in this reference") and let the image speak for itself. The fidelity clause forces
+  // the model to honor the visual over any text.
+  const PIXEL_FIDELITY = "CRITICAL: reproduce the EXACT color, shade, fabric, print, stitching, and proportions from the reference pixels. Do NOT lighten, darken, saturate, or stylize. If color descriptors in the text appear to conflict with the reference image, the IMAGE IS ALWAYS AUTHORITATIVE.";
+
   if (config.productIsWorn && selectedProduct?.imageUrl) {
-    refDescriptions.push(`Image ${imgIdx}: "${selectedProduct.name}" — the person WEARS this exact garment. Reproduce it identically: same color, same design, same fit`);
+    refDescriptions.push(`Image ${imgIdx}: the garment shown in this reference — the person WEARS it. ${PIXEL_FIDELITY}`);
     imgIdx++;
   }
   for (const c of selectedClothingItems) {
     if (c.imageUrl) {
-      refDescriptions.push(`Image ${imgIdx}: "${c.name}" — the person WEARS this exact clothing item`);
+      refDescriptions.push(`Image ${imgIdx}: the clothing item shown in this reference — the person WEARS it exactly as pictured. ${PIXEL_FIDELITY}`);
       imgIdx++;
     }
   }
   if (!config.productIsWorn && selectedProduct?.imageUrl) {
-    refDescriptions.push(`Image ${imgIdx}: "${selectedProduct.name}" — the person HOLDS or SHOWS this exact product`);
+    refDescriptions.push(`Image ${imgIdx}: the product shown in this reference — the person HOLDS or SHOWS it. ${PIXEL_FIDELITY}`);
     imgIdx++;
   }
   if (selectedProduct?.images) {
     for (const img of selectedProduct.images) {
       if (img.imageUrl) {
-        refDescriptions.push(`Image ${imgIdx}: additional view of "${selectedProduct.name}"`);
+        refDescriptions.push(`Image ${imgIdx}: additional view of the same product — confirms color, fabric, and proportions from another angle. Use this to reinforce pixel-exact matching of the product across the scene.`);
         imgIdx++;
       }
     }
@@ -431,7 +473,15 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   }
   prompt += ` ${baseVisualStyle}${noTextSuffix}`;
 
-  const job = await createImageEdit(imageUrls, prompt, config.aspectRatio, config.resolution);
+  // Brand context + constraints
+  const constraints = buildBrandConstraints(activeBrand, config, { tool: "ugc_creator", mentionsAvatar: !!selectedAvatar });
+  const brandContextBlock = buildBrandContext(activeBrand, "ugc_creator");
+  prompt = `${prompt}${brandContextBlock}${constraints}`;
+  console.log("[ugc] FINAL PROMPT base_image:", prompt.slice(0, 1500));
+
+  const job = imageUrls.length === 0
+    ? await createTextToImage(prompt, config.aspectRatio, config.resolution)
+    : await createImageEdit(imageUrls, prompt, config.aspectRatio, config.resolution);
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
@@ -554,11 +604,22 @@ export const handleMultishot: StepHandler = async (ctx) => {
     ...(baseImageResult.entryFrameUrl ? { entryFrameUrl: baseImageResult.entryFrameUrl } : {}),
   }];
 
-  // Standard mode: same person + same location throughout
-  // Narrative mode: same person + clothes, but location CHANGES per scene
-  const consistency = isNarrativeMode
-    ? "SAME EXACT person, same clothes, same hair as the reference image. The setting/location CHANGES — follow the scene prompt for the new environment."
-    : "Same EXACT person, same clothes, same background/environment as image 1. Do NOT change the setting or location.";
+  // Location consistency policy:
+  //  - If user selected a brand background at config level → LOCK it across all
+  //    scenes regardless of mode. Selecting a background is an explicit choice
+  //    that overrides narrative mode's "location varies" behavior. If the user
+  //    wants per-scene locations in narrative mode, they can set per-scene
+  //    backgroundId overrides on individual scenes.
+  //  - Standard mode (no global bg): same as base image.
+  //  - Narrative mode (no global bg): location changes per scene prompt.
+  const hasGlobalLocationAnchor = !!(activeBrand.backgrounds || []).find(
+    (bg) => bg.id === config.selectedBackgroundId
+  )?.imageUrl;
+  const consistency = hasGlobalLocationAnchor
+    ? "Same EXACT person, same clothes, same EXACT location as the LOCATION ANCHOR reference image. Do NOT change the setting — every scene takes place INSIDE this same environment, only the action and framing change."
+    : isNarrativeMode
+      ? "SAME EXACT person, same clothes, same hair as the reference image. The setting/location CHANGES — follow the scene prompt for the new environment."
+      : "Same EXACT person, same clothes, same background/environment as image 1. Do NOT change the setting or location.";
 
   // Narrative mode: extended scene type variations
   const NARRATIVE_VARIATIONS: Record<string, Array<{ label: string; desc: string }>> = {
@@ -591,16 +652,27 @@ export const handleMultishot: StepHandler = async (ctx) => {
       // Per-scene background: override base image reference when set specifically
       const sceneBackground = resolveSceneBackground(scene, config, activeBrand);
 
-      // Location prompt: prefer per-scene background description > narrative location > nothing
+      // Location prompt resolution (in priority order):
+      //   1. Per-scene EXPLICIT override (`scene.backgroundId === "xxx"`) → that bg is dominant
+      //   2. Scene EXPLICITLY disabled (`scene.backgroundId === null`) → text-only, fall back to sceneLocation text
+      //   3. Default (`scene.backgroundId === undefined`) + brand bg selected → use brand bg as the universal anchor
+      //   4. Narrative mode with sceneLocation text but no brand bg → use the text
       let locationContext = "";
-      if (sceneBackground && scene.backgroundId !== undefined) {
-        // Scene has EXPLICIT background (not inherited from config) — make it dominant
+      if (sceneBackground && scene.backgroundId !== undefined && scene.backgroundId !== null) {
+        // Case 1: per-scene override
         const bgDesc = sceneBackground.description || sceneBackground.name;
         locationContext = `SETTING: ${bgDesc}. This scene takes place in this EXACT location, NOT in the same setting as scene 1. `;
       } else if (scene.backgroundId === null) {
-        // Explicitly no background — let Nano Banana generate from prompt only
+        // Case 2: explicitly no bg
         locationContext = sceneLocation ? `SETTING: ${sceneLocation}. ` : "";
+      } else if (sceneBackground) {
+        // Case 3: inherited from config — this is the "user selected one global background" case.
+        // Before this fix, this branch fell through and locationContext stayed empty, so the prompt
+        // body could describe arbitrary locations and fight the LOCATION ANCHOR ref.
+        const bgDesc = sceneBackground.description || sceneBackground.name;
+        locationContext = `SETTING: ${bgDesc}. This scene takes place INSIDE this exact environment — same walls, same props, same lighting direction. `;
       } else if (isNarrativeMode && sceneLocation) {
+        // Case 4: narrative location text only
         locationContext = `SETTING: ${sceneLocation}. `;
       }
 
@@ -652,9 +724,13 @@ export const handleMultishot: StepHandler = async (ctx) => {
         (sceneShowProduct !== false && productMentionedInDirection)
       );
 
-      // Per-scene background image reference (only when scene has an EXPLICIT backgroundId)
+      // LOCATION ANCHOR (Nivel 1 consistency fix): pass the background asset on EVERY scene
+      // — not just when there's a per-scene override — so the model has a strong reference
+      // for the environment and doesn't drift across multishots. Skip only when the scene
+      // explicitly opted out with backgroundId=null (text-only mode).
+      const useLocationAnchor = scene.backgroundId !== null && !!sceneBackground?.imageUrl;
       const hasExplicitSceneBg = scene.backgroundId !== undefined && scene.backgroundId !== null && !!sceneBackground?.imageUrl;
-      const sceneBgRef: string[] = hasExplicitSceneBg ? [sceneBackground!.imageUrl] : [];
+      const sceneBgRef: string[] = useLocationAnchor ? [sceneBackground!.imageUrl] : [];
 
       const sceneRefs: string[] = isProductOnly
         ? (selectedProduct?.imageUrl ? [selectedProduct.imageUrl, ...sceneBgRef] : [baseImageResult.url, ...sceneBgRef])
@@ -669,10 +745,21 @@ export const handleMultishot: StepHandler = async (ctx) => {
           const noText = "Single continuous frame. NO split screen, NO collage, NO grid, NO multiple panels, NO text, NO watermarks, NO overlays. ";
           const styleBlock = getVisualStyle(config as Record<string, unknown>) + " ";
 
-          // Build reference header so model knows what each reference image is
-          const bgRefLine = hasExplicitSceneBg
-            ? `Image ${includeProduct ? 3 : 2}: the setting/location — place the person INSIDE this environment, match the lighting and ambiance of this reference.\n`
-            : "";
+          // Build reference header so model knows what each reference image is.
+          // The LOCATION ANCHOR wording is the Nivel 1 consistency fix — explicitly demands
+          // the model preserve walls / props / lighting / perspective across multishots,
+          // because by default Nano Banana treats backgrounds as soft context and drifts.
+          let bgRefLine = "";
+          if (useLocationAnchor) {
+            const bgIdx = includeProduct ? 3 : 2;
+            if (hasExplicitSceneBg) {
+              // Per-scene override — this is intentionally a DIFFERENT location than scene 1
+              bgRefLine = `Image ${bgIdx}: LOCATION — place the person INSIDE this exact environment. Match walls, props, lighting direction, and perspective.\n`;
+            } else {
+              // Default brand background — must stay IDENTICAL across all scenes
+              bgRefLine = `Image ${bgIdx}: LOCATION ANCHOR — this scene MUST take place in this EXACT environment. Same walls, same props, same lighting direction, same perspective, same time of day. The person can move and pose differently, but the location is FIXED across every scene.\n`;
+            }
+          }
           const refHeader = isProductOnly
             ? ""
             : includeProduct
@@ -683,6 +770,14 @@ export const handleMultishot: StepHandler = async (ctx) => {
           // use it directly without overriding with generic camera/action variations.
           // Generic variations are only used as fallback when no direction is given.
           const hasSpecificDirection = cleanDirection.length > 40;
+
+          // Mouth-state clause for non-talking scenes: in creative / lifestyle / sensorial
+          // / product_reveal scenes the avatar must NEVER appear speaking. Without this,
+          // Nano Banana often renders an open mouth / mid-speech expression because the
+          // base image (scene 1, usually talking) has that posture as anchor.
+          const mouthClause = (sceneType !== "talking" && !isProductOnly && !noAvatar)
+            ? "MOUTH CLOSED — the avatar is NOT speaking in this scene. Calm neutral expression, soft natural smile, or a genuine natural laugh ONLY if it fits the moment. NO open mouth, NO mid-word lip shape, NO talking gesture, NO speech bubble pose. "
+            : "";
 
           if (noAvatar) {
             // No-avatar scene: text-to-image, no person reference injected
@@ -702,17 +797,17 @@ export const handleMultishot: StepHandler = async (ctx) => {
             const eyeContact = sceneType === "talking"
               ? "Person looks DIRECTLY INTO CAMERA, engaged and present. "
               : "";
-            prompt = `${refHeader}${frameNote}${locationContext}${cleanDirection}. ${eyeContact}${consistency} ${styleBlock}${noText}`;
+            prompt = `${refHeader}${frameNote}${locationContext}${cleanDirection}. ${eyeContact}${mouthClause}${consistency} ${styleBlock}${noText}`;
           } else if (isNarrativeMode && narrativeSceneType in NARRATIVE_VARIATIONS) {
-            // Narrative scene types: lifestyle, sensorial, product_reveal
+            // Narrative scene types: lifestyle, sensorial, product_reveal — always non-talking
             const pool = NARRATIVE_VARIATIONS[narrativeSceneType];
             const variant = pool[vi % pool.length];
-            prompt = `${refHeader}${frameNote}${locationContext}${variant.desc} ${consistency} ${styleBlock}${noText}`;
+            prompt = `${refHeader}${frameNote}${locationContext}${variant.desc} ${mouthClause}${consistency} ${styleBlock}${noText}`;
           } else if (sceneType === "creative") {
             const pool = ACTION_VARIATIONS;
             const idx = (sceneIdx * NUM_VARIATIONS + vi) % pool.length;
             const variant = pool[idx];
-            prompt = `${refHeader}${frameNote}${locationContext}${variant.desc} ${consistency} ${styleBlock}${noText}`;
+            prompt = `${refHeader}${frameNote}${locationContext}${variant.desc} ${mouthClause}${consistency} ${styleBlock}${noText}`;
           } else {
             // Talking: always direct eye contact to camera
             const pool = CAMERA_VARIATIONS;
@@ -766,7 +861,19 @@ export const handleMultishot: StepHandler = async (ctx) => {
   }
 
   // ── Intelligent frame-to-frame suggestion per scene ──────
-  // Analyze adjacent creative scene pairs and suggest f2f when it makes narrative sense.
+  // Skip entirely when engine is Seedance — Seedance uses multi-ref, doesn't do f2f.
+  // Showing the f2f badge with Seedance is confusing because nothing in the pipeline
+  // honors it downstream.
+  const animationEngineForF2F = ((config as unknown as Record<string, unknown>).animationEngine as "kling" | "seedance") || "kling";
+  if (animationEngineForF2F === "seedance") {
+    for (const r of multishotResults) {
+      (r as typeof r & { frameToFrame?: boolean; frameToFrameNote?: string }).frameToFrame = false;
+      (r as typeof r & { frameToFrame?: boolean; frameToFrameNote?: string }).frameToFrameNote = "Seedance engine — multi-ref instead of f2f";
+    }
+    return { result: multishotResults, needsApproval: true };
+  }
+
+  // Kling-only: analyze adjacent creative scene pairs and suggest f2f when it makes narrative sense.
   // Rules:
   //   - Only creative scenes can have f2f
   //   - If next scene is talking → single frame (visual cut is natural)
@@ -877,9 +984,13 @@ export const handleVoice: StepHandler = async (ctx) => {
 };
 
 // ── Lipsync ──────────────────────────────────────────────
-// Supports two methods for talking scenes:
-//   "heygen"      → static image + audio → HeyGen Avatar 4
-//   "synclipsync" → static image → Kling → Sync Lipsync V3
+// Lipsync for talking scenes:
+//   - HeyGen Avatar 4 (default when engine=Kling): static image + audio → talking head
+//   - Seedance: when engine=seedance, lipsync happens unified inside the animation step
+//     and this handler is bypassed.
+// Sync Lipsync V3 ("synclipsync") was an alternative method — removed from the UI,
+// kept here as a legacy code path so old generations don't break, but new runs always
+// resolve to "heygen".
 // Creative scenes always use Kling only (single-frame or frame-to-frame).
 
 export const handleLipsync: StepHandler = async (ctx) => {
@@ -896,10 +1007,15 @@ export const handleLipsync: StepHandler = async (ctx) => {
   if (!curationData) throw new Error("No curated images found. Approve the Multishot step first.");
 
   // Per-scene frame-to-frame and entry frame from multishot data (set by user in shots step)
+  // Multishot result shape evolves: Array<MultishotScene> before approval, { variations, selections } after.
+  // We need to unwrap `variations` when it's the post-approval object to retain hookVideoUrl/entryFrameUrl.
   type MultishotScene = { sceneId: string; frameToFrame?: boolean; entryFrameUrl?: string; hookVideoUrl?: string };
-  const rawMultishotData = Array.isArray(getStepResult("multishot"))
-    ? (getStepResult("multishot") as MultishotScene[])
-    : [];
+  const msResult = getStepResult("multishot");
+  const rawMultishotData: MultishotScene[] = Array.isArray(msResult)
+    ? (msResult as MultishotScene[])
+    : Array.isArray((msResult as { variations?: MultishotScene[] } | undefined)?.variations)
+      ? ((msResult as { variations: MultishotScene[] }).variations)
+      : [];
   const getSceneF2F = (sceneId: string) =>
     rawMultishotData.find(s => s.sceneId === sceneId)?.frameToFrame ?? false;
   const getEntryFrame = (sceneId: string) =>
@@ -932,24 +1048,82 @@ export const handleLipsync: StepHandler = async (ctx) => {
   // Hook type for entry frame motion prompt
   const hookType = (config as Record<string, unknown>).hookType as string || "none";
 
-  // Helper: animate with Kling — uses per-scene f2f flag from multishot data
-  const animateWithKling = async (
+  // Animation engine — "kling" (default) or "seedance" (multi-reference)
+  const animationEngine = ((config as unknown as Record<string, unknown>).animationEngine as "kling" | "seedance") || "kling";
+
+  // Brand asset URLs for Seedance multi-ref (computed once). The curated scene image
+  // is always passed first; these brand refs go after to give Seedance extra anchors.
+  const buildBrandRefs = (): string[] => {
+    if (animationEngine !== "seedance") return [];
+    const cfg = config as unknown as Record<string, unknown>;
+    const urls: string[] = [];
+    const selectedAvatarIds = (cfg.selectedAvatarIds as string[]) || [];
+    const selectedAvatar = selectedAvatarIds.length
+      ? (activeBrand.avatars || []).find((a) => selectedAvatarIds.includes(a.id))
+      : activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
+    if (selectedAvatar?.imageUrl) urls.push(avatarImageUrl(selectedAvatar.imageUrl));
+
+    const selectedProductIds = (cfg.selectedProductIds as string[]) || [];
+    const selectedProducts = selectedProductIds.length
+      ? (activeBrand.products || []).filter((p) => selectedProductIds.includes(p.id))
+      : config.selectedProductId ? [(activeBrand.products || []).find((p) => p.id === config.selectedProductId)].filter(Boolean) : [];
+    for (const p of selectedProducts) {
+      if (p?.imageUrl) urls.push(productImageUrl(p.imageUrl));
+    }
+
+    const selectedClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
+    for (const c of selectedClothing) {
+      if (c.imageUrl) urls.push(clothingImageUrl(c.imageUrl));
+    }
+
+    const selectedBackground = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
+    if (selectedBackground?.imageUrl) urls.push(backgroundImageUrl(selectedBackground.imageUrl));
+    return urls;
+  };
+  const brandRefUrls = buildBrandRefs();
+
+  // Helper: animate a scene — dispatches by engine.
+  //   - Kling (default): single-frame i2v OR frame-to-frame between adjacent scenes.
+  //   - Seedance: ref-to-video with the curated scene image + all brand assets as refs.
+  //               Ignores f2f and startFrameOverride (Seedance doesn't use them).
+  const animateScene = async (
     scene: { sceneId: string; title: string; selectedUrl: string },
     sceneIdx: number,
     imagePrompt: string,
-    startFrameOverride?: string, // optional: use this as start frame instead of scene.selectedUrl
+    startFrameOverride?: string,
     durationOverride?: string,
   ): Promise<string> => {
     const prompt = imagePrompt + KLING_MOTION_SUFFIX;
-    const useF2F = getSceneF2F(scene.sceneId);
-    const startFrame = startFrameOverride || scene.selectedUrl;
     const duration = durationOverride || "5";
 
+    if (animationEngine === "seedance") {
+      // Cap refs at 6 to stay within Fal's reasonable limits
+      const refs = [scene.selectedUrl, ...brandRefUrls].slice(0, 6);
+      try {
+        const job = await createSeedanceReferenceToVideo({
+          prompt,
+          referenceImageUrls: refs,
+          duration,
+        });
+        const result = job.video_url
+          ? { status: "completed", video_url: job.video_url }
+          : await pollSeedanceVideo(job.request_id);
+        if (result.status !== "failed" && result.video_url) return result.video_url;
+        throw new Error(`Seedance failed for "${scene.title}"`);
+      } catch (e) {
+        console.warn(`[ugc] Seedance failed for ${scene.title}, falling back to Kling:`, e);
+        // Fall through to Kling below
+      }
+    }
+
+    // Kling path (default or Seedance fallback)
+    const useF2F = getSceneF2F(scene.sceneId);
+    const startFrame = startFrameOverride || scene.selectedUrl;
+
     if (startFrameOverride || useF2F) {
-      // Frame-to-frame: startFrame → end frame
       const endFrame = startFrameOverride
-        ? scene.selectedUrl                          // entry frame → in-position image
-        : curationData[sceneIdx + 1]?.selectedUrl;  // scene → next scene
+        ? scene.selectedUrl
+        : curationData[sceneIdx + 1]?.selectedUrl;
       if (endFrame && endFrame !== startFrame) {
         const job = await createKlingFrameToFrame({
           start_image_url: startFrame,
@@ -959,15 +1133,16 @@ export const handleLipsync: StepHandler = async (ctx) => {
         });
         const result = await pollKlingVideo(job.request_id);
         if (result.status !== "failed" && result.video_url) return result.video_url;
-        // Fall through to single-frame on failure
       }
     }
-    // Single-frame (default or fallback)
     const job = await createKlingVideo(startFrame, prompt, duration);
     const result = await pollKlingVideo(job.request_id);
-    if (result.status === "failed") throw new Error(`Kling failed for "${scene.title}"`);
+    if (result.status === "failed") throw new Error(`Animation failed for "${scene.title}"`);
     return result.video_url || scene.selectedUrl;
   };
+
+  // Backwards-compat alias — some callsites still reference animateWithKling by name
+  const animateWithKling = animateScene;
 
   // Helper: get or generate hook intro video (entry frame → base image, 3s, no audio)
   // Reuses hookVideoUrl from multishot if already generated there — skips regeneration
@@ -1026,6 +1201,15 @@ export const handleLipsync: StepHandler = async (ctx) => {
     }
     const klingPrompt = scriptScene?.image_prompt || (scriptText ? `${scriptText} — cinematic, smooth motion` : "Smooth cinematic motion, natural movement");
 
+    // CREATIVE-scene anti-talking clause: when an scene is creative (b-roll), the
+    // avatar must NOT appear to be speaking or looking at camera. Without this,
+    // both Kling and Seedance often render the avatar with subtle mouth movement
+    // and direct gaze — which clashes with the next/prev talking scene that already
+    // has the avatar addressing camera. The b-roll should feel like a moment OF
+    // ACTION, not a paused take.
+    const CREATIVE_NO_TALK_CLAUSE = " IMPORTANT: The person is NOT speaking, NOT looking directly at the camera. Mouth is closed (or naturally relaxed if mid-action). Gaze is on the activity / object / off-camera — NEVER on the lens. This is a b-roll moment, not a to-camera moment.";
+    const klingPromptForCreative = klingPrompt + CREATIVE_NO_TALK_CLAUSE;
+
     // Pick Kling clip duration: round audio up to nearest Kling step (5 or 10s). Visual-only → 5s.
     const audioDuration = voiceEntry?.durationSecs ?? 0;
     const klingDuration: string = audioDuration > 5 ? "10" : "5";
@@ -1035,9 +1219,9 @@ export const handleLipsync: StepHandler = async (ctx) => {
     // that gets prepended to the lipsync video in render
     const hookVideoUrl = i === 0 ? await generateHookVideo(scene) : undefined;
 
-    // ── Creative scene: Kling → optional FFmpeg audio overlay ──────
+    // ── Creative scene: Kling/Seedance → optional FFmpeg audio overlay ──────
     if (sceneType === "creative") {
-      const klingVideoUrl = await animateWithKling(scene, i, klingPrompt, undefined, klingDuration);
+      const klingVideoUrl = await animateWithKling(scene, i, klingPromptForCreative, undefined, klingDuration);
       // If no audio (empty script scene), use Kling video as-is
       if (!falAudioUrl) {
         lipsyncResults.push({
@@ -1070,6 +1254,45 @@ export const handleLipsync: StepHandler = async (ctx) => {
     }
 
     // ── Talking scene: método elegido ─────────────────────
+    // PRIORITY: when animationEngine = "seedance" AND we have audio, route through
+    // Seedance — it handles both the visual generation AND the lipsync in one pass.
+    // Unified engine = better cross-scene consistency (same model = same look across
+    // talking and creative scenes).
+    if (animationEngine === "seedance" && falAudioUrl) {
+      // Build refs: curated scene image first (composition anchor) + brand refs (avatar / product / clothing / bg)
+      const refs = [scene.selectedUrl, ...brandRefUrls].slice(0, 6);
+      try {
+        const seedancePrompt = scriptScene?.image_prompt
+          ? `${scriptScene.image_prompt}. The character is speaking the provided audio with natural lipsync, expressive face, calm body posture.`
+          : `Person speaking to camera in the same setting and outfit as the reference. Natural lipsync to the audio. Subtle body movement, expressive face.`;
+        const job = await createSeedanceReferenceToVideo({
+          prompt: seedancePrompt,
+          referenceImageUrls: refs,
+          audioUrls: [falAudioUrl],
+          duration: klingDuration,
+        });
+        const result = job.video_url
+          ? { status: "completed", video_url: job.video_url }
+          : await pollSeedanceVideo(job.request_id);
+        if (result.status !== "failed" && result.video_url) {
+          lipsyncResults.push({
+            sceneId: scene.sceneId,
+            title: scene.title,
+            scriptText,
+            videoUrl: result.video_url,
+            hookVideoUrl,
+            imageUrl: scene.selectedUrl,
+            sceneType: "talking",
+          });
+          continue;
+        }
+        // Fall through to HeyGen on failure
+        console.warn(`[ugc] Seedance lipsync failed for ${scene.title}, falling back to ${lipsyncMethod}`);
+      } catch (e) {
+        console.warn(`[ugc] Seedance lipsync error, falling back:`, e);
+      }
+    }
+
     if (lipsyncMethod === "synclipsync") {
       // Kling: single-frame body motion (no f2f here — hook is handled separately above)
       const klingVideoUrl = await animateWithKling(
@@ -1153,28 +1376,7 @@ export const handleRender: StepHandler = async (ctx) => {
     concatVideos(videoUrls, subtitleScripts, false, "none"),
   ]);
 
-  // Save to content library with full pipeline state
-  const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
-  const baseImg = getStepResult("base_image") as { url: string } | undefined;
-  try {
-    const allSteps = ctx.getAllSteps?.() || [];
-    await saveGeneration({
-      brandId: activeBrand.id,
-      toolId: tool.id,
-      title: `UGC — ${selectedProduct?.name || "Video"} — ${new Date().toLocaleDateString()}`,
-      type: "video",
-      status: "completed",
-      thumbnailUrl: baseImg?.url,
-      outputUrl: resultWithSubs.video_url,
-      scenes: scriptScenes.map((s) => ({ id: s.id, title: s.title, script: s.script })),
-      metadata: { language: config.language, numScenes: scriptScenes.length, duration: resultWithSubs.duration },
-      pipelineState: {
-        steps: allSteps,
-        config: { ...config, referenceImages: undefined, graphicAssets: undefined }, // strip File objects
-        curationSelections: ctx.curationSelections || {},
-      },
-    });
-  } catch { /* silent */ }
+  // Persistence handled by autoSaveStep in ToolRunPage — no manual saveGeneration here.
 
   const fps = 30;
   const avgDuration = (resultWithSubs.duration / lipsyncData.length) * fps;

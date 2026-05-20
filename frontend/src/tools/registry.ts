@@ -8,7 +8,6 @@
 import type { ToolDefinition } from "./types";
 import { ugcCreator } from "./ugc_creator";
 import { productSpotlight } from "./product_spotlight";
-import { fashionEditorial } from "./fashion_editorial";
 import { adCreativeLab } from "./ad_creative_lab";
 import { videoAdCreator } from "./video_ad_creator";
 import { staticAd } from "./static_ad";
@@ -23,7 +22,6 @@ export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   fashion_reel: fashionReel,
   ugc_creator: ugcCreator,
   product_spotlight: productSpotlight,
-  fashion_editorial: fashionEditorial,
   ad_creative_lab: adCreativeLab,
   video_ad_creator: videoAdCreator,
   static_ad: staticAd,

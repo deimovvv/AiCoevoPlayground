@@ -1,7 +1,7 @@
 [
     {
         "id": "avatar_creator",
-        "name": "Avatar Creator",
+        "name": "Avatar",
         "category": "images",
         "description": "Generate AI avatars tailored to your brand's audience. Choose a style, get a character brief from Gemini, and generate a full reference sheet with body + face angles.",
         "icon": "camera",
@@ -33,7 +33,7 @@
         "description": "Analyze any video (TikTok, YouTube, Instagram) and extract: script, scene prompts, visual style. Then recreate similar content with your brand.",
         "icon": "sparkles",
         "status": "active",
-        "pipeline": ["analyze", "adapt", "route"]
+        "pipeline": ["analyze", "map_assets", "adapt", "route"]
     },
     {
         "id": "video_ad_creator",
@@ -77,15 +77,6 @@
         "category": "images",
         "description": "Professional product photography in context. Place your product in any setting with studio-quality lighting and composition.",
         "icon": "camera",
-        "status": "active",
-        "pipeline": ["prompt", "generate", "variations"]
-    },
-    {
-        "id": "fashion_editorial",
-        "name": "Fashion Editorial",
-        "category": "images",
-        "description": "High-end fashion editorial photography. Avatar + garments + pose direction with professional lighting and styling.",
-        "icon": "sparkles",
         "status": "active",
         "pipeline": ["prompt", "generate", "variations"]
     },

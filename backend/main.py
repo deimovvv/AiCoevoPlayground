@@ -34,8 +34,14 @@ from services import prompt_builder
 from services import heygen_avatar4
 from services import fal_synclipsync
 from services import image_analysis
+from services import agent as agent_service
+from services import gpt_image_gen
 from services import video_download
 from services import apify_tiktok
+from services import instagram_scraper
+from services import manual_lab
+from services import asset_matcher
+from services import seedance_video
 
 # ── Paths ────────────────────────────────────────────────────
 (Path(__file__).parent / "tmp").mkdir(exist_ok=True)
@@ -53,6 +59,7 @@ app.add_middleware(
 
 # Serve uploaded avatar images as static files
 app.mount("/static/avatars", StaticFiles(directory=str(brands.get_avatars_dir())), name="avatars")
+app.mount("/static/ig-imports", StaticFiles(directory=str(instagram_scraper.get_ig_imports_dir())), name="ig-imports")
 
 # Serve uploaded product images as static files
 app.mount("/static/products", StaticFiles(directory=str(brands.get_products_dir())), name="products")
@@ -99,6 +106,7 @@ class BrandDNA(BaseModel):
     personality: Optional[str] = None            # 2-3 sentence brand personality
     competitors: Optional[list[str]] = None      # known competitors
     unique_value: Optional[str] = None           # unique value proposition
+    forbidden_words: Optional[list[str]] = None  # words the brand never uses (auto + manual)
 
 
 class DesignSystem(BaseModel):
@@ -109,6 +117,37 @@ class DesignSystem(BaseModel):
     visualDos: Optional[list[str]] = None        # What to ALWAYS show
     visualDonts: Optional[list[str]] = None      # What to NEVER show
     references: Optional[str] = None             # Reference brands/moodboard description
+    # Campaign Guidelines — operational visual rules
+    casting: Optional[str] = None                # Model casting style ("young woman, natural makeup, ...")
+    preferred_locations: Optional[list[str]] = None  # ["urban street", "minimal interior", "studio"]
+    product_presentation: Optional[str] = None   # How the product is shown (hero / lifestyle / detail)
+    motion_rules: Optional[str] = None           # Pacing, camera, transitions for video
+
+
+class BrandBusiness(BaseModel):
+    """Commercial structure of the brand — how it operates and what it sells."""
+    model: Optional[str] = None                  # ecommerce | saas | academy | service | subscription | marketplace | d2c | agency
+    description: Optional[str] = None            # 2-3 frases: qué vende, a quién, cómo se monetiza
+    value_prop: Optional[str] = None             # Propuesta de valor central en 1 frase
+    target_market: Optional[str] = None          # B2C/B2B + demo + psicográfico
+    revenue_streams: Optional[list[str]] = None  # ["Subscription", "Direct sales", "Courses"]
+
+
+class BrandSource(BaseModel):
+    """A single piece of brand context. The brand can have many sources combined."""
+    id: str
+    type: str                                    # "url" | "pdf" | "text" | "instagram" | "tiktok" | "reviews" | "audio_transcript"
+    label: Optional[str] = None                  # Human-readable label
+    url: Optional[str] = None                    # For url-type sources
+    content: Optional[str] = None                # Extracted text content
+    addedAt: Optional[str] = None
+
+
+class BrandCompetitor(BaseModel):
+    name: str
+    url: Optional[str] = None                    # Their site / IG
+    notes: Optional[str] = None                  # What they do well / how the brand differentiates
+
 
 class UpdateBrandRequest(BaseModel):
     name: Optional[str] = None
@@ -116,6 +155,10 @@ class UpdateBrandRequest(BaseModel):
     fonts: Optional[BrandFonts] = None
     dna: Optional[BrandDNA] = None
     designSystem: Optional[DesignSystem] = None
+    business: Optional[BrandBusiness] = None
+    brandSources: Optional[list[BrandSource]] = None
+    competitors: Optional[list[BrandCompetitor]] = None
+    customerReviews: Optional[list[str]] = None    # Plain-text reviews / testimonials
 
 
 class GenerateCopyRequest(BaseModel):
@@ -145,7 +188,7 @@ class ChatRequest(BaseModel):
 
 
 class SaveGenerationRequest(BaseModel):
-    brandId: str
+    brandId: Optional[str] = None  # null for brand-agnostic generations (Manual Lab)
     toolId: str
     title: str
     type: str  # "video" | "image" | "copy"
@@ -332,6 +375,14 @@ def update_brand(brand_id: str, req: UpdateBrandRequest):
         brand["dna"] = req.dna.model_dump(exclude_none=True)
     if req.designSystem is not None:
         brand["designSystem"] = req.designSystem.model_dump(exclude_none=True)
+    if req.business is not None:
+        brand["business"] = req.business.model_dump(exclude_none=True)
+    if req.brandSources is not None:
+        brand["brandSources"] = [s.model_dump(exclude_none=True) for s in req.brandSources]
+    if req.competitors is not None:
+        brand["competitors"] = [c.model_dump(exclude_none=True) for c in req.competitors]
+    if req.customerReviews is not None:
+        brand["customerReviews"] = req.customerReviews
     brands.save_brands(all_brands)
     return brand
 
@@ -359,17 +410,69 @@ async def add_guidance_from_url(brand_id: str, req: dict):
         raise HTTPException(status_code=502, detail=f"Failed to fetch URL: {str(e)[:200]}")
 
     soup = BeautifulSoup(res.text, "html.parser")
-    # Remove scripts, styles, nav, footer
-    for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+    # Remove non-content elements
+    for tag in soup(["script", "style", "nav", "footer", "header", "aside", "noscript", "form", "iframe", "svg"]):
         tag.decompose()
-    text = soup.get_text(separator="\n", strip=True)
-    # Limit to ~8000 chars
-    text = text[:8000].strip()
+
+    # Drop common UI/cart/checkout chrome by class/id keywords
+    UI_KEYWORDS = [
+        "cart", "carrito", "checkout", "menu", "navigation", "breadcrumb", "cookie",
+        "newsletter", "popup", "modal", "social-icons", "share-buttons", "footer",
+        "header", "sidebar", "drawer", "minicart",
+    ]
+    for el in list(soup.find_all(True)):
+        attrs_text = " ".join([
+            (el.get("class") and " ".join(el.get("class"))) or "",
+            el.get("id") or "",
+            el.get("role") or "",
+            el.get("aria-label") or "",
+        ]).lower()
+        if any(kw in attrs_text for kw in UI_KEYWORDS):
+            el.decompose()
+
+    # Prefer the main content area if there is one
+    main = soup.find("main") or soup.find(role="main") or soup.find("article") or soup
+    raw_text = main.get_text(separator="\n", strip=True)
+
+    # Filter out obvious noise lines (cart text, currency placeholders, "loading...", short fragments)
+    NOISE_PATTERNS = [
+        "carrito de compras", "agregado al carrito", "cookies", "código postal",
+        "calcular envío", "no tenemos más stock", "$0,00", "ver carrito",
+        "iniciar sesión", "crear cuenta", "navegando por este sitio",
+    ]
+    cleaned_lines = []
+    seen = set()
+    for line in raw_text.split("\n"):
+        s = line.strip()
+        if not s or len(s) < 3:
+            continue
+        sl = s.lower()
+        # skip lines that match common noise
+        if any(p in sl for p in NOISE_PATTERNS):
+            continue
+        # skip pure currency/numbers/single-char lines
+        if all(c in "0123456789.,$ " for c in s):
+            continue
+        # dedupe lines (cart text often repeats)
+        if s in seen:
+            continue
+        seen.add(s)
+        cleaned_lines.append(s)
+
+    text = "\n".join(cleaned_lines)[:15000].strip()
 
     if not text:
-        raise HTTPException(status_code=422, detail="No text content found at URL")
+        raise HTTPException(status_code=422, detail="No content text found at URL after cleanup")
 
-    current = brand.get("brandContext", "")
+    # Dedupe at the URL level — if the URL was already added, replace its block instead of duplicating.
+    current = brand.get("brandContext", "") or ""
+    source_marker = f"[Source: {url}]"
+    if source_marker in current:
+        # Replace the previous block from this same URL
+        import re as _re
+        pattern = _re.compile(rf"\n*---\n*\[Source: {_re.escape(url)}\][\s\S]*?(?=\n*---\n*\[Source:|$)")
+        current = pattern.sub("", current).strip()
+
     separator = "\n\n---\n\n" if current else ""
     brand["brandContext"] = current + separator + f"[Source: {url}]\n{text}"
     brands.save_brands(all_brands)
@@ -407,8 +510,17 @@ async def add_guidance_from_pdf(brand_id: str, file: UploadFile = File(...)):
     if not text.strip():
         raise HTTPException(status_code=422, detail="No text content found in PDF")
 
-    # Limit to ~15000 chars
-    text = text[:15000].strip()
+    # Sanitize: PDFs often produce control chars, weird whitespace, broken ligatures.
+    # Remove non-printable chars except common whitespace.
+    import re as _re
+    text = _re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "", text)
+    # Collapse runs of 3+ newlines to 2
+    text = _re.sub(r"\n{3,}", "\n\n", text)
+    # Collapse runs of spaces
+    text = _re.sub(r" {2,}", " ", text)
+
+    # Limit to ~25000 chars (was 15000 — many brand books are longer)
+    text = text[:25000].strip()
 
     current = brand.get("brandContext", "")
     separator = "\n\n---\n\n" if current else ""
@@ -425,9 +537,31 @@ async def generate_brand_dna(brand_id: str):
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    context = brand.get("brandContext", "").strip()
-    if not context:
-        raise HTTPException(status_code=400, detail="Brand has no context yet. Add guidance from URL or PDF first.")
+    # Combine all available sources for richer extraction
+    parts: list[str] = []
+    base_context = brand.get("brandContext", "").strip()
+    if base_context:
+        parts.append("=== BRAND SYSTEM ===\n" + base_context)
+    for src in brand.get("brandSources", []):
+        body = src.get("content") or src.get("url") or ""
+        if body:
+            parts.append(f"=== SOURCE: {src.get('label') or src.get('type')} ===\n{body}")
+    reviews = brand.get("customerReviews", [])
+    if reviews:
+        parts.append("=== CUSTOMER REVIEWS (real customer voice — extract real-world tone from here) ===\n" + "\n---\n".join(reviews))
+    business = brand.get("business", {})
+    if business.get("model") or business.get("description"):
+        biz_lines = []
+        if business.get("model"): biz_lines.append(f"Model: {business['model']}")
+        if business.get("description"): biz_lines.append(f"Description: {business['description']}")
+        if business.get("value_prop"): biz_lines.append(f"Value prop: {business['value_prop']}")
+        if business.get("target_market"): biz_lines.append(f"Target: {business['target_market']}")
+        parts.append("=== BUSINESS ===\n" + "\n".join(biz_lines))
+
+    if not parts:
+        raise HTTPException(status_code=400, detail="Brand has no context yet. Add Brand System, a source, or business info first.")
+
+    full_context = ("\n\n".join(parts))[:50000]  # 50k cap (was 10k)
 
     # Include product/avatar info if available
     extras = []
@@ -439,39 +573,71 @@ async def generate_brand_dna(brand_id: str):
             extras.append(f"Avatar/Model: {a['name']} — {a.get('description', '')}")
     extra_context = "\n".join(extras) if extras else ""
 
-    system_prompt = """You are a brand strategist. Analyze the brand information below and extract a structured Brand DNA.
+    system_prompt = """Sos un estratega de marca senior. Analizá TODA la información de la marca abajo (puede tener múltiples fuentes: web, IG, brand book, reviews, business) y extraé un Brand DNA estructurado.
 
 BRAND CONTEXT:
-""" + context[:10000] + """
+""" + full_context + """
 
-""" + (f"ASSETS:\n{extra_context}\n\n" if extra_context else "") + """Respond with ONLY a JSON object:
+""" + (f"ASSETS:\n{extra_context}\n\n" if extra_context else "") + """━━━ REGLA CRÍTICA DE IDIOMA ━━━
+1. DETECTÁ el idioma natural de la marca (ej: español rioplatense, español neutro, inglés, portugués) leyendo el Brand Context.
+2. Respondé TODOS los campos de TEXTO en EL MISMO idioma de la marca.
+3. NUNCA mezcles idiomas. Si la marca es argentina y vos respondés "Practical, no-nonsense friend" eso está MAL — debe ser "Un amigo práctico que va al grano".
+4. Excepciones que SIEMPRE quedan en su forma estándar:
+   - "tone" adjetivos: en idioma de la marca (ej: ["natural", "cercano", "directo"])
+   - "business.model": SIEMPRE en inglés (es enum técnico — ecommerce/saas/academy/service/subscription/marketplace/d2c/agency)
+   - "suggested_fonts": SIEMPRE nombres reales de Google Fonts (ej: "Playfair Display", "Inter")
+
+Respondé con SOLO un objeto JSON:
 {
   "colors": [
-    {"name": "Primary", "hex": "#hex_code", "usage": "backgrounds, headers"},
-    {"name": "Secondary", "hex": "#hex_code", "usage": "accents, CTAs"},
-    {"name": "Neutral", "hex": "#hex_code", "usage": "text, borders"}
+    {"name": "nombre del color en idioma de la marca", "hex": "#hexcode", "usage": "uso en idioma de la marca"},
+    {"name": "...", "hex": "#hex", "usage": "..."}
   ],
-  "tone": ["adjective1", "adjective2", "adjective3"],
-  "audience": "Target audience description — demographics, psychographics, 2-3 sentences",
-  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
-  "personality": "2-3 sentences describing the brand's personality as if it were a person",
-  "competitors": ["competitor1", "competitor2", "competitor3"],
-  "unique_value": "1-2 sentences — what makes this brand different from competitors",
+  "tone": ["adjetivo1", "adjetivo2", "adjetivo3"],
+  "audience": "Descripción del target — demografía, psicografía, 2-3 oraciones EN EL IDIOMA DE LA MARCA",
+  "keywords": ["palabra1", "palabra2", "..."],
+  "personality": "2-3 oraciones describiendo la personalidad de la marca como si fuera una persona, EN EL IDIOMA DE LA MARCA",
+  "competitors": ["Competidor 1", "Competidor 2"],
+  "unique_value": "1-2 oraciones — qué hace única a esta marca, EN EL IDIOMA DE LA MARCA",
+  "forbidden_words": ["palabra1 que la marca NUNCA usa", "palabra2"],
+  "business": {
+    "model": "ecommerce | saas | academy | service | subscription | marketplace | d2c | agency",
+    "description": "2-3 oraciones EN EL IDIOMA DE LA MARCA: qué vende, a quién, cómo se monetiza. Concreto, sin jerga corporativa.",
+    "value_prop": "1 oración EN EL IDIOMA DE LA MARCA: por qué alguien compra.",
+    "target_market": "B2C/B2B + demo + psicográfico. 1-2 oraciones EN EL IDIOMA DE LA MARCA.",
+    "revenue_streams": ["Stream 1 EN IDIOMA DE LA MARCA", "Stream 2"]
+  },
   "suggested_fonts": {
-    "headline": "Google Font name for headlines",
-    "body": "Google Font name for body text"
+    "headline": "Nombre real de Google Font",
+    "body": "Nombre real de Google Font"
   }
 }
 
-Rules:
-- Extract colors from any hex codes, color names, or brand guidelines mentioned
-- If no colors are explicitly mentioned, INFER them from the brand's industry and tone
-- Tone should be 3-5 adjectives describing how the brand communicates
-- Be specific about the audience — not generic
-- If competitors aren't mentioned, infer likely competitors from the industry"""
+Reglas adicionales:
+- Extraé hex codes desde cualquier color mencionado. Los hex codes son CRÍTICOS.
+- Si no hay colores explícitos, INFERILOS desde la industria y el tono.
+- Tone: 3-5 adjetivos sobre cómo comunica la marca.
+- Audiencia: específica, nunca genérica.
+- forbidden_words: extraé palabras prohibidas EXPLÍCITAS del brand book (ej: "revolucionario", "powered by AI"). Si no hay, devolvé [].
+- Competidores: nombres concretos. Si no se mencionan, inferí desde la industria — pero CON NOMBRES REALES, no descripciones genéricas como "Local basic apparel stores".
+- Si hay reviews de clientes, infería el tono desde AHÍ — esa es la voz real.
+- business.model: SIEMPRE elegí el más cercano de la lista (en inglés porque es enum técnico).
+- business: si no está explícito, INFERILO del contexto (productos, web copy, target).
 
+EJEMPLO de respuesta correcta para una marca argentina (Taller Santa Clara):
+{
+  "tone": ["natural", "directo", "canchero", "orgánico"],
+  "audience": "Argentinos 18-35 que buscan ropa funcional para todos los días sin gastar en branding. Priorizan el precio y la calidad consistente sobre las modas.",
+  "personality": "Un amigo del barrio que te dice las cosas como son. Sin vueltas, sin esfuerzo, con humor seco. Te muestra lo que hay y te deja decidir.",
+  "unique_value": "Remeras lisas de calidad consistente al precio más bajo del mercado. Una decisión inteligente, no una compra de marca.",
+  "competitors": ["Bazar Americano", "Mistral", "Yagmour", "AY Not Dead"],
+  ...
+}"""
+
+    content = ""
     try:
-        content = await copy_gen._call_gemini(system_prompt, "Generate the Brand DNA now.")
+        print(f"[brand-dna] Sending {len(full_context)} chars of context to Gemini...")
+        content = await copy_gen._call_gemini(system_prompt, "Generá el Brand DNA ahora.")
         content = content.strip()
         if content.startswith("```json"):
             content = content.replace("```json", "").replace("```", "").strip()
@@ -480,18 +646,30 @@ Rules:
 
         dna = json.loads(content)
 
+        # Pull out business + fonts before saving DNA proper
+        extracted_business = dna.pop("business", None) if isinstance(dna.get("business"), dict) else None
+        extracted_fonts = dna.pop("suggested_fonts", None) if isinstance(dna.get("suggested_fonts"), dict) else None
+
         # Save to brand
         brand["dna"] = dna
-        # Also save suggested fonts if present
-        if dna.get("suggested_fonts"):
-            brand["fonts"] = dna.pop("suggested_fonts")
+        if extracted_fonts:
+            brand["fonts"] = extracted_fonts
+        if extracted_business:
+            # Merge: don't blow away manual edits if the user already set business fields
+            existing = brand.get("business", {}) or {}
+            merged = {**extracted_business, **{k: v for k, v in existing.items() if v}}
+            brand["business"] = merged
         brands.save_brands(all_brands)
 
-        return {"dna": dna, "fonts": brand.get("fonts"), "brand": brand}
-    except json.JSONDecodeError:
-        return {"dna": None, "raw": content, "error": "Failed to parse DNA — raw response returned"}
+        return {"dna": dna, "fonts": brand.get("fonts"), "business": brand.get("business"), "brand": brand}
+    except json.JSONDecodeError as e:
+        print(f"[brand-dna] JSON parse failed: {e}")
+        print(f"[brand-dna] Raw response (first 1500 chars):\n{content[:1500]}")
+        raise HTTPException(status_code=502, detail=f"Gemini devolvió JSON inválido. Probá de nuevo. Detalles en consola del backend.")
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Gemini error: {str(e)[:200]}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=f"Gemini error: {str(e)[:300]}")
 
 
 @app.post("/api/brands/{brand_id}/extract-design-system")
@@ -502,33 +680,72 @@ async def extract_design_system(brand_id: str):
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    context = brand.get("brandContext", "").strip()
-    if not context:
-        raise HTTPException(status_code=400, detail="La marca no tiene contexto todavía. Agregá guidance desde URL o PDF primero.")
+    # Combine all available sources: Brand System + extra brand sources + reviews + competitors
+    parts: list[str] = []
+    base_context = brand.get("brandContext", "").strip()
+    if base_context:
+        parts.append("=== BRAND SYSTEM (main document) ===\n" + base_context)
+    for src in brand.get("brandSources", []):
+        label = src.get("label") or src.get("type", "source")
+        body = src.get("content") or src.get("url") or ""
+        if body:
+            parts.append(f"=== SOURCE: {label} ({src.get('type')}) ===\n{body}")
+    reviews = brand.get("customerReviews", [])
+    if reviews:
+        parts.append("=== CUSTOMER REVIEWS (real customer voice) ===\n" + "\n---\n".join(reviews))
+    competitors = brand.get("competitors", [])
+    if competitors:
+        comp_lines = [f"- {c.get('name')}: {c.get('notes', '')}" for c in competitors]
+        parts.append("=== COMPETITORS (for differentiation) ===\n" + "\n".join(comp_lines))
+    business = brand.get("business", {})
+    if business.get("model") or business.get("description"):
+        biz_lines = []
+        if business.get("model"): biz_lines.append(f"Model: {business['model']}")
+        if business.get("description"): biz_lines.append(f"Description: {business['description']}")
+        if business.get("value_prop"): biz_lines.append(f"Value prop: {business['value_prop']}")
+        if business.get("target_market"): biz_lines.append(f"Target: {business['target_market']}")
+        parts.append("=== BUSINESS ===\n" + "\n".join(biz_lines))
 
-    system_prompt = """Sos un director creativo experto en identidad visual de marca. Analizá el documento de marca y extraé el sistema de diseño visual — solo la parte que sirve para guiar la generación de imágenes y videos.
+    if not parts:
+        raise HTTPException(status_code=400, detail="La marca no tiene contexto todavía. Cargá Brand System, una fuente, o el modelo de negocio primero.")
+
+    full_context = "\n\n".join(parts)
+    # Increased budget to 50k chars (was 12k) — Brand System docs can be long.
+    truncated_context = full_context[:50000]
+
+    system_prompt = """Sos un director creativo experto en identidad visual de marca. Analizá TODO el contexto (puede tener múltiples fuentes: web, IG, brand book, reviews, competidores) y extraé el sistema de diseño visual — solo la parte que sirve para guiar la generación de imágenes y videos.
 
 BRAND CONTEXT:
-""" + context[:12000] + """
+""" + truncated_context + """
 
-Respondé con SOLO un objeto JSON en español:
+━━━ REGLA CRÍTICA DE IDIOMA ━━━
+DETECTÁ el idioma natural de la marca (español rioplatense / español neutro / inglés / portugués) y respondé TODOS los campos de TEXTO en ESE idioma. Si la marca es argentina, respondé en español rioplatense (voseo si aplica). NUNCA mezcles idiomas.
+
+Respondé con SOLO un objeto JSON:
 {
-  "photoStyle": "2-4 oraciones describiendo el estilo visual general (lifestyle, editorial, documental, etc.) — qué tipo de imágenes representan la marca",
+  "photoStyle": "2-4 oraciones describiendo el estilo visual general (lifestyle, editorial, documental, cartoon, etc.) — qué tipo de imágenes representan la marca",
   "composition": "1-3 oraciones sobre reglas de composición, framing, cómo se muestra el producto, integración en escena",
   "colorTreatment": "1-2 oraciones sobre tratamiento de color: saturación, filtros, color grading, contraste",
   "lighting": "1-2 oraciones sobre dirección de iluminación: natural, estudio, cálida, dramática, etc.",
   "visualDos": ["cosa1 que SIEMPRE se muestra", "cosa2", "cosa3"],
   "visualDonts": ["cosa1 que NUNCA se muestra", "cosa2", "cosa3"],
-  "references": "1-2 oraciones mencionando marcas o referencias visuales admiradas, si se mencionan en el brief"
+  "references": "1-2 oraciones mencionando marcas o referencias visuales admiradas, si se mencionan en el brief",
+  "casting": "1-2 oraciones sobre cómo se ven los modelos típicos de la marca (edad, tipo, expresión, vestimenta)",
+  "preferred_locations": ["locación tipo 1", "locación tipo 2", "locación tipo 3"],
+  "product_presentation": "1-2 oraciones sobre cómo se muestra típicamente el producto (hero shot, lifestyle, detalle, packaging, etc.)",
+  "motion_rules": "1-2 oraciones sobre ritmo y cámara para video (corte rápido tipo TikTok, plano sostenido editorial, dolly, handheld, etc.)"
 }
 
 Reglas:
-- Extraé SOLO lo visual/fotográfico. No voz, no messaging, no audiencia.
+- Extraé SOLO lo visual/fotográfico/operacional para producción. No voz, no messaging.
 - Si el documento no menciona algo explícitamente, inferilo del posicionamiento e industria.
 - visualDos y visualDonts: 3-5 items cada uno, concretos y accionables para un generador de imágenes.
+- preferred_locations: 2-4 tipos de locación que sean coherentes con la marca.
 - Mantené cada campo conciso — van a inyectarse en prompts."""
 
+    content = ""
     try:
+        print(f"[design-system] Sending {len(truncated_context)} chars of context to Gemini...")
         content = await copy_gen._call_gemini(system_prompt, "Extraé el design system ahora.")
         content = content.strip()
         if content.startswith("```json"):
@@ -541,10 +758,54 @@ Reglas:
         brands.save_brands(all_brands)
 
         return {"designSystem": design_system, "brand": brand}
-    except json.JSONDecodeError:
-        return {"designSystem": None, "raw": content, "error": "Failed to parse design system — raw response returned"}
+    except json.JSONDecodeError as e:
+        print(f"[design-system] JSON parse failed: {e}")
+        print(f"[design-system] Raw response (first 1500 chars):\n{content[:1500]}")
+        raise HTTPException(status_code=502, detail=f"Gemini devolvió JSON inválido. Probá de nuevo. Detalles en consola del backend.")
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Gemini error: {str(e)[:200]}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=f"Gemini error: {str(e)[:300]}")
+
+
+@app.post("/api/brands/{brand_id}/extract-all")
+async def extract_all_brand_knowledge(brand_id: str):
+    """One-click extract: runs Brand DNA + Design System in sequence and returns combined results.
+    This is what the user expects when they click '🪄 Extraer todo' from the unified Brand Knowledge card."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    results: dict = {"dna": None, "designSystem": None, "business": None, "fonts": None, "errors": []}
+
+    # 1. Brand DNA
+    try:
+        dna_response = await generate_brand_dna(brand_id)
+        if isinstance(dna_response, dict):
+            results["dna"] = dna_response.get("dna")
+            results["business"] = dna_response.get("business")
+            results["fonts"] = dna_response.get("fonts")
+    except HTTPException as e:
+        results["errors"].append({"step": "brand_dna", "detail": e.detail})
+    except Exception as e:
+        results["errors"].append({"step": "brand_dna", "detail": str(e)[:300]})
+
+    # 2. Design System (re-load brand because dna step may have updated it)
+    try:
+        ds_response = await extract_design_system(brand_id)
+        if isinstance(ds_response, dict):
+            results["designSystem"] = ds_response.get("designSystem")
+    except HTTPException as e:
+        results["errors"].append({"step": "design_system", "detail": e.detail})
+    except Exception as e:
+        results["errors"].append({"step": "design_system", "detail": str(e)[:300]})
+
+    # Reload brand for the response
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    results["brand"] = brand
+    return results
 
 
 @app.delete("/api/brands/{brand_id}")
@@ -660,7 +921,7 @@ async def suggest_objective(brand_id: str, req: SuggestObjectiveRequest):
             product_name=req.productName,
             language=req.language,
         )
-        return {"objective": objective, "model": "gemini-2.0-flash"}
+        return {"objective": objective, "model": "gemini-2.5-flash"}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -764,6 +1025,50 @@ def add_heygen_avatar(brand_id: str, req: AddHeygenAvatarRequest):
     return avatar
 
 
+@app.patch("/api/brands/{brand_id}/avatars/{avatar_id}/image")
+async def replace_avatar_image(
+    brand_id: str,
+    avatar_id: str,
+    image: UploadFile = File(...),
+):
+    """Replace the image of an existing avatar, keeping its ID and downstream references."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    avatar = next((a for a in brand.get("avatars", []) if a.get("id") == avatar_id), None)
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    image_data = await image.read()
+    if len(image_data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
+
+    ext = Path(image.filename or "avatar.png").suffix or ".png"
+    filename = f"{brand_id}_{avatar_id}{ext}"
+    filepath = brands.get_avatars_dir() / filename
+
+    # Remove previous file if extension changed
+    old_filename = avatar.get("filename")
+    if old_filename and old_filename != filename:
+        old_path = brands.get_avatars_dir() / old_filename
+        if old_path.exists():
+            try: old_path.unlink()
+            except Exception: pass
+
+    with open(filepath, "wb") as f:
+        f.write(image_data)
+
+    avatar["filename"] = filename
+    avatar["imageUrl"] = f"/static/avatars/{filename}"
+    brands.save_brands(all_brands)
+    return avatar
+
+
 @app.delete("/api/brands/{brand_id}/avatars/{avatar_id}")
 def delete_avatar(brand_id: str, avatar_id: str):
     all_brands = brands.load_brands()
@@ -834,6 +1139,10 @@ async def upload_product(
     name: str = Form(...),
     description: str = Form(""),
     image: UploadFile = File(...),
+    type: str = Form(""),                 # physical | digital | course | service | subscription
+    price: str = Form(""),                # "ARS 12.000" / "USD 29 / mes"
+    url: str = Form(""),                  # link al producto
+    category: str = Form(""),             # opcional, para catálogos grandes
 ):
     all_brands = brands.load_brands()
     brand = brands.find_brand(all_brands, brand_id)
@@ -866,11 +1175,42 @@ async def upload_product(
         "description": auto_description,
         "filename": filename,
         "imageUrl": f"/static/products/{filename}",
+        "type": type or None,
+        "price": price or None,
+        "url": url or None,
+        "category": category or None,
     }
+    # Drop None values so we don't pollute the JSON
+    product = {k: v for k, v in product.items() if v is not None}
 
     if "products" not in brand:
         brand["products"] = []
     brand["products"].append(product)
+    brands.save_brands(all_brands)
+    return product
+
+
+class UpdateProductRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    type: Optional[str] = None
+    price: Optional[str] = None
+    url: Optional[str] = None
+    category: Optional[str] = None
+
+
+@app.patch("/api/brands/{brand_id}/products/{product_id}")
+def update_product(brand_id: str, product_id: str, req: UpdateProductRequest):
+    """Update product metadata (name, description, type, price, url, category) without re-uploading the image."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    product = next((p for p in brand.get("products", []) if p["id"] == product_id), None)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    updates = req.model_dump(exclude_none=True)
+    product.update(updates)
     brands.save_brands(all_brands)
     return product
 
@@ -1151,10 +1491,23 @@ async def upload_moodboard(
     with open(filepath, "wb") as f:
         f.write(image_data)
 
+    # Auto-describe moodboard with Gemini Vision if no description provided
+    auto_desc = description
+    if not auto_desc.strip() and image_analysis.is_configured():
+        try:
+            auto_desc = await image_analysis.describe_moodboard(
+                image_data,
+                mime_type=image.content_type or "image/jpeg",
+                moodboard_name=name,
+            )
+        except Exception as e:
+            print(f"[moodboard] Auto-description failed: {e}")
+            auto_desc = ""
+
     item = {
         "id": item_id,
         "name": name,
-        "description": description,
+        "description": auto_desc,
         "filename": filename,
         "imageUrl": f"/static/moodboards/{filename}",
     }
@@ -1299,6 +1652,136 @@ def delete_voice(brand_id: str, voice_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Voice Design (text-to-voice) + Instant Voice Cloning
+# ══════════════════════════════════════════════════════════════
+#
+# Two-step Voice Design flow (best per ElevenLabs):
+#   1) POST /api/voices/design/previews → returns 3 preview audios
+#   2) POST /api/voices/design/save     → promotes one preview to a permanent
+#      voice in the user's ElevenLabs library
+#
+# Instant Voice Cloning (one-shot):
+#   POST /api/voices/clone → uploads audio samples, returns voice_id
+
+
+class VoiceDesignPreviewRequest(BaseModel):
+    voice_description: str
+    text: str
+    auto_generate_text: Optional[bool] = False
+
+
+@app.post("/api/voices/design/previews")
+async def voice_design_previews(req: VoiceDesignPreviewRequest):
+    """Generate preview voices from a text description (ElevenLabs Voice Design)."""
+    if not tts.is_configured():
+        raise HTTPException(status_code=500, detail="ELEVENLABS_API_KEY not configured")
+    try:
+        previews = tts.create_voice_previews(
+            voice_description=req.voice_description,
+            text=req.text,
+            auto_generate_text=bool(req.auto_generate_text),
+        )
+        return {"previews": previews}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"[voice-design] ERROR: {e}")
+        raise HTTPException(status_code=502, detail=f"Voice design failed: {str(e)}")
+
+
+class VoiceDesignSaveRequest(BaseModel):
+    brand_id: str
+    generated_voice_id: str
+    name: str
+    voice_description: str
+
+
+@app.post("/api/voices/design/save")
+async def voice_design_save(req: VoiceDesignSaveRequest):
+    """Save a chosen preview as a permanent ElevenLabs voice and attach it to a brand."""
+    if not tts.is_configured():
+        raise HTTPException(status_code=500, detail="ELEVENLABS_API_KEY not configured")
+
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, req.brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    try:
+        voice_id = tts.save_designed_voice(
+            generated_voice_id=req.generated_voice_id,
+            voice_name=req.name,
+            voice_description=req.voice_description,
+        )
+    except Exception as e:
+        print(f"[voice-design-save] ERROR: {e}")
+        raise HTTPException(status_code=502, detail=f"Voice save failed: {str(e)}")
+
+    if not voice_id:
+        raise HTTPException(status_code=502, detail="ElevenLabs did not return a voice_id")
+
+    brand.setdefault("voicePresets", []).append({
+        "id": voice_id,
+        "name": req.name.strip(),
+        "source": "designed",
+    })
+    brands.save_brands(all_brands)
+    return {"id": voice_id, "name": req.name.strip(), "source": "designed"}
+
+
+@app.post("/api/voices/clone")
+async def voice_clone(
+    brand_id: str = Form(...),
+    name: str = Form(...),
+    description: str = Form(""),
+    files: list[UploadFile] = File(...),
+):
+    """Clone a voice from 1–10 uploaded audio samples (Instant Voice Cloning)."""
+    if not tts.is_configured():
+        raise HTTPException(status_code=500, detail="ELEVENLABS_API_KEY not configured")
+    if not files:
+        raise HTTPException(status_code=400, detail="Upload at least one audio file")
+    if len(files) > 10:
+        raise HTTPException(status_code=400, detail="Maximum 10 audio samples")
+
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    samples: list[tuple[str, bytes, str]] = []
+    for f in files:
+        if not f or not f.filename:
+            continue
+        data = await f.read()
+        samples.append((f.filename, data, f.content_type or "audio/mpeg"))
+
+    if not samples:
+        raise HTTPException(status_code=400, detail="No valid audio files received")
+
+    try:
+        voice_id = tts.clone_voice(
+            voice_name=name,
+            audio_files=samples,
+            description=description or None,
+        )
+    except Exception as e:
+        print(f"[voice-clone] ERROR: {e}")
+        raise HTTPException(status_code=502, detail=f"Voice cloning failed: {str(e)}")
+
+    if not voice_id:
+        raise HTTPException(status_code=502, detail="ElevenLabs did not return a voice_id")
+
+    brand.setdefault("voicePresets", []).append({
+        "id": voice_id,
+        "name": name.strip(),
+        "source": "cloned",
+    })
+    brands.save_brands(all_brands)
+    return {"id": voice_id, "name": name.strip(), "source": "cloned"}
+
+
+# ══════════════════════════════════════════════════════════════
 #  TTS
 # ══════════════════════════════════════════════════════════════
 
@@ -1383,6 +1866,131 @@ async def analyze_pose_reference(image: UploadFile = File(...)):
         return {"pose_description": pose_description}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/api/analyze/reference")
+async def analyze_reference_image(image: UploadFile = File(...)):
+    """
+    Classify an uploaded reference image to route it to the right slot.
+    Returns: {type, confidence, description, suggested_slot}.
+    """
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    try:
+        data = await image.read()
+        ct = image.content_type or "image/jpeg"
+        return await image_analysis.classify_reference(data, ct)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Instagram Scraper (via Apify)
+# ══════════════════════════════════════════════════════════════
+
+class InstagramScrapeRequest(BaseModel):
+    url: str
+
+
+@app.post("/api/integrations/instagram/scrape")
+async def instagram_scrape_post(req: InstagramScrapeRequest):
+    """Scrape an Instagram post (or carousel) via Apify and return normalized slides."""
+    if not instagram_scraper.is_configured():
+        raise HTTPException(status_code=500, detail="APIFY_API_KEY no configurado en backend/.env")
+    try:
+        raw = await instagram_scraper.scrape_post(req.url)
+        normalized = await instagram_scraper.normalize_post(raw)
+        return normalized
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=f"Apify error: {str(e)[:300]}")
+
+
+class InstagramReplicateRequest(BaseModel):
+    url: str
+    brandId: str
+
+
+@app.post("/api/integrations/instagram/replicate-analysis")
+async def instagram_replicate_analysis(req: InstagramReplicateRequest):
+    """Scrape an IG carousel + analyze with Gemini Vision + return a brief that replicates
+    the same narrative structure for the given brand."""
+    if not instagram_scraper.is_configured():
+        raise HTTPException(status_code=500, detail="APIFY_API_KEY no configurado")
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, req.brandId)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    try:
+        # 1) Scrape
+        raw = await instagram_scraper.scrape_post(req.url)
+        normalized = await instagram_scraper.normalize_post(raw)
+
+        # 2) Build a compact brand summary for the analyzer
+        dna = brand.get("dna") or {}
+        ds = brand.get("designSystem") or {}
+        biz = brand.get("business") or {}
+        summary_parts: list[str] = []
+        if brand.get("name"): summary_parts.append(f"Marca: {brand['name']}")
+        if biz.get("description"): summary_parts.append(f"Negocio: {biz['description']}")
+        if biz.get("value_prop"): summary_parts.append(f"Value prop: {biz['value_prop']}")
+        if dna.get("audience"): summary_parts.append(f"Audiencia: {dna['audience']}")
+        if dna.get("tone"): summary_parts.append(f"Tono: {', '.join(dna['tone'])}")
+        if dna.get("personality"): summary_parts.append(f"Personalidad: {dna['personality']}")
+        if dna.get("forbidden_words"): summary_parts.append(f"Palabras prohibidas: {', '.join(dna['forbidden_words'])}")
+        if ds.get("photoStyle"): summary_parts.append(f"Estilo visual: {ds['photoStyle']}")
+        # Fallback: full brand context if DNA/DS are empty
+        if not summary_parts and brand.get("brandContext"):
+            summary_parts.append(brand["brandContext"][:6000])
+        brand_summary = "\n".join(summary_parts)
+
+        # 3) Detect language from brand summary (very rough — defaults to es)
+        sample = brand_summary.lower()
+        lang = "en" if (
+            sample.count(" the ") + sample.count(" and ") + sample.count(" of ") > 6
+            and sample.count(" de ") + sample.count(" la ") + sample.count(" el ") < 4
+        ) else "es"
+
+        # 4) Analyze with Gemini Vision
+        analysis = await instagram_scraper.analyze_carousel_for_replication(
+            normalized, brand_summary, lang
+        )
+
+        return {
+            "scraped": normalized,
+            **analysis,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=f"Replicate analysis error: {str(e)[:300]}")
+
+
+class InstagramProfileScrapeRequest(BaseModel):
+    username_or_url: str
+    posts_limit: int = 12
+
+
+@app.post("/api/integrations/instagram/scrape-profile")
+async def instagram_scrape_profile(req: InstagramProfileScrapeRequest):
+    """Scrape recent posts from an IG profile — useful for brand source enrichment."""
+    if not instagram_scraper.is_configured():
+        raise HTTPException(status_code=500, detail="APIFY_API_KEY no configurado en backend/.env")
+    try:
+        items = await instagram_scraper.scrape_profile(req.username_or_url, req.posts_limit)
+        normalized = []
+        for it in items:
+            normalized.append(await instagram_scraper.normalize_post(it))
+        return {"posts": normalized, "count": len(normalized)}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=f"Apify profile error: {str(e)[:300]}")
 
 
 @app.post("/api/analyze/visual-guide")
@@ -1486,6 +2094,31 @@ async def analyze_video(
         if work_dir:
             import shutil
             shutil.rmtree(work_dir, ignore_errors=True)
+
+
+# ══════════════════════════════════════════════════════════════
+#  Asset Matcher — cross-reference detected_assets vs brand kit
+# ══════════════════════════════════════════════════════════════
+
+class MatchAssetsRequest(BaseModel):
+    brandId: str
+    detected: dict  # { persons: [...], outfits: [...], products: [...], locations: [...] }
+
+
+@app.post("/api/analyze/match-assets")
+async def analyze_match_assets(req: MatchAssetsRequest):
+    """Given detected_assets + brand, suggest the best brand asset for each detection."""
+    if not asset_matcher.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, req.brandId)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    try:
+        matches = await asset_matcher.match_assets(req.detected, brand)
+        return {"matches": matches}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Matcher error: {str(e)[:300]}")
 
 
 class TikTokProfileRequest(BaseModel):
@@ -1845,6 +2478,7 @@ class KlingFrameToFrameRequest(BaseModel):
     prompt: str = ""
     duration: str = "5"
     aspect_ratio: str = "9:16"
+    model: Optional[str] = None  # v3-pro | v2-6-pro | v2-6-std | v2-5-turbo
 
 
 @app.post("/api/kling/frame-to-frame")
@@ -1900,9 +2534,10 @@ async def kling_frame_to_frame(req: KlingFrameToFrameRequest):
             "cfg_scale": 0.5,
         }
 
+        fal_path = kling_video.resolve_model(req.model)
         async with httpx.AsyncClient(timeout=30) as client:
             res = await client.post(
-                f"https://queue.fal.run/fal-ai/kling-video/v3/pro/image-to-video",
+                f"https://queue.fal.run/{fal_path}",
                 headers={"Authorization": f"Key {kling_video._get_key()}", "Content-Type": "application/json"},
                 json=payload,
             )
@@ -1929,6 +2564,7 @@ async def kling_create_video(
     image: UploadFile = File(None),
     prompt: str = Form(None),
     duration: str = Form("10"),
+    model: str = Form(None),  # v3-pro | v2-6-pro | v2-6-std | v2-5-turbo
 ):
     """
     Generate a short video from a static image using Kling V2.6.
@@ -2008,6 +2644,7 @@ async def kling_create_video(
             image_url=resolved_url,
             prompt=prompt,
             duration=duration,
+            model=model,
         )
 
         print(f"[kling-endpoint] Got request_id: {request_id}")
@@ -2047,6 +2684,145 @@ async def kling_video_result(request_id: str):
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
+
+# ══════════════════════════════════════════════════════════════
+#  Seedance 2.0 — Reference-to-Video (via Fal)
+# ══════════════════════════════════════════════════════════════
+#  Multi-reference video generation. Takes N reference images + a prompt and
+#  generates a video that integrates elements from all of them. Different from
+#  Kling i2v (single start frame) — Seedance uses refs as visual guides.
+
+class SeedanceRefToVideoRequest(BaseModel):
+    prompt: str
+    reference_image_urls: List[str] = []
+    duration: str = "5"
+    aspect_ratio: str = "9:16"
+    resolution: Optional[str] = None
+    # Optional audio for lipsync — when provided, Seedance generates the talking
+    # head synced to the audio (replaces HeyGen/Fal lipsync for talking scenes).
+    audio_urls: Optional[List[str]] = None
+    reference_video_urls: Optional[List[str]] = None
+
+
+@app.post("/api/seedance/reference-to-video")
+async def seedance_create_rtv(req: SeedanceRefToVideoRequest):
+    """Generate a video from N reference images + a prompt using Seedance 2.0."""
+    if not seedance_video.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    try:
+        # Resolve local /static/ URLs by uploading to Fal storage first (same
+        # pattern as Kling). External http(s) URLs and data: URLs go through as-is.
+        resolved_urls: List[str] = []
+        static_dirs = {
+            "/static/avatars/": brands.get_avatars_dir(),
+            "/static/products/": brands.get_products_dir(),
+            "/static/clothing/": brands.get_clothing_dir(),
+            "/static/backgrounds/": brands.get_backgrounds_dir(),
+        }
+        for url in req.reference_image_urls:
+            resolved = url
+            if "localhost" in url or "127.0.0.1" in url:
+                for prefix in static_dirs:
+                    if prefix in url:
+                        resolved = url[url.index(prefix):]
+                        break
+            if resolved.startswith("/static/"):
+                for prefix, directory in static_dirs.items():
+                    if prefix in resolved:
+                        filename = resolved.split(prefix)[-1]
+                        local_path = directory / filename
+                        if local_path.exists():
+                            ext = local_path.suffix.lower()
+                            ct_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+                            with open(local_path, "rb") as f:
+                                img_bytes = f.read()
+                            resolved = await kling_video.upload_image(img_bytes, local_path.name, ct_map.get(ext, "image/jpeg"))
+                        break
+            resolved_urls.append(resolved)
+
+        # Audio URLs — same resolution pattern as images. data: and local /static/
+        # URLs need to be uploaded to Fal storage; external http(s) URLs pass through.
+        resolved_audio_urls: Optional[List[str]] = None
+        if req.audio_urls:
+            import base64
+            resolved_audio_urls = []
+            for audio_url in req.audio_urls:
+                if not audio_url:
+                    continue
+                if audio_url.startswith("data:"):
+                    try:
+                        header, b64 = audio_url.split(",", 1)
+                        mime = "audio/mpeg"
+                        if ";" in header:
+                            mime = header.split(":", 1)[1].split(";", 1)[0] or "audio/mpeg"
+                        ext_map = {"audio/mpeg": ".mp3", "audio/mp3": ".mp3", "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/webm": ".webm", "audio/ogg": ".ogg", "audio/mp4": ".m4a"}
+                        ext = ext_map.get(mime, ".mp3")
+                        audio_bytes = base64.b64decode(b64)
+                        fal_url = await kling_video.upload_image(audio_bytes, f"audio{ext}", mime)
+                        resolved_audio_urls.append(fal_url)
+                        print(f"[seedance-endpoint] Resolved audio data URL ({len(audio_bytes)} bytes, {mime}) -> uploaded to Fal")
+                    except Exception as e:
+                        print(f"[seedance-endpoint] FAILED to upload audio data URL: {e}")
+                    continue
+                # Local /static/renders/... or localhost URL → resolve to disk and upload
+                is_local = "localhost" in audio_url or "127.0.0.1" in audio_url or audio_url.startswith("/static/")
+                if is_local:
+                    rel = audio_url[audio_url.index("/static/"):] if "/static/" in audio_url else audio_url
+                    parts = rel.split("/static/", 1)[-1].split("/", 1)
+                    if len(parts) == 2:
+                        subdir, filename = parts
+                        local_path = brands.DATA_DIR / subdir / filename
+                        if local_path.exists():
+                            ext = local_path.suffix.lower()
+                            ct_map = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".webm": "audio/webm", ".m4a": "audio/mp4", ".ogg": "audio/ogg"}
+                            with open(local_path, "rb") as f:
+                                audio_bytes = f.read()
+                            fal_url = await kling_video.upload_image(audio_bytes, local_path.name, ct_map.get(ext, "audio/mpeg"))
+                            resolved_audio_urls.append(fal_url)
+                            print(f"[seedance-endpoint] Resolved local audio: {audio_url} -> uploaded to Fal")
+                            continue
+                    print(f"[seedance-endpoint] Local audio not found or unresolvable: {audio_url}")
+                else:
+                    resolved_audio_urls.append(audio_url)
+
+        request_id = await seedance_video.create_reference_to_video(
+            prompt=req.prompt,
+            reference_image_urls=resolved_urls,
+            duration=req.duration,
+            aspect_ratio=req.aspect_ratio,
+            resolution=req.resolution,
+            audio_urls=resolved_audio_urls,
+            reference_video_urls=req.reference_video_urls,
+        )
+
+        if request_id.startswith("SYNC:"):
+            return {"request_id": request_id, "status": "completed", "video_url": request_id[5:]}
+        return {"request_id": request_id, "status": "pending"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[seedance-endpoint] ERROR: {e}")
+        raise HTTPException(status_code=502, detail=f"Seedance generation failed: {str(e)}")
+
+
+@app.get("/api/seedance/status/{request_id}")
+async def seedance_status(request_id: str):
+    if not seedance_video.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    try:
+        return await seedance_video.get_status(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/api/seedance/result/{request_id}")
+async def seedance_result(request_id: str):
+    if not seedance_video.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    try:
+        return await seedance_video.get_result(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @app.post("/api/lipsync")
@@ -2095,9 +2871,13 @@ async def image_gen_edit(
     image_files: Optional[list[UploadFile]] = File(None),
     aspect_ratio: str = Form("9:16"),
     resolution: str = Form("1K"),
+    model: str = Form("nano-banana-2"),  # "nano-banana-2" | "gpt-image-2"
 ):
     """
-    Generate/edit an image using nano-banana-2/edit.
+    Generate/edit an image. Routes to different Fal models based on `model` param.
+    - nano-banana-2 (default): multi-reference composition. Best when combining avatar + product + background.
+    - gpt-image-2: single-base edit. Best when iterating on one image or precise edits.
+
     Accepts image URLs (JSON array) and/or uploaded files.
     Local URLs are auto-uploaded to Fal storage.
     Returns request_id for status polling.
@@ -2108,6 +2888,7 @@ async def image_gen_edit(
     import json
 
     try:
+        import base64
         # Parse image URLs
         resolved_urls = []
         try:
@@ -2116,20 +2897,41 @@ async def image_gen_edit(
                 for url in url_list:
                     if not url:
                         continue
-                    # Check if local URL needs uploading
+
+                    # Case A: data: URL (Manual Lab uploads / pasted images) — decode and
+                    # upload to Fal storage. Fal models reject inline base64 over ~2MB and
+                    # silently drop large refs, which is the bug Manual Lab was hitting.
+                    if url.startswith("data:"):
+                        try:
+                            header, b64 = url.split(",", 1)
+                            mime = "image/png"
+                            if ";" in header:
+                                mime = header.split(":", 1)[1].split(";", 1)[0] or "image/png"
+                            ext_map = {"image/png": ".png", "image/jpeg": ".jpg", "image/jpg": ".jpg", "image/webp": ".webp"}
+                            ext = ext_map.get(mime, ".png")
+                            img_bytes = base64.b64decode(b64)
+                            fal_url = await kling_video.upload_image(img_bytes, f"upload{ext}", mime)
+                            resolved_urls.append(fal_url)
+                            print(f"[image-gen] Resolved data URL ({len(img_bytes)} bytes, {mime}) -> uploaded to Fal")
+                        except Exception as e:
+                            print(f"[image-gen] FAILED to upload data URL: {e}")
+                        continue
+
+                    # Case B: local static URL (brand kit asset) — resolve to disk, then upload to Fal
                     is_local = (
                         url.startswith("/static/")
                         or "localhost" in url
                         or "127.0.0.1" in url
                     )
                     if is_local:
-                        # Resolve any /static/ path to local file
                         local_path = None
                         static_dirs = {
                             "/static/avatars/": brands.get_avatars_dir(),
                             "/static/products/": brands.get_products_dir(),
                             "/static/clothing/": brands.get_clothing_dir(),
                             "/static/backgrounds/": brands.get_backgrounds_dir(),
+                            "/static/moodboards/": brands.get_moodboards_dir(),
+                            "/static/logos/": brands.get_logos_dir(),
                         }
                         for prefix, directory in static_dirs.items():
                             if prefix in url:
@@ -2148,6 +2950,7 @@ async def image_gen_edit(
                         else:
                             print(f"[image-gen] Local file not found or unresolvable: {url}")
                     else:
+                        # Case C: external http(s) URL — Fal can fetch it directly
                         resolved_urls.append(url)
         except json.JSONDecodeError:
             # Single URL string
@@ -2166,23 +2969,33 @@ async def image_gen_edit(
 
         print(f"[image-gen] Resolved {len(resolved_urls)} image URLs")
         print(f"[image-gen] Prompt: {prompt[:100]}")
+        print(f"[image-gen] Model: {model}")
 
-        request_id = await image_gen.create_edit(
-            image_urls=resolved_urls,
-            prompt=prompt,
-            aspect_ratio=aspect_ratio,
-            resolution=resolution,
-        )
+        if model == "gpt-image-2":
+            request_id = await gpt_image_gen.create_edit(
+                image_urls=resolved_urls,
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+            )
+            prefixed_id = f"gpt2:{request_id}"
+        else:
+            request_id = await image_gen.create_edit(
+                image_urls=resolved_urls,
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+            )
+            prefixed_id = request_id  # nano-banana-2 default (no prefix for back-compat)
 
         # Handle sync result
         if request_id.startswith("SYNC:"):
             return {
-                "request_id": request_id,
+                "request_id": prefixed_id,
                 "status": "completed",
                 "image_url": request_id[5:],
             }
 
-        return {"request_id": request_id, "status": "pending"}
+        return {"request_id": prefixed_id, "status": "pending"}
 
     except HTTPException:
         raise
@@ -2196,23 +3009,39 @@ async def image_gen_text_to_image(
     prompt: str = Form(...),
     aspect_ratio: str = Form("1:1"),
     resolution: str = Form("2K"),
+    model: str = Form("nano-banana-2"),
 ):
-    """Text-to-image using nano-banana-2 (no reference images needed)."""
+    """Text-to-image. Routes by model (nano-banana-2 default, gpt-image-2 optional)."""
     if not image_gen.is_configured():
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
     try:
-        print(f"[t2i] prompt={prompt[:80]}, aspect={aspect_ratio}, res={resolution}")
-        request_id = await image_gen.create_text_to_image(
-            prompt=prompt,
-            aspect_ratio=aspect_ratio,
-            resolution=resolution,
-        )
+        print(f"[t2i] model={model}, prompt={prompt[:80]}, aspect={aspect_ratio}")
+        if model == "gpt-image-2":
+            request_id = await gpt_image_gen.create_text_to_image(
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+            )
+            prefixed_id = f"gpt2:{request_id}"
+        else:
+            request_id = await image_gen.create_text_to_image(
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+            )
+            prefixed_id = request_id
         if request_id.startswith("SYNC:"):
-            return {"request_id": request_id, "status": "completed", "image_url": request_id[5:]}
-        return {"request_id": request_id, "status": "pending"}
+            return {"request_id": prefixed_id, "status": "completed", "image_url": request_id[5:]}
+        return {"request_id": prefixed_id, "status": "pending"}
     except Exception as e:
         print(f"[t2i] ERROR: {e}")
         raise HTTPException(status_code=502, detail=f"Text-to-image failed: {str(e)}")
+
+
+def _resolve_image_service(request_id: str):
+    """Return (service_module, stripped_request_id) based on prefix."""
+    if request_id.startswith("gpt2:"):
+        return gpt_image_gen, request_id[len("gpt2:"):]
+    return image_gen, request_id
 
 
 @app.get("/api/image-gen/status/{request_id}")
@@ -2220,7 +3049,8 @@ async def image_gen_status(request_id: str):
     if not image_gen.is_configured():
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
     try:
-        return await image_gen.get_status(request_id)
+        svc, rid = _resolve_image_service(request_id)
+        return await svc.get_status(rid)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -2230,8 +3060,16 @@ async def image_gen_result(request_id: str):
     if not image_gen.is_configured():
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
     try:
-        return await image_gen.get_result(request_id)
+        svc, rid = _resolve_image_service(request_id)
+        result = await svc.get_result(rid)
+        # If the service returned a structured failure, return it as 200 so the client
+        # can surface the actual error instead of seeing an opaque 502.
+        return result
     except Exception as e:
+        # Only true network/transport errors reach here. Log + 502.
+        import traceback
+        print(f"[image-gen-result] EXCEPTION for {request_id}: {e}")
+        traceback.print_exc()
         raise HTTPException(status_code=502, detail=str(e))
 
 
@@ -2300,11 +3138,16 @@ def check_ffmpeg():
 
 @app.get("/api/generations")
 def list_generations(brandId: Optional[str] = None):
-    """List all generations, optionally filtered by brand."""
+    """List all generations, optionally filtered by brand.
+
+    Special value brandId="__none__" returns only brand-agnostic generations
+    (Manual Lab). Omitting brandId returns everything.
+    """
     gens = _load_generations()
-    if brandId:
+    if brandId == "__none__":
+        gens = [g for g in gens if not g.get("brandId")]
+    elif brandId:
         gens = [g for g in gens if g.get("brandId") == brandId]
-    # Sort by createdAt descending
     gens.sort(key=lambda g: g.get("createdAt", ""), reverse=True)
     return {"generations": gens}
 
@@ -2341,6 +3184,31 @@ async def create_generation(req: SaveGenerationRequest):
     gens.append(gen)
     _save_generations(gens)
     return gen
+
+
+@app.patch("/api/generations/{gen_id}")
+async def update_generation(gen_id: str, req: SaveGenerationRequest):
+    """Update an existing generation (for auto-save across pipeline steps)."""
+    gens = _load_generations()
+    idx = next((i for i, g in enumerate(gens) if g["id"] == gen_id), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    existing = gens[idx]
+    existing.update({
+        "brandId": req.brandId,
+        "toolId": req.toolId,
+        "title": req.title,
+        "type": req.type,
+        "status": req.status,
+        "thumbnailUrl": req.thumbnailUrl or existing.get("thumbnailUrl"),
+        "outputUrl": req.outputUrl or existing.get("outputUrl"),
+        "scenes": req.scenes if req.scenes is not None else existing.get("scenes", []),
+        "metadata": req.metadata if req.metadata is not None else existing.get("metadata", {}),
+        "pipelineState": req.pipelineState if req.pipelineState is not None else existing.get("pipelineState"),
+    })
+    gens[idx] = existing
+    _save_generations(gens)
+    return existing
 
 
 @app.delete("/api/generations/{gen_id}")
@@ -2745,3 +3613,166 @@ async def chat_endpoint(req: ChatRequest):
         return {"reply": reply}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+class AgentResolveRequest(BaseModel):
+    brandId: str
+    brief: str
+    # Multi-turn refinement — when provided, the agent applies the brief as a
+    # delta to this prior config instead of resolving from scratch.
+    previousConfig: Optional[dict] = None
+    previousTool: Optional[str] = None
+
+
+@app.post("/api/agent/resolve")
+async def agent_resolve(req: AgentResolveRequest):
+    """Resolve a natural-language brief into a tool + pre-filled ToolConfig.
+
+    Multi-turn: when previousConfig + previousTool are provided, the brief is
+    interpreted as a delta to apply, preserving unchanged fields.
+    """
+    if not agent_service.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, req.brandId)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not req.brief or not req.brief.strip():
+        raise HTTPException(status_code=400, detail="Brief is empty")
+
+    try:
+        result = await agent_service.resolve_brief(
+            brand,
+            req.brief,
+            previous_config=req.previousConfig,
+            previous_tool=req.previousTool,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Agent error: {str(e)[:300]}")
+
+
+# ══════════════════════════════════════════════════════════════
+#  Manual Lab — tool suggestion (non-blocking)
+# ══════════════════════════════════════════════════════════════
+
+class ManualLabSuggestRequest(BaseModel):
+    prompt: str
+    mode: str = "image"  # "image" | "video"
+    hasRefs: bool = False
+
+
+@app.post("/api/manual/suggest-tool")
+async def manual_lab_suggest(req: ManualLabSuggestRequest):
+    """Given a free-form Manual Lab prompt, optionally suggest a structured pipeline."""
+    if not manual_lab.is_configured():
+        return {"tool_id": None, "reason": ""}
+    try:
+        return await manual_lab.suggest_tool(req.prompt, req.mode, req.hasRefs)
+    except Exception:
+        return {"tool_id": None, "reason": ""}
+
+
+class ManualLabRefInput(BaseModel):
+    tag: str
+    label: str = ""
+    url: str
+
+
+class ManualLabEnhanceRequest(BaseModel):
+    prompt: str
+    refs: List[ManualLabRefInput] = []
+    mode: str = "image"
+    targetModel: str = "nano-banana-2"
+
+
+@app.post("/api/manual/enhance-prompt")
+async def manual_lab_enhance(req: ManualLabEnhanceRequest):
+    """Take a casual user request + refs and rewrite as a polished prompt via Gemini Vision."""
+    if not manual_lab.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    try:
+        enhanced = await manual_lab.enhance_prompt(
+            user_input=req.prompt,
+            refs=[r.model_dump() for r in req.refs],
+            mode=req.mode,
+            target_model=req.targetModel,
+        )
+        return {"enhanced": enhanced}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Enhance error: {str(e)[:300]}")
+
+
+# ══════════════════════════════════════════════════════════════
+#  Download proxy — bypass CORS for cross-origin downloads
+# ══════════════════════════════════════════════════════════════
+#
+# Browsers ignore the `download` attribute on <a> for cross-origin URLs that
+# don't send `Content-Disposition: attachment`, and a JS fetch() blocked by
+# CORS can't get the bytes either. So we proxy: backend fetches the file and
+# streams it back with the right headers, browser downloads cleanly.
+#
+# Whitelist enforced to prevent open-proxy abuse.
+
+ALLOWED_DOWNLOAD_HOSTS = {
+    "fal.media", "v2.fal.media", "v3.fal.media", "v4.fal.media",
+    "fal.run", "queue.fal.run", "rest.alpha.fal.ai",
+    "fal-cdn.com", "fal-cdn.net",
+    "storage.googleapis.com",
+    "localhost", "127.0.0.1",
+}
+
+
+@app.get("/api/download")
+async def download_proxy(url: str, filename: Optional[str] = None):
+    """Stream a remote file back to the browser as an attachment download."""
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if host not in ALLOWED_DOWNLOAD_HOSTS and not any(host.endswith("." + h) for h in ALLOWED_DOWNLOAD_HOSTS):
+        raise HTTPException(status_code=400, detail=f"Host not allowed: {host}")
+
+    # Default filename from URL path
+    if not filename:
+        filename = (parsed.path.rsplit("/", 1)[-1] or "download")
+        if "." not in filename:
+            filename += ".bin"
+
+    try:
+        client = httpx.AsyncClient(timeout=60, follow_redirects=True)
+        resp = await client.get(url)
+        if resp.status_code != 200:
+            await client.aclose()
+            raise HTTPException(status_code=resp.status_code, detail=f"Upstream error: {resp.status_code}")
+
+        content_type = resp.headers.get("content-type", "application/octet-stream")
+        content_length = resp.headers.get("content-length")
+
+        async def stream():
+            try:
+                # We already loaded the body above (resp.content). For simplicity
+                # yield in chunks. Large files (>50MB) would benefit from a real
+                # streaming approach with client.stream(...) but Manual Lab outputs
+                # are typically small (<20MB).
+                data = resp.content
+                chunk_size = 64 * 1024
+                for i in range(0, len(data), chunk_size):
+                    yield data[i:i + chunk_size]
+            finally:
+                await client.aclose()
+
+        # Sanitize filename for header — strip newlines, quotes
+        safe_name = filename.replace("\n", "").replace("\r", "").replace('"', "")
+        headers = {
+            "Content-Disposition": f'attachment; filename="{safe_name}"',
+        }
+        if content_length:
+            headers["Content-Length"] = content_length
+
+        return StreamingResponse(stream(), media_type=content_type, headers=headers)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Download proxy failed: {str(e)[:200]}")

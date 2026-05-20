@@ -6,10 +6,11 @@
 
 import type { StepHandler } from "../types";
 import {
-  generateToolPrompt, createImageEdit, pollImageGen,
+  generateToolPrompt, createImageEdit, createTextToImage, pollImageGen,
   generateTTSAndUpload, createKlingVideo, pollKlingVideo,
-  concatVideos, saveGeneration,
+  concatVideos,
 } from "../../lib/api";
+import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstraints";
 
 // ── Visual styles available ─────────────────────────────
 
@@ -138,13 +139,46 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
   const selectedClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
+  const selectedBackground = (activeBrand.backgrounds || []).find((b) => b.id === config.selectedBackgroundId);
+  const selectedMoodboard = (activeBrand.moodboards || []).find((m) => m.id === config.selectedMoodboardId);
+
+  // Convert uploaded reference files (e.g. from chat handoff) to data URLs
+  const refFiles = (config as { referenceImages?: File[] }).referenceImages || [];
+  const uploadedRefDataUrls: string[] = [];
+  for (const file of refFiles.slice(0, 3)) {
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      uploadedRefDataUrls.push(dataUrl);
+    } catch { /* skip */ }
+  }
 
   const referenceUrls: string[] = [];
+  // Order: uploaded refs (user intent) > avatar > clothing > product > background > moodboard
+  for (const u of uploadedRefDataUrls) referenceUrls.push(u);
   if (selectedAvatar?.imageUrl) referenceUrls.push(selectedAvatar.imageUrl);
   selectedClothing.forEach((c) => { if (c.imageUrl) referenceUrls.push(c.imageUrl); });
   if (selectedProduct?.imageUrl) referenceUrls.push(selectedProduct.imageUrl);
+  if (selectedBackground?.imageUrl) referenceUrls.push(selectedBackground.imageUrl);
+  if (selectedMoodboard?.imageUrl) referenceUrls.push(selectedMoodboard.imageUrl);
 
-  const job = await createImageEdit(referenceUrls, firstFrame.prompt, config.aspectRatio, config.resolution);
+  const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
+
+  // Append brand context + constraints
+  const constraints = buildBrandConstraints(activeBrand, config, { tool: "video_ad_creator", mentionsAvatar: !!selectedAvatar });
+  const brandContextBlock = buildBrandContext(activeBrand, "video_ad_creator");
+  const finalPrompt = `${firstFrame.prompt}${brandContextBlock}${constraints}`;
+  console.log("[video_ad] FINAL PROMPT frame 1:", finalPrompt.slice(0, 1500));
+
+  // Fallback to text-to-image when there are zero references (otherwise the edit
+  // endpoint fails with 422 — at least one image URL required).
+  const job = referenceUrls.length === 0
+    ? await createTextToImage(finalPrompt, config.aspectRatio, config.resolution, imageModel)
+    : await createImageEdit(referenceUrls, finalPrompt, config.aspectRatio, config.resolution, imageModel);
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
@@ -185,13 +219,15 @@ export const handleImages: StepHandler = async (ctx) => {
   const remainingFrames = scriptData.frames.slice(1);
   const generatedImages: Array<{ frame: number; url: string; prompt: string; scene_type: string; script: string; status: string }> = [];
 
+  const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
+
   let previousFrameUrl = baseImage.url;
   for (const frame of remainingFrames) {
     try {
       // Use base image (for overall style) + previous frame (for continuity)
       const refs = [previousFrameUrl, baseImage.url];
       const prompt = `Same visual style, same character, same product as the reference images. Smooth visual transition from the previous frame. ${frame.prompt}`;
-      const job = await createImageEdit(refs, prompt, config.aspectRatio, config.resolution);
+      const job = await createImageEdit(refs, prompt, config.aspectRatio, config.resolution, imageModel);
       const result = await pollImageGen(job.request_id);
       const url = result.image_url || "";
       if (url) previousFrameUrl = url; // next frame uses this as reference
@@ -329,20 +365,7 @@ export const handleRender: StepHandler = async (ctx) => {
 
   const result = await concatVideos(videoUrls, subtitleScripts, config.subtitleEngine !== "none", config.subtitleEngine);
 
-  // Save to content
-  const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
-  try {
-    await saveGeneration({
-      brandId: activeBrand.id,
-      toolId: tool.id,
-      title: `Video Ad — ${selectedProduct?.name || "Campaign"} — ${new Date().toLocaleDateString()}`,
-      type: "video",
-      status: "completed",
-      outputUrl: result.video_url,
-      scenes: scriptData?.frames.map((f, i) => ({ id: `frame_${i + 1}`, title: `Frame ${i + 1}`, script: f.script })) || [],
-      metadata: { duration: result.duration, numSegments: result.num_segments },
-    });
-  } catch { /* silent */ }
+  // Persistence handled by autoSaveStep in ToolRunPage — no manual saveGeneration here.
 
   return {
     result: {

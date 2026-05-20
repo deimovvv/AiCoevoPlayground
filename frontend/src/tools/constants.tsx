@@ -65,7 +65,6 @@ export const TOOL_ICONS: Record<string, React.ReactNode> = {
 export const FALLBACK_TOOLS: Record<string, ToolEntry> = {
   ugc_creator: { id: "ugc_creator", name: "UGC Creator", category: "video", description: "Create complete UGC videos.", icon: "video", status: "active", pipeline: ["script", "base_image", "multishot", "voice", "lipsync", "render"] },
   product_spotlight: { id: "product_spotlight", name: "Product Spotlight", category: "images", description: "Professional product photography.", icon: "camera", status: "active", pipeline: ["prompt", "generate", "variations"] },
-  fashion_editorial: { id: "fashion_editorial", name: "Fashion Editorial", category: "images", description: "High-end fashion editorial.", icon: "sparkles", status: "active", pipeline: ["prompt", "generate", "variations"] },
   fashion_reel: { id: "fashion_reel", name: "Fashion Reel", category: "video", description: "Visual fashion/lifestyle reels.", icon: "film", status: "active", pipeline: ["script", "base_image", "multishot", "animate", "render"] },
   ad_creative_lab: { id: "ad_creative_lab", name: "Ad Creative Lab", category: "images", description: "Generate brand-consistent ad creatives.", icon: "sparkles", status: "active", pipeline: ["visual_guide", "prompts", "generate_batch"] },
 };

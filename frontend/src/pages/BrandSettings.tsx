@@ -23,6 +23,8 @@ import {
   Dna,
   Camera,
   X,
+  Wand2,
+  UploadCloud,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
@@ -40,6 +42,9 @@ import {
   moodboardImageUrl,
   addVoicePreset,
   deleteVoicePreset,
+  createVoiceDesignPreviews,
+  saveDesignedVoice,
+  cloneVoice,
   avatarImageUrl,
   productImageUrl,
   clothingImageUrl,
@@ -48,6 +53,7 @@ import {
   addGuidanceFromPdf,
   generateBrandDNA,
   extractDesignSystem,
+  extractEverything,
   updateDesignSystem,
   addProductImage,
   generateTTS,
@@ -55,6 +61,27 @@ import {
 import type { Avatar, Product, ClothingItem, BackgroundItem, MoodboardItem, DesignSystem } from "../lib/api";
 import { cn } from "../lib/utils";
 import { PromptsCard } from "../components/PromptsCard";
+import { BusinessCard, BrandSourcesCard, CustomerReviewsCard, CompetitorsCard, BrandHealthCard, SectionHeader, BrandIdentityExportCard } from "../components/BrandLayer";
+
+/**
+ * Derive a human-friendly asset name from an uploaded filename.
+ * Strips the extension, normalizes separators, drops trailing "(1)" copy markers,
+ * and title-cases. "WhatsApp Image 2026-05-20 at 12.52.12 (1).jpeg" → "Whatsapp Image 2026 05 20 At 12 52 12".
+ * Used to pre-fill the name field on upload so the user doesn't start blank.
+ */
+function deriveAssetName(filename: string): string {
+  let base = filename.replace(/\.[^.]+$/, "");        // drop extension
+  base = base.replace(/\s*\(\d+\)\s*$/, "");           // drop "(1)" copy marker
+  base = base.replace(/[_\-.]+/g, " ").trim();          // separators → spaces
+  base = base.replace(/\s+/g, " ");                     // collapse spaces
+  if (!base) return "";
+  // Title-case words, cap length
+  return base
+    .split(" ")
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ")
+    .slice(0, 60);
+}
 
 export function BrandSettings() {
   const { activeBrand } = useBrand();
@@ -71,38 +98,144 @@ export function BrandSettings() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-[22px] font-semibold text-fg tracking-tight">
-          {activeBrand.name}
-        </h1>
+        <BrandNameEditor />
         <p className="text-[14px] text-fg-muted mt-1">
           Configurá contexto, assets y ajustes de la marca
         </p>
       </div>
 
-      {/* Brand System — source document, full width */}
+      {/* Brand Health — readiness at a glance */}
+      <BrandHealthCard />
+
+      {/* ① INPUT — vos cargás info de marca */}
+      <SectionHeader number="①" title="Input" subtitle="Alimentá Coevo con info de marca. Mínimo 1 doc, después extraés todo con un click." />
       <GuidanceCard />
 
-      {/* Brand DNA — extracted strategy, full width */}
+      {/* ② AUTO — extraído por IA */}
+      <SectionHeader number="②" title="Auto-extraído por IA" subtitle="Brand DNA + Negocio + Design System. Salen del input de arriba con un click." />
       <BrandDNACard />
-
-      {/* Design System — extracted visual rules, full width */}
+      <BusinessCard />
       <DesignSystemCard />
 
+      {/* ③ ASSETS — archivos que se usan en cada generación */}
+      <SectionHeader number="③" title="Assets" subtitle="Archivos que las tools usan en cada corrida. Subí lo que tengas." />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <VoicesCard />
-        <AvatarsCard />
-        <ClothingCard />
         <ProductsCard />
+        <AvatarsCard />
         <LogoCard />
-        <BackgroundsCard />
         <MoodboardsCard />
-        <PromptsCard />
+        <BackgroundsCard />
+        <VoicesCard />
+        <ClothingCard />
       </div>
+
+      {/* ④ EXTRAS — opcionales, colapsados */}
+      <SectionHeader number="④" title="Extras" subtitle="Enriquecimiento opcional. La marca funciona sin esto." collapsible defaultCollapsed>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-3">
+          <CustomerReviewsCard />
+          <CompetitorsCard />
+          <BrandSourcesCard />
+          <PromptsCard />
+        </div>
+      </SectionHeader>
+
+      {/* ⑤ EXPORT — entregable para el cliente */}
+      <SectionHeader number="⑤" title="Export" subtitle="Descargá el brand identity para mandarle al cliente." />
+      <BrandIdentityExportCard />
     </div>
   );
 }
 
 // ── Brand System Card (source document) ─────────────────────
+
+// ── Brand Name Editor — inline rename ──────────────────────
+//
+// Click the brand name to edit. Enter or save button commits; Esc or cancel reverts.
+
+function BrandNameEditor() {
+  const { activeBrand, refreshBrands } = useBrand();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  if (!activeBrand) return null;
+
+  const startEdit = () => {
+    setDraft(activeBrand.name);
+    setError(null);
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 0);
+  };
+
+  const cancel = () => {
+    setEditing(false);
+    setError(null);
+  };
+
+  const save = async () => {
+    const newName = draft.trim();
+    if (!newName) { setError("El nombre no puede estar vacío"); return; }
+    if (newName === activeBrand.name) { setEditing(false); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await updateBrand(activeBrand.id, { name: newName });
+      await refreshBrands();
+      setEditing(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo renombrar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => { setDraft(e.target.value); setError(null); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); save(); }
+            else if (e.key === "Escape") { e.preventDefault(); cancel(); }
+          }}
+          disabled={saving}
+          className="text-[22px] font-semibold text-fg tracking-tight bg-surface-1 border border-[var(--color-edge-focus)] rounded-[var(--radius-sm)] px-2 py-0.5 outline-none min-w-[260px]"
+        />
+        <button
+          onClick={save}
+          disabled={saving || !draft.trim()}
+          className="px-2.5 py-1 text-[12px] font-medium rounded-[var(--radius-sm)] bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center gap-1"
+        >
+          {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+          Guardar
+        </button>
+        <button
+          onClick={cancel}
+          disabled={saving}
+          className="px-2.5 py-1 text-[12px] text-fg-muted hover:text-fg cursor-pointer"
+        >
+          Cancelar
+        </button>
+        {error && <span className="text-[12px] text-[var(--color-error)]">{error}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={startEdit}
+      title="Click para renombrar la marca"
+      className="group flex items-center gap-2 cursor-pointer hover:text-fg text-fg"
+    >
+      <h1 className="text-[22px] font-semibold tracking-tight">{activeBrand.name}</h1>
+      <Pencil size={13} className="opacity-0 group-hover:opacity-60 transition-opacity text-fg-faint" />
+    </button>
+  );
+}
 
 function GuidanceCard() {
   const { activeBrand, refreshBrands } = useBrand();
@@ -121,9 +254,34 @@ function GuidanceCard() {
   const [pdfSuccess, setPdfSuccess] = useState<string | null>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
 
+  // Extract-all state
+  const [extractAllLoading, setExtractAllLoading] = useState(false);
+  const [extractAllStatus, setExtractAllStatus] = useState<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
 
   if (!activeBrand) return null;
+
+  const handleExtractAll = async () => {
+    setExtractAllLoading(true);
+    setExtractAllStatus(null);
+    setError(null);
+    try {
+      const res = await extractEverything(activeBrand.id);
+      await refreshBrands();
+      const errors = res.errors || [];
+      if (errors.length === 0) {
+        setExtractAllStatus("✓ Brand DNA + Negocio + Design System extraídos");
+      } else {
+        setExtractAllStatus(`⚠ Algunos extracts fallaron: ${errors.map((e) => e.step).join(", ")}`);
+      }
+      setTimeout(() => setExtractAllStatus(null), 6000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falló la extracción");
+    } finally {
+      setExtractAllLoading(false);
+    }
+  };
 
   const handleEdit = () => {
     setDraft(activeBrand.brandContext || "");
@@ -179,11 +337,13 @@ function GuidanceCard() {
     }
   };
 
+  const hasContent = !!(activeBrand.brandContext && activeBrand.brandContext.length > 100);
+
   return (
     <Card
       icon={<FileText size={16} />}
-      title="Brand System"
-      description="Documento fuente de la marca — estrategia, voz, audiencia, diseño, messaging. De acá se extraen el Brand DNA y el Design System."
+      title="Brand Knowledge"
+      description="Toda la info textual de la marca: brand book, posicionamiento, manual, scrape de web, PDFs. Cuanto más cargues, mejor el contexto."
       action={
         !editing ? (
           <button
@@ -199,7 +359,7 @@ function GuidanceCard() {
       {/* Import actions */}
       {!editing && (
         <div className="mb-4 space-y-2">
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => { setShowUrlInput(!showUrlInput); setError(null); }}
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium text-fg-muted hover:text-fg bg-surface-0 border border-edge hover:border-[var(--color-edge-strong)] rounded-[var(--radius-sm)] transition-colors cursor-pointer"
@@ -225,7 +385,22 @@ function GuidanceCard() {
                 if (f) handlePdfUpload(f);
               }}
             />
+
+            {/* The big button: extract everything */}
+            <button
+              onClick={handleExtractAll}
+              disabled={extractAllLoading || !hasContent}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer ml-auto"
+              title={hasContent ? "Corre Brand DNA + Negocio + Design System en cascada" : "Cargá info primero (URL, PDF o pegá texto)"}
+            >
+              {extractAllLoading ? <Loader2 size={12} className="animate-spin" /> : <span>🪄</span>}
+              {extractAllLoading ? "Extrayendo..." : "Extraer todo"}
+            </button>
           </div>
+
+          {extractAllStatus && (
+            <div className="text-[12px] text-fg-muted px-1">{extractAllStatus}</div>
+          )}
 
           {/* URL input */}
           {showUrlInput && (
@@ -403,7 +578,7 @@ function AvatarsCard() {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }}
             />
             {file ? (
               <span className="text-[12px] text-fg-secondary">{file.name}</span>
@@ -609,7 +784,7 @@ function ProductsCard() {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }}
             />
             {file ? (
               <span className="text-[12px] text-fg-secondary">{file.name}</span>
@@ -916,7 +1091,7 @@ function ClothingCard() {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }}
             />
             {file ? (
               <span className="text-[12px] text-fg-secondary">{file.name}</span>
@@ -1024,6 +1199,8 @@ function VoicesCard() {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showDesign, setShowDesign] = useState(false);
+  const [showClone, setShowClone] = useState(false);
   const [name, setName] = useState("");
   const [voiceId, setVoiceId] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -1225,17 +1402,403 @@ function VoicesCard() {
           </div>
         )}
 
-        {!showAdd && (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 text-[12px] text-fg-muted hover:text-fg transition-colors cursor-pointer"
-          >
-            <Plus size={13} />
-            Agregar Voice ID
-          </button>
+        {/* Design panel — create a brand-new voice from a text description */}
+        {showDesign && (
+          <DesignVoicePanel
+            brandId={activeBrand.id}
+            onDone={async () => { setShowDesign(false); await refreshBrands(); }}
+            onCancel={() => setShowDesign(false)}
+          />
+        )}
+
+        {/* Clone panel — instant voice clone from uploaded audio samples */}
+        {showClone && (
+          <CloneVoicePanel
+            brandId={activeBrand.id}
+            onDone={async () => { setShowClone(false); await refreshBrands(); }}
+            onCancel={() => setShowClone(false)}
+          />
+        )}
+
+        {!showAdd && !showDesign && !showClone && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setShowDesign(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              <Wand2 size={13} />
+              Diseñar voz
+            </button>
+            <button
+              onClick={() => setShowClone(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] bg-surface-2 text-fg hover:bg-surface-3 transition-colors cursor-pointer"
+            >
+              <UploadCloud size={13} />
+              Clonar voz
+            </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="flex items-center gap-2 text-[12px] text-fg-muted hover:text-fg transition-colors cursor-pointer ml-1"
+            >
+              <Plus size={13} />
+              Voice ID manual
+            </button>
+          </div>
         )}
       </div>
     </Card>
+  );
+}
+
+// ── Voice Design Panel — text-to-voice ──────────────────────
+//
+// Two-step flow per ElevenLabs:
+//   1) Submit description + sample text → get 3 previews
+//   2) User picks one → save it as a permanent voice with a brand-friendly name
+
+function DesignVoicePanel({ brandId, onDone, onCancel }: { brandId: string; onDone: () => void; onCancel: () => void; }) {
+  const [description, setDescription] = useState("");
+  // Default sample text — packed with porteño phonetic markers (ll/y → "sh"),
+  // common Argentine words, and natural conversational cadence. The LANGUAGE of
+  // this text is what ElevenLabs uses to pick the spoken language of the previews.
+  const [sampleText, setSampleText] = useState(
+    "Che, escuchame. Esto es una prueba de mi voz para que vos veas cómo suena. Yo me llamo así, y la verdad que me re copa cómo está quedando. La calle, la lluvia, la llave de mi casa, todo bien. Posta que esta voz tiene onda, ¿no? Dale, decime qué te parece.",
+  );
+  const [voiceName, setVoiceName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [previews, setPreviews] = useState<Array<{ generated_voice_id: string; audio_base_64: string; media_type: string }>>([]);
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopAudio = () => { audioRef.current?.pause(); audioRef.current = null; setPlayingId(null); };
+
+  const handleGenerate = async () => {
+    if (description.trim().length < 20) { setError("La descripción debe tener al menos 20 caracteres."); return; }
+    setError(null);
+    setPickedId(null);
+    setPreviews([]);
+    setLoading(true);
+    stopAudio();
+    try {
+      const res = await createVoiceDesignPreviews({
+        voiceDescription: description.trim(),
+        text: sampleText.trim(),
+      });
+      setPreviews(res);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error generando voces");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePlay = (id: string, b64: string, media: string) => {
+    if (playingId === id) { stopAudio(); return; }
+    stopAudio();
+    const audio = new Audio(`data:${media};base64,${b64}`);
+    audioRef.current = audio;
+    audio.onended = () => { setPlayingId(null); audioRef.current = null; };
+    audio.play();
+    setPlayingId(id);
+  };
+
+  const handleSave = async () => {
+    if (!pickedId || !voiceName.trim()) return;
+    setSaving(true);
+    setError(null);
+    stopAudio();
+    try {
+      await saveDesignedVoice({
+        brandId,
+        generatedVoiceId: pickedId,
+        name: voiceName.trim(),
+        voiceDescription: description.trim(),
+      });
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo guardar la voz");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Wand2 size={14} className="text-[var(--color-warm)]" />
+        <p className="text-[12px] font-semibold text-fg">Diseñar voz nueva</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-[11px] text-fg-faint font-medium">Descripción de la voz (mín. 20 caracteres)</label>
+        <textarea
+          value={description}
+          onChange={(e) => { setDescription(e.target.value); setError(null); }}
+          rows={3}
+          placeholder="Ej. Hombre argentino de unos 30 años, voz canchera, tono medio, levemente rasposa. Casual y cercana, como charlando con un amigo en la calle."
+          className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-none"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-[11px] text-fg-faint font-medium">Texto de muestra (lo que va a leer en los previews)</label>
+        <textarea
+          value={sampleText}
+          onChange={(e) => setSampleText(e.target.value)}
+          rows={3}
+          className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] resize-none"
+        />
+        <p className="text-[10px] text-fg-faint leading-relaxed">
+          ⚠ El idioma del preview viene del idioma de <strong>este</strong> texto, no de la descripción.
+          Para porteño, dejá palabras con &quot;ll&quot; y &quot;y&quot; (calle, llave, lluvia, yo) que el modelo
+          tiene que pronunciar &quot;sh&quot;, y muletillas argentinas (che, dale, posta).
+        </p>
+      </div>
+
+      {error && (
+        <p className="text-[12px] text-[var(--color-error)] flex items-center gap-1.5">
+          <AlertCircle size={12} /> {error}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleGenerate}
+          disabled={loading || description.trim().length < 20}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] transition-colors",
+            !loading && description.trim().length >= 20
+              ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+              : "text-fg-faint bg-surface-2 cursor-not-allowed opacity-50",
+          )}
+        >
+          {loading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+          {previews.length > 0 ? "Regenerar previews" : "Generar 3 previews"}
+        </button>
+        <div className="flex-1" />
+        <button
+          onClick={() => { stopAudio(); onCancel(); }}
+          className="px-3 py-1.5 text-[12px] text-fg-muted hover:text-fg transition-colors cursor-pointer"
+        >
+          Cancelar
+        </button>
+      </div>
+
+      {/* Previews */}
+      {previews.length > 0 && (
+        <div className="border-t border-edge pt-3 space-y-2">
+          <p className="text-[11px] text-fg-faint font-medium">
+            Escuchá las 3 y <span className="text-fg">tocá la fila</span> de la que más te guste para seleccionarla.
+          </p>
+          {previews.map((p, i) => {
+            const isPicked = pickedId === p.generated_voice_id;
+            return (
+              <button
+                key={p.generated_voice_id}
+                type="button"
+                onClick={() => setPickedId(p.generated_voice_id)}
+                className={cn(
+                  "w-full flex items-center gap-2.5 px-3 py-2 border rounded-[var(--radius-sm)] transition-colors cursor-pointer text-left",
+                  isPicked
+                    ? "bg-[var(--color-warm)]/10 border-[var(--color-warm)] ring-1 ring-[var(--color-warm)]"
+                    : "bg-surface-0 border-edge hover:border-edge-strong",
+                )}
+              >
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => { e.stopPropagation(); handlePlay(p.generated_voice_id, p.audio_base_64, p.media_type); }}
+                  className="w-7 h-7 rounded-full bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 flex items-center justify-center shrink-0 cursor-pointer"
+                >
+                  {playingId === p.generated_voice_id ? <Square size={10} /> : <Play size={12} className="ml-0.5" />}
+                </span>
+                <span className="flex-1 text-[12px] text-fg">Preview {i + 1}</span>
+                {isPicked ? (
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-[var(--color-warm)]">
+                    <Check size={12} /> Seleccionada
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-fg-faint">Tocar para elegir</span>
+                )}
+              </button>
+            );
+          })}
+
+          {/* Always-visible save section so the path forward is obvious */}
+          <div className="space-y-1.5 pt-3 border-t border-edge">
+            <label className="text-[11px] text-fg-faint font-medium">Nombre para esta voz</label>
+            <input
+              value={voiceName}
+              onChange={(e) => setVoiceName(e.target.value)}
+              placeholder="Ej. Elias — canchero porteño"
+              disabled={!pickedId}
+              className={cn(
+                "w-full h-8 px-3 rounded-[var(--radius-sm)] border bg-surface-2 text-[13px] placeholder:text-fg-faint outline-none",
+                pickedId
+                  ? "border-edge text-fg focus:border-[var(--color-edge-focus)]"
+                  : "border-edge text-fg-faint cursor-not-allowed opacity-60",
+              )}
+            />
+            <button
+              onClick={handleSave}
+              disabled={saving || !pickedId || !voiceName.trim()}
+              title={!pickedId ? "Tocá un preview primero" : !voiceName.trim() ? "Poné un nombre" : "Guardar voz"}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] mt-2",
+                !saving && pickedId && voiceName.trim()
+                  ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+                  : "text-fg-faint bg-surface-2 cursor-not-allowed opacity-50",
+              )}
+            >
+              {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+              {pickedId ? "Guardar voz seleccionada" : "Elegí un preview"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Voice Clone Panel — Instant Voice Cloning ───────────────
+//
+// Upload 1–10 audio samples (recommended: 30s–3min of clean speech each)
+// and ElevenLabs returns a permanent voice_id.
+
+function CloneVoicePanel({ brandId, onDone, onCancel }: { brandId: string; onDone: () => void; onCancel: () => void; }) {
+  const [voiceName, setVoiceName] = useState("");
+  const [description, setDescription] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFiles = (filelist: FileList | null) => {
+    if (!filelist) return;
+    const arr = Array.from(filelist).filter((f) => f.type.startsWith("audio/"));
+    const combined = [...files, ...arr].slice(0, 10);
+    setFiles(combined);
+    setError(null);
+  };
+
+  const removeFile = (idx: number) => setFiles((prev) => prev.filter((_, i) => i !== idx));
+
+  const handleSave = async () => {
+    if (!voiceName.trim()) { setError("Poné un nombre para la voz."); return; }
+    if (files.length === 0) { setError("Subí al menos 1 archivo de audio."); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await cloneVoice({ brandId, name: voiceName.trim(), description: description.trim(), files });
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo clonar la voz");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <UploadCloud size={14} className="text-fg" />
+        <p className="text-[12px] font-semibold text-fg">Clonar voz desde audio</p>
+      </div>
+
+      <p className="text-[11px] text-fg-faint leading-relaxed">
+        Subí entre 1 y 10 muestras de audio limpio (sin música ni ruido de fondo).
+        Recomendado: 30 segundos a 3 minutos de habla natural en total. Mejor calidad → mejor clon.
+      </p>
+
+      <div className="space-y-1.5">
+        <label className="text-[11px] text-fg-faint font-medium">Nombre de la voz</label>
+        <input
+          value={voiceName}
+          onChange={(e) => setVoiceName(e.target.value)}
+          placeholder="Ej. Elias real"
+          className="w-full h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-[11px] text-fg-faint font-medium">Descripción (opcional)</label>
+        <input
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Acento, tono, intención"
+          className="w-full h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
+        />
+      </div>
+
+      <div
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+        onClick={() => inputRef.current?.click()}
+        className="border border-dashed border-edge rounded-[var(--radius-sm)] p-4 text-center cursor-pointer hover:bg-surface-1 transition-colors"
+      >
+        <Upload size={16} className="mx-auto mb-1.5 text-fg-faint" />
+        <p className="text-[12px] text-fg-muted">Arrastrá o hacé click para subir audios</p>
+        <p className="text-[10px] text-fg-faint mt-0.5">MP3, WAV, M4A, WebM — máx. 10 archivos</p>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="audio/*"
+          multiple
+          className="hidden"
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+      </div>
+
+      {files.length > 0 && (
+        <div className="space-y-1.5">
+          {files.map((f, i) => (
+            <div key={i} className="flex items-center gap-2 px-2 py-1.5 bg-surface-2 rounded-[var(--radius-sm)] text-[11px]">
+              <Mic size={11} className="text-fg-faint shrink-0" />
+              <span className="flex-1 truncate text-fg-muted">{f.name}</span>
+              <span className="text-fg-faint">{(f.size / 1024).toFixed(0)} KB</span>
+              <button
+                onClick={() => removeFile(i)}
+                className="text-fg-faint hover:text-[var(--color-error)] cursor-pointer"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <p className="text-[12px] text-[var(--color-error)] flex items-center gap-1.5">
+          <AlertCircle size={12} /> {error}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          onClick={onCancel}
+          className="px-3 py-1.5 text-[12px] text-fg-muted hover:text-fg transition-colors cursor-pointer"
+        >
+          Cancelar
+        </button>
+        <div className="flex-1" />
+        <button
+          onClick={handleSave}
+          disabled={saving || !voiceName.trim() || files.length === 0}
+          className={cn(
+            "flex items-center gap-1.5 px-4 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)]",
+            !saving && voiceName.trim() && files.length > 0
+              ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+              : "text-fg-faint bg-surface-2 cursor-not-allowed opacity-50",
+          )}
+        >
+          {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+          Clonar voz
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1340,7 +1903,7 @@ function BackgroundsCard() {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }}
             />
             {file ? (
               <span className="text-[12px] text-fg-secondary">{file.name}</span>
@@ -1529,7 +2092,7 @@ function MoodboardsCard() {
               file ? "border-[var(--color-warm)] bg-[var(--color-warm-subtle)]" : "hover:border-[var(--color-edge-strong)]"
             )}
           >
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }} />
             {file ? (
               <span className="text-[12px] text-fg-secondary">{file.name}</span>
             ) : (
@@ -1952,6 +2515,10 @@ function DesignSystemCard() {
           <DesignField label="Composición" value={draft.composition || ""} onChange={(v) => setDraft({ ...draft, composition: v })} rows={2} />
           <DesignField label="Tratamiento de color" value={draft.colorTreatment || ""} onChange={(v) => setDraft({ ...draft, colorTreatment: v })} rows={2} />
           <DesignField label="Iluminación" value={draft.lighting || ""} onChange={(v) => setDraft({ ...draft, lighting: v })} rows={2} />
+          <DesignField label="Casting de modelos" value={draft.casting || ""} onChange={(v) => setDraft({ ...draft, casting: v })} rows={2} />
+          <DesignListField label="Locaciones preferidas" items={draft.preferred_locations || []} onChange={(items) => setDraft({ ...draft, preferred_locations: items })} />
+          <DesignField label="Presentación del producto" value={draft.product_presentation || ""} onChange={(v) => setDraft({ ...draft, product_presentation: v })} rows={2} />
+          <DesignField label="Reglas de movimiento (video)" value={draft.motion_rules || ""} onChange={(v) => setDraft({ ...draft, motion_rules: v })} rows={2} />
           <DesignListField label="Siempre mostrar (dos)" items={draft.visualDos || []} onChange={(items) => setDraft({ ...draft, visualDos: items })} />
           <DesignListField label="Nunca mostrar (don'ts)" items={draft.visualDonts || []} onChange={(items) => setDraft({ ...draft, visualDonts: items })} />
           <DesignField label="Referencias visuales" value={draft.references || ""} onChange={(v) => setDraft({ ...draft, references: v })} rows={2} />
@@ -1989,6 +2556,34 @@ function DesignSystemCard() {
               <div>
                 <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Referencias</h4>
                 <p className="text-[13px] text-fg-muted leading-relaxed">{ds.references}</p>
+              </div>
+            )}
+            {ds.casting && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Casting</h4>
+                <p className="text-[13px] text-fg-muted leading-relaxed">{ds.casting}</p>
+              </div>
+            )}
+            {ds.product_presentation && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Presentación del producto</h4>
+                <p className="text-[13px] text-fg-muted leading-relaxed">{ds.product_presentation}</p>
+              </div>
+            )}
+            {ds.motion_rules && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Reglas de movimiento</h4>
+                <p className="text-[13px] text-fg-muted leading-relaxed">{ds.motion_rules}</p>
+              </div>
+            )}
+            {ds.preferred_locations && ds.preferred_locations.length > 0 && (
+              <div>
+                <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1">Locaciones preferidas</h4>
+                <div className="flex gap-1.5 flex-wrap">
+                  {ds.preferred_locations.map((l, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-surface-2 rounded text-[11px] text-fg-muted">{l}</span>
+                  ))}
+                </div>
               </div>
             )}
           </div>
