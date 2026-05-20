@@ -104,21 +104,25 @@ export function GeneratePage() {
   }
 
   return (
-    <div className="space-y-10">
-      {/* Hero Header — editorial */}
+    <div className="space-y-9">
+      {/* Hero Header — editorial, with manifesto eyebrow */}
       <div className="space-y-3">
-        <h1 className="text-[36px] font-bold text-fg tracking-[-0.03em] leading-none">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--color-action)]">Coevo Studio</span>
+          <span className="h-px w-10 bg-[var(--color-action)]/40" />
+        </div>
+        <h1 className="text-[38px] font-bold text-fg tracking-[-0.03em] leading-[0.95]">
           Generá contenido.
         </h1>
         <p className="text-[15px] text-fg-muted max-w-2xl leading-relaxed">
           {activeBrand
-            ? <>Elegí una tool para crear contenido para <span className="text-fg font-medium">{activeBrand.name}</span>. La IA produce, vos dirigís.</>
+            ? <>Elegí una tool para crear contenido para <span className="text-fg font-semibold">{activeBrand.name}</span>. La IA produce, vos dirigís.</>
             : "Seleccioná una marca para empezar a generar contenido."}
         </p>
       </div>
 
-      {/* Category filter — pill container */}
-      <div className="inline-flex items-center gap-1 bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--glass-border)] rounded-full p-1">
+      {/* Category filter — refined neutral active state (no pink everywhere) */}
+      <div className="inline-flex items-center gap-1 bg-surface-1 border border-edge rounded-full p-1">
         {(["all", ...categories] as const).map((cat) => (
           <button
             key={cat}
@@ -126,8 +130,8 @@ export function GeneratePage() {
             className={cn(
               "px-4 py-1.5 text-[12px] font-medium rounded-full transition-all cursor-pointer",
               filter === cat
-                ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm"
-                : "text-fg-muted hover:text-fg"
+                ? "bg-fg text-[var(--color-canvas)]"
+                : "text-fg-muted hover:text-fg hover:bg-surface-2"
             )}
           >
             {cat === "all" ? "Todas" : CATEGORY_LABELS[cat] || cat}
@@ -194,7 +198,7 @@ function ToolCard({
         "bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--glass-border)]",
         disabled || isComingSoon
           ? "opacity-50 cursor-not-allowed"
-          : "hover:border-[var(--glass-border-hover)] hover:shadow-[0_24px_60px_-20px_rgba(250,205,234,0.15)] hover:-translate-y-1 cursor-pointer"
+          : "hover:border-[var(--color-action)]/40 hover:shadow-[0_24px_60px_-20px_rgba(188,252,17,0.18)] hover:-translate-y-1 cursor-pointer"
       )}
     >
       {/* Preview — dominant hero */}
@@ -251,7 +255,7 @@ function ToolCard({
           )}
         </div>
 
-        {/* Bottom: name + tagline */}
+        {/* Bottom: name + tagline + lime "Generar" affordance on hover (action signal) */}
         <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
           <h3 className="text-[18px] font-bold tracking-tight leading-tight mb-1">
             {tool.name}
@@ -259,14 +263,13 @@ function ToolCard({
           <p className="text-[12px] text-white/80 leading-snug line-clamp-2">
             {tagline}
           </p>
+          {!disabled && !isComingSoon && (
+            <div className="mt-2.5 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[var(--color-action)] opacity-0 -translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+              Generar
+              <span className="transition-transform group-hover:translate-x-0.5">→</span>
+            </div>
+          )}
         </div>
-
-        {/* Play indicator on video hover */}
-        {media?.type === "video" && !hover && !disabled && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 backdrop-blur flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="white"><path d="M5 3l8 5-8 5z" /></svg>
-          </div>
-        )}
       </div>
     </button>
   );

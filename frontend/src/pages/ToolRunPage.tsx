@@ -43,6 +43,7 @@ import {
   createFalLipSync, pollFalLipSync, concatVideos, saveGeneration,
   generateToolPrompt, createKlingVideo, pollKlingVideo,
   createKlingFrameToFrame, createSeedanceReferenceToVideo, pollSeedanceVideo,
+  resolveAgentBrief,
   uploadAvatar, uploadClothing, uploadBackground, uploadMoodboard,
   createHeyGenAvatar4, pollHeyGenAvatar4,
   fetchSystemVoices,
@@ -1967,14 +1968,14 @@ export function ToolRunPage() {
                 onClick={handleStart}
                 disabled={!activeBrand}
                 className={cn(
-                  "flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium rounded-[var(--radius-sm)] transition-all cursor-pointer",
+                  "flex items-center gap-2 px-5 py-2.5 text-[13px] font-bold uppercase tracking-wide rounded-[var(--radius-sm)] transition-all cursor-pointer",
                   activeBrand
-                    ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90"
+                    ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:brightness-105 hover:shadow-[0_4px_20px_-6px_var(--color-action)]"
                     : "text-fg-faint bg-surface-2 cursor-not-allowed"
                 )}
               >
-                <Play size={14} />
-                Start Pipeline
+                <Play size={14} fill="currentColor" />
+                Generar
               </button>
             </div>
           )}
@@ -2373,6 +2374,124 @@ function ContentAnalyzerInput({
 
 // ── Config Panel ───────────────────────────────────────────
 
+// ── Tool Brief Box — chat-first config entry for a single tool ──────────────
+// You describe what you want in natural language; the agent (scoped to THIS tool)
+// fills the config. The full form below stays as the "fine-tune / advanced" surface.
+// This is NOT a separate chat — it's the same agent, scoped to one tool, as a fast
+// way to populate the form without scanning 30 empty fields.
+const BRIEF_ALLOWED_KEYS: string[] = [
+  "selectedAvatarId", "selectedProductId", "selectedClothingIds", "selectedBackgroundId",
+  "selectedVoiceId", "selectedMoodboardId", "objective", "tone", "platform", "language",
+  "numVariations", "aspectRatio", "resolution", "subtitleEngine", "videoDuration",
+  "ugcMode", "visualStyle", "visualStyleCustom", "hookType", "lipsyncMethod", "creativeMode",
+  "reelMode", "adStyle", "adTemplate", "carouselType", "numSlides", "animationEngine",
+  "voiceStability", "voiceStyle", "voiceSpeed", "productIsWorn", "includeCopy", "customScript",
+];
+
+function ToolBriefBox({ toolId, config, setConfig }: {
+  toolId: string;
+  config: ToolConfig;
+  setConfig: React.Dispatch<React.SetStateAction<ToolConfig>>;
+}) {
+  const { activeBrand } = useBrand();
+  const [brief, setBrief] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resolved, setResolved] = useState<{ reasoning?: string; warnings?: string[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleResolve = async () => {
+    if (!brief.trim() || !activeBrand) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await resolveAgentBrief(
+        activeBrand.id,
+        brief.trim(),
+        { tool: toolId, config: config as unknown as Record<string, unknown> },
+      );
+      // Apply resolved fields on top of current config (whitelist for type safety).
+      setConfig((prev) => {
+        const next = { ...prev } as Record<string, unknown>;
+        for (const k of BRIEF_ALLOWED_KEYS) {
+          const v = (res.config as Record<string, unknown>)[k];
+          if (v !== undefined && v !== null) next[k] = v;
+        }
+        return next as ToolConfig;
+      });
+      setResolved({ reasoning: res.reasoning, warnings: res.warnings });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo resolver");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-[var(--radius-md)] border border-edge bg-surface-1">
+      {/* Electric lime hairline at the top — performance-brand accent */}
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-[var(--color-action)]" />
+
+      <div className="p-6 space-y-4">
+        {/* Eyebrow */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--color-action)]">Coevo Agent</span>
+          <span className="h-px flex-1 bg-edge" />
+        </div>
+
+        {/* Big confident headline */}
+        <h2 className="text-[28px] leading-[1.02] font-bold tracking-[-0.02em] text-fg">
+          Describilo.
+          <span className="text-fg-faint"> La IA arma el resto.</span>
+        </h2>
+
+        <textarea
+          value={brief}
+          onChange={(e) => setBrief(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleResolve(); } }}
+          rows={3}
+          placeholder="reel de la campera bordó · estética vintage VHS · 4 looks · la modelo entra a escena"
+          className="w-full text-[14px] text-fg bg-surface-2 border border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] px-4 py-3 outline-none resize-none placeholder:text-fg-faint transition-colors"
+        />
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleResolve}
+            disabled={loading || !brief.trim()}
+            className={cn(
+              "group flex items-center gap-2 px-5 py-2.5 text-[13px] font-bold uppercase tracking-wide rounded-[var(--radius-sm)] transition-all",
+              !loading && brief.trim()
+                ? "bg-[var(--color-action)] text-[var(--color-action-fg)] hover:brightness-105 cursor-pointer shadow-[0_0_0_0_var(--color-action)] hover:shadow-[0_4px_20px_-4px_var(--color-action)]"
+                : "bg-surface-2 text-fg-faint cursor-not-allowed",
+            )}
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            {loading ? "Armando..." : "Armar form"}
+            {!loading && brief.trim() && <span className="transition-transform group-hover:translate-x-0.5">→</span>}
+          </button>
+          <span className="text-[10px] text-fg-faint">⌘/Ctrl + ↵</span>
+        </div>
+
+        {error && (
+          <p className="text-[12px] text-[var(--color-error)] flex items-center gap-1.5"><AlertCircle size={12} /> {error}</p>
+        )}
+        {resolved && !error && (
+          <div className="border-l-2 border-[var(--color-action)] bg-[var(--color-action-subtle)] rounded-r-[var(--radius-sm)] px-3.5 py-3 space-y-1.5">
+            <p className="text-[12px] font-semibold text-fg flex items-center gap-1.5">
+              <Check size={13} className="text-[var(--color-action)]" /> Listo — revisá abajo y ajustá lo que quieras.
+            </p>
+            {resolved.reasoning && <p className="text-[11px] text-fg-muted leading-relaxed">{resolved.reasoning}</p>}
+            {resolved.warnings && resolved.warnings.length > 0 && (
+              <ul className="text-[10px] text-warning space-y-0.5 pt-0.5">
+                {resolved.warnings.map((w, i) => <li key={i}>⚠ {w}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ConfigPanel({
   tool,
   config,
@@ -2479,6 +2598,12 @@ function ConfigPanel({
           </div>
         )}
       </div>
+
+      {/* Chat-first config entry — prototype on Fashion Reel. Describe what you want,
+          the agent fills the form below; the form is the fine-tune surface. */}
+      {tool.id === "fashion_reel" && (
+        <ToolBriefBox toolId={tool.id} config={config} setConfig={setConfig} />
+      )}
 
       {/* Brand readiness banner — shows what's missing before generating */}
       {readinessIssues.length > 0 && (
@@ -4119,12 +4244,13 @@ function ConfigPanel({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Primary action → lime (design system: Lime = action). */}
             <button
               onClick={onStart}
-              className="flex items-center gap-2 px-6 py-2.5 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
+              className="flex items-center gap-2 px-6 py-2.5 text-[13px] font-bold uppercase tracking-wide text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:brightness-105 hover:shadow-[0_4px_20px_-6px_var(--color-action)] transition-all cursor-pointer"
             >
-              <Play size={14} />
-              Start Pipeline
+              <Play size={14} fill="currentColor" />
+              Generar
             </button>
           </div>
         </div>
