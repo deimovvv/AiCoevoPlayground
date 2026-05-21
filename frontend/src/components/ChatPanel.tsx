@@ -426,8 +426,8 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
             <div className="h-full flex items-center justify-center">
               <div className="text-center space-y-6 max-w-2xl px-4 w-full">
                 <div className="space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-[var(--color-warm-muted)] flex items-center justify-center mx-auto">
-                    <Bot size={22} className="text-[var(--color-warm-strong)]" />
+                  <div className="w-12 h-12 rounded-full bg-[var(--color-action-muted)] flex items-center justify-center mx-auto">
+                    <Bot size={22} className="text-[var(--color-action-strong)]" />
                   </div>
                   <p className="text-fg text-[20px] font-semibold tracking-tight">
                     ¿Qué querés crear para {activeBrand.name}?
@@ -497,8 +497,8 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
               })}
               {loading && (
                 <div className="flex items-start gap-3 py-4">
-                  <div className="w-7 h-7 rounded-full bg-[var(--color-warm-muted)] flex items-center justify-center shrink-0 mt-0.5">
-                    <Bot size={14} className="text-[var(--color-warm)]" />
+                  <div className="w-7 h-7 rounded-full bg-[var(--color-action-muted)] flex items-center justify-center shrink-0 mt-0.5">
+                    <Bot size={14} className="text-[var(--color-action)]" />
                   </div>
                   <div className="flex items-center gap-2 text-fg-muted text-[13px] pt-1">
                     <Loader2 size={14} className="animate-spin" />
@@ -598,7 +598,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
                       onClick={() => commitMention(a)}
                       className={cn(
                         "w-full flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-left",
-                        i === mention.activeIdx ? "bg-[var(--color-warm-subtle)]" : "hover:bg-surface-2",
+                        i === mention.activeIdx ? "bg-[var(--color-action-subtle)]" : "hover:bg-surface-2",
                       )}
                     >
                       {a.imageUrl ? (
@@ -665,7 +665,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
                 className={cn(
                   "p-1.5 rounded-[var(--radius-sm)] transition-colors shrink-0 cursor-pointer",
                   (input.trim() || attachments.length > 0) && !loading
-                    ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90"
+                    ? "bg-[var(--color-action)] text-[var(--color-action-fg)] hover:opacity-90"
                     : "text-fg-faint"
                 )}
               >
@@ -797,7 +797,7 @@ function AssetChipGroup({
         <button
           onClick={onAddNew}
           title={`Agregar ${label.toLowerCase()} en Brand Kit`}
-          className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-[var(--color-warm-strong)] bg-[var(--color-warm-muted)] hover:bg-[var(--color-warm-subtle)] rounded-full transition-colors cursor-pointer border border-dashed border-[var(--color-warm-muted)]"
+          className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-[var(--color-action-strong)] bg-[var(--color-action-muted)] hover:bg-[var(--color-action-subtle)] rounded-full transition-colors cursor-pointer border border-dashed border-[var(--color-action-muted)]"
         >
           <Plus size={9} />
           Nuevo
@@ -832,13 +832,13 @@ function MessageBubble({ message, selections, userQuestion, attachments, previou
       <div
         className={cn(
           "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5",
-          isUser ? "bg-surface-2" : "bg-[var(--color-warm-muted)]"
+          isUser ? "bg-surface-2" : "bg-[var(--color-action-muted)]"
         )}
       >
         {isUser ? (
           <User size={14} className="text-fg-secondary" />
         ) : (
-          <Bot size={14} className="text-[var(--color-warm-strong)]" />
+          <Bot size={14} className="text-[var(--color-action-strong)]" />
         )}
       </div>
       <div
@@ -990,7 +990,7 @@ function IgReplicateBubble({ result }: { result: import("../lib/api").InstagramR
             {result.narrative.map((n, i) => (
               <li key={i} className="text-[11px] text-fg-muted leading-relaxed">
                 <span className="font-mono text-[10px] text-fg-faint">{String(n.slide).padStart(2, "0")}</span>
-                <span className="font-semibold text-[var(--color-warm-strong)] ml-1.5">{n.role}</span>
+                <span className="font-semibold text-[var(--color-action-strong)] ml-1.5">{n.role}</span>
                 <span className="ml-1.5">— {n.describes}</span>
               </li>
             ))}
@@ -1005,14 +1005,14 @@ function IgReplicateBubble({ result }: { result: import("../lib/api").InstagramR
           value={editedBrief}
           onChange={(e) => setEditedBrief(e.target.value)}
           rows={Math.min(12, Math.max(6, editedBrief.split("\n").length))}
-          className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-3 py-2 text-[12px] text-fg outline-none focus:border-[var(--color-warm)] resize-y leading-relaxed font-mono"
+          className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-3 py-2 text-[12px] text-fg outline-none focus:border-[var(--color-action)] resize-y leading-relaxed font-mono"
         />
       </div>
 
       <button
         onClick={handoffToCarousel}
         disabled={applying || !editedBrief.trim()}
-        className="w-full px-3 py-2.5 text-[12px] font-semibold bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+        className="w-full px-3 py-2.5 text-[12px] font-semibold bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
       >
         {applying ? "Preparando..." : "→ Crear carousel con esto"}
       </button>
@@ -1157,7 +1157,7 @@ function CreateWithThis({ content, userQuestion, selections, attachments, previo
       <button
         onClick={autoHandoff}
         disabled={autoLoading || !activeBrand}
-        className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:bg-[var(--color-warm-strong)] rounded-full transition-all cursor-pointer disabled:opacity-50 shadow-sm"
+        className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] hover:bg-[var(--color-action-strong)] rounded-full transition-all cursor-pointer disabled:opacity-50 shadow-sm"
         title="La IA elige la tool y pre-llena todos los campos automáticamente"
       >
         {autoLoading ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />}
@@ -1391,13 +1391,13 @@ function AssetsPanel({
                   className={cn(
                     "w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] transition-all cursor-pointer text-left",
                     isActive
-                      ? "bg-[var(--color-warm-muted)] border border-[var(--color-warm)]"
+                      ? "bg-[var(--color-action-muted)] border border-[var(--color-action)]"
                       : "border border-transparent hover:bg-surface-1 hover:border-edge"
                   )}
                 >
                   <div className={cn(
                     "w-6 h-6 rounded-full flex items-center justify-center shrink-0",
-                    isActive ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]" : "bg-surface-2 text-fg-faint"
+                    isActive ? "bg-[var(--color-action)] text-[var(--color-action-fg)]" : "bg-surface-2 text-fg-faint"
                   )}>
                     <Mic size={10} />
                   </div>
@@ -1407,7 +1407,7 @@ function AssetsPanel({
                   )}>
                     {v.name}
                   </span>
-                  {isActive && <Check size={11} className="text-[var(--color-warm-strong)]" />}
+                  {isActive && <Check size={11} className="text-[var(--color-action-strong)]" />}
                 </button>
               );
             })}
@@ -1450,7 +1450,7 @@ function AssetSection({
         {onAdd && (
           <button
             onClick={onAdd}
-            className="w-5 h-5 rounded-full flex items-center justify-center text-fg-faint hover:text-[var(--color-warm-strong)] hover:bg-[var(--color-warm-muted)] cursor-pointer transition-colors"
+            className="w-5 h-5 rounded-full flex items-center justify-center text-fg-faint hover:text-[var(--color-action-strong)] hover:bg-[var(--color-action-muted)] cursor-pointer transition-colors"
             title={`Agregar en Brand Kit`}
           >
             <Plus size={10} />
@@ -1486,7 +1486,7 @@ function AssetGrid({
             className={cn(
               "relative rounded-[var(--radius-sm)] overflow-hidden border-2 transition-all cursor-pointer group",
               isActive
-                ? "border-[var(--color-warm)] ring-2 ring-[var(--color-warm-muted)]"
+                ? "border-[var(--color-action)] ring-2 ring-[var(--color-action-muted)]"
                 : "border-transparent hover:border-edge-strong"
             )}
           >
@@ -1501,8 +1501,8 @@ function AssetGrid({
               <p className="text-[9px] font-medium text-white truncate text-left">{it.name}</p>
             </div>
             {isActive && (
-              <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--color-warm)] flex items-center justify-center shadow-sm">
-                <Check size={8} className="text-[var(--color-warm-fg)]" />
+              <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--color-action)] flex items-center justify-center shadow-sm">
+                <Check size={8} className="text-[var(--color-action-fg)]" />
               </div>
             )}
           </button>
@@ -1530,7 +1530,7 @@ function SelectionSummary({
   const total = avatars.length + products.length + clothing.length + backgrounds.length + (voice ? 1 : 0);
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--color-warm-muted)] border border-[var(--color-warm-muted)] rounded-full text-[11px] text-[var(--color-warm-strong)] font-medium">
+    <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--color-action-muted)] border border-[var(--color-action-muted)] rounded-full text-[11px] text-[var(--color-action-strong)] font-medium">
       <Check size={11} />
       <span>{total} asset{total !== 1 ? "s" : ""} seleccionado{total !== 1 ? "s" : ""}:</span>
       <span className="text-fg-muted truncate flex-1 font-normal">
@@ -1544,7 +1544,7 @@ function SelectionSummary({
       </span>
       <button
         onClick={onClear}
-        className="text-[var(--color-warm-strong)] hover:text-fg cursor-pointer"
+        className="text-[var(--color-action-strong)] hover:text-fg cursor-pointer"
         title="Limpiar selección"
       >
         <X size={11} />

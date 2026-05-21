@@ -87,11 +87,11 @@ export function ConfigPreviewCard({ resolved, autoStartOnGenerate = true }: Conf
     };
 
     return (
-        <div className="bg-surface-0 border border-[var(--color-warm-muted)] rounded-[var(--radius-md)] p-4 space-y-3 mt-2">
+        <div className="bg-surface-0 border border-[var(--color-action-muted)] rounded-[var(--radius-md)] p-4 space-y-3 mt-2">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <Sparkles size={14} className="text-[var(--color-warm)]" />
+                    <Sparkles size={14} className="text-[var(--color-action)]" />
                     <span className="text-[12px] font-semibold text-fg">
                         {toolMeta?.schema.objectiveLabel ? toolMeta.schema.objectiveLabel.replace(/\s*\(.+\)$/, "") : resolved.tool}
                     </span>
@@ -151,7 +151,7 @@ export function ConfigPreviewCard({ resolved, autoStartOnGenerate = true }: Conf
                 </button>
                 <button
                     onClick={handleGenerate}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:bg-[var(--color-warm-strong)] text-[11px] font-semibold cursor-pointer shadow-sm ml-auto"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-action)] text-[var(--color-action-fg)] hover:bg-[var(--color-action-strong)] text-[11px] font-semibold cursor-pointer shadow-sm ml-auto"
                 >
                     <Play size={11} fill="currentColor" /> Generar
                     <ChevronRight size={11} />

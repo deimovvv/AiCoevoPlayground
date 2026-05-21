@@ -381,7 +381,7 @@ export function ComposeOverlay({
                     className={cn(
                       "px-2.5 py-1.5 rounded-[var(--radius-sm)] text-[10px] font-medium border transition-all cursor-pointer",
                       templateId === t.id
-                        ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                        ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                         : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-edge-strong"
                     )}
                   >
@@ -403,14 +403,14 @@ export function ComposeOverlay({
                         value={(fields as Record<string, string | undefined>)[field] || ""}
                         onChange={(e) => updateField(field as keyof ComposeFields, e.target.value)}
                         rows={field === "headline" ? 2 : 3}
-                        className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-warm)] resize-none"
+                        className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-action)] resize-none"
                       />
                     ) : (
                       <input
                         type="text"
                         value={(fields as Record<string, string | undefined>)[field] || ""}
                         onChange={(e) => updateField(field as keyof ComposeFields, e.target.value)}
-                        className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-warm)]"
+                        className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-action)]"
                       />
                     )}
                   </div>
@@ -425,7 +425,7 @@ export function ComposeOverlay({
         <button
           onClick={handleExport}
           disabled={exporting}
-          className="w-full flex items-center justify-center gap-2 py-2 bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] text-[12px] font-semibold hover:opacity-90 disabled:opacity-50 cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 py-2 bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] text-[12px] font-semibold hover:opacity-90 disabled:opacity-50 cursor-pointer"
         >
           <Download size={12} />
           {exporting ? "Exportando..." : "Exportar PNG"}

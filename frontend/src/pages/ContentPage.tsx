@@ -452,7 +452,7 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                     {gen.pipelineState ? (
                         <Link
                             to={`/dashboard/generate/${gen.toolId}?gen=${gen.id}`}
-                            className="flex items-center justify-center gap-2 w-full py-2.5 bg-[var(--color-warm)] hover:opacity-90 text-[var(--color-warm-fg)] font-semibold rounded-[var(--radius-sm)] text-[13px] transition-opacity cursor-pointer"
+                            className="flex items-center justify-center gap-2 w-full py-2.5 bg-[var(--color-action)] hover:opacity-90 text-[var(--color-action-fg)] font-semibold rounded-[var(--radius-sm)] text-[13px] transition-opacity cursor-pointer"
                         >
                             <Pencil size={13} />
                             {gen.status === "completed" ? "Abrir en el tool" : "Continuar edición"}
@@ -545,7 +545,7 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                             <a
                                 href={fullVideoUrl}
                                 download={`${gen.title.replace(/[^a-zA-Z0-9]/g, "_")}.mp4`}
-                                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
+                                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-[13px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
                             >
                                 <Download size={14} />
                                 Download

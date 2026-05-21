@@ -70,7 +70,7 @@ export function BrandSwitcher() {
         <div
           className={cn(
             "w-8 h-8 rounded-[var(--radius-sm)] flex items-center justify-center shrink-0 overflow-hidden",
-            isSandbox ? "bg-surface-2" : "bg-[var(--color-warm-muted)]"
+            isSandbox ? "bg-surface-2" : "bg-[var(--color-action-muted)]"
           )}
         >
           {hasLogo && activeBrand ? (
@@ -82,7 +82,7 @@ export function BrandSwitcher() {
           ) : isSandbox ? (
             <FlaskConical size={14} className="text-fg-faint" />
           ) : (
-            <span className="text-[10px] font-bold text-[var(--color-warm)] leading-none">
+            <span className="text-[10px] font-bold text-[var(--color-action)] leading-none">
               {activeBrand ? initials(activeBrand.name) : "?"}
             </span>
           )}

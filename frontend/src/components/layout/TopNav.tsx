@@ -15,16 +15,20 @@ interface NavItem {
     href: string;
     exact?: boolean;
     icon: React.ReactNode;
+    title?: string;
 }
 
+// Brand-flow nav: everything that operates WITH the active brand context.
 const PRIMARY_NAV: NavItem[] = [
-    { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={15} /> },
-    { label: "Chat", href: "/dashboard/chat", exact: true, icon: <MessageSquare size={15} /> },
-    { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={15} /> },
-    { label: "Lab", href: "/dashboard/lab", exact: true, icon: <FlaskConical size={15} /> },
-    { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={15} /> },
-    { label: "Performance", href: "/dashboard/performance/organic", icon: <BarChart3 size={15} /> },
+    { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={15} />, title: "Gestioná tus marcas y su brand kit" },
+    { label: "Chat", href: "/dashboard/chat", exact: true, icon: <MessageSquare size={15} />, title: "Asistente CON tu marca — ideas, estrategia, rutea a tools" },
+    { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={15} />, title: "Tools de generación de contenido para tu marca" },
+    { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={15} />, title: "Biblioteca de generaciones" },
+    { label: "Performance", href: "/dashboard/performance/organic", icon: <BarChart3 size={15} />, title: "Analytics de contenido" },
 ];
+
+// Lab lives OUTSIDE the brand flow — a brand-agnostic sandbox. Visually separated.
+const LAB_NAV: NavItem = { label: "Lab", href: "/dashboard/lab", exact: true, icon: <FlaskConical size={15} />, title: "Sandbox SIN marca — Nano Banana + Kling/Seedance directo, para experimentar" };
 
 const SETTINGS_NAV: NavItem[] = [
     { label: "Integraciones", href: "/dashboard/integrations", exact: true, icon: <Plug size={14} /> },
@@ -67,12 +71,12 @@ export function TopNav() {
                     alt="Coevo"
                     className="w-7 h-7 object-contain coevo-logo"
                 />
-                <span className="text-[15px] font-bold text-fg tracking-[-0.02em] group-hover:text-[var(--color-warm-strong)] transition-colors lowercase">
+                <span className="text-[15px] font-bold text-fg tracking-[-0.02em] group-hover:text-[var(--color-action-strong)] transition-colors lowercase">
                     coevo studio
                 </span>
             </Link>
 
-            {/* Primary nav */}
+            {/* Primary nav (brand flow) + Lab apart (brand-agnostic sandbox) */}
             <nav className="flex items-center gap-0.5 flex-1">
                 {PRIMARY_NAV.map((item) => {
                     const active = item.label === "Performance" ? isPerfActive : isActive(item);
@@ -80,6 +84,7 @@ export function TopNav() {
                         <Link
                             key={item.label}
                             to={item.href}
+                            title={item.title}
                             className={cn(
                                 "flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-full transition-colors",
                                 active
@@ -92,6 +97,30 @@ export function TopNav() {
                         </Link>
                     );
                 })}
+
+                {/* Divider — Lab is outside the brand flow */}
+                <span className="mx-2 h-5 w-px bg-edge" />
+
+                {/* Lab — sandbox sin marca, trato visual distinto (acento lime experimental) */}
+                {(() => {
+                    const active = isActive(LAB_NAV);
+                    return (
+                        <Link
+                            to={LAB_NAV.href}
+                            title={LAB_NAV.title}
+                            className={cn(
+                                "flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-full transition-colors",
+                                active
+                                    ? "text-[var(--color-action-fg)] bg-[var(--color-action)]"
+                                    : "text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)]"
+                            )}
+                        >
+                            <span className={cn(!active && "text-[var(--color-action)]")}>{LAB_NAV.icon}</span>
+                            {LAB_NAV.label}
+                            <span className="text-[8px] font-bold uppercase tracking-wider opacity-60">sandbox</span>
+                        </Link>
+                    );
+                })()}
             </nav>
 
             {/* Right side: brand chip + settings */}
@@ -180,7 +209,7 @@ function BrandChip({ brand, onClick }: { brand: ReturnType<typeof useBrand>["act
                     "w-6 h-6 rounded-full flex items-center justify-center shrink-0 overflow-hidden",
                     isSandbox && "bg-surface-2"
                 )}
-                style={{ backgroundColor: !isSandbox ? (primaryColor || "var(--color-warm-muted)") : undefined }}
+                style={{ backgroundColor: !isSandbox ? (primaryColor || "var(--color-action-muted)") : undefined }}
             >
                 {hasLogo && brand ? (
                     <img
@@ -193,7 +222,7 @@ function BrandChip({ brand, onClick }: { brand: ReturnType<typeof useBrand>["act
                 ) : (
                     <span
                         className="text-[9px] font-bold leading-none"
-                        style={{ color: primaryColor ? "#fff" : "var(--color-warm)" }}
+                        style={{ color: primaryColor ? "#fff" : "var(--color-action)" }}
                     >
                         {initials}
                     </span>

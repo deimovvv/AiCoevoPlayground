@@ -92,7 +92,7 @@ export function DashboardOverview() {
                     title="Brands"
                     subtitle={`${brands.length} brand${brands.length !== 1 ? "s" : ""} configured`}
                     href="/dashboard/brands"
-                    icon={<FolderOpen size={15} className="text-[var(--color-warm)]" />}
+                    icon={<FolderOpen size={15} className="text-[var(--color-action)]" />}
                 >
                     {brands.length === 0 ? (
                         <div className="text-[13px] text-fg-faint py-6 text-center">
@@ -109,8 +109,8 @@ export function DashboardOverview() {
                                     to={`/dashboard/brands/${brand.id}`}
                                     className="group flex items-center gap-3 p-3 rounded-[var(--radius-sm)] bg-surface-1 hover:bg-surface-2 border border-transparent hover:border-edge transition-all"
                                 >
-                                    <div className="w-8 h-8 rounded-[var(--radius-sm)] bg-[var(--color-warm-muted)] flex items-center justify-center">
-                                        <Layers size={14} className="text-[var(--color-warm)]" />
+                                    <div className="w-8 h-8 rounded-[var(--radius-sm)] bg-[var(--color-action-muted)] flex items-center justify-center">
+                                        <Layers size={14} className="text-[var(--color-action)]" />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="text-[13px] font-medium text-fg truncate">{brand.name}</div>
@@ -118,7 +118,7 @@ export function DashboardOverview() {
                                             {brand.avatars?.length || 0} avatars · {brand.voicePresets?.length || 0} voices
                                         </div>
                                     </div>
-                                    <ArrowRight size={13} className="text-fg-faint group-hover:text-[var(--color-warm)] group-hover:translate-x-0.5 transition-all shrink-0" />
+                                    <ArrowRight size={13} className="text-fg-faint group-hover:text-[var(--color-action)] group-hover:translate-x-0.5 transition-all shrink-0" />
                                 </Link>
                             ))}
                         </div>
@@ -126,7 +126,7 @@ export function DashboardOverview() {
                     {brands.length > 3 && (
                         <Link
                             to="/dashboard/brands"
-                            className="block text-center text-[12px] text-fg-muted hover:text-[var(--color-warm)] mt-3 transition-colors"
+                            className="block text-center text-[12px] text-fg-muted hover:text-[var(--color-action)] mt-3 transition-colors"
                         >
                             View all {brands.length} brands →
                         </Link>
@@ -196,7 +196,7 @@ function StatCard({
         >
             <div
                 className={`w-9 h-9 rounded-[var(--radius-sm)] flex items-center justify-center transition-colors ${warm
-                        ? "bg-[var(--color-warm-muted)] text-[var(--color-warm)]"
+                        ? "bg-[var(--color-action-muted)] text-[var(--color-action)]"
                         : "bg-surface-2 text-fg-muted group-hover:text-fg"
                     }`}
             >
@@ -235,7 +235,7 @@ function Section({
                 </div>
                 <Link
                     to={href}
-                    className="text-[11px] text-fg-muted hover:text-[var(--color-warm)] flex items-center gap-1 transition-colors"
+                    className="text-[11px] text-fg-muted hover:text-[var(--color-action)] flex items-center gap-1 transition-colors"
                 >
                     View all <ArrowRight size={11} />
                 </Link>

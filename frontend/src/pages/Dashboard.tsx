@@ -142,7 +142,7 @@ export function Dashboard() {
                             className={cn(
                                 "px-3.5 py-1.5 text-[12px] font-medium rounded-full transition-all cursor-pointer",
                                 filter === f.key
-                                    ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm"
+                                    ? "bg-[var(--color-action)] text-[var(--color-action-fg)] shadow-sm"
                                     : "text-fg-muted hover:text-fg"
                             )}
                         >

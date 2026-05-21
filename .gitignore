@@ -34,14 +34,13 @@ yarn-error.log*
 lerna-debug.log*
 
 # Backend data & uploads
-backend/data/avatars/*
-backend/data/products/*
-backend/data/clothing/*
-backend/data/backgrounds/*
+# KEEP brand-context assets in the repo (avatars, products, clothing, backgrounds,
+# moodboards, logos) so a clone ships with the full brand kit ready to use.
+# IGNORE only the heavy generated outputs (renders, ~GBs) and transient/runtime files.
 backend/data/renders/*
 backend/data/generations.json
+backend/data/ig-imports/*
 backend/tmp/*
-!backend/data/brands.json
 
 # Project specific
 .agent/
@@ -51,6 +50,5 @@ skills-lock.json
 videoref/
 
 # Keep empty directories with .gitkeep
-!backend/data/avatars/.gitkeep
-!backend/data/products/.gitkeep
+!backend/data/renders/.gitkeep
 !backend/tmp/.gitkeep

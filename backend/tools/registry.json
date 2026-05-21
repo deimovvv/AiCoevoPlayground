@@ -1,110 +1,178 @@
 [
-    {
-        "id": "avatar_creator",
-        "name": "Avatar",
-        "category": "images",
-        "description": "Generate AI avatars tailored to your brand's audience. Choose a style, get a character brief from Gemini, and generate a full reference sheet with body + face angles.",
-        "icon": "camera",
-        "status": "active",
-        "pipeline": ["brief", "generate", "save"]
-    },
-    {
-        "id": "ugc_creator",
-        "name": "UGC Creator",
-        "category": "video",
-        "description": "Create complete UGC videos: script, base image, multishot variations, voice, lip-sync, subtitles.",
-        "icon": "video",
-        "status": "active",
-        "pipeline": ["script", "base_image", "multishot", "voice", "lipsync", "render"]
-    },
-    {
-        "id": "product_clip",
-        "name": "Product Clip",
-        "category": "video",
-        "description": "Short product video (10-15s). No people — just the product, beautifully shot and animated. Perfect for Stories, e-commerce, product reveals.",
-        "icon": "film",
-        "status": "active",
-        "pipeline": ["script", "base_image", "images", "animate", "render"]
-    },
-    {
-        "id": "content_analyzer",
-        "name": "Content Analyzer",
-        "category": "images",
-        "description": "Analyze any video (TikTok, YouTube, Instagram) and extract: script, scene prompts, visual style. Then recreate similar content with your brand.",
-        "icon": "sparkles",
-        "status": "active",
-        "pipeline": ["analyze", "map_assets", "adapt", "route"]
-    },
-    {
-        "id": "video_ad_creator",
-        "name": "Video Ad Creator",
-        "category": "video",
-        "description": "Create cinematic video ads: storyboard, 10 keyframes, frame-to-frame animation with Kling, voiceover, music, and final render.",
-        "icon": "film",
-        "status": "active",
-        "pipeline": ["script", "base_image", "images", "voice", "animate", "render"]
-    },
-    {
-        "id": "static_ad",
-        "name": "Static Ad",
-        "category": "images",
-        "description": "Create ready-to-publish static ads with product, copy, logo, and brand colors. Perfect for social media, display, and print.",
-        "icon": "megaphone",
-        "status": "active",
-        "pipeline": ["prompt", "generate_all"]
-    },
-    {
-        "id": "carousel_creator",
-        "name": "Carousel Creator",
-        "category": "images",
-        "description": "Create multi-slide carousel ads for Instagram, TikTok, and LinkedIn. Cohesive visual story with consistent style across all slides.",
-        "icon": "share",
-        "status": "active",
-        "pipeline": ["prompt", "generate_all"]
-    },
-    {
-        "id": "ad_creative_lab",
-        "name": "Ad Creative Lab",
-        "category": "images",
-        "description": "Generate brand-consistent ad creatives from reference images. Upload references, analyze visual style, generate multiple variations, iterate.",
-        "icon": "sparkles",
-        "status": "active",
-        "pipeline": ["visual_guide", "prompts", "generate_batch"]
-    },
-    {
-        "id": "product_spotlight",
-        "name": "Product Spotlight",
-        "category": "images",
-        "description": "Professional product photography in context. Place your product in any setting with studio-quality lighting and composition.",
-        "icon": "camera",
-        "status": "active",
-        "pipeline": ["prompt", "generate", "variations"]
-    },
-    {
-        "id": "fashion_reel",
-        "name": "Fashion Reel",
-        "category": "video",
-        "description": "Visual fashion/lifestyle reels — no talking, pure movement. Story mode (Hook → Movement → Showcase → Closer) or Looks mode (one scene per outfit).",
-        "icon": "film",
-        "status": "active",
-        "pipeline": ["script", "base_image", "multishot", "animate", "render"]
-    },
-    {
-        "id": "reel_creator",
-        "name": "Reel Creator",
-        "category": "video",
-        "description": "Create short-form video reels with scenes, music, and subtitles.",
-        "icon": "film",
-        "status": "coming_soon",
-        "pipeline": ["script", "scenes", "music", "subtitles", "render"]
-    },
-    {
-        "id": "bg_remover",
-        "name": "Background Remover",
-        "category": "images",
-        "description": "Remove background from product photos using AI segmentation.",
-        "icon": "eraser",
-        "status": "coming_soon",
-        "pipeline": ["remove"]
-    }
+  {
+    "id": "avatar_creator",
+    "name": "Avatar",
+    "category": "images",
+    "description": "Generate AI avatars tailored to your brand's audience. Choose a style, get a character brief from Gemini, and generate a full reference sheet with body + face angles.",
+    "icon": "camera",
+    "status": "active",
+    "pipeline": [
+      "brief",
+      "generate",
+      "save"
+    ]
+  },
+  {
+    "id": "ugc_creator",
+    "name": "UGC Creator",
+    "category": "video",
+    "description": "Create complete UGC videos: script, base image, multishot variations, voice, lip-sync, subtitles.",
+    "icon": "video",
+    "status": "active",
+    "pipeline": [
+      "script",
+      "base_image",
+      "multishot",
+      "voice",
+      "lipsync",
+      "render"
+    ]
+  },
+  {
+    "id": "product_clip",
+    "name": "Product Clip",
+    "category": "video",
+    "description": "Short product video (10-15s). No people — just the product, beautifully shot and animated. Perfect for Stories, e-commerce, product reveals.",
+    "icon": "film",
+    "status": "active",
+    "pipeline": [
+      "script",
+      "base_image",
+      "images",
+      "animate",
+      "render"
+    ]
+  },
+  {
+    "id": "content_analyzer",
+    "name": "Content Analyzer",
+    "category": "images",
+    "description": "Analyze any video (TikTok, YouTube, Instagram) and extract: script, scene prompts, visual style. Then recreate similar content with your brand.",
+    "icon": "sparkles",
+    "status": "active",
+    "pipeline": [
+      "analyze",
+      "map_assets",
+      "adapt",
+      "route"
+    ]
+  },
+  {
+    "id": "video_ad_creator",
+    "name": "Video Ad Creator",
+    "category": "video",
+    "description": "Create cinematic video ads: storyboard, 10 keyframes, frame-to-frame animation with Kling, voiceover, music, and final render.",
+    "icon": "film",
+    "status": "active",
+    "pipeline": [
+      "script",
+      "base_image",
+      "images",
+      "voice",
+      "animate",
+      "render"
+    ]
+  },
+  {
+    "id": "static_ad",
+    "name": "Static Ad",
+    "category": "images",
+    "description": "Create ready-to-publish static ads with product, copy, logo, and brand colors. Perfect for social media, display, and print.",
+    "icon": "megaphone",
+    "status": "active",
+    "pipeline": [
+      "prompt",
+      "generate_all"
+    ]
+  },
+  {
+    "id": "carousel_creator",
+    "name": "Carousel Creator",
+    "category": "images",
+    "description": "Create multi-slide carousel ads for Instagram, TikTok, and LinkedIn. Cohesive visual story with consistent style across all slides.",
+    "icon": "share",
+    "status": "active",
+    "pipeline": [
+      "prompt",
+      "generate_all"
+    ]
+  },
+  {
+    "id": "ad_creative_lab",
+    "name": "Ad Creative Lab",
+    "category": "images",
+    "description": "Generate brand-consistent ad creatives from reference images. Upload references, analyze visual style, generate multiple variations, iterate.",
+    "icon": "sparkles",
+    "status": "active",
+    "pipeline": [
+      "visual_guide",
+      "prompts",
+      "generate_batch"
+    ]
+  },
+  {
+    "id": "product_spotlight",
+    "name": "Product Spotlight",
+    "category": "images",
+    "description": "Professional product photography in context. Place your product in any setting with studio-quality lighting and composition.",
+    "icon": "camera",
+    "status": "active",
+    "pipeline": [
+      "prompt",
+      "generate",
+      "variations"
+    ]
+  },
+  {
+    "id": "fashion_reel",
+    "name": "Fashion Reel",
+    "category": "video",
+    "description": "Visual fashion/lifestyle reels — no talking, pure movement. Story mode (Hook → Movement → Showcase → Closer) or Looks mode (one scene per outfit).",
+    "icon": "film",
+    "status": "active",
+    "pipeline": [
+      "script",
+      "base_image",
+      "multishot",
+      "animate",
+      "render"
+    ]
+  },
+  {
+    "id": "video_swap",
+    "name": "Video Swap",
+    "category": "video",
+    "description": "Swap a garment, product or background in YOUR own video while keeping the subject and motion. Powered by Beeble SwitchX — composites over the real footage and relights to match.",
+    "icon": "video",
+    "status": "active",
+    "pipeline": [
+      "swap"
+    ]
+  },
+  {
+    "id": "reel_creator",
+    "name": "Reel Creator",
+    "category": "video",
+    "description": "Create short-form video reels with scenes, music, and subtitles.",
+    "icon": "film",
+    "status": "coming_soon",
+    "pipeline": [
+      "script",
+      "scenes",
+      "music",
+      "subtitles",
+      "render"
+    ]
+  },
+  {
+    "id": "bg_remover",
+    "name": "Background Remover",
+    "category": "images",
+    "description": "Remove background from product photos using AI segmentation.",
+    "icon": "eraser",
+    "status": "coming_soon",
+    "pipeline": [
+      "remove"
+    ]
+  }
 ]

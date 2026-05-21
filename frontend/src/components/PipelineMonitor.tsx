@@ -308,7 +308,7 @@ export function PipelineMonitor({
     const getStatusColor = (status: StepStatus) => {
         switch (status) {
             case "done": return "border-success/40 bg-success/5";
-            case "running": return "border-[var(--color-warm)]/40 bg-[var(--color-warm)]/5";
+            case "running": return "border-[var(--color-action)]/40 bg-[var(--color-action)]/5";
             case "review": return "border-warning/40 bg-warning/5";
             case "error": return "border-error/40 bg-error/5";
             default: return "border-edge bg-surface-1/30";
@@ -318,7 +318,7 @@ export function PipelineMonitor({
     const getStepDotStyle = (status: StepStatus) => {
         switch (status) {
             case "done": return "bg-success text-white";
-            case "running": return "bg-[var(--color-warm)] text-[var(--color-warm-fg)]";
+            case "running": return "bg-[var(--color-action)] text-[var(--color-action-fg)]";
             case "review": return "bg-warning text-black";
             case "error": return "bg-error text-white";
             default: return "bg-surface-2 text-fg-faint border border-edge";
@@ -346,7 +346,7 @@ export function PipelineMonitor({
                     <div className="flex items-center gap-2">
                         <div className="w-24 h-1.5 bg-surface-2 rounded-full overflow-hidden">
                             <div
-                                className="h-full bg-[var(--color-warm)] rounded-full transition-all duration-500"
+                                className="h-full bg-[var(--color-action)] rounded-full transition-all duration-500"
                                 style={{ width: `${progress}%` }}
                             />
                         </div>
@@ -403,7 +403,7 @@ export function PipelineMonitor({
                                     {/* ── Running ── */}
                                     {step.status === "running" && (
                                         <div className="flex-1 flex flex-col items-center justify-center p-4 gap-2">
-                                            <Loader2 size={20} className="animate-spin text-[var(--color-warm)]" />
+                                            <Loader2 size={20} className="animate-spin text-[var(--color-action)]" />
                                             <p className="text-[12px] text-fg-muted">Procesando...</p>
                                         </div>
                                     )}
@@ -428,13 +428,13 @@ export function PipelineMonitor({
                                             <audio ref={audioRef} src={audioUrl} onEnded={() => setAudioPlaying(false)} className="hidden" />
                                             <button
                                                 onClick={toggleAudio}
-                                                className="cursor-pointer w-12 h-12 rounded-full bg-[var(--color-warm)] text-[var(--color-warm-fg)] flex items-center justify-center hover:opacity-90 transition-opacity"
+                                                className="cursor-pointer w-12 h-12 rounded-full bg-[var(--color-action)] text-[var(--color-action-fg)] flex items-center justify-center hover:opacity-90 transition-opacity"
                                             >
                                                 {audioPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
                                             </button>
                                             <div className="w-full max-w-[200px]">
                                                 <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
-                                                    <div className={`h-full bg-[var(--color-warm)] rounded-full ${audioPlaying ? "animate-pulse w-2/3" : "w-0"} transition-all`} />
+                                                    <div className={`h-full bg-[var(--color-action)] rounded-full ${audioPlaying ? "animate-pulse w-2/3" : "w-0"} transition-all`} />
                                                 </div>
                                                 <p className="text-[10px] text-fg-faint mt-1 text-center">{audioPlaying ? "Reproduciendo..." : "Escuchar audio"}</p>
                                             </div>

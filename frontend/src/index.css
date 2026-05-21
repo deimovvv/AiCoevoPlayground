@@ -11,24 +11,25 @@
 @theme {
   /* ──────────── DARK (default) ──────────── */
 
-  /* Surfaces */
-  --color-canvas: #0c0c0c;
-  --color-surface-0: #141416;
-  --color-surface-1: #1c1c1f;
-  --color-surface-2: #252528;
-  --color-surface-3: #2e2e32;
+  /* Surfaces — stepped contrast so cards clearly separate from the canvas.
+     Canvas is near-black; each surface is a visibly lighter step (not a hair). */
+  --color-canvas: #08080a;
+  --color-surface-0: #131316;
+  --color-surface-1: #1d1d21;
+  --color-surface-2: #2a2a30;
+  --color-surface-3: #38383f;
 
-  /* Foreground */
-  --color-fg: #eeeeee;
-  --color-fg-secondary: #aaaaaa;
-  --color-fg-muted: #777777;
-  --color-fg-faint: #555555;
+  /* Foreground — brighter muted/faint so secondary text is actually readable. */
+  --color-fg: #f4f4f5;
+  --color-fg-secondary: #c2c2c6;
+  --color-fg-muted: #9a9aa2;
+  --color-fg-faint: #74747c;
 
-  /* Borders */
-  --color-edge: rgba(255, 255, 255, 0.10);
-  --color-edge-subtle: rgba(255, 255, 255, 0.06);
-  --color-edge-strong: rgba(255, 255, 255, 0.18);
-  --color-edge-focus: rgba(200, 200, 200, 0.35);
+  /* Borders — more present so card boundaries are visible (were near-invisible). */
+  --color-edge: rgba(255, 255, 255, 0.15);
+  --color-edge-subtle: rgba(255, 255, 255, 0.08);
+  --color-edge-strong: rgba(255, 255, 255, 0.26);
+  --color-edge-focus: rgba(220, 220, 220, 0.45);
 
   /* Accent (neutral) */
   --color-accent: #cccccc;

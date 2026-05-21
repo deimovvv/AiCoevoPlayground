@@ -42,6 +42,7 @@ from services import instagram_scraper
 from services import manual_lab
 from services import asset_matcher
 from services import seedance_video
+from services import beeble_switchx
 
 # ── Paths ────────────────────────────────────────────────────
 (Path(__file__).parent / "tmp").mkdir(exist_ok=True)
@@ -2821,6 +2822,67 @@ async def seedance_result(request_id: str):
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
     try:
         return await seedance_video.get_result(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Video Swap (Beeble SwitchX) — keep the subject/motion of a source video,
+#  swap a garment/product/background to a reference image, relight to match.
+# ══════════════════════════════════════════════════════════════
+
+@app.post("/api/video-swap/create")
+async def video_swap_create(
+    source_video: UploadFile = File(...),
+    alpha_mode: str = Form("auto"),
+    prompt: str = Form(""),
+    reference_image: Optional[UploadFile] = File(None),
+    alpha_mask: Optional[UploadFile] = File(None),
+):
+    """Upload assets to Beeble + start a SwitchX job. Returns job_id."""
+    if not beeble_switchx.is_configured():
+        raise HTTPException(status_code=500, detail="BEEBLE_API_KEY not configured")
+    try:
+        src_bytes = await source_video.read()
+        src_ref = await beeble_switchx.upload_asset(
+            src_bytes, source_video.filename or "source.mp4", source_video.content_type or "video/mp4"
+        )
+
+        ref_image_ref = None
+        if reference_image and reference_image.filename:
+            ri_bytes = await reference_image.read()
+            ref_image_ref = await beeble_switchx.upload_asset(
+                ri_bytes, reference_image.filename, reference_image.content_type or "image/png"
+            )
+
+        alpha_ref = None
+        if alpha_mask and alpha_mask.filename:
+            am_bytes = await alpha_mask.read()
+            alpha_ref = await beeble_switchx.upload_asset(
+                am_bytes, alpha_mask.filename, alpha_mask.content_type or "video/mp4"
+            )
+
+        job_id = await beeble_switchx.start_generation(
+            source_video_ref=src_ref,
+            alpha_mode=alpha_mode,
+            reference_image_ref=ref_image_ref,
+            alpha_mask_ref=alpha_ref,
+            prompt=prompt or None,
+        )
+        return {"job_id": job_id, "status": "pending"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[video-swap] ERROR: {e}")
+        raise HTTPException(status_code=502, detail=f"Video swap failed: {str(e)}")
+
+
+@app.get("/api/video-swap/status/{job_id}")
+async def video_swap_status(job_id: str):
+    if not beeble_switchx.is_configured():
+        raise HTTPException(status_code=500, detail="BEEBLE_API_KEY not configured")
+    try:
+        return await beeble_switchx.get_status(job_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 

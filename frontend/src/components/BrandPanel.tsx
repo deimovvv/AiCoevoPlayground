@@ -128,7 +128,7 @@ function GuidanceSection() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-2.5 py-1 text-[11px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer flex items-center gap-1"
+              className="px-2.5 py-1 text-[11px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer flex items-center gap-1"
             >
               {saving ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
               Save

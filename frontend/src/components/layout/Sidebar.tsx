@@ -138,13 +138,13 @@ function NavLink({ item, active }: { item: MenuItem; active: boolean }) {
             className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-[13px] font-medium transition-all duration-150",
                 active
-                    ? "bg-[var(--color-warm-subtle)] text-fg border border-[var(--color-warm-muted)]"
+                    ? "bg-[var(--color-action-subtle)] text-fg border border-[var(--color-action-muted)]"
                     : "text-fg-muted hover:text-fg hover:bg-surface-1 border border-transparent"
             )}
         >
             <div className={cn(
                 "transition-colors duration-150",
-                active ? "text-[var(--color-warm)]" : "text-fg-muted"
+                active ? "text-[var(--color-action)]" : "text-fg-muted"
             )}>
                 {item.icon}
             </div>
@@ -177,11 +177,11 @@ function CollapsibleNav({
                 className={cn(
                     "cursor-pointer w-full flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-[13px] font-medium transition-all duration-150 border border-transparent",
                     parentActive
-                        ? "bg-[var(--color-warm-subtle)] text-fg border-[var(--color-warm-muted)]"
+                        ? "bg-[var(--color-action-subtle)] text-fg border-[var(--color-action-muted)]"
                         : "text-fg-muted hover:text-fg hover:bg-surface-1"
                 )}
             >
-                <div className={cn(parentActive ? "text-[var(--color-warm)]" : "text-fg-muted")}>{icon}</div>
+                <div className={cn(parentActive ? "text-[var(--color-action)]" : "text-fg-muted")}>{icon}</div>
                 <span className="flex-1 text-left">{label}</span>
                 <ChevronDown
                     size={12}

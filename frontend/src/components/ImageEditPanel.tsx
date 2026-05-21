@@ -87,7 +87,7 @@ export function ImageEditPanel({
             const productDesc = selectedProduct?.description ? ` (${selectedProduct.description})` : "";
             setPrompt(`Replace the product with "${productName}"${productDesc} from the reference images. Match the EXACT color, design, shape, and details from the reference. Keep everything else identical.`);
           }}
-          className="text-[10px] px-2.5 py-1 bg-[var(--color-warm-muted)] text-[var(--color-warm)] rounded-full cursor-pointer hover:opacity-80"
+          className="text-[10px] px-2.5 py-1 bg-[var(--color-action-muted)] text-[var(--color-action)] rounded-full cursor-pointer hover:opacity-80"
         >
           Corregir producto
         </button>
@@ -134,7 +134,7 @@ export function ImageEditPanel({
                 className={cn(
                   "w-10 h-10 rounded overflow-hidden border-2 cursor-pointer transition-all",
                   selectedRefs.includes(img.url)
-                    ? "border-[var(--color-warm)]"
+                    ? "border-[var(--color-action)]"
                     : "border-edge opacity-50 hover:opacity-100"
                 )}
                 title={img.label}
@@ -161,7 +161,7 @@ export function ImageEditPanel({
           className={cn(
             "flex items-center gap-1.5 px-4 py-2 text-[11px] font-medium rounded-[var(--radius-sm)] transition-colors",
             !loading && prompt.trim()
-              ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+              ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 cursor-pointer"
               : "text-fg-faint bg-surface-1 cursor-not-allowed"
           )}
         >

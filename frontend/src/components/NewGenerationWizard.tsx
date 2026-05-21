@@ -296,7 +296,7 @@ export function NewGenerationWizard({
                                         : "text-fg-faint"
                             )}>
                                 {step > s.id ? (
-                                    <span className="text-[var(--color-warm)]">✓</span>
+                                    <span className="text-[var(--color-action)]">✓</span>
                                 ) : (
                                     s.icon
                                 )}
@@ -333,7 +333,7 @@ export function NewGenerationWizard({
                                             className={cn(
                                                 "cursor-pointer relative border rounded-[var(--radius-md)] overflow-hidden transition-all group",
                                                 selectedAvatarId === avatar.id
-                                                    ? "border-[var(--color-warm)] ring-1 ring-[var(--color-warm)]/30"
+                                                    ? "border-[var(--color-action)] ring-1 ring-[var(--color-action)]/30"
                                                     : "border-edge hover:border-edge-strong"
                                             )}
                                         >
@@ -352,7 +352,7 @@ export function NewGenerationWizard({
                                                 <p className="text-[12px] font-medium text-fg truncate">{avatar.name}</p>
                                             </div>
                                             {selectedAvatarId === avatar.id && (
-                                                <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[var(--color-warm)] flex items-center justify-center">
+                                                <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[var(--color-action)] flex items-center justify-center">
                                                     <span className="text-white text-[10px] font-bold">✓</span>
                                                 </div>
                                             )}
@@ -434,7 +434,7 @@ export function NewGenerationWizard({
                                     <p className="text-[13px] text-fg-muted">No hay productos cargados.</p>
                                     <button
                                         onClick={() => setShowUpload(true)}
-                                        className="cursor-pointer text-[12px] text-[var(--color-warm)] mt-2 hover:underline"
+                                        className="cursor-pointer text-[12px] text-[var(--color-action)] mt-2 hover:underline"
                                     >
                                         Subir el primer producto
                                     </button>
@@ -448,7 +448,7 @@ export function NewGenerationWizard({
                                             className={cn(
                                                 "cursor-pointer relative border rounded-[var(--radius-md)] overflow-hidden transition-all group",
                                                 selectedProductId === product.id
-                                                    ? "border-[var(--color-warm)] ring-1 ring-[var(--color-warm)]/30"
+                                                    ? "border-[var(--color-action)] ring-1 ring-[var(--color-action)]/30"
                                                     : "border-edge hover:border-edge-strong"
                                             )}
                                         >
@@ -461,7 +461,7 @@ export function NewGenerationWizard({
                                                 <p className="text-[12px] font-medium text-fg truncate">{product.name}</p>
                                             </div>
                                             {selectedProductId === product.id && (
-                                                <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[var(--color-warm)] flex items-center justify-center">
+                                                <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[var(--color-action)] flex items-center justify-center">
                                                     <span className="text-white text-[10px] font-bold">✓</span>
                                                 </div>
                                             )}
@@ -514,8 +514,8 @@ export function NewGenerationWizard({
                                             )}
                                         </div>
                                         <div className="flex flex-col items-center gap-2">
-                                            <div className="w-8 h-8 rounded-full bg-[var(--color-warm)]/10 flex items-center justify-center">
-                                                <Wand2 size={16} className="text-[var(--color-warm)] animate-pulse" />
+                                            <div className="w-8 h-8 rounded-full bg-[var(--color-action)]/10 flex items-center justify-center">
+                                                <Wand2 size={16} className="text-[var(--color-action)] animate-pulse" />
                                             </div>
                                             <p className="text-[13px] font-medium text-fg">Generando imagen...</p>
                                             <p className="text-[11px] text-fg-faint">{imgGenProgress}</p>
@@ -525,7 +525,7 @@ export function NewGenerationWizard({
                                             {[0,1,2,3,4].map(i => (
                                                 <div
                                                     key={i}
-                                                    className="w-1 rounded-full bg-[var(--color-warm)]/50"
+                                                    className="w-1 rounded-full bg-[var(--color-action)]/50"
                                                     style={{
                                                         height: `${12 + Math.random() * 16}px`,
                                                         animationDelay: `${i * 0.15}s`,
@@ -595,8 +595,8 @@ export function NewGenerationWizard({
 
                             {/* Next step hint */}
                             {imgGenStatus === "done" && (
-                                <div className="flex items-center gap-2 px-3 py-2 bg-[var(--color-warm)]/5 border border-[var(--color-warm)]/20 rounded-[var(--radius-sm)]">
-                                    <Film size={13} className="text-[var(--color-warm)] shrink-0" />
+                                <div className="flex items-center gap-2 px-3 py-2 bg-[var(--color-action)]/5 border border-[var(--color-action)]/20 rounded-[var(--radius-sm)]">
+                                    <Film size={13} className="text-[var(--color-action)] shrink-0" />
                                     <p className="text-[12px] text-fg-muted">
                                         Esta imagen se usará como <span className="text-fg font-medium">escena base</span> para las otras escenas del video.
                                     </p>

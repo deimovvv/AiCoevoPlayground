@@ -44,7 +44,7 @@ export function SectionHeader({
           collapsible && "cursor-pointer hover:opacity-80 transition-opacity"
         )}
       >
-        <span className="text-[20px] font-bold text-[var(--color-warm-strong)] tabular-nums">{number}</span>
+        <span className="text-[20px] font-bold text-[var(--color-action-strong)] tabular-nums">{number}</span>
         <div className="flex-1 text-left">
           <h2 className="text-[16px] font-semibold text-fg tracking-tight">{title}</h2>
           {subtitle && <p className="text-[12px] text-fg-faint mt-0.5">{subtitle}</p>}
@@ -146,7 +146,7 @@ export function BrandIdentityExportCard() {
       <button
         onClick={handleExport}
         disabled={exporting || !hasContent}
-        className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer"
+        className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer"
       >
         <Download size={14} />
         {exporting ? "Generando..." : "Descargar Brand Identity (HTML)"}
@@ -225,7 +225,7 @@ export function BusinessCard() {
       action={editing ? (
         <div className="flex gap-1.5">
           <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[11px] text-fg-muted hover:text-fg cursor-pointer">Cancelar</button>
-          <button onClick={handleSave} disabled={saving} className="px-3 py-1 text-[11px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer">{saving ? "Guardando..." : "Guardar"}</button>
+          <button onClick={handleSave} disabled={saving} className="px-3 py-1 text-[11px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer">{saving ? "Guardando..." : "Guardar"}</button>
         </div>
       ) : (
         <button onClick={handleEdit} className="flex items-center gap-1 px-2.5 py-1 text-[11px] text-fg-muted hover:text-fg cursor-pointer">
@@ -245,7 +245,7 @@ export function BusinessCard() {
                   className={cn(
                     "px-3 py-1.5 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer",
                     draft.model === m.value
-                      ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                      ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                       : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
                   )}
                 >
@@ -271,7 +271,7 @@ export function BusinessCard() {
           ) : (
             <>
               {business.model && (
-                <div className="inline-flex px-2.5 py-1 bg-[var(--color-warm-muted)] text-[var(--color-warm-strong)] rounded-full text-[11px] font-semibold uppercase tracking-wider">
+                <div className="inline-flex px-2.5 py-1 bg-[var(--color-action-muted)] text-[var(--color-action-strong)] rounded-full text-[11px] font-semibold uppercase tracking-wider">
                   {BUSINESS_MODELS.find((m) => m.value === business.model)?.label || business.model}
                 </div>
               )}
@@ -372,7 +372,7 @@ export function BrandSourcesCard() {
             const cfg = SOURCE_TYPES.find((c) => c.value === s.type);
             return (
               <div key={s.id} className="flex items-center gap-3 px-3 py-2 bg-surface-2 rounded-[var(--radius-sm)] border border-edge group">
-                <div className="text-[10px] font-bold text-[var(--color-warm-strong)] uppercase tracking-wider shrink-0 w-20">
+                <div className="text-[10px] font-bold text-[var(--color-action-strong)] uppercase tracking-wider shrink-0 w-20">
                   {cfg?.label || s.type}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -403,7 +403,7 @@ export function BrandSourcesCard() {
             <button
               key={s.value}
               onClick={() => setAdding(s.value)}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium border border-dashed border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-[var(--color-warm)] rounded-[var(--radius-sm)] cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium border border-dashed border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-[var(--color-action)] rounded-[var(--radius-sm)] cursor-pointer"
             >
               <Plus size={10} /> {s.label}
             </button>
@@ -412,7 +412,7 @@ export function BrandSourcesCard() {
       )}
 
       {adding && config && (
-        <div className="space-y-2 p-3 bg-surface-2 rounded-[var(--radius-sm)] border border-[var(--color-warm-muted)]">
+        <div className="space-y-2 p-3 bg-surface-2 rounded-[var(--radius-sm)] border border-[var(--color-action-muted)]">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-fg">Nuevo: {config.label}</span>
             <button onClick={() => setAdding(null)} className="text-fg-faint hover:text-fg cursor-pointer">
@@ -425,7 +425,7 @@ export function BrandSourcesCard() {
               value={draftUrl}
               onChange={(e) => setDraftUrl(e.target.value)}
               placeholder={config.placeholder}
-              className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-warm)]"
+              className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-action)]"
             />
           ) : (
             <textarea
@@ -433,7 +433,7 @@ export function BrandSourcesCard() {
               onChange={(e) => setDraftText(e.target.value)}
               placeholder={config.placeholder}
               rows={4}
-              className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-warm)] resize-none"
+              className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-action)] resize-none"
             />
           )}
           <input
@@ -441,12 +441,12 @@ export function BrandSourcesCard() {
             value={draftLabel}
             onChange={(e) => setDraftLabel(e.target.value)}
             placeholder="Label (opcional)"
-            className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[11px] text-fg outline-none focus:border-[var(--color-warm)]"
+            className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[11px] text-fg outline-none focus:border-[var(--color-action)]"
           />
           <button
             onClick={addSource}
             disabled={saving || (config.needsUrl ? !draftUrl : !draftText)}
-            className="w-full px-3 py-1.5 text-[11px] font-semibold bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer"
+            className="w-full px-3 py-1.5 text-[11px] font-semibold bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer"
           >
             {saving ? "Agregando..." : "Agregar fuente"}
           </button>
@@ -511,12 +511,12 @@ export function CustomerReviewsCard() {
           onChange={(e) => setDraft(e.target.value)}
           placeholder='ej: "Probé el producto y cambió mi rutina. La calidad se nota desde el primer día."'
           rows={3}
-          className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg outline-none focus:border-[var(--color-warm)] resize-none"
+          className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg outline-none focus:border-[var(--color-action)] resize-none"
         />
         <button
           onClick={addReview}
           disabled={!draft.trim() || saving}
-          className="px-3 py-1.5 text-[11px] font-semibold bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer"
+          className="px-3 py-1.5 text-[11px] font-semibold bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer"
         >
           {saving ? "..." : "+ Agregar review"}
         </button>
@@ -587,17 +587,17 @@ export function CompetitorsCard() {
         </div>
       )}
       {adding ? (
-        <div className="space-y-2 p-3 bg-surface-2 rounded-[var(--radius-sm)] border border-[var(--color-warm-muted)]">
-          <input value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="Nombre" className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-warm)]" />
-          <input value={draft.url || ""} onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))} placeholder="URL (opcional)" className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-warm)]" />
-          <textarea value={draft.notes || ""} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} placeholder="Notas (qué hacen bien, cómo te diferenciás...)" rows={2} className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-warm)] resize-none" />
+        <div className="space-y-2 p-3 bg-surface-2 rounded-[var(--radius-sm)] border border-[var(--color-action-muted)]">
+          <input value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="Nombre" className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-action)]" />
+          <input value={draft.url || ""} onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))} placeholder="URL (opcional)" className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-action)]" />
+          <textarea value={draft.notes || ""} onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))} placeholder="Notas (qué hacen bien, cómo te diferenciás...)" rows={2} className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-action)] resize-none" />
           <div className="flex gap-1.5">
-            <button onClick={addCompetitor} disabled={!draft.name.trim() || saving} className="flex-1 px-3 py-1.5 text-[11px] font-semibold bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer">{saving ? "..." : "Agregar"}</button>
+            <button onClick={addCompetitor} disabled={!draft.name.trim() || saving} className="flex-1 px-3 py-1.5 text-[11px] font-semibold bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer">{saving ? "..." : "Agregar"}</button>
             <button onClick={() => { setAdding(false); setDraft({ name: "" }); }} className="px-3 py-1.5 text-[11px] text-fg-muted hover:text-fg cursor-pointer">Cancelar</button>
           </div>
         </div>
       ) : (
-        <button onClick={() => setAdding(true)} className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium border border-dashed border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-[var(--color-warm)] rounded-[var(--radius-sm)] cursor-pointer">
+        <button onClick={() => setAdding(true)} className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium border border-dashed border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-[var(--color-action)] rounded-[var(--radius-sm)] cursor-pointer">
           <Plus size={10} /> Agregar competidor
         </button>
       )}
@@ -631,7 +631,7 @@ export function BrandHealthCard() {
       description={`${completed} de ${total} checks completados (${pct}%). Cuanto más completo, mejores los outputs.`}
     >
       <div className="w-full bg-surface-2 rounded-full h-1.5 overflow-hidden">
-        <div className="bg-[var(--color-warm)] h-full transition-all" style={{ width: `${pct}%` }} />
+        <div className="bg-[var(--color-action)] h-full transition-all" style={{ width: `${pct}%` }} />
       </div>
       <div className="space-y-1.5 mt-3">
         {checks.map((c) => (
@@ -665,7 +665,7 @@ function Field({ label, value, onChange, placeholder, rows = 2 }: { label: strin
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={rows}
-        className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg outline-none focus:border-[var(--color-warm)] resize-none"
+        className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg outline-none focus:border-[var(--color-action)] resize-none"
       />
     </div>
   );
@@ -701,7 +701,7 @@ function ListField({ label, items, onChange, placeholder }: { label: string; ite
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) { onChange([...items, draft.trim()]); setDraft(""); } }}
           placeholder={placeholder}
-          className="flex-1 bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[11px] text-fg outline-none focus:border-[var(--color-warm)]"
+          className="flex-1 bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[11px] text-fg outline-none focus:border-[var(--color-action)]"
         />
         <button onClick={() => { if (draft.trim()) { onChange([...items, draft.trim()]); setDraft(""); } }} className="px-2.5 py-1.5 text-[11px] text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 rounded-[var(--radius-sm)] cursor-pointer">+</button>
       </div>

@@ -42,7 +42,7 @@ export function AutomationsPage() {
                         Set up automated content creation and publishing workflows
                     </p>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer">
+                <button className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer">
                     <Plus size={14} />
                     New Automation
                 </button>

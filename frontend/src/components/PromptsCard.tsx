@@ -254,7 +254,7 @@ function ToolPromptRow({
         )}
         <span className="text-[13px] font-medium text-fg flex-1">{label}</span>
         {hasOverride && (
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[var(--color-warm-muted)] text-[var(--color-warm)]">
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[var(--color-action-muted)] text-[var(--color-action)]">
             Custom
           </span>
         )}
@@ -340,7 +340,7 @@ function ToolPromptRow({
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
                 >
                   {saving ? (
                     <Loader2 size={12} className="animate-spin" />

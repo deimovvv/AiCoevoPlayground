@@ -157,7 +157,7 @@ function PromptCard({ tool }: { tool: PipelineTool }) {
                 onClick={() => setOpen(!open)}
                 className="cursor-pointer w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-surface-1/40 transition-colors"
             >
-                <span className="text-[11px] font-mono text-fg-faint w-5 shrink-0 text-[var(--color-warm)]">{tool.step}</span>
+                <span className="text-[11px] font-mono text-fg-faint w-5 shrink-0 text-[var(--color-action)]">{tool.step}</span>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2.5">
                         <h3 className="text-[14px] font-medium text-fg">{tool.name}</h3>
@@ -234,7 +234,7 @@ export default function PipelineConfigPage() {
                         className={cn(
                             "cursor-pointer flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] border text-[13px] font-medium transition-all",
                             pipelineAuto
-                                ? "border-[var(--color-warm)]/30 bg-[var(--color-warm-muted)] text-fg"
+                                ? "border-[var(--color-action)]/30 bg-[var(--color-action-muted)] text-fg"
                                 : "border-edge bg-surface-0 text-fg-muted"
                         )}
                     >

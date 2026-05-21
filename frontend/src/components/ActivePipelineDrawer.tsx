@@ -365,7 +365,7 @@ export function ActivePipelineDrawer({
                 {/* Progress bar */}
                 <div className="h-1 bg-surface-2 shrink-0">
                     <div
-                        className="h-full bg-[var(--color-warm)] transition-all duration-500"
+                        className="h-full bg-[var(--color-action)] transition-all duration-500"
                         style={{ width: `${progress}%` }}
                     />
                 </div>
@@ -377,7 +377,7 @@ export function ActivePipelineDrawer({
                         const statusIcon = step.status === "done"
                             ? <CheckCircle2 size={16} className="text-success" />
                             : step.status === "running"
-                                ? <Loader2 size={16} className="animate-spin text-[var(--color-warm)]" />
+                                ? <Loader2 size={16} className="animate-spin text-[var(--color-action)]" />
                                 : step.status === "review"
                                     ? <ThumbsUp size={16} className="text-warning" />
                                     : step.status === "error"
@@ -446,13 +446,13 @@ export function ActivePipelineDrawer({
                                                 <div className="flex items-center gap-3 bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3">
                                                     <button
                                                         onClick={toggleAudio}
-                                                        className="cursor-pointer w-10 h-10 rounded-full bg-[var(--color-warm)] text-[var(--color-warm-fg)] flex items-center justify-center hover:opacity-90 transition-opacity shrink-0"
+                                                        className="cursor-pointer w-10 h-10 rounded-full bg-[var(--color-action)] text-[var(--color-action-fg)] flex items-center justify-center hover:opacity-90 transition-opacity shrink-0"
                                                     >
                                                         {audioPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
                                                     </button>
                                                     <div className="flex-1">
                                                         <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
-                                                            <div className={`h-full bg-[var(--color-warm)] rounded-full ${audioPlaying ? "animate-pulse w-2/3" : "w-0"} transition-all`} />
+                                                            <div className={`h-full bg-[var(--color-action)] rounded-full ${audioPlaying ? "animate-pulse w-2/3" : "w-0"} transition-all`} />
                                                         </div>
                                                         <p className="text-[10px] text-fg-faint mt-1">Reproducir para revisar</p>
                                                     </div>
@@ -482,7 +482,7 @@ export function ActivePipelineDrawer({
                                         {/* ── Running indicator ── */}
                                         {step.status === "running" && (
                                             <div className="mt-3 flex items-center gap-2 py-3">
-                                                <Loader2 size={14} className="animate-spin text-[var(--color-warm)]" />
+                                                <Loader2 size={14} className="animate-spin text-[var(--color-action)]" />
                                                 <span className="text-[12px] text-fg-muted">Procesando...</span>
                                             </div>
                                         )}

@@ -55,6 +55,7 @@ import {
 } from "../lib/api";
 import { cn } from "../lib/utils";
 import { ImageEditPanel } from "../components/ImageEditPanel";
+import { Collapsible } from "../components/ui/section";
 import { ComposeOverlay } from "../components/ComposeOverlay";
 import { UGCPlayer } from "../remotion/UGCPlayer";
 import { TOOL_DEFINITIONS } from "../tools/registry";
@@ -262,6 +263,12 @@ interface ToolConfig {
   resolution: string;
   subtitleEngine: "auto" | "remotion" | "ffmpeg" | "none";
   referenceImages: File[];
+  // Pose reference — body position / framing ONLY (scoped in handlers so it doesn't
+  // bleed lighting/scene/style). Separate from referenceImages (which is look&feel).
+  poseReference: File[];
+  // Video Swap (Beeble SwitchX): the user's source video + how to mask it.
+  sourceVideo: File[];
+  alphaMode: "auto" | "select" | "fill" | "custom";
   graphicAssets: File[];
   allowFaces: boolean;
   adStyle: string;
@@ -312,6 +319,9 @@ const DEFAULT_CONFIG: ToolConfig = {
   resolution: "2K",
   subtitleEngine: "auto",
   referenceImages: [],
+  poseReference: [],
+  sourceVideo: [],
+  alphaMode: "auto",
   graphicAssets: [],
   allowFaces: true,
   adStyle: "photorealistic",
@@ -1984,10 +1994,10 @@ export function ToolRunPage() {
 
       {/* Agent banner — shown when arriving via "Crear automáticamente" */}
       {agentInfo && (
-        <div className="bg-[var(--color-warm-muted)] border border-[var(--color-warm-muted)] rounded-[var(--radius-md)] p-4 space-y-2">
+        <div className="bg-[var(--color-action-muted)] border border-[var(--color-action-muted)] rounded-[var(--radius-md)] p-4 space-y-2">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2">
-              <Wand2 size={14} className="text-[var(--color-warm-strong)]" />
+              <Wand2 size={14} className="text-[var(--color-action-strong)]" />
               <h4 className="text-[12px] font-semibold text-fg tracking-tight">
                 Configuración generada por el agente
               </h4>
@@ -2006,7 +2016,7 @@ export function ToolRunPage() {
             </p>
           )}
           {agentInfo.warnings && agentInfo.warnings.length > 0 && (
-            <div className="space-y-1 pt-1 border-t border-[var(--color-warm-muted)]">
+            <div className="space-y-1 pt-1 border-t border-[var(--color-action-muted)]">
               <p className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">
                 Ojo con esto
               </p>
@@ -2059,7 +2069,7 @@ export function ToolRunPage() {
                         : step.status === "review"
                           ? "bg-[var(--color-warning)] text-white"
                           : step.status === "active" || step.status === "running"
-                            ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]"
+                            ? "bg-fg text-[var(--color-canvas)]"
                             : step.status === "error"
                               ? "bg-[var(--color-error)] text-white"
                               : "bg-surface-2 text-fg-faint border border-edge"
@@ -2093,7 +2103,7 @@ export function ToolRunPage() {
               Pending
             </div>
             <div className="flex items-center gap-2 text-[10px] text-fg-faint">
-              <div className="w-3 h-3 rounded-full bg-[var(--color-warm)]" />
+              <div className="w-3 h-3 rounded-full bg-[var(--color-action)]" />
               Active
             </div>
             <div className="flex items-center gap-2 text-[10px] text-fg-faint">
@@ -2272,22 +2282,22 @@ function ContentAnalyzerInput({
   };
 
   return (
-    <div className="bg-surface-1 border border-[var(--color-warm)]/30 rounded-[var(--radius-md)] p-4 space-y-3">
+    <div className="bg-surface-1 border border-[var(--color-action)]/30 rounded-[var(--radius-md)] p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Video size={14} className="text-[var(--color-warm)]" />
+          <Video size={14} className="text-[var(--color-action)]" />
           <label className="text-[12px] font-semibold text-fg">Video a analizar</label>
         </div>
         <div className="flex rounded-[var(--radius-sm)] overflow-hidden border border-edge text-[11px]">
           <button
             onClick={() => setMode("video")}
-            className={`px-3 py-1 ${mode === "video" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]" : "bg-surface-2 text-fg-faint hover:text-fg"}`}
+            className={`px-3 py-1 ${mode === "video" ? "bg-fg text-[var(--color-canvas)]" : "bg-surface-2 text-fg-faint hover:text-fg"}`}
           >
             URL / Upload
           </button>
           <button
             onClick={() => setMode("profile")}
-            className={`px-3 py-1 ${mode === "profile" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]" : "bg-surface-2 text-fg-faint hover:text-fg"}`}
+            className={`px-3 py-1 ${mode === "profile" ? "bg-fg text-[var(--color-canvas)]" : "bg-surface-2 text-fg-faint hover:text-fg"}`}
           >
             Perfil TikTok
           </button>
@@ -2304,7 +2314,7 @@ function ContentAnalyzerInput({
             className="w-full h-9 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
           />
           {config.objective && (
-            <p className="text-[10px] text-[var(--color-warm)]">✓ URL cargada</p>
+            <p className="text-[10px] text-[var(--color-action)]">✓ URL cargada</p>
           )}
           <p className="text-[10px] text-fg-faint">
             TikTok, YouTube, Instagram — o subí el archivo directamente abajo.
@@ -2323,7 +2333,7 @@ function ContentAnalyzerInput({
             <button
               onClick={fetchTopVideos}
               disabled={loading || !profileUrl.trim()}
-              className="px-4 h-9 rounded-[var(--radius-sm)] bg-[var(--color-warm)] text-[var(--color-warm-fg)] text-[12px] font-medium disabled:opacity-50 flex items-center gap-1.5"
+              className="px-4 h-9 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[12px] font-medium disabled:opacity-50 flex items-center gap-1.5"
             >
               {loading ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
               Analizar
@@ -2342,8 +2352,8 @@ function ContentAnalyzerInput({
                   onClick={() => selectVideo(v)}
                   className={`w-full flex gap-3 p-2 rounded-[var(--radius-sm)] border text-left transition-colors ${
                     config.objective === v.url
-                      ? "border-[var(--color-warm)] bg-[var(--color-warm)]/10"
-                      : "border-edge bg-surface-2 hover:border-[var(--color-warm)]/50"
+                      ? "border-[var(--color-action)] bg-[var(--color-action)]/10"
+                      : "border-edge bg-surface-2 hover:border-[var(--color-action)]/50"
                   }`}
                 >
                   {v.thumbnail_url && (
@@ -2351,7 +2361,7 @@ function ContentAnalyzerInput({
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <span className="text-[10px] font-bold text-[var(--color-warm)]">#{i + 1}</span>
+                      <span className="text-[10px] font-bold text-[var(--color-action)]">#{i + 1}</span>
                       <span className="text-[10px] text-fg-faint">{engRate(v)}% eng</span>
                     </div>
                     <p className="text-[11px] text-fg line-clamp-2 leading-snug">{v.description || "(sin descripción)"}</p>
@@ -2578,7 +2588,7 @@ function ConfigPanel({
       {/* Brand context summary */}
       <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-5">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 rounded-full bg-[var(--color-warm-muted)] flex items-center justify-center text-[var(--color-warm)] text-[13px] font-bold">
+          <div className="w-9 h-9 rounded-full bg-[var(--color-action-muted)] flex items-center justify-center text-[var(--color-action)] text-[13px] font-bold">
             {activeBrand.name.charAt(0)}
           </div>
           <div>
@@ -2641,7 +2651,7 @@ function ConfigPanel({
                 className={cn(
                   "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
                   config.avatarToolMode !== "poses"
-                    ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                     : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
                 )}
               >
@@ -2653,7 +2663,7 @@ function ConfigPanel({
                 className={cn(
                   "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
                   config.avatarToolMode === "poses"
-                    ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                     : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
                 )}
               >
@@ -2671,7 +2681,7 @@ function ConfigPanel({
                   onClick={() => setConfig((p) => ({ ...p, avatarPosesSave: "new" }))}
                   className={cn(
                     "px-3 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                    config.avatarPosesSave !== "replace" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]" : "text-fg-faint hover:text-fg"
+                    config.avatarPosesSave !== "replace" ? "bg-fg text-[var(--color-canvas)]" : "text-fg-faint hover:text-fg"
                   )}
                 >
                   Avatar nuevo
@@ -2680,7 +2690,7 @@ function ConfigPanel({
                   onClick={() => setConfig((p) => ({ ...p, avatarPosesSave: "replace" }))}
                   className={cn(
                     "px-3 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                    config.avatarPosesSave === "replace" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]" : "text-fg-faint hover:text-fg"
+                    config.avatarPosesSave === "replace" ? "bg-fg text-[var(--color-canvas)]" : "text-fg-faint hover:text-fg"
                   )}
                 >
                   Reemplazar imagen del original
@@ -2722,7 +2732,7 @@ function ConfigPanel({
                       selected
                         ? (isInherit
                             ? "border-blue-400 bg-blue-500/10 text-blue-200"
-                            : "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg")
+                            : "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg")
                         : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted",
                     )}
                   >
@@ -2762,7 +2772,7 @@ function ConfigPanel({
                 className={cn(
                   "px-3 py-2 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer text-center",
                   config.adStyle === style.id
-                    ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                     : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
                 )}
               >
@@ -2842,7 +2852,7 @@ function ConfigPanel({
                   onClick={() => setConfig((p) => ({ ...p, reelMode: m.id }))}
                   className={cn(
                     "px-3 py-1 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                    config.reelMode === m.id ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                    config.reelMode === m.id ? "bg-fg text-[var(--color-canvas)] shadow-sm" : "text-fg-faint hover:text-fg"
                   )}
                 >{m.label}</button>
               ))}
@@ -2860,7 +2870,7 @@ function ConfigPanel({
             <select
               value={config.visualStyle}
               onChange={(e) => setConfig((p) => ({ ...p, visualStyle: e.target.value as typeof p.visualStyle }))}
-              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg outline-none focus:border-[var(--color-warm)] cursor-pointer"
+              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg outline-none focus:border-[var(--color-action)] cursor-pointer"
             >
               <option value="editorial">Editorial</option>
               <option value="cinematic">Cinematic</option>
@@ -2888,7 +2898,7 @@ function ConfigPanel({
                 className={cn(
                   "px-3 py-2 text-[11px] font-semibold rounded-[var(--radius-sm)] border transition-all cursor-pointer text-left",
                   config.includeCopy !== false
-                    ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] border-[var(--color-warm)]"
+                    ? "bg-fg text-[var(--color-canvas)] border-[var(--color-action)]"
                     : "bg-surface-2 text-fg-muted border-edge hover:text-fg"
                 )}
               >
@@ -2900,7 +2910,7 @@ function ConfigPanel({
                 className={cn(
                   "px-3 py-2 text-[11px] font-semibold rounded-[var(--radius-sm)] border transition-all cursor-pointer text-left",
                   config.includeCopy === false
-                    ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] border-[var(--color-warm)]"
+                    ? "bg-fg text-[var(--color-canvas)] border-[var(--color-action)]"
                     : "bg-surface-2 text-fg-muted border-edge hover:text-fg"
                 )}
               >
@@ -2920,7 +2930,7 @@ function ConfigPanel({
                   className={cn(
                     "px-3 py-1.5 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer",
                     config.staticAdBatch === n
-                      ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                      ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                       : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
                   )}
                 >
@@ -2947,7 +2957,7 @@ function ConfigPanel({
                     className={cn(
                       "px-2.5 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium border transition-all cursor-pointer capitalize",
                       config.staticAdCategory === cat
-                        ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                        ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                         : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
                     )}
                   >
@@ -3009,8 +3019,8 @@ function ConfigPanel({
         }
         if (hasDesignSystem) {
           return (
-            <div className="px-3 py-2 rounded-[var(--radius-sm)] bg-[var(--color-warm-subtle)] border border-[var(--color-warm-muted)] flex items-start gap-2">
-              <Sparkles size={12} className="text-[var(--color-warm-strong)] shrink-0 mt-0.5" />
+            <div className="px-3 py-2 rounded-[var(--radius-sm)] bg-[var(--color-action-subtle)] border border-[var(--color-action-muted)] flex items-start gap-2">
+              <Sparkles size={12} className="text-[var(--color-action-strong)] shrink-0 mt-0.5" />
               <p className="text-[11px] text-fg-muted leading-relaxed">
                 <span className="font-semibold text-fg">Sin template visual</span> — los slides van a compartir paleta y estilo del Design System, pero el layout puede variar entre slides. Para mejor coherencia: subí una imagen como template arriba.
               </p>
@@ -3037,7 +3047,7 @@ function ConfigPanel({
               className={cn(
                 "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
                 config.composeMode !== "compose"
-                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                  ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                   : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
               )}
             >
@@ -3049,7 +3059,7 @@ function ConfigPanel({
               className={cn(
                 "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
                 config.composeMode === "compose"
-                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                  ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                   : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
               )}
             >
@@ -3077,7 +3087,7 @@ function ConfigPanel({
                 className={cn(
                   "px-3 py-1.5 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer",
                   config.numSlides === n
-                    ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                     : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
                 )}
               >
@@ -3101,7 +3111,7 @@ function ConfigPanel({
               className={cn(
                 "px-3 py-2 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer text-center",
                 config.animationMode === "frame-to-frame"
-                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                  ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                   : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
               )}
             >
@@ -3113,7 +3123,7 @@ function ConfigPanel({
               className={cn(
                 "px-3 py-2 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer text-center",
                 config.animationMode === "image-to-video"
-                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                  ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                   : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
               )}
             >
@@ -3234,7 +3244,7 @@ function ConfigPanel({
             {/* Loading state while classifying */}
             {classifyingRef && tool.id === "static_ad" && (
               <div className="mt-2 p-2.5 bg-surface-1 border border-edge rounded-[var(--radius-sm)] flex items-center gap-2">
-                <Loader2 size={12} className="animate-spin text-[var(--color-warm-strong)]" />
+                <Loader2 size={12} className="animate-spin text-[var(--color-action-strong)]" />
                 <span className="text-[11px] text-fg-muted">Analizando la referencia con IA...</span>
               </div>
             )}
@@ -3252,10 +3262,10 @@ function ConfigPanel({
               const isReference = refClassification.suggested_slot === "reference";
 
               return (
-                <div className="mt-2 p-2.5 bg-[var(--color-warm-muted)] border border-[var(--color-warm-muted)] rounded-[var(--radius-sm)] space-y-2">
+                <div className="mt-2 p-2.5 bg-[var(--color-action-muted)] border border-[var(--color-action-muted)] rounded-[var(--radius-sm)] space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="text-[10px] font-semibold text-[var(--color-warm-strong)] uppercase tracking-wider mb-0.5">
+                      <div className="text-[10px] font-semibold text-[var(--color-action-strong)] uppercase tracking-wider mb-0.5">
                         {slot.emoji} {isReference ? "Análisis visual" : `Parece ${slot.label}`}
                       </div>
                       <p className="text-[10px] text-fg-muted leading-relaxed">
@@ -3287,14 +3297,14 @@ function ConfigPanel({
                     <div className="flex items-center gap-2 pt-1">
                       <button
                         onClick={() => setRefClassification(null)}
-                        className="flex-1 px-2 py-1 text-[10px] font-medium text-[var(--color-warm-strong)] bg-surface-1 hover:bg-surface-2 border border-edge rounded-[var(--radius-sm)] cursor-pointer"
+                        className="flex-1 px-2 py-1 text-[10px] font-medium text-[var(--color-action-strong)] bg-surface-1 hover:bg-surface-2 border border-edge rounded-[var(--radius-sm)] cursor-pointer"
                       >
                         Dejar como referencia
                       </button>
                       <Link
                         to="/dashboard/brand"
                         onClick={() => setRefClassification(null)}
-                        className="flex-1 px-2 py-1 text-[10px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 rounded-[var(--radius-sm)] cursor-pointer text-center"
+                        className="flex-1 px-2 py-1 text-[10px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 rounded-[var(--radius-sm)] cursor-pointer text-center"
                       >
                         Ir a Brand Kit →
                       </Link>
@@ -3315,7 +3325,7 @@ function ConfigPanel({
                     onClick={() => setConfig((p) => ({ ...p, referenceMode: "style" }))}
                     className={cn(
                       "flex-1 px-2 py-1 text-[10px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                      config.referenceMode !== "composition" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                      config.referenceMode !== "composition" ? "bg-fg text-[var(--color-canvas)] shadow-sm" : "text-fg-faint hover:text-fg"
                     )}
                   >
                     Estilo
@@ -3324,7 +3334,7 @@ function ConfigPanel({
                     onClick={() => setConfig((p) => ({ ...p, referenceMode: "composition" }))}
                     className={cn(
                       "flex-1 px-2 py-1 text-[10px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                      config.referenceMode === "composition" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                      config.referenceMode === "composition" ? "bg-fg text-[var(--color-canvas)] shadow-sm" : "text-fg-faint hover:text-fg"
                     )}
                   >
                     Composición
@@ -3349,7 +3359,7 @@ function ConfigPanel({
                         onClick={() => setConfig((p) => ({ ...p, templateColorMode: "brand" }))}
                         className={cn(
                           "flex-1 px-2 py-1 text-[10px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                          config.templateColorMode !== "template" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                          config.templateColorMode !== "template" ? "bg-fg text-[var(--color-canvas)] shadow-sm" : "text-fg-faint hover:text-fg"
                         )}
                       >
                         De la marca
@@ -3358,7 +3368,7 @@ function ConfigPanel({
                         onClick={() => setConfig((p) => ({ ...p, templateColorMode: "template" }))}
                         className={cn(
                           "flex-1 px-2 py-1 text-[10px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                          config.templateColorMode === "template" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                          config.templateColorMode === "template" ? "bg-fg text-[var(--color-canvas)] shadow-sm" : "text-fg-faint hover:text-fg"
                         )}
                       >
                         Del template
@@ -3431,12 +3441,105 @@ function ConfigPanel({
               type="checkbox"
               checked={config.allowFaces}
               onChange={(e) => setConfig((p) => ({ ...p, allowFaces: e.target.checked }))}
-              className="accent-[var(--color-warm)]"
+              className="accent-[var(--color-action)]"
             />
             <span className="text-[12px] text-fg-muted">
               Allow faces / people in generated images
             </span>
           </label>
+        </div>
+      )}
+
+      {/* Video Swap — source video + masking mode. The reference (new look) comes from
+          the Reference Image upload above, or a selected product/clothing. */}
+      {tool.id === "video_swap" && (
+        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-[12px] font-semibold text-fg-secondary">
+              Video fuente
+              <span className="text-fg-faint font-normal ml-1">(tu propio video — se mantiene el sujeto y el movimiento)</span>
+            </label>
+            <span className="text-[10px] text-fg-faint">{config.sourceVideo.length} subido</span>
+          </div>
+          {config.sourceVideo.length > 0 ? (
+            <video src={URL.createObjectURL(config.sourceVideo[0])} controls className="w-full max-h-64 rounded-[var(--radius-sm)] bg-black" />
+          ) : null}
+          <label className="flex items-center justify-center gap-1.5 py-3 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[11px] transition-all border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg">
+            <Plus size={12} /> {config.sourceVideo.length > 0 ? "Cambiar video" : "Subir video fuente"}
+            <input
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) setConfig((p) => ({ ...p, sourceVideo: [f] }));
+                e.target.value = "";
+              }}
+            />
+          </label>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-fg-faint">Modo de máscara (qué se mantiene)</label>
+            <select
+              value={config.alphaMode}
+              onChange={(e) => setConfig((p) => ({ ...p, alphaMode: e.target.value as ToolConfig["alphaMode"] }))}
+              className="w-full h-8 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg outline-none focus:border-[var(--color-edge-focus)]"
+            >
+              <option value="auto">Auto — la IA detecta y enmascara el sujeto sola</option>
+              <option value="select">Select — vos marcás el 1er frame, la IA propaga</option>
+              <option value="fill">Fill — mantiene todo (sin máscara)</option>
+              <option value="custom">Custom — máscara propia frame por frame</option>
+            </select>
+            <p className="text-[10px] text-fg-faint">
+              El <strong>Reference Image</strong> de arriba (o un producto/prenda seleccionado) define el nuevo look.
+              SwitchX mantiene el movimiento de tu video y swappea el elemento, relighteando para que matchee.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Pose reference — for tools that generate a person (static_ad, product_spotlight).
+          Scoped in the handler: takes ONLY the body position, not the scene/style. */}
+      {(tool.id === "static_ad" || tool.id === "product_spotlight") && (
+        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[12px] font-semibold text-fg-secondary">
+              Referencia de POSE
+              <span className="text-fg-faint font-normal ml-1">(solo postura — no toma luz, escena ni estilo)</span>
+            </label>
+            <span className="text-[10px] text-fg-faint">{config.poseReference.length} subida</span>
+          </div>
+          {config.poseReference.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap">
+              {config.poseReference.map((file, i) => (
+                <div key={i} className="relative w-12 h-12 rounded-[var(--radius-sm)] overflow-hidden border border-edge group shrink-0">
+                  <img src={URL.createObjectURL(file)} alt={file.name} className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => setConfig((p) => ({ ...p, poseReference: p.poseReference.filter((_, j) => j !== i) }))}
+                    className="absolute top-0 right-0 w-4 h-4 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                    <span className="text-white text-[8px]">×</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <label className="flex items-center justify-center gap-1.5 py-2 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[10px] transition-all border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg">
+            <Plus size={11} /> Subir pose
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) setConfig((p) => ({ ...p, poseReference: [f] }));
+                e.target.value = "";
+              }}
+            />
+          </label>
+          <p className="text-[10px] text-fg-faint leading-relaxed">
+            El modelo va a copiar la POSTURA de esta imagen. El estilo/mood viene del &ldquo;style reference&rdquo;, la dirección de arte del moodboard.
+          </p>
         </div>
       )}
 
@@ -3527,7 +3630,7 @@ function ConfigPanel({
                     type="checkbox"
                     checked={config.productIsWorn}
                     onChange={(e) => setConfig((p) => ({ ...p, productIsWorn: e.target.checked }))}
-                    className="accent-[var(--color-warm)]"
+                    className="accent-[var(--color-action)]"
                   />
                   <span className="text-[12px] text-fg-muted">
                     El modelo <strong>usa</strong> el producto (lo lleva puesto o lo sostiene) — si está apagado, el producto se muestra aparte como hero del ad
@@ -3673,7 +3776,7 @@ function ConfigPanel({
                           const audio = (btn as unknown as { _audio?: HTMLAudioElement })._audio;
                           audio?.pause();
                           btn.dataset.playing = "false";
-                          btn.classList.remove("text-[var(--color-warm)]");
+                          btn.classList.remove("text-[var(--color-action)]");
                           btn.classList.add("text-fg-muted");
                           return;
                         }
@@ -3685,11 +3788,11 @@ function ConfigPanel({
                           const audio = new Audio(result.audioUrl);
                           (btn as unknown as { _audio?: HTMLAudioElement })._audio = audio;
                           btn.classList.remove("animate-pulse", "text-fg-muted");
-                          btn.classList.add("text-[var(--color-warm)]");
+                          btn.classList.add("text-[var(--color-action)]");
                           btn.dataset.playing = "true";
                           audio.onended = () => {
                             btn.dataset.playing = "false";
-                            btn.classList.remove("text-[var(--color-warm)]");
+                            btn.classList.remove("text-[var(--color-action)]");
                             btn.classList.add("text-fg-muted");
                           };
                           audio.play();
@@ -3781,14 +3884,14 @@ function ConfigPanel({
                 onClick={() => setConfig((p) => ({ ...p, imageModel: "nano-banana-2" }))}
                 className={cn(
                   "px-3 py-1 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                  config.imageModel !== "gpt-image-2" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                  config.imageModel !== "gpt-image-2" ? "bg-fg text-[var(--color-canvas)] shadow-sm" : "text-fg-faint hover:text-fg"
                 )}
               >Nano Banana 2</button>
               <button
                 onClick={() => setConfig((p) => ({ ...p, imageModel: "gpt-image-2" }))}
                 className={cn(
                   "px-3 py-1 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                  config.imageModel === "gpt-image-2" ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+                  config.imageModel === "gpt-image-2" ? "bg-fg text-[var(--color-canvas)] shadow-sm" : "text-fg-faint hover:text-fg"
                 )}
               >GPT Image 2</button>
             </div>
@@ -3800,8 +3903,11 @@ function ConfigPanel({
           </div>
         )}
 
-        {/* Aspect Ratio + Resolution + Subtitles — hidden for analysis-only tools */}
-        {tool.id !== "content_analyzer" && <div className="grid grid-cols-3 gap-3">
+        {/* Technical settings — collapsed under "Avanzado" to declutter the form.
+            Aspect ratio, resolution, subtitles + the video engine all live here. */}
+        {tool.id !== "content_analyzer" && (
+        <Collapsible title="Ajustes técnicos" eyebrow="Avanzado">
+        <div className="grid grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium text-fg-faint">Aspect ratio</label>
             <select
@@ -3842,7 +3948,7 @@ function ConfigPanel({
               </select>
             </div>
           )}
-        </div>}
+        </div>
 
         {/* Motor de video — consolida engine de animación + lipsync (cuando aplica).
             Una sola sección para que el usuario vea TODO lo del pipeline de video en
@@ -3903,7 +4009,7 @@ function ConfigPanel({
                   type="checkbox"
                   checked={(config as unknown as Record<string, unknown>).entryHook === true}
                   onChange={(e) => setConfig((p) => ({ ...(p as Record<string, unknown>), entryHook: e.target.checked } as typeof p))}
-                  className="mt-0.5 accent-[var(--color-warm)]"
+                  className="mt-0.5 accent-[var(--color-action)]"
                 />
                 <span className="text-[11px] text-fg-muted leading-snug">
                   <strong className="text-fg">Hook de entrada</strong> — la modelo entra a la escena.
@@ -3912,6 +4018,8 @@ function ConfigPanel({
               </label>
             )}
           </div>
+        )}
+        </Collapsible>
         )}
 
         {/* Video Duration — only for video tools with script step */}
@@ -3940,7 +4048,7 @@ function ConfigPanel({
                   onClick={() => setConfig((p) => ({ ...p, videoDuration: opt.value }))}
                   className={`flex flex-col items-center py-2 px-1 rounded-[var(--radius-sm)] border text-center transition-all cursor-pointer ${
                     config.videoDuration === opt.value
-                      ? "border-[var(--color-warm)] bg-[var(--color-warm)]/10 text-fg"
+                      ? "border-[var(--color-action)] bg-[var(--color-action)]/10 text-fg"
                       : "border-edge bg-surface-2 text-fg-muted hover:border-edge-strong"
                   }`}
                 >
@@ -4160,7 +4268,7 @@ function ConfigPanel({
                     <Plus size={10} /> Add scene
                   </button>
                   {hasContent && (
-                    <p className="text-[10px] text-[var(--color-warm)]">
+                    <p className="text-[10px] text-[var(--color-action)]">
                       AI script generation will be skipped — your scripts will be used directly.
                     </p>
                   )}
@@ -4325,7 +4433,7 @@ function StepPanel({
           {step.status === "active" && (
             <button
               onClick={onComplete}
-              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
             >
               <Play size={12} />
               Run
@@ -4438,8 +4546,8 @@ function StepPanel({
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowResetModal(false)} />
           <div className="relative bg-surface-0 border border-edge rounded-[var(--radius-md)] p-6 max-w-md w-full mx-4 space-y-4 shadow-2xl">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-[var(--color-warm)]/15 flex items-center justify-center shrink-0">
-                <RotateCcw size={18} className="text-[var(--color-warm)]" />
+              <div className="w-10 h-10 rounded-full bg-[var(--color-action)]/15 flex items-center justify-center shrink-0">
+                <RotateCcw size={18} className="text-[var(--color-action)]" />
               </div>
               <div className="flex-1">
                 <h3 className="text-[15px] font-semibold text-fg">
@@ -4470,7 +4578,7 @@ function StepPanel({
                   setShowResetModal(false);
                   onReRunFromHere();
                 }}
-                className="px-4 py-2 text-[12px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 rounded-[var(--radius-sm)] transition-colors cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-2 text-[12px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 rounded-[var(--radius-sm)] transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <RotateCcw size={12} />
                 Resetear
@@ -4523,7 +4631,7 @@ function RunningStep({
   return (
     <div className="py-10 space-y-5">
       <div className="flex flex-col items-center gap-3">
-        <Loader2 size={26} className="animate-spin text-[var(--color-warm)]" />
+        <Loader2 size={26} className="animate-spin text-[var(--color-action)]" />
         <div className="text-center space-y-1">
           <p className="text-[14px] font-semibold text-fg">Generando {label}…</p>
           <p className="text-[11px] text-fg-faint">
@@ -5009,7 +5117,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 defaultValue={(brief as Record<string, string>)[key] || ""}
                 onChange={(e) => { (brief as Record<string, string>)[key] = e.target.value; }}
                 rows={Math.max(1, Math.ceil(((brief as Record<string, string>)[key] || "").length / 40))}
-                className="w-full text-[12px] text-fg bg-surface-2 border border-transparent hover:border-edge focus:border-[var(--color-warm)] rounded-[var(--radius-sm)] px-2 py-1.5 outline-none resize-none transition-colors"
+                className="w-full text-[12px] text-fg bg-surface-2 border border-transparent hover:border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] px-2 py-1.5 outline-none resize-none transition-colors"
               />
             </div>
           ))}
@@ -5020,9 +5128,33 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             defaultValue={brief.image_prompt || ""}
             onChange={(e) => { brief.image_prompt = e.target.value; }}
             rows={4}
-            className="w-full text-[12px] text-fg-muted font-mono bg-surface-2 border border-transparent hover:border-edge focus:border-[var(--color-warm)] rounded-[var(--radius-sm)] p-3 outline-none resize-none transition-colors"
+            className="w-full text-[12px] text-fg-muted font-mono bg-surface-2 border border-transparent hover:border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] p-3 outline-none resize-none transition-colors"
           />
         </div>
+      </div>
+    );
+  }
+
+  // ── Video Swap: swap step result ─────────────────────────
+  if (stepId === "swap" && result) {
+    const swap = result as { url: string; type?: string };
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">Video swappeado — sujeto y movimiento intactos</span>
+        </div>
+        {swap.url && (
+          <video src={swap.url} controls className="w-full max-h-[70vh] rounded-[var(--radius-md)] bg-black" />
+        )}
+        {swap.url && (
+          <a
+            href={`http://localhost:8000/api/download?url=${encodeURIComponent(swap.url)}&filename=video_swap.mp4`}
+            className="inline-flex items-center gap-2 px-4 py-2 text-[12px] font-medium rounded-[var(--radius-sm)] bg-surface-2 hover:bg-surface-3 text-fg cursor-pointer"
+          >
+            <Download size={13} /> Descargar
+          </a>
+        )}
       </div>
     );
   }
@@ -5247,10 +5379,10 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
 
         {/* Creative concept — shown prominently when available */}
         {brief && !brief.includes("Full Script:") && (
-          <div className="border border-[var(--color-warm)]/30 bg-[var(--color-warm)]/5 rounded-[var(--radius-md)] p-4">
+          <div className="border border-[var(--color-action)]/30 bg-[var(--color-action)]/5 rounded-[var(--radius-md)] p-4">
             <div className="flex items-center gap-1.5 mb-2">
-              <Film size={11} className="text-[var(--color-warm)]" />
-              <span className="text-[10px] font-semibold text-[var(--color-warm)] uppercase tracking-wider">Historia del video</span>
+              <Film size={11} className="text-[var(--color-action)]" />
+              <span className="text-[10px] font-semibold text-[var(--color-action)] uppercase tracking-wider">Historia del video</span>
             </div>
             <p className="text-[13px] text-fg leading-relaxed italic">{brief}</p>
           </div>
@@ -5283,7 +5415,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           const isCreativeFamily = displayType !== "talking";
 
           const SCENE_TYPE_CONFIG: Record<AllSceneTypes, { label: string; color: string; activeBg: string }> = {
-            talking: { label: "Talking", color: "bg-[var(--color-warm)]", activeBg: "bg-[var(--color-warm)]/5" },
+            talking: { label: "Talking", color: "bg-[var(--color-action)]", activeBg: "bg-[var(--color-action)]/5" },
             creative: { label: "Creative", color: "bg-blue-500", activeBg: "bg-blue-500/5" },
             lifestyle: { label: "Lifestyle", color: "bg-emerald-500", activeBg: "bg-emerald-500/5" },
             sensorial: { label: "Sensorial", color: "bg-purple-500", activeBg: "bg-purple-500/5" },
@@ -5414,7 +5546,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   defaultValue={scene.script}
                   onChange={(e) => { scene.script = e.target.value; }}
                   rows={Math.max(3, Math.ceil(scene.script.length / 40))}
-                  className="w-full text-[12px] text-fg leading-relaxed bg-transparent border border-transparent hover:border-edge focus:border-[var(--color-warm)] rounded-[var(--radius-sm)] px-2 py-1 outline-none resize-none transition-colors"
+                  className="w-full text-[12px] text-fg leading-relaxed bg-transparent border border-transparent hover:border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] px-2 py-1 outline-none resize-none transition-colors"
                 />
               </div>
 
@@ -5431,7 +5563,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                     defaultValue={scene.image_prompt}
                     onChange={(e) => { scene.image_prompt = e.target.value; }}
                     rows={Math.max(3, Math.ceil(scene.image_prompt.length / 40))}
-                    className="w-full text-[11px] text-fg-muted leading-relaxed bg-transparent border border-transparent hover:border-edge focus:border-[var(--color-warm)] rounded-[var(--radius-sm)] px-2 py-1 outline-none resize-none transition-colors font-mono"
+                    className="w-full text-[11px] text-fg-muted leading-relaxed bg-transparent border border-transparent hover:border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] px-2 py-1 outline-none resize-none transition-colors font-mono"
                   />
                 ) : (
                   <p className="text-[11px] text-fg-faint italic px-2">Auto-generated from script</p>
@@ -5505,7 +5637,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           <div className="w-56 shrink-0 space-y-2">
             <button
               onClick={() => setShowLightbox(true)}
-              className="w-full aspect-[9/16] rounded-[var(--radius-md)] overflow-hidden border-2 border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors relative group"
+              className="w-full aspect-[9/16] rounded-[var(--radius-md)] overflow-hidden border-2 border-edge cursor-pointer hover:border-[var(--color-action)] transition-colors relative group"
             >
               <img src={img.url} alt="Base image" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
@@ -5644,7 +5776,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => setEditPromptText("Replace the product with the product from the reference images. Keep the person, pose, background, and lighting identical.")}
-                className="text-[10px] px-2.5 py-1 bg-[var(--color-warm-muted)] text-[var(--color-warm)] rounded-full cursor-pointer hover:opacity-80"
+                className="text-[10px] px-2.5 py-1 bg-[var(--color-action-muted)] text-[var(--color-action)] rounded-full cursor-pointer hover:opacity-80"
               >
                 Fix Product
               </button>
@@ -5680,7 +5812,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                         )}
                         className={cn(
                           "w-10 h-10 rounded overflow-hidden border-2 cursor-pointer transition-all",
-                          isIncluded ? "border-[var(--color-warm)]" : "border-edge opacity-50 hover:opacity-100"
+                          isIncluded ? "border-[var(--color-action)]" : "border-edge opacity-50 hover:opacity-100"
                         )}
                         title={ref.label}
                       >
@@ -5707,7 +5839,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 className={cn(
                   "px-4 py-2 text-[11px] font-medium rounded-[var(--radius-sm)] transition-colors",
                   !editLoading && editPromptText.trim()
-                    ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+                    ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 cursor-pointer"
                     : "text-fg-faint bg-surface-1 cursor-not-allowed"
                 )}
               >
@@ -5761,7 +5893,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 "flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide shrink-0",
                 scene.sceneType === "creative"
                   ? "bg-blue-500/15 text-blue-400"
-                  : "bg-[var(--color-warm-muted)] text-[var(--color-warm)]"
+                  : "bg-[var(--color-action-muted)] text-[var(--color-action)]"
               )}>
                 {scene.sceneType === "creative" ? <Film size={8} /> : <Mic size={8} />}
                 {scene.sceneType === "creative" ? "Creative" : "Talking"}
@@ -5936,7 +6068,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   }
                 }}
                 rows={2}
-                className="w-full text-[12px] text-fg-muted leading-relaxed bg-transparent border border-transparent hover:border-edge focus:border-[var(--color-warm)] rounded-[var(--radius-sm)] px-2 py-1 outline-none resize-none transition-colors"
+                className="w-full text-[12px] text-fg-muted leading-relaxed bg-transparent border border-transparent hover:border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] px-2 py-1 outline-none resize-none transition-colors"
               />
             </div>
           ))}
@@ -6165,7 +6297,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                       "w-full flex items-center gap-2 p-1.5 rounded-[var(--radius-sm)] border transition-colors text-left",
                       baseFrameUrl
                         ? (isEditingFrame
-                            ? "border-[var(--color-warm)] bg-[var(--color-warm)]/10 cursor-pointer"
+                            ? "border-[var(--color-action)] bg-[var(--color-action)]/10 cursor-pointer"
                             : "border-edge hover:border-edge-strong hover:bg-surface-1 cursor-pointer")
                         : "border-edge bg-surface-1 opacity-50 cursor-not-allowed",
                     )}
@@ -6243,7 +6375,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                           className={cn(
                             "flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium transition-colors cursor-pointer",
                             !isRegen
-                              ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90"
+                              ? "bg-fg text-[var(--color-canvas)] hover:opacity-90"
                               : "bg-surface-1 text-fg-faint cursor-not-allowed",
                           )}
                           title="Usa este frame como base y re-runea el lipsync de esta escena"
@@ -6265,7 +6397,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                     }}
                     rows={3}
                     placeholder="Texto que dice el avatar en esta escena..."
-                    className="w-full text-[11px] text-fg leading-relaxed bg-surface-1 border border-edge hover:border-edge-strong focus:border-[var(--color-warm)] rounded-[var(--radius-sm)] px-2 py-1.5 outline-none resize-none transition-colors"
+                    className="w-full text-[11px] text-fg leading-relaxed bg-surface-1 border border-edge hover:border-edge-strong focus:border-[var(--color-action)] rounded-[var(--radius-sm)] px-2 py-1.5 outline-none resize-none transition-colors"
                   />
 
                   {/* Action row */}
@@ -6288,7 +6420,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                       className={cn(
                         "flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium transition-colors cursor-pointer",
                         !isRegen
-                          ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90"
+                          ? "bg-fg text-[var(--color-canvas)] hover:opacity-90"
                           : "bg-surface-1 text-fg-faint cursor-not-allowed",
                       )}
                     >
@@ -6473,7 +6605,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 const a = document.createElement("a"); a.href = url; a.download = "ugc_with_subs.mp4"; a.click();
                 URL.revokeObjectURL(url);
               }}
-              className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
             >
               <Film size={14} />
               Download with Subtitles
@@ -6515,7 +6647,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           <Check size={14} className="text-[var(--color-success)]" />
           <span className="text-[13px] font-medium text-fg">Carousel — {slides.length} slides generated</span>
           {isComposeMode && (
-            <span className="text-[10px] font-semibold text-[var(--color-warm-strong)] bg-[var(--color-warm-muted)] px-2 py-0.5 rounded uppercase tracking-wider">Compose Mode</span>
+            <span className="text-[10px] font-semibold text-[var(--color-action-strong)] bg-[var(--color-action-muted)] px-2 py-0.5 rounded uppercase tracking-wider">Compose Mode</span>
           )}
         </div>
 
@@ -6528,7 +6660,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           {slides.map((slide, i) => (
             <div key={slide.id} className="flex-shrink-0 w-56 snap-start space-y-2">
               <div
-                className="rounded-[var(--radius-md)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors relative group"
+                className="rounded-[var(--radius-md)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-action)] transition-colors relative group"
                 onClick={() => slide.url && setLightboxUrl(slide.url)}
               >
                 {slide.url ? (
@@ -6545,7 +6677,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
               </div>
               <div className="px-1 space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-semibold text-[var(--color-warm)] uppercase">{slide.role}</span>
+                  <span className="text-[9px] font-semibold text-[var(--color-action)] uppercase">{slide.role}</span>
                   <button
                     onClick={() => setEditingImageId(editingImageId === slide.id ? null : slide.id)}
                     className="text-[9px] text-fg-faint hover:text-fg cursor-pointer"
@@ -6586,7 +6718,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 } catch { /* */ }
               }
             }}
-            className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+            className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
           >
             <Film size={14} />
             Download All ({slides.length})
@@ -6642,7 +6774,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           {/* Hero image */}
           <div className="space-y-2">
             <div
-              className="rounded-[var(--radius-md)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors relative group bg-surface-2"
+              className="rounded-[var(--radius-md)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-action)] transition-colors relative group bg-surface-2"
               onClick={() => activeImg?.url && setLightboxUrl(activeImg.url)}
             >
               {activeImg?.url && <img src={activeImg.url} alt={activeImg.label} className="w-full object-contain max-h-[560px]" />}
@@ -6659,7 +6791,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                     onClick={() => setActiveHeroId(img.id)}
                     className={cn(
                       "w-16 h-16 rounded-[var(--radius-sm)] overflow-hidden border-2 cursor-pointer transition-all",
-                      (activeImg?.id === img.id) ? "border-[var(--color-warm)] ring-2 ring-[var(--color-warm-muted)]" : "border-edge hover:border-edge-strong"
+                      (activeImg?.id === img.id) ? "border-[var(--color-action)] ring-2 ring-[var(--color-action-muted)]" : "border-edge hover:border-edge-strong"
                     )}
                   >
                     <img src={img.url} alt={img.label} className="w-full h-full object-cover" />
@@ -6686,7 +6818,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 {data.cta && (
                   <div>
                     <p className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider mb-1">CTA</p>
-                    <span className="inline-block px-3 py-1 text-[11px] font-semibold bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)]">{data.cta}</span>
+                    <span className="inline-block px-3 py-1 text-[11px] font-semibold bg-fg text-[var(--color-canvas)] rounded-[var(--radius-sm)]">{data.cta}</span>
                   </div>
                 )}
               </div>
@@ -6717,7 +6849,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 <a
                   href={activeImg.url}
                   download={`static_ad_${activeImg.id}.png`}
-                  className="block w-full py-2 text-center text-[12px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 rounded-[var(--radius-sm)] cursor-pointer"
+                  className="block w-full py-2 text-center text-[12px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 rounded-[var(--radius-sm)] cursor-pointer"
                 >
                   Descargar
                 </a>
@@ -6758,7 +6890,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         {data.url && (
           <div className="flex justify-center">
             <div
-              className="max-w-sm rounded-[var(--radius-md)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors relative group"
+              className="max-w-sm rounded-[var(--radius-md)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-action)] transition-colors relative group"
               onClick={() => setLightboxUrl(data.url!)}
             >
               <img src={data.url} alt="Generated" className="w-full" />
@@ -6806,8 +6938,8 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
 
         {/* Key insights */}
         {!!analysis.key_insights && (
-          <div className="bg-[var(--color-warm-muted)] border border-[var(--color-warm)] rounded-[var(--radius-md)] p-4">
-            <h4 className="text-[11px] font-semibold text-[var(--color-warm)] uppercase tracking-wider mb-1">Insights clave</h4>
+          <div className="bg-[var(--color-action-muted)] border border-[var(--color-action)] rounded-[var(--radius-md)] p-4">
+            <h4 className="text-[11px] font-semibold text-[var(--color-action)] uppercase tracking-wider mb-1">Insights clave</h4>
             <p className="text-[12px] text-fg-muted">{String(analysis.key_insights)}</p>
           </div>
         )}
@@ -7005,7 +7137,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         <p className="text-[11px] text-fg-muted leading-relaxed bg-surface-1 border border-edge rounded-[var(--radius-sm)] p-2.5">
           Para cada prenda/elemento detectado en el video: elegí con qué asset tuyo reemplazarlo,
           o &ldquo;Ajustar&rdquo; para cambiar el texto. En prendas, el toggle
-          <span className="text-[var(--color-warm)] font-medium"> 🎯 Producto a vender</span> /
+          <span className="text-[var(--color-action)] font-medium"> 🎯 Producto a vender</span> /
           <span className="text-fg"> 👕 Solo la usa</span> define el rol:
           <strong> &ldquo;Producto a vender&rdquo;</strong> = lo que estás promocionando (close-ups, foco del script).
           <strong> &ldquo;Solo la usa&rdquo;</strong> = styling de fondo, la modelo lo lleva puesto pero no es el foco.
@@ -7037,7 +7169,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   return (
                     <div key={item.detected_id} className="bg-surface-1 rounded-[var(--radius-sm)] p-2.5 space-y-1.5 relative">
                       {isManual && (
-                        <span className="absolute top-1.5 right-1.5 text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-warm-subtle)] text-[var(--color-warm)] uppercase tracking-wider">
+                        <span className="absolute top-1.5 right-1.5 text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-action-subtle)] text-[var(--color-action)] uppercase tracking-wider">
                           manual
                         </span>
                       )}
@@ -7093,7 +7225,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                               className={cn(
                                 "text-[10px] px-2 py-0.5 rounded-full cursor-pointer flex items-center gap-1 font-medium transition-colors",
                                 role === "hero"
-                                  ? "bg-[var(--color-warm)]/15 text-[var(--color-warm)] hover:bg-[var(--color-warm)]/25"
+                                  ? "bg-[var(--color-action)]/15 text-[var(--color-action)] hover:bg-[var(--color-action)]/25"
                                   : "bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3",
                               )}
                             >
@@ -7250,7 +7382,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           {slides.map((slide, i) => (
             <div key={i} className="bg-surface-0 border border-edge rounded-[var(--radius-md)] p-4">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-[10px] font-bold text-[var(--color-warm)] bg-warm-muted px-1.5 py-0.5 rounded">
+                <span className="text-[10px] font-bold text-[var(--color-action)] bg-warm-muted px-1.5 py-0.5 rounded">
                   {i + 1}
                 </span>
                 <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">
@@ -7343,20 +7475,20 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
               key={`h_${headline}`}
               defaultValue={headline}
               onChange={(e) => { (data as Record<string, unknown>).headline = e.target.value; }}
-              className="w-full text-[18px] font-bold text-fg bg-transparent border-b border-transparent hover:border-edge focus:border-[var(--color-warm)] outline-none transition-colors"
+              className="w-full text-[18px] font-bold text-fg bg-transparent border-b border-transparent hover:border-edge focus:border-[var(--color-action)] outline-none transition-colors"
             />
             <input
               key={`s_${subline}`}
               defaultValue={subline}
               onChange={(e) => { (data as Record<string, unknown>).subline = e.target.value; }}
-              className="w-full text-[13px] text-fg-muted bg-transparent border-b border-transparent hover:border-edge focus:border-[var(--color-warm)] outline-none transition-colors"
+              className="w-full text-[13px] text-fg-muted bg-transparent border-b border-transparent hover:border-edge focus:border-[var(--color-action)] outline-none transition-colors"
             />
             <input
               key={`c_${cta}`}
               defaultValue={cta}
               onChange={(e) => { (data as Record<string, unknown>).cta = e.target.value; }}
               placeholder="CTA (e.g., Shop now)"
-              className="w-full text-[12px] text-[var(--color-warm)] font-medium bg-transparent border-b border-transparent hover:border-edge focus:border-[var(--color-warm)] outline-none transition-colors placeholder:text-fg-faint"
+              className="w-full text-[12px] text-[var(--color-action)] font-medium bg-transparent border-b border-transparent hover:border-edge focus:border-[var(--color-action)] outline-none transition-colors placeholder:text-fg-faint"
             />
           </div>
         )}
@@ -7451,7 +7583,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           {images.map((img) => (
             <div key={img.frame} className="space-y-1.5">
               <div
-                className="relative aspect-[9/16] rounded-[var(--radius-sm)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-warm)] transition-colors group"
+                className="relative aspect-[9/16] rounded-[var(--radius-sm)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-action)] transition-colors group"
                 onClick={() => img.url && setLightboxUrl(img.url)}
               >
                 {img.url ? (
@@ -7661,7 +7793,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   className={cn(
                     "shrink-0 w-14 h-14 rounded-[var(--radius-sm)] overflow-hidden border-2 transition-all cursor-pointer",
                     selectedRefIdx === i
-                      ? "border-[var(--color-warm)] ring-2 ring-[var(--color-warm)]/30"
+                      ? "border-[var(--color-action)] ring-2 ring-[var(--color-action)]/30"
                       : "border-edge hover:border-fg-muted"
                   )}
                 >
@@ -7678,7 +7810,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             <div key={creative.id} className="space-y-1.5">
               <div
                 onClick={() => !actionLoading && creative.url && setLightboxUrl(creative.url)}
-                className="relative rounded-[var(--radius-sm)] overflow-hidden border border-edge group cursor-pointer hover:border-[var(--color-warm)] transition-colors"
+                className="relative rounded-[var(--radius-sm)] overflow-hidden border border-edge group cursor-pointer hover:border-[var(--color-action)] transition-colors"
               >
                 <div className="aspect-square">
                   {actionLoading === creative.id ? (
@@ -7719,7 +7851,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   <button
                     onClick={() => handleApplyRef(creative, selectedRefIdx)}
                     disabled={!!actionLoading}
-                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-[var(--color-warm-muted)] text-[var(--color-warm)] hover:opacity-80 transition-colors cursor-pointer"
+                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-[var(--color-action-muted)] text-[var(--color-action)] hover:opacity-80 transition-colors cursor-pointer"
                   >
                     <Sparkles size={9} />
                     Apply Style
@@ -7756,7 +7888,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   link.click();
                 });
               }}
-              className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
             >
               <Film size={14} />
               Download All ({data.creatives.filter((c) => c.url).length})
@@ -7916,7 +8048,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                       onClick={() => setEditingFrameSceneId(isEditingFrame ? null : clip.sceneId)}
                       className={cn(
                         "w-full flex items-center gap-1.5 p-1 rounded-[var(--radius-sm)] border text-left transition-colors",
-                        isEditingFrame ? "border-[var(--color-warm)] bg-[var(--color-warm)]/10" : "border-edge hover:bg-surface-1",
+                        isEditingFrame ? "border-[var(--color-action)] bg-[var(--color-action)]/10" : "border-edge hover:bg-surface-1",
                       )}
                     >
                       <img src={clip.imageUrl} alt="frame" className="w-7 h-7 object-cover rounded" />
@@ -7932,7 +8064,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                         onChange={(e) => { clip.motionPrompt = e.target.value; }}
                         onBlur={persist}
                         rows={3}
-                        className="w-full mt-1 text-[10px] text-fg bg-surface-1 border border-edge focus:border-[var(--color-warm)] rounded-[var(--radius-sm)] px-1.5 py-1 outline-none resize-none"
+                        className="w-full mt-1 text-[10px] text-fg bg-surface-1 border border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] px-1.5 py-1 outline-none resize-none"
                       />
                     </details>
                     <button
@@ -7940,7 +8072,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                       disabled={isRegen}
                       className={cn(
                         "w-full flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium transition-colors cursor-pointer",
-                        !isRegen ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90" : "bg-surface-1 text-fg-faint cursor-not-allowed",
+                        !isRegen ? "bg-fg text-[var(--color-canvas)] hover:opacity-90" : "bg-surface-1 text-fg-faint cursor-not-allowed",
                       )}
                     >
                       <RotateCcw size={9} /> Regen clip
@@ -8107,7 +8239,7 @@ function AssetSelector({
       <label className={cn(
         "flex items-center justify-center gap-2 py-3 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[11px] transition-all",
         uploading
-          ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg-muted"
+          ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg-muted"
           : "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
       )}>
         {uploading ? (
@@ -8150,7 +8282,7 @@ function AssetSelector({
           {onUpload && !showUpload && hasItems && (
             <button
               onClick={() => setShowUpload(true)}
-              className="flex items-center gap-1 text-[10px] text-[var(--color-warm)] hover:underline cursor-pointer"
+              className="flex items-center gap-1 text-[10px] text-[var(--color-action)] hover:underline cursor-pointer"
             >
               <Plus size={10} /> Upload
             </button>
@@ -8177,12 +8309,12 @@ function AssetSelector({
                 className={cn(
                   "border rounded-[var(--radius-sm)] p-2 text-center transition-all cursor-pointer group relative",
                   isSelected
-                    ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)]"
+                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)]"
                     : "border-edge hover:border-[var(--color-edge-strong)]"
                 )}
               >
                 {isSelected && (
-                  <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--color-warm)] flex items-center justify-center">
+                  <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--color-action)] flex items-center justify-center">
                     <Check size={10} className="text-white" />
                   </div>
                 )}
@@ -8479,8 +8611,8 @@ function RoutePanel({ allSteps, config }: { allSteps: StepState[]; config: ToolC
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-start gap-3 bg-surface-0 border border-edge rounded-[var(--radius-md)] p-4">
-        <div className="w-8 h-8 rounded-full bg-[var(--color-warm-muted)] flex items-center justify-center shrink-0">
-          <Sparkles size={14} className="text-[var(--color-warm)]" />
+        <div className="w-8 h-8 rounded-full bg-[var(--color-action-muted)] flex items-center justify-center shrink-0">
+          <Sparkles size={14} className="text-[var(--color-action)]" />
         </div>
         <div>
           <p className="text-[13px] font-semibold text-fg">Análisis completado</p>
@@ -8498,7 +8630,7 @@ function RoutePanel({ allSteps, config }: { allSteps: StepState[]; config: ToolC
             </p>
           )}
           {isVisualOnly && (
-            <p className="text-[11px] text-[var(--color-warm)] mt-1 font-medium">
+            <p className="text-[11px] text-[var(--color-action)] mt-1 font-medium">
               Contenido visual — sin voiceover. Se generará como video de imágenes + animación (sin lipsync).
             </p>
           )}
@@ -8551,17 +8683,17 @@ function RoutePanel({ allSteps, config }: { allSteps: StepState[]; config: ToolC
                 className={cn(
                   "text-left p-4 rounded-[var(--radius-md)] border transition-all cursor-pointer group",
                   isSuggested
-                    ? "bg-[var(--color-warm-muted)] border-[var(--color-warm)]/50 hover:border-[var(--color-warm)]"
-                    : "bg-surface-1 border-edge hover:border-[var(--color-warm)]/40 hover:bg-surface-2"
+                    ? "bg-[var(--color-action-muted)] border-[var(--color-action)]/50 hover:border-[var(--color-action)]"
+                    : "bg-surface-1 border-edge hover:border-[var(--color-action)]/40 hover:bg-surface-2"
                 )}
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <span className={isSuggested ? "text-[var(--color-warm)]" : "text-fg-muted group-hover:text-fg"}>
+                  <span className={isSuggested ? "text-[var(--color-action)]" : "text-fg-muted group-hover:text-fg"}>
                     {t.icon}
                   </span>
                   <span className="text-[13px] font-semibold text-fg">{t.label}</span>
                   {isSuggested && (
-                    <span className="ml-auto text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--color-warm)]/20 text-[var(--color-warm)]">
+                    <span className="ml-auto text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--color-action)]/20 text-[var(--color-action)]">
                       Recomendado
                     </span>
                   )}
@@ -8906,7 +9038,7 @@ function CurationPanel({
                   "flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide",
                   isCreative
                     ? "bg-blue-500/15 text-blue-400"
-                    : "bg-[var(--color-warm-muted)] text-[var(--color-warm)]"
+                    : "bg-[var(--color-action-muted)] text-[var(--color-action)]"
                 )}>
                   {isCreative ? <Film size={8} /> : <Mic size={8} />}
                   {isCreative ? "Creative" : "Talking"}
@@ -9081,7 +9213,7 @@ function CurationPanel({
                           className={cn(
                             "flex-1 flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium transition-colors cursor-pointer",
                             isEditing
-                              ? "bg-[var(--color-warm-muted)] text-[var(--color-warm)]"
+                              ? "bg-[var(--color-action-muted)] text-[var(--color-action)]"
                               : "bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg"
                           )}
                         >
@@ -9120,7 +9252,7 @@ function CurationPanel({
                 <div className="flex flex-wrap gap-1.5">
                   <button
                     onClick={() => setEditPrompt("Match the product with the reference image exactly — keep the person, pose, and background identical.")}
-                    className="text-[10px] px-2 py-0.5 bg-[var(--color-warm-muted)] text-[var(--color-warm)] rounded-full cursor-pointer hover:opacity-80"
+                    className="text-[10px] px-2 py-0.5 bg-[var(--color-action-muted)] text-[var(--color-action)] rounded-full cursor-pointer hover:opacity-80"
                   >
                     Fix Product
                   </button>
@@ -9144,7 +9276,7 @@ function CurationPanel({
                     className={cn(
                       "flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium transition-colors cursor-pointer border",
                       editIncludeProduct
-                        ? "bg-[var(--color-warm-muted)] text-[var(--color-warm)] border-[var(--color-warm)]/40"
+                        ? "bg-[var(--color-action-muted)] text-[var(--color-action)] border-[var(--color-action)]/40"
                         : "bg-surface-1 text-fg-faint border-edge hover:text-fg"
                     )}
                     title={editIncludeProduct ? "Product reference included" : "Include product as reference"}
@@ -9159,7 +9291,7 @@ function CurationPanel({
                     value={editPrompt}
                     onChange={(e) => setEditPrompt(e.target.value)}
                     placeholder="Describí qué cambiar..."
-                    className="flex-1 h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-warm)]"
+                    className="flex-1 h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-action)]"
                     onKeyDown={(e) => e.key === "Enter" && handleEditImage()}
                     autoFocus
                   />
@@ -9169,7 +9301,7 @@ function CurationPanel({
                     className={cn(
                       "px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-sm)] transition-colors",
                       !editLoading && editPrompt.trim()
-                        ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+                        ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 cursor-pointer"
                         : "text-fg-faint bg-surface-1 cursor-not-allowed"
                     )}
                   >
@@ -9233,7 +9365,7 @@ interface AdTemplate {
 }
 
 const TEMPLATE_CATEGORIES: Record<string, { label: string; color: string }> = {
-  brand: { label: "Brand", color: "text-[var(--color-warm)] bg-[var(--color-warm-muted)]" },
+  brand: { label: "Brand", color: "text-[var(--color-action)] bg-[var(--color-action-muted)]" },
   social_proof: { label: "Social Proof", color: "text-success bg-success-muted" },
   educational: { label: "Educational", color: "text-fg-secondary bg-surface-2" },
   ugc: { label: "UGC Native", color: "text-warning bg-warning-muted" },
@@ -9323,13 +9455,13 @@ function InstagramCarouselImporter({ onUseAsTemplate }: { onUseAsTemplate: (slid
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://www.instagram.com/p/..."
-          className="flex-1 bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-warm)]"
+          className="flex-1 bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[12px] text-fg outline-none focus:border-[var(--color-action)]"
           onKeyDown={(e) => { if (e.key === "Enter") handleScrape(); }}
         />
         <button
           onClick={handleScrape}
           disabled={loading || !url.trim()}
-          className="px-3 py-1.5 text-[11px] font-semibold bg-surface-2 border border-edge text-fg-muted hover:text-fg hover:border-[var(--color-warm)] rounded-[var(--radius-sm)] disabled:opacity-50 cursor-pointer flex items-center gap-1"
+          className="px-3 py-1.5 text-[11px] font-semibold bg-surface-2 border border-edge text-fg-muted hover:text-fg hover:border-[var(--color-action)] rounded-[var(--radius-sm)] disabled:opacity-50 cursor-pointer flex items-center gap-1"
         >
           {loading ? <Loader2 size={11} className="animate-spin" /> : <span>↓</span>}
           {loading ? "Scrapeando..." : "Importar"}
@@ -9359,7 +9491,7 @@ function InstagramCarouselImporter({ onUseAsTemplate }: { onUseAsTemplate: (slid
                   onClick={() => setChosenIdx(i)}
                   className={cn(
                     "relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border-2 transition-all cursor-pointer",
-                    chosenIdx === i ? "border-[var(--color-warm)] ring-2 ring-[var(--color-warm-muted)]" : "border-edge hover:border-edge-strong"
+                    chosenIdx === i ? "border-[var(--color-action)] ring-2 ring-[var(--color-action-muted)]" : "border-edge hover:border-edge-strong"
                   )}
                 >
                   <img src={thumbUrl} alt={`slide ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -9381,7 +9513,7 @@ function InstagramCarouselImporter({ onUseAsTemplate }: { onUseAsTemplate: (slid
           <button
             onClick={handleUseSlide}
             disabled={importingSlide}
-            className="w-full px-3 py-2 text-[11px] font-semibold bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+            className="w-full px-3 py-2 text-[11px] font-semibold bg-fg text-[var(--color-canvas)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
           >
             {importingSlide ? <Loader2 size={11} className="animate-spin" /> : <span>→</span>}
             {importingSlide ? "Cargando..." : `Usar slide ${chosenIdx + 1} como template`}
@@ -9437,7 +9569,7 @@ function CarouselComposeEditor({
               className={cn(
                 "px-2.5 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium border transition-all cursor-pointer",
                 activeSlideIdx === i
-                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                  ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                   : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
               )}
             >
@@ -9535,7 +9667,7 @@ function TemplateSelector({ selectedId, onSelect }: { selectedId: string; onSele
               className={cn(
                 "text-left px-2.5 py-2 rounded-[var(--radius-sm)] border transition-all cursor-pointer",
                 isSelected
-                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)]"
+                  ? "border-[var(--color-action)] bg-[var(--color-action-muted)]"
                   : "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2"
               )}
             >
@@ -9616,7 +9748,7 @@ function CarouselTypeSelector({
               className={cn(
                 "text-left px-2.5 py-2 rounded-[var(--radius-sm)] border transition-all cursor-pointer",
                 isSelected
-                  ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)]"
+                  ? "border-[var(--color-action)] bg-[var(--color-action-muted)]"
                   : "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2"
               )}
             >
@@ -9637,7 +9769,7 @@ function CarouselTypeSelector({
             className={cn(
               "w-7 h-7 rounded-[var(--radius-sm)] text-[11px] font-medium transition-colors cursor-pointer",
               numSlides === n
-                ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]"
+                ? "bg-fg text-[var(--color-canvas)]"
                 : "bg-surface-2 text-fg-muted hover:text-fg"
             )}
           >
@@ -9741,7 +9873,7 @@ function CurationFixGrid({ picks, brand, config }: {
               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                 <button
                   onClick={() => openEdit(i)}
-                  className="flex-1 text-[9px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 rounded px-2 py-1 cursor-pointer"
+                  className="flex-1 text-[9px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 rounded px-2 py-1 cursor-pointer"
                 >
                   Edit
                 </button>
@@ -9776,7 +9908,7 @@ function CurationFixGrid({ picks, brand, config }: {
                     className={cn(
                       "flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-sm)] border text-[11px] cursor-pointer transition-all",
                       selectedProductId === p.id
-                        ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                        ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
                         : "border-edge hover:border-[var(--color-edge-strong)] text-fg-muted"
                     )}
                   >
@@ -9799,7 +9931,7 @@ function CurationFixGrid({ picks, brand, config }: {
                       className={cn(
                         "w-12 h-12 rounded-[var(--radius-sm)] overflow-hidden border-2 cursor-pointer transition-all",
                         selectedImageUrls.includes(img.url)
-                          ? "border-[var(--color-warm)]"
+                          ? "border-[var(--color-action)]"
                           : "border-edge opacity-50 hover:opacity-100"
                       )}
                     >
@@ -9826,7 +9958,7 @@ function CurationFixGrid({ picks, brand, config }: {
             <button
               onClick={handleFix}
               disabled={loading || selectedImageUrls.length === 0}
-              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer disabled:opacity-40"
+              className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer disabled:opacity-40"
             >
               {loading ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
               {loading ? "Generating..." : "Apply Edit"}
@@ -9924,7 +10056,7 @@ function UGCConfigPanel({
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Presets</span>
           {activePreset && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-warm-muted)] text-[var(--color-warm-strong)] font-medium">
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-action-muted)] text-[var(--color-action-strong)] font-medium">
               {activePreset.name} activo
             </span>
           )}
@@ -9939,7 +10071,7 @@ function UGCConfigPanel({
                 className={cn(
                   "group relative text-left p-3 rounded-[var(--radius-md)] border transition-all cursor-pointer",
                   isActive
-                    ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)]"
+                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)]"
                     : "border-edge bg-surface-1 hover:border-edge-strong hover:bg-surface-2"
                 )}
               >
@@ -10003,7 +10135,7 @@ function UGCConfigPanel({
           <select
             value={config.visualStyle}
             onChange={(e) => setConfig((p) => ({ ...p, visualStyle: e.target.value as ToolConfig["visualStyle"] }))}
-            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg outline-none focus:border-[var(--color-warm)] cursor-pointer"
+            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg outline-none focus:border-[var(--color-action)] cursor-pointer"
           >
             <option value="iphone">iPhone — UGC nativo handheld</option>
             <option value="cinematic">Cinematic — dramático, anamórfico</option>
@@ -10016,7 +10148,7 @@ function UGCConfigPanel({
               onChange={(e) => setConfig((p) => ({ ...p, visualStyleCustom: e.target.value }))}
               placeholder="FORMAT: Vertical 9:16... LIGHTING: ... STYLE: ..."
               rows={3}
-              className="w-full mt-2 px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[11px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-warm)] resize-none"
+              className="w-full mt-2 px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[11px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-action)] resize-none"
             />
           )}
         </UGCField>
@@ -10028,7 +10160,7 @@ function UGCConfigPanel({
           <select
             value={config.hookType}
             onChange={(e) => setConfig((p) => ({ ...p, hookType: e.target.value as ToolConfig["hookType"] }))}
-            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg outline-none focus:border-[var(--color-warm)] cursor-pointer"
+            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg outline-none focus:border-[var(--color-action)] cursor-pointer"
           >
             <option value="none">Sin hook</option>
             <option value="distracted">Distraído → mira a cámara</option>
@@ -10067,7 +10199,7 @@ function UGCConfigPanel({
                   onChange={(e) => setConfig((p) => ({ ...p, foohPrompt: e.target.value }))}
                   placeholder="Ej: A giant floating hoodie drifts through the Buenos Aires skyline at golden hour..."
                   rows={3}
-                  className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[11px] text-fg placeholder:text-fg-faint focus:outline-none focus:border-[var(--color-warm)] resize-none leading-relaxed"
+                  className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[11px] text-fg placeholder:text-fg-faint focus:outline-none focus:border-[var(--color-action)] resize-none leading-relaxed"
                 />
               </div>
             )}
@@ -10133,7 +10265,7 @@ function SegToggle({
           onClick={() => onChange(o.id)}
           className={cn(
             "px-3 py-1 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-            value === o.id ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)] shadow-sm" : "text-fg-faint hover:text-fg"
+            value === o.id ? "bg-fg text-[var(--color-canvas)] shadow-sm" : "text-fg-faint hover:text-fg"
           )}
         >
           {o.label}
@@ -10215,7 +10347,7 @@ function VoiceSettingsPanel({
                     className={cn(
                       "flex flex-col items-center py-2 px-1 rounded-[var(--radius-sm)] border text-center transition-all cursor-pointer",
                       isActive
-                        ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)]"
+                        ? "border-[var(--color-action)] bg-[var(--color-action-muted)]"
                         : "border-edge bg-surface-2 hover:border-edge-strong"
                     )}
                   >
@@ -10271,7 +10403,7 @@ function VoiceSettingsPanel({
               type="checkbox"
               checked={config.voiceSpeakerBoost}
               onChange={(e) => setConfig((p) => ({ ...p, voiceSpeakerBoost: e.target.checked }))}
-              className="accent-[var(--color-warm)]"
+              className="accent-[var(--color-action)]"
             />
             <span className="text-[11px] text-fg-muted">Speaker boost — mejora claridad y similaridad</span>
           </label>
@@ -10315,11 +10447,11 @@ function Slider({
       <div className="relative h-6 flex items-center">
         <div className="absolute left-0 right-0 h-[3px] bg-surface-3 rounded-full" />
         <div
-          className="absolute left-0 h-[3px] bg-[var(--color-warm)] rounded-full pointer-events-none transition-[width] duration-100"
+          className="absolute left-0 h-[3px] bg-[var(--color-action)] rounded-full pointer-events-none transition-[width] duration-100"
           style={{ width: `${pct}%` }}
         />
         <div
-          className="absolute w-3.5 h-3.5 rounded-full bg-[var(--color-warm)] shadow-[0_0_0_3px_var(--color-warm-muted)] pointer-events-none transition-[left] duration-100"
+          className="absolute w-3.5 h-3.5 rounded-full bg-[var(--color-action)] shadow-[0_0_0_3px_var(--color-action-muted)] pointer-events-none transition-[left] duration-100"
           style={{ left: `calc(${pct}% - 7px)` }}
         />
         <input
@@ -10448,9 +10580,9 @@ function ScenesBackgroundPicker({
         >
           {currentThumb ? (
             <div className="relative">
-              <img src={currentThumb} alt={currentLabel} className={cn("w-5 h-5 rounded-full object-cover", isInherit && "ring-1 ring-[var(--color-warm)] ring-offset-1 ring-offset-surface-1")} />
+              <img src={currentThumb} alt={currentLabel} className={cn("w-5 h-5 rounded-full object-cover", isInherit && "ring-1 ring-[var(--color-action)] ring-offset-1 ring-offset-surface-1")} />
               {isInherit && (
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--color-warm)] border border-surface-1" title="Heredado del ConfigPanel" />
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[var(--color-action)] border border-surface-1" title="Heredado del ConfigPanel" />
               )}
             </div>
           ) : (
@@ -10478,7 +10610,7 @@ function ScenesBackgroundPicker({
               className={cn(
                 "inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-medium transition-colors cursor-pointer border",
                 scene.backgroundId === undefined
-                  ? "bg-[var(--color-warm-muted)] border-[var(--color-warm)] text-fg"
+                  ? "bg-[var(--color-action-muted)] border-[var(--color-action)] text-fg"
                   : "border-edge bg-surface-1 text-fg-muted hover:border-edge-strong"
               )}
             >
@@ -10488,7 +10620,7 @@ function ScenesBackgroundPicker({
                 <Settings2 size={9} />
               )}
               {globalBg ? `Global: ${globalBg.name}` : "Config global"}
-              {scene.backgroundId === undefined && <Check size={9} className="text-[var(--color-warm-strong)]" />}
+              {scene.backgroundId === undefined && <Check size={9} className="text-[var(--color-action-strong)]" />}
             </button>
             <button
               onClick={() => setBg(null)}
@@ -10519,7 +10651,7 @@ function ScenesBackgroundPicker({
                       title={bg.description || bg.name}
                       className={cn(
                         "relative rounded-[var(--radius-sm)] overflow-hidden border-2 transition-all cursor-pointer",
-                        isActive ? "border-[var(--color-warm)] ring-2 ring-[var(--color-warm-muted)]" : "border-transparent hover:border-edge-strong"
+                        isActive ? "border-[var(--color-action)] ring-2 ring-[var(--color-action-muted)]" : "border-transparent hover:border-edge-strong"
                       )}
                     >
                       {thumb ? (
@@ -10533,8 +10665,8 @@ function ScenesBackgroundPicker({
                         <p className="text-[9px] font-medium text-white truncate text-left">{bg.name}</p>
                       </div>
                       {isActive && (
-                        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--color-warm)] flex items-center justify-center">
-                          <Check size={8} className="text-[var(--color-warm-fg)]" />
+                        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[var(--color-action)] flex items-center justify-center">
+                          <Check size={8} className="text-[var(--color-action-fg)]" />
                         </div>
                       )}
                     </button>
@@ -10599,7 +10731,7 @@ function AssetPickerDropdown({ options, value, onChange }: {
             onClick={() => { onChange(null); setOpen(false); }}
             className={cn(
               "w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] text-[12px] cursor-pointer",
-              value === null ? "bg-[var(--color-warm-subtle)] text-fg" : "text-fg-muted hover:bg-surface-2"
+              value === null ? "bg-[var(--color-action-subtle)] text-fg" : "text-fg-muted hover:bg-surface-2"
             )}
           >
             <div className="w-6 h-6 rounded-sm border border-dashed border-edge flex items-center justify-center shrink-0">
@@ -10616,7 +10748,7 @@ function AssetPickerDropdown({ options, value, onChange }: {
                 onClick={() => { onChange(o.id); setOpen(false); }}
                 className={cn(
                   "w-full flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] text-[12px] cursor-pointer",
-                  value === o.id ? "bg-[var(--color-warm-subtle)] text-fg" : "text-fg-muted hover:bg-surface-2"
+                  value === o.id ? "bg-[var(--color-action-subtle)] text-fg" : "text-fg-muted hover:bg-surface-2"
                 )}
               >
                 {o.imageUrl ? (

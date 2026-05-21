@@ -11,7 +11,7 @@ import { Button } from "./ui/button";
 
 // ── Pipeline columns ──
 const COLUMNS = [
-    { id: "script", label: "Brief / Guión", icon: <FileText size={14} />, color: "var(--color-warm)" },
+    { id: "script", label: "Brief / Guión", icon: <FileText size={14} />, color: "var(--color-action)" },
     { id: "scene",  label: "Personaje",     icon: <UserIcon size={14} />, color: "#6ee7b7" },
     { id: "multishot", label: "Multishot",  icon: <Image size={14} />,    color: "#fbbf24" },
     { id: "lipsync",  label: "Video Listo", icon: <Video size={14} />,    color: "#34d399" },
@@ -274,7 +274,7 @@ function KanbanCard({ generation, onClick }: { generation: Generation; onClick: 
                     {/* Status overlay */}
                     {isRunning && (
                         <div className="absolute top-2 right-2">
-                            <span className="flex items-center gap-1 bg-[var(--color-warm)]/90 text-white text-[9px] font-bold px-2 py-1 rounded-full backdrop-blur-sm">
+                            <span className="flex items-center gap-1 bg-[var(--color-action)]/90 text-white text-[9px] font-bold px-2 py-1 rounded-full backdrop-blur-sm">
                                 <Loader2 size={10} className="animate-spin" /> generando
                             </span>
                         </div>

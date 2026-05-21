@@ -78,9 +78,26 @@ export const handleGenerate: StepHandler = async (ctx) => {
   if (selectedBackground?.imageUrl) imageUrls.push(selectedBackground.imageUrl);
   if (selectedMoodboard?.imageUrl) imageUrls.push(selectedMoodboard.imageUrl);
 
+  // Pose reference — body position ONLY (scoped). Added last so the prompt clause below
+  // can refer to "the last reference image" as the pose source.
+  const poseFiles = (config as unknown as { poseReference?: File[] }).poseReference || [];
+  let hasPose = false;
+  for (const file of poseFiles.slice(0, 1)) {
+    const dataUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+    imageUrls.push(dataUrl);
+    hasPose = true;
+  }
+
   let finalPrompt = promptResult.image_prompt;
   if (selectedMoodboard) {
-    finalPrompt += ` Visual style moodboard reference: replicate the aesthetic, color palette, and mood of the style reference image.`;
+    finalPrompt += ` MOODBOARD = art direction only: use the moodboard reference for broad styling, mood and palette tendency — conceptual guidance, not a literal target. Do NOT copy its objects or composition.`;
+  }
+  if (hasPose) {
+    finalPrompt += ` POSE REFERENCE (the last reference image): copy ONLY the body position, limb placement, and camera framing of the person in it. Do NOT copy its lighting, background, scene, clothing, colors, styling, or identity — those come from the brand assets and prompt. Pose and framing ONLY.`;
   }
 
   const job = imageUrls.length === 0

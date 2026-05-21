@@ -79,7 +79,7 @@ const PHASE_ICON: Record<string, React.ReactNode> = {
 function getStepCardStyle(status: Phase["status"]) {
     switch (status) {
         case "done": return "border-success/30 bg-success/5";
-        case "running": return "border-[var(--color-warm)]/40 bg-[var(--color-warm)]/5";
+        case "running": return "border-[var(--color-action)]/40 bg-[var(--color-action)]/5";
         case "review": return "border-warning/40 bg-warning/5";
         case "error": return "border-error/30 bg-error/5";
         default: return "border-edge bg-surface-1/30";
@@ -89,7 +89,7 @@ function getStepCardStyle(status: Phase["status"]) {
 function getStepIconStyle(status: Phase["status"]) {
     switch (status) {
         case "done": return "text-success";
-        case "running": return "text-[var(--color-warm)]";
+        case "running": return "text-[var(--color-action)]";
         case "review": return "text-warning";
         case "error": return "text-error";
         default: return "text-fg-faint";
@@ -99,7 +99,7 @@ function getStepIconStyle(status: Phase["status"]) {
 function StepStatusIcon({ status }: { status: Phase["status"] }) {
     switch (status) {
         case "done": return <CheckCircle2 size={12} className="text-success" />;
-        case "running": return <Loader2 size={12} className="animate-spin text-[var(--color-warm)]" />;
+        case "running": return <Loader2 size={12} className="animate-spin text-[var(--color-action)]" />;
         case "error": return <AlertCircle size={12} className="text-error" />;
         default: return null;
     }
@@ -211,7 +211,7 @@ export function GenerationCard({ generation, onDelete, onRestart, onClick }: Pro
 
                                 {phase.status === "running" && (
                                     <div className="flex flex-col items-center gap-1">
-                                        <Loader2 size={14} className="animate-spin text-[var(--color-warm)]" />
+                                        <Loader2 size={14} className="animate-spin text-[var(--color-action)]" />
                                         <span className="text-[9px] text-fg-faint">Procesando...</span>
                                     </div>
                                 )}

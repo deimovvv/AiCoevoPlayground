@@ -10,7 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
-import { Image as ImageIcon, Video, Plus, X, Send, Sparkles, RefreshCw, Download, AlertCircle, FlaskConical, Wand2, Eye, RotateCcw, ChevronDown } from "lucide-react";
+import { Image as ImageIcon, Video, Plus, X, Send, Sparkles, RefreshCw, Download, AlertCircle, FlaskConical, Wand2, Eye, RotateCcw, ChevronDown, Check } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
 import { useBrand } from "../lib/BrandContext";
@@ -58,12 +58,15 @@ interface VideoModelDef {
     modes: Array<"i2v" | "f2f" | "rtv">;
     supportsAudio: boolean;
 }
+// Curated lineup — each model covers a distinct case (no clutter):
+//   V3 Pro  → flagship i2v + frame-to-frame
+//   Seedance → multi-reference + audio lipsync
+//   V2.5 Turbo → fast/cheap iteration option
+// (V2.6 Pro/Std removed — redundant with V3 Pro and the turbo option.)
 const VIDEO_MODELS: VideoModelDef[] = [
-    { id: "v3-pro",     label: "Kling V3 Pro",       tier: "best quality",  provider: "kling",    modes: ["i2v", "f2f"], supportsAudio: false },
-    { id: "v2-6-pro",   label: "Kling V2.6 Pro",     tier: "balanced",      provider: "kling",    modes: ["i2v", "f2f"], supportsAudio: false },
-    { id: "v2-6-std",   label: "Kling V2.6 Std",     tier: "cheaper",       provider: "kling",    modes: ["i2v", "f2f"], supportsAudio: false },
-    { id: "v2-5-turbo", label: "Kling V2.5 Turbo",   tier: "fastest",       provider: "kling",    modes: ["i2v", "f2f"], supportsAudio: false },
+    { id: "v3-pro",     label: "Kling V3 Pro",       tier: "mejor calidad · i2v + f2f", provider: "kling",    modes: ["i2v", "f2f"], supportsAudio: false },
     { id: "seedance-2", label: "Seedance 2.0",       tier: "multi-ref + audio lipsync", provider: "seedance", modes: ["rtv"], supportsAudio: true },
+    { id: "v2-5-turbo", label: "Kling V2.5 Turbo",   tier: "rápido / barato",           provider: "kling",    modes: ["i2v", "f2f"], supportsAudio: false },
 ];
 
 type VideoMode = "i2v" | "f2f" | "rtv";  // image-to-video | frame-to-frame | reference-to-video (Seedance)
@@ -145,6 +148,7 @@ export function ManualLab() {
     const [refs, setRefs] = useState<RefImage[]>([]);
     const [prompt, setPrompt] = useState("");
     const [turns, setTurns] = useState<ChatTurn[]>([]);
+    const [galleryOpen, setGalleryOpen] = useState(true);
     const [busy, setBusy] = useState(false);
     const [suggestion, setSuggestion] = useState<{ tool_id: string; reason: string } | null>(null);
     const [showAssetPicker, setShowAssetPicker] = useState(false);
@@ -270,6 +274,17 @@ export function ManualLab() {
             setTurns(past);
         }).catch(() => { /* empty history */ });
     }, []);
+
+    // On first load, jump to the BOTTOM (latest output) — not the top of history.
+    // The newest generation is what you want to see when you open Lab.
+    const didInitialScroll = useRef(false);
+    useEffect(() => {
+        if (didInitialScroll.current || turns.length === 0) return;
+        const el = scrollRef.current;
+        if (!el) return;
+        el.scrollTop = el.scrollHeight; // instant, no animation on first paint
+        didInitialScroll.current = true;
+    }, [turns.length]);
 
     // Auto-scroll on new turn ONLY if the user is already near the bottom.
     // If they scrolled up to read history, don't yank them.
@@ -408,6 +423,14 @@ export function ManualLab() {
                 source: "result",
             },
         ]);
+    };
+
+    // Delete a generated output from the session (gallery + chat). Local only —
+    // doesn't touch anything saved to Contenido (that has its own delete).
+    const deleteTurn = (turn: ChatTurn) => {
+        setTurns((prev) => prev.filter((t) => t.id !== turn.id));
+        // If it was the edit anchor or a ref, drop it from refs too.
+        if (turn.outputUrl) setRefs((prev) => prev.filter((r) => r.url !== turn.outputUrl));
     };
 
     // Enter "edit anchor" mode — the result becomes image1, other refs shift down.
@@ -660,7 +683,7 @@ export function ManualLab() {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-3 border-b border-edge-subtle">
                 <div className="flex items-center gap-3">
-                    <FlaskConical size={18} className="text-[var(--color-warm)]" />
+                    <FlaskConical size={18} className="text-[var(--color-action)]" />
                     <div>
                         <h1 className="text-[15px] font-semibold text-fg">Manual Lab</h1>
                         <p className="text-[11px] text-fg-faint">
@@ -689,7 +712,7 @@ export function ManualLab() {
                             onClick={() => setMode("image")}
                             className={cn(
                                 "px-3.5 py-1 text-[12px] flex items-center gap-1.5 cursor-pointer transition-colors rounded-full",
-                                mode === "image" ? "bg-[var(--color-warm-subtle)] text-fg" : "text-fg-muted hover:text-fg",
+                                mode === "image" ? "bg-[var(--color-action-subtle)] text-fg" : "text-fg-muted hover:text-fg",
                             )}
                         >
                             <ImageIcon size={13} /> Image
@@ -698,7 +721,7 @@ export function ManualLab() {
                             onClick={() => setMode("video")}
                             className={cn(
                                 "px-3.5 py-1 text-[12px] flex items-center gap-1.5 cursor-pointer transition-colors rounded-full",
-                                mode === "video" ? "bg-[var(--color-warm-subtle)] text-fg" : "text-fg-muted hover:text-fg",
+                                mode === "video" ? "bg-[var(--color-action-subtle)] text-fg" : "text-fg-muted hover:text-fg",
                             )}
                         >
                             <Video size={13} /> Video
@@ -707,18 +730,42 @@ export function ManualLab() {
                 </div>
             </div>
 
+            {/* Body: gallery drawer (left) + chat history (right) */}
+            <div className="flex-1 flex min-h-0">
+
+            {/* Gallery drawer — all generated outputs of the session, so they don't get
+                lost in the chat scroll. Click a thumb to open it in the lightbox. */}
+            <LabGallery
+                turns={turns}
+                open={galleryOpen}
+                onToggle={() => setGalleryOpen((o) => !o)}
+                onOpen={(t) => { if (t.outputUrl && t.type) setLightbox({ url: t.outputUrl, type: t.type, label: t.prompt }); }}
+                onUseAsRef={(t) => useResultAsRef(t)}
+                onAnimate={(t) => animateResult(t)}
+                onDelete={(t) => deleteTurn(t)}
+            />
+
             {/* Chat history (with floating "scroll to bottom" button) */}
             <div className="flex-1 relative min-h-0">
             <div ref={scrollRef} onScroll={onChatScroll} className="absolute inset-0 overflow-y-auto px-6 py-4 space-y-4">
                 {turns.length === 0 ? (
                     <EmptyState mode={mode} />
-                ) : (
-                    turns.map((t) => (
+                ) : (() => {
+                    // Only the last 3 completed results show their image BIG in the chat.
+                    // Older results collapse to a slim line (the image lives in the gallery).
+                    const recentResultIds = new Set(
+                        turns
+                            .filter((t) => t.role === "result" && t.status === "completed" && t.outputUrl)
+                            .slice(-3)
+                            .map((t) => t.id),
+                    );
+                    return turns.map((t) => (
                         <TurnBubble
                             key={t.id}
                             turn={t}
                             isAnchored={!!(anchorRef && t.outputUrl === anchorRef.url)}
                             busyLabel={busyLabel}
+                            showFull={t.status !== "completed" || recentResultIds.has(t.id)}
                             onEdit={() => editResult(t)}
                             onUseAsRef={() => useResultAsRef(t)}
                             onAnimate={() => animateResult(t)}
@@ -728,8 +775,8 @@ export function ManualLab() {
                             }}
                             onZoomRef={(url, label) => setLightbox({ url, type: "image", label })}
                         />
-                    ))
-                )}
+                    ));
+                })()}
             </div>
             {/* Floating scroll-to-bottom button — appears when scrolled up */}
             {showScrollDown && (
@@ -743,12 +790,13 @@ export function ManualLab() {
                 </button>
             )}
             </div>
+            </div>{/* /body flex */}
 
             {/* Suggestion banner */}
             {suggestion && (
-                <div className="mx-6 mb-2 flex items-center justify-between gap-3 px-4 py-2 bg-[var(--color-warm-subtle)] border border-[var(--color-warm-muted)] rounded-full">
+                <div className="mx-6 mb-2 flex items-center justify-between gap-3 px-4 py-2 bg-[var(--color-action-subtle)] border border-[var(--color-action-muted)] rounded-full">
                     <div className="flex items-center gap-2 text-[12px] text-fg">
-                        <Sparkles size={13} className="text-[var(--color-warm)]" />
+                        <Sparkles size={13} className="text-[var(--color-action)]" />
                         <span>{suggestion.reason || "Hay un pipeline mejor para esto."}</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -818,7 +866,7 @@ export function ManualLab() {
                     <div className="flex items-center gap-2 flex-wrap mt-2">
                         {audioRefs.map((a) => (
                             <div key={a.id} className="flex items-center gap-2 pl-2 pr-1 py-1 bg-surface-1 border border-edge rounded-full text-[11px]">
-                                <span className="text-[var(--color-warm)]">🎵</span>
+                                <span className="text-[var(--color-action)]">🎵</span>
                                 <span className="text-fg truncate max-w-[140px]">{a.label}</span>
                                 <button
                                     onClick={() => removeAudioRef(a.id)}
@@ -863,7 +911,7 @@ export function ManualLab() {
                 <div className="space-y-2">
                     {/* Anchor chip — "editing this image" mode */}
                     {anchorRef && (
-                        <div className="flex items-center gap-2 px-2 py-1.5 rounded-full bg-[var(--color-warm-subtle)] border border-[var(--color-warm-muted)] w-fit max-w-full">
+                        <div className="flex items-center gap-2 px-2 py-1.5 rounded-full bg-[var(--color-action-subtle)] border border-[var(--color-action-muted)] w-fit max-w-full">
                             <button
                                 onClick={() => setLightbox({ url: anchorRef.url, type: "image", label: anchorRef.label })}
                                 className="cursor-pointer"
@@ -872,7 +920,7 @@ export function ManualLab() {
                                 <img src={anchorRef.url} alt="anchor" className="w-7 h-7 object-cover rounded-full" />
                             </button>
                             <div className="flex flex-col leading-tight min-w-0">
-                                <span className="text-[10px] text-[var(--color-warm)] font-medium uppercase tracking-wide">Editando</span>
+                                <span className="text-[10px] text-[var(--color-action)] font-medium uppercase tracking-wide">Editando</span>
                                 <span className="text-[11px] text-fg truncate max-w-[260px]">{anchorRef.label}</span>
                             </div>
                             <button
@@ -887,10 +935,10 @@ export function ManualLab() {
 
                     {/* Prompt preview / manual override */}
                     {showPreview && (
-                        <div className="rounded-[var(--radius-md)] border border-[var(--color-warm-muted)] bg-[var(--color-warm-subtle)]/30 p-2.5 space-y-1.5">
+                        <div className="rounded-[var(--radius-md)] border border-[var(--color-action-muted)] bg-[var(--color-action-subtle)]/30 p-2.5 space-y-1.5">
                             <div className="flex items-center justify-between">
                                 <span className="text-[11px] text-fg-muted flex items-center gap-1.5">
-                                    <Eye size={11} /> Prompt final {manualPrompt !== null && <span className="text-[var(--color-warm)]">· editado manualmente</span>}
+                                    <Eye size={11} /> Prompt final {manualPrompt !== null && <span className="text-[var(--color-action)]">· editado manualmente</span>}
                                 </span>
                                 <div className="flex items-center gap-1">
                                     {manualPrompt !== null && (
@@ -976,7 +1024,7 @@ export function ManualLab() {
                                     <ParamSelect label="AR" value={imgAspectRatio} options={IMG_ASPECT_RATIOS as readonly string[]} onChange={(v) => setImgAspectRatio(v as typeof IMG_ASPECT_RATIOS[number])} />
                                     <ParamSelect label="Res" value={imgResolution} options={IMG_RESOLUTIONS as readonly string[]} onChange={(v) => setImgResolution(v as typeof IMG_RESOLUTIONS[number])} />
                                     {refs.length > 0 && (
-                                        <span className={cn("text-[10px]", currentModelInfo.resHonored ? "text-[var(--color-warm)]" : "text-fg-faint")}>
+                                        <span className={cn("text-[10px]", currentModelInfo.resHonored ? "text-[var(--color-action)]" : "text-fg-faint")}>
                                             · {currentModelInfo.note}
                                         </span>
                                     )}
@@ -1029,7 +1077,7 @@ export function ManualLab() {
                                 disabled={enhancing || (!showPreview && !prompt.trim())}
                                 className={cn(
                                     "text-[11px] px-3 py-1.5 rounded-full cursor-pointer flex items-center gap-1 border transition-colors disabled:opacity-40 disabled:cursor-not-allowed",
-                                    showPreview ? "bg-[var(--color-warm-subtle)] border-[var(--color-warm-muted)] text-fg" : "border-edge text-fg-muted hover:text-fg hover:bg-surface-1",
+                                    showPreview ? "bg-[var(--color-action-subtle)] border-[var(--color-action-muted)] text-fg" : "border-edge text-fg-muted hover:text-fg hover:bg-surface-1",
                                 )}
                                 title="Ver el prompt mejorado por Gemini (editable)"
                             >
@@ -1108,7 +1156,7 @@ function MentionPopover({ refs, activeIdx, onPick, top, left }: {
                     onClick={() => onPick(r)}
                     className={cn(
                         "w-full flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-left",
-                        i === activeIdx ? "bg-[var(--color-warm-subtle)]" : "hover:bg-surface-2",
+                        i === activeIdx ? "bg-[var(--color-action-subtle)]" : "hover:bg-surface-2",
                     )}
                 >
                     {r.url
@@ -1116,7 +1164,7 @@ function MentionPopover({ refs, activeIdx, onPick, top, left }: {
                         : <div className="w-7 h-7 bg-surface-2 rounded-sm shrink-0" />}
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                            <code className="text-[11px] text-[var(--color-warm)]">[{r.tag}]</code>
+                            <code className="text-[11px] text-[var(--color-action)]">[{r.tag}]</code>
                             <span className="text-[11px] text-fg truncate">{r.label}</span>
                         </div>
                         <div className="text-[9px] text-fg-faint">{r.source}</div>
@@ -1133,7 +1181,7 @@ function RefChip({ ref_, onRemove, onInsert, onZoom }: { ref_: RefImage; onRemov
         <div className={cn(
             "group relative flex items-center gap-2 pl-1 pr-2 py-1 rounded-full text-[11px] transition-all",
             isAnchor
-                ? "bg-[var(--color-warm-subtle)] border border-[var(--color-warm-muted)]"
+                ? "bg-[var(--color-action-subtle)] border border-[var(--color-action-muted)]"
                 : "bg-surface-1 border border-edge hover:border-edge-strong",
         )}>
             <button
@@ -1144,7 +1192,7 @@ function RefChip({ ref_, onRemove, onInsert, onZoom }: { ref_: RefImage; onRemov
                 <img src={ref_.url} alt={ref_.label} className="w-9 h-9 object-cover rounded-full" />
             </button>
             <button onClick={onInsert} className="text-fg cursor-pointer flex items-center gap-1.5" title="Insertar tag en el prompt">
-                <code className={cn(isAnchor ? "text-[var(--color-warm-strong)]" : "text-[var(--color-warm)]")}>[{ref_.tag}]</code>
+                <code className={cn(isAnchor ? "text-[var(--color-action-strong)]" : "text-[var(--color-action)]")}>[{ref_.tag}]</code>
                 <span className="text-fg-faint">{ref_.label.slice(0, 18)}{ref_.label.length > 18 ? "…" : ""}</span>
             </button>
             <button onClick={onRemove} className="text-fg-faint hover:text-error cursor-pointer ml-1 w-4 h-4 rounded-full flex items-center justify-center hover:bg-surface-2">
@@ -1157,8 +1205,8 @@ function RefChip({ ref_, onRemove, onInsert, onZoom }: { ref_: RefImage; onRemov
 function EmptyState({ mode }: { mode: Mode }) {
     return (
         <div className="h-full flex flex-col items-center justify-center text-center py-12">
-            <div className="w-12 h-12 rounded-full bg-[var(--color-warm-subtle)] flex items-center justify-center mb-3">
-                <Wand2 size={20} className="text-[var(--color-warm)]" />
+            <div className="w-12 h-12 rounded-full bg-[var(--color-action-subtle)] flex items-center justify-center mb-3">
+                <Wand2 size={20} className="text-[var(--color-action)]" />
             </div>
             <p className="text-[14px] text-fg font-medium">Generá libremente</p>
             <p className="text-[12px] text-fg-muted max-w-md mt-1">
@@ -1170,10 +1218,12 @@ function EmptyState({ mode }: { mode: Mode }) {
     );
 }
 
-function TurnBubble({ turn, isAnchored, busyLabel, onEdit, onUseAsRef, onAnimate, onZoom, onZoomRef }: {
+function TurnBubble({ turn, isAnchored, busyLabel, showFull = true, onEdit, onUseAsRef, onAnimate, onZoom, onZoomRef }: {
     turn: ChatTurn;
     isAnchored: boolean;
     busyLabel: string;
+    // true → show the big image (last 3 results). false → slim line (older, in gallery).
+    showFull?: boolean;
     onEdit: () => void;
     onUseAsRef: () => void;
     onAnimate: () => void;
@@ -1181,10 +1231,12 @@ function TurnBubble({ turn, isAnchored, busyLabel, onEdit, onUseAsRef, onAnimate
     onZoomRef: (url: string, label: string) => void;
 }) {
     const [showSent, setShowSent] = useState(false);
+    // Older completed results aren't rendered in the chat — they live in the gallery.
+    if (turn.role === "result" && turn.status === "completed" && !showFull) return null;
     if (turn.role === "user") {
         return (
             <div className="flex justify-end">
-                <div className="max-w-[80%] bg-[var(--color-warm-subtle)] border border-[var(--color-warm-muted)] rounded-[var(--radius-lg)] px-3 py-2 space-y-1.5">
+                <div className="max-w-[80%] bg-[var(--color-action-subtle)] border border-[var(--color-action-muted)] rounded-[var(--radius-lg)] px-3 py-2 space-y-1.5">
                     {turn.refs && turn.refs.length > 0 && (
                         <div className="flex gap-1 flex-wrap">
                             {turn.refs.map((r) => (
@@ -1201,7 +1253,7 @@ function TurnBubble({ turn, isAnchored, busyLabel, onEdit, onUseAsRef, onAnimate
                                     {r.url
                                         ? <img src={r.url} alt={r.label} className="w-5 h-5 object-cover rounded-full" />
                                         : <span className="w-5 h-5 bg-surface-2 rounded-full" />}
-                                    <code className="text-[var(--color-warm)]">[{r.tag}]</code>
+                                    <code className="text-[var(--color-action)]">[{r.tag}]</code>
                                 </button>
                             ))}
                         </div>
@@ -1224,7 +1276,7 @@ function TurnBubble({ turn, isAnchored, busyLabel, onEdit, onUseAsRef, onAnimate
         <div className="flex justify-start">
             <div className={cn(
                 "max-w-[80%] bg-surface-1 border rounded-[var(--radius-lg)] p-2 space-y-2",
-                isAnchored ? "border-[var(--color-warm-muted)] ring-1 ring-[var(--color-warm-muted)]" : "border-edge",
+                isAnchored ? "border-[var(--color-action-muted)] ring-1 ring-[var(--color-action-muted)]" : "border-edge",
             )}>
                 {turn.status === "pending" && (
                     <div className="flex items-center gap-2 px-3 py-6 text-[12px] text-fg-muted">
@@ -1243,6 +1295,8 @@ function TurnBubble({ turn, isAnchored, busyLabel, onEdit, onUseAsRef, onAnimate
                 )}
                 {turn.status === "completed" && turn.outputUrl && (
                     <>
+                        {/* Last 3 results → big preview. Older results live ONLY in the
+                            gallery, so they render nothing here (no clutter). */}
                         {turn.type === "image" ? (
                             <button onClick={onZoom} className="block cursor-zoom-in" title="Click para ampliar">
                                 <img src={turn.outputUrl} alt="Generated" className="max-w-md max-h-[60vh] rounded-[var(--radius-md)]" />
@@ -1256,7 +1310,7 @@ function TurnBubble({ turn, isAnchored, busyLabel, onEdit, onUseAsRef, onAnimate
                                     <button onClick={onEdit} className={cn(
                                         "text-[11px] px-3 py-1 rounded-full cursor-pointer flex items-center gap-1 transition-colors",
                                         isAnchored
-                                            ? "bg-[var(--color-warm-subtle)] text-fg border border-[var(--color-warm-muted)]"
+                                            ? "bg-[var(--color-action-subtle)] text-fg border border-[var(--color-action-muted)]"
                                             : "hover:bg-surface-2 text-fg-muted hover:text-fg",
                                     )}>
                                         <Wand2 size={11} /> {isAnchored ? "Editando" : "Editar"}
@@ -1435,3 +1489,104 @@ function generationToTurn(g: Generation): ChatTurn {
     };
 }
 
+
+// ── Lab Gallery — collapsible left drawer with all session outputs ──────────
+// Generated images/videos pile up in the chat scroll and get lost. This drawer
+// shows them all as a thumbnail grid so you can browse, open, reuse, or animate
+// any past output without hunting through the conversation.
+function LabGallery({
+    turns,
+    open,
+    onToggle,
+    onOpen,
+    onUseAsRef,
+    onAnimate,
+    onDelete,
+}: {
+    turns: ChatTurn[];
+    open: boolean;
+    onToggle: () => void;
+    onOpen: (t: ChatTurn) => void;
+    onUseAsRef: (t: ChatTurn) => void;
+    onAnimate: (t: ChatTurn) => void;
+    onDelete: (t: ChatTurn) => void;
+}) {
+    // Newest first — only completed outputs with a URL.
+    const outputs = turns
+        .filter((t) => t.role === "result" && t.status === "completed" && t.outputUrl && t.type)
+        .reverse();
+
+    if (!open) {
+        return (
+            <div className="shrink-0 border-r border-edge flex flex-col items-center pt-3 w-10">
+                <button
+                    onClick={onToggle}
+                    title="Abrir galería de generaciones"
+                    className="w-7 h-7 rounded-[var(--radius-sm)] flex items-center justify-center text-fg-muted hover:text-fg hover:bg-surface-2 cursor-pointer"
+                >
+                    <ImageIcon size={15} />
+                </button>
+                {outputs.length > 0 && (
+                    <span className="mt-1 text-[9px] font-bold text-[var(--color-action)]">{outputs.length}</span>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div className="shrink-0 w-56 border-r border-edge flex flex-col min-h-0">
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-edge-subtle">
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-fg-faint">
+                    Galería <span className="text-fg-muted">({outputs.length})</span>
+                </span>
+                <button
+                    onClick={onToggle}
+                    title="Colapsar galería"
+                    className="w-6 h-6 rounded flex items-center justify-center text-fg-faint hover:text-fg hover:bg-surface-2 cursor-pointer"
+                >
+                    <ChevronDown size={14} className="rotate-90" />
+                </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+                {outputs.length === 0 ? (
+                    <p className="text-[10px] text-fg-faint text-center px-2 py-6 leading-relaxed">
+                        Tus generaciones van a aparecer acá. Generá una imagen o video para empezar.
+                    </p>
+                ) : (
+                    <div className="grid grid-cols-2 gap-1.5">
+                        {outputs.map((t) => (
+                            <div key={t.id} className="group relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-2">
+                                {t.type === "video" ? (
+                                    <video src={t.outputUrl} muted className="w-full h-full object-cover" />
+                                ) : (
+                                    <img src={t.outputUrl} alt={t.prompt || ""} className="w-full h-full object-cover" />
+                                )}
+                                {t.type === "video" && (
+                                    <span className="absolute top-1 left-1 bg-black/60 rounded px-1 py-0.5"><Video size={8} className="text-white" /></span>
+                                )}
+                                {/* Delete — top-right, always reachable on hover */}
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onDelete(t); }}
+                                    title="Eliminar"
+                                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 hover:bg-error opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer z-10"
+                                >
+                                    <X size={10} className="text-white" />
+                                </button>
+                                {/* Hover actions */}
+                                <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                                    <button onClick={() => onOpen(t)} title="Ver" className="w-6 h-6 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center cursor-pointer"><Eye size={11} className="text-white" /></button>
+                                    {t.type === "image" && (
+                                        <div className="flex gap-1">
+                                            <button onClick={() => onUseAsRef(t)} title="Usar como referencia" className="w-6 h-6 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center cursor-pointer"><Plus size={11} className="text-white" /></button>
+                                            <button onClick={() => onAnimate(t)} title="Animar" className="w-6 h-6 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center cursor-pointer"><Video size={11} className="text-white" /></button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}

@@ -178,7 +178,8 @@ const handleGenerateAll: StepHandler = async (ctx) => {
   const refDescriptions: string[] = [];
   let imgIdx = 1;
 
-  // Reference image (uploaded file) — interpretation depends on referenceMode
+  // Reference image (uploaded file) — interpretation depends on referenceMode.
+  // In "style" mode this is the LOOK & FEEL reference (literal aesthetic to match).
   const refFiles = (config as { referenceImages?: File[] }).referenceImages || [];
   const refMode = (config as { referenceMode?: "style" | "composition" }).referenceMode || "style";
   for (const file of refFiles.slice(0, 1)) {
@@ -191,8 +192,21 @@ const handleGenerateAll: StepHandler = async (ctx) => {
     if (refMode === "composition") {
       refDescriptions.push(`Image ${imgIdx}: COMPOSITION REFERENCE — reproduce the SAME layout, framing, object placement, camera angle, AND the SAME setting/location/environment as this image. IMPORTANT: the scene context (indoor/outdoor, location type, time of day, surroundings) MUST match this reference — IGNORE any conflicting setting, location, or context coming from the brand description. The brand assets (product, avatar, clothing) go INTO this reference's scene, not into the brand's default setting. Keep brand colors/style where they don't conflict with the reference's composition.`);
     } else {
-      refDescriptions.push(`Image ${imgIdx}: STYLE REFERENCE — match the mood, color grading, lighting, and overall aesthetic. Do NOT copy the layout — the composition should be driven by the brand product and prompt.`);
+      refDescriptions.push(`Image ${imgIdx}: LOOK & FEEL REFERENCE — match this aesthetic LITERALLY: same color grading, lighting language, texture, contrast, and overall visual treatment. This is the final visual style the output must look like. Do NOT copy the layout/composition or the people in it — only the look & feel. Take ONLY the aesthetic.`);
     }
+    imgIdx++;
+  }
+
+  // Pose reference — body position ONLY. Scoped so it doesn't bleed lighting/scene/style.
+  const poseFiles = (config as { poseReference?: File[] }).poseReference || [];
+  for (const file of poseFiles.slice(0, 1)) {
+    const dataUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+    imageUrls.push(dataUrl);
+    refDescriptions.push(`Image ${imgIdx}: POSE REFERENCE — copy ONLY the body position, limb placement, and camera framing/angle of the person in this image. Do NOT copy the lighting, background, scene, clothing, colors, styling, or identity — those come from the OTHER references. This image contributes pose and framing ONLY.`);
     imgIdx++;
   }
 
@@ -241,7 +255,7 @@ const handleGenerateAll: StepHandler = async (ctx) => {
   if (selectedMoodboard?.imageUrl) {
     imageUrls.push(selectedMoodboard.imageUrl);
     const moodName = selectedMoodboard.description || selectedMoodboard.name || "moodboard";
-    refDescriptions.push(`Image ${imgIdx}: MOODBOARD — replicate this visual style, color palette, lighting, and mood (${moodName}). Do NOT copy people or objects literally.`);
+    refDescriptions.push(`Image ${imgIdx}: MOODBOARD — ART DIRECTION ONLY (${moodName}). Use it as broad creative guidance: styling direction, general mood, palette tendency, vibe. This is conceptual guidance, NOT a literal target — the literal aesthetic comes from the LOOK & FEEL reference (if present). Do NOT copy people, objects, or composition from the moodboard.`);
     imgIdx++;
   }
 

@@ -28,7 +28,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_DOT: Record<string, string> = {
     completed: "bg-success",
-    running: "bg-[var(--color-warm)] animate-pulse",
+    running: "bg-[var(--color-action)] animate-pulse",
     failed: "bg-error",
     draft: "bg-fg-faint",
 };
@@ -228,12 +228,12 @@ export function GenerationDetailDrawer({ generation, isOpen, onClose, onSaveCont
                                 <div className="border-t border-edge pt-4 mt-4">
                                     <label className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">Audio</label>
                                     <div className="mt-2 flex items-center gap-3 border border-edge rounded-[var(--radius-sm)] p-3 bg-surface-0">
-                                        <button className="cursor-pointer w-8 h-8 rounded-full bg-[var(--color-warm)] text-[var(--color-warm-fg)] flex items-center justify-center hover:opacity-90 shrink-0">
+                                        <button className="cursor-pointer w-8 h-8 rounded-full bg-[var(--color-action)] text-[var(--color-action-fg)] flex items-center justify-center hover:opacity-90 shrink-0">
                                             <Play size={12} className="ml-0.5" />
                                         </button>
                                         <div className="flex-1 flex items-end gap-px h-4">
                                             {[3, 5, 8, 4, 7, 3, 6, 8, 5, 7, 3, 9, 5, 4, 7, 6, 3, 8, 5].map((h, i) => (
-                                                <div key={i} className="flex-1 bg-[var(--color-warm)]/30 rounded-sm" style={{ height: `${h * 1.5}px` }} />
+                                                <div key={i} className="flex-1 bg-[var(--color-action)]/30 rounded-sm" style={{ height: `${h * 1.5}px` }} />
                                             ))}
                                         </div>
                                     </div>
@@ -296,10 +296,10 @@ function VoiceOption({ name, subtitle, selected }: { name: string; subtitle?: st
     return (
         <div className={`flex items-center gap-2 px-3 py-2 rounded-[var(--radius-sm)] border cursor-pointer transition-all ${
             selected
-                ? "border-[var(--color-warm)] bg-[var(--color-warm)]/5"
+                ? "border-[var(--color-action)] bg-[var(--color-action)]/5"
                 : "border-edge hover:border-edge-strong bg-surface-0"
         }`}>
-            <div className={`w-2 h-2 rounded-full shrink-0 ${selected ? "bg-[var(--color-warm)]" : "bg-fg-faint/30"}`} />
+            <div className={`w-2 h-2 rounded-full shrink-0 ${selected ? "bg-[var(--color-action)]" : "bg-fg-faint/30"}`} />
             <span className={`text-[12px] font-medium ${selected ? "text-fg" : "text-fg-muted"}`}>{name}</span>
             {subtitle && <span className="text-[10px] text-fg-faint ml-auto">{subtitle}</span>}
         </div>

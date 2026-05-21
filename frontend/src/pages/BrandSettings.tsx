@@ -208,7 +208,7 @@ function BrandNameEditor() {
         <button
           onClick={save}
           disabled={saving || !draft.trim()}
-          className="px-2.5 py-1 text-[12px] font-medium rounded-[var(--radius-sm)] bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center gap-1"
+          className="px-2.5 py-1 text-[12px] font-medium rounded-[var(--radius-sm)] bg-[var(--color-action)] text-[var(--color-action-fg)] hover:opacity-90 disabled:opacity-50 cursor-pointer flex items-center gap-1"
         >
           {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
           Guardar
@@ -390,7 +390,7 @@ function GuidanceCard() {
             <button
               onClick={handleExtractAll}
               disabled={extractAllLoading || !hasContent}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer ml-auto"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 disabled:opacity-50 cursor-pointer ml-auto"
               title={hasContent ? "Corre Brand DNA + Negocio + Design System en cascada" : "Cargá info primero (URL, PDF o pegá texto)"}
             >
               {extractAllLoading ? <Loader2 size={12} className="animate-spin" /> : <span>🪄</span>}
@@ -417,7 +417,7 @@ function GuidanceCard() {
               <button
                 onClick={handleUrlImport}
                 disabled={urlLoading || !url.trim()}
-                className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
               >
                 {urlLoading ? <Loader2 size={12} className="animate-spin" /> : <Globe size={12} />}
                 Traer
@@ -467,7 +467,7 @@ function GuidanceCard() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer flex items-center gap-1.5"
             >
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
               Guardar
@@ -570,7 +570,7 @@ function AvatarsCard() {
             onClick={() => fileRef.current?.click()}
             className={cn(
               "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
-              file ? "border-[var(--color-warm)] bg-[var(--color-warm-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+              file ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
             )}
           >
             <input
@@ -604,7 +604,7 @@ function AvatarsCard() {
             <button
               onClick={handleUpload}
               disabled={uploading || !file || !name.trim()}
-              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               Upload
@@ -765,7 +765,7 @@ function ProductsCard() {
                     }
                   } catch { /* silent */ }
                 }}
-                className="flex items-center gap-1.5 text-[11px] text-[var(--color-warm)] hover:underline cursor-pointer"
+                className="flex items-center gap-1.5 text-[11px] text-[var(--color-action)] hover:underline cursor-pointer"
               >
                 <Sparkles size={11} />
                 Describir con IA
@@ -776,7 +776,7 @@ function ProductsCard() {
             onClick={() => fileRef.current?.click()}
             className={cn(
               "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
-              file ? "border-[var(--color-warm)] bg-[var(--color-warm-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+              file ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
             )}
           >
             <input
@@ -810,7 +810,7 @@ function ProductsCard() {
             <button
               onClick={handleUpload}
               disabled={uploading || !file || !name.trim()}
-              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               Upload
@@ -959,13 +959,13 @@ function ProductTile({
               className="w-full px-1.5 py-1 rounded border border-edge bg-surface-1 text-[10px] text-fg outline-none resize-none"
             />
             <div className="flex gap-1">
-              <button onClick={handleAiDescribe} disabled={aiLoading} className="flex items-center gap-1 text-[9px] text-[var(--color-warm)] cursor-pointer">
+              <button onClick={handleAiDescribe} disabled={aiLoading} className="flex items-center gap-1 text-[9px] text-[var(--color-action)] cursor-pointer">
                 {aiLoading ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
                 AI
               </button>
               <div className="flex-1" />
               <button onClick={() => setEditing(false)} className="text-[9px] text-fg-faint cursor-pointer">Cancelar</button>
-              <button onClick={handleSave} className="text-[9px] text-[var(--color-warm)] font-medium cursor-pointer">Guardar</button>
+              <button onClick={handleSave} className="text-[9px] text-[var(--color-action)] font-medium cursor-pointer">Guardar</button>
             </div>
           </div>
         ) : (
@@ -1083,7 +1083,7 @@ function ClothingCard() {
             onClick={() => fileRef.current?.click()}
             className={cn(
               "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
-              file ? "border-[var(--color-warm)] bg-[var(--color-warm-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+              file ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
             )}
           >
             <input
@@ -1117,7 +1117,7 @@ function ClothingCard() {
             <button
               onClick={handleUpload}
               disabled={uploading || !file || !name.trim()}
-              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               Upload
@@ -1303,7 +1303,7 @@ function VoicesCard() {
               className={cn(
                 "w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors cursor-pointer",
                 playingId === v.id
-                  ? "bg-[var(--color-warm)] text-[var(--color-warm-fg)]"
+                  ? "bg-[var(--color-action)] text-[var(--color-action-fg)]"
                   : "bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3"
               )}
             >
@@ -1391,7 +1391,7 @@ function VoicesCard() {
                 className={cn(
                   "flex items-center gap-1.5 px-4 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] transition-colors",
                   !saving && name.trim() && voiceId.trim()
-                    ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+                    ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 cursor-pointer"
                     : "text-fg-faint bg-surface-2 cursor-not-allowed opacity-50"
                 )}
               >
@@ -1424,7 +1424,7 @@ function VoicesCard() {
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setShowDesign(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90 transition-opacity cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] bg-[var(--color-action)] text-[var(--color-action-fg)] hover:opacity-90 transition-opacity cursor-pointer"
             >
               <Wand2 size={13} />
               Diseñar voz
@@ -1528,7 +1528,7 @@ function DesignVoicePanel({ brandId, onDone, onCancel }: { brandId: string; onDo
   return (
     <div className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] p-4 space-y-3">
       <div className="flex items-center gap-2">
-        <Wand2 size={14} className="text-[var(--color-warm)]" />
+        <Wand2 size={14} className="text-[var(--color-action)]" />
         <p className="text-[12px] font-semibold text-fg">Diseñar voz nueva</p>
       </div>
 
@@ -1571,7 +1571,7 @@ function DesignVoicePanel({ brandId, onDone, onCancel }: { brandId: string; onDo
           className={cn(
             "flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] transition-colors",
             !loading && description.trim().length >= 20
-              ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+              ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 cursor-pointer"
               : "text-fg-faint bg-surface-2 cursor-not-allowed opacity-50",
           )}
         >
@@ -1603,7 +1603,7 @@ function DesignVoicePanel({ brandId, onDone, onCancel }: { brandId: string; onDo
                 className={cn(
                   "w-full flex items-center gap-2.5 px-3 py-2 border rounded-[var(--radius-sm)] transition-colors cursor-pointer text-left",
                   isPicked
-                    ? "bg-[var(--color-warm)]/10 border-[var(--color-warm)] ring-1 ring-[var(--color-warm)]"
+                    ? "bg-[var(--color-action)]/10 border-[var(--color-action)] ring-1 ring-[var(--color-action)]"
                     : "bg-surface-0 border-edge hover:border-edge-strong",
                 )}
               >
@@ -1617,7 +1617,7 @@ function DesignVoicePanel({ brandId, onDone, onCancel }: { brandId: string; onDo
                 </span>
                 <span className="flex-1 text-[12px] text-fg">Preview {i + 1}</span>
                 {isPicked ? (
-                  <span className="flex items-center gap-1 text-[10px] font-semibold text-[var(--color-warm)]">
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-[var(--color-action)]">
                     <Check size={12} /> Seleccionada
                   </span>
                 ) : (
@@ -1649,7 +1649,7 @@ function DesignVoicePanel({ brandId, onDone, onCancel }: { brandId: string; onDo
               className={cn(
                 "flex items-center gap-1.5 px-4 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] mt-2",
                 !saving && pickedId && voiceName.trim()
-                  ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+                  ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 cursor-pointer"
                   : "text-fg-faint bg-surface-2 cursor-not-allowed opacity-50",
               )}
             >
@@ -1790,7 +1790,7 @@ function CloneVoicePanel({ brandId, onDone, onCancel }: { brandId: string; onDon
           className={cn(
             "flex items-center gap-1.5 px-4 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)]",
             !saving && voiceName.trim() && files.length > 0
-              ? "text-[var(--color-warm-fg)] bg-[var(--color-warm)] hover:opacity-90 cursor-pointer"
+              ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 cursor-pointer"
               : "text-fg-faint bg-surface-2 cursor-not-allowed opacity-50",
           )}
         >
@@ -1895,7 +1895,7 @@ function BackgroundsCard() {
             onClick={() => fileRef.current?.click()}
             className={cn(
               "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
-              file ? "border-[var(--color-warm)] bg-[var(--color-warm-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+              file ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
             )}
           >
             <input
@@ -1929,7 +1929,7 @@ function BackgroundsCard() {
             <button
               onClick={handleUpload}
               disabled={uploading || !file || !name.trim()}
-              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               Upload
@@ -2089,7 +2089,7 @@ function MoodboardsCard() {
             onClick={() => fileRef.current?.click()}
             className={cn(
               "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
-              file ? "border-[var(--color-warm)] bg-[var(--color-warm-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+              file ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
             )}
           >
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }} />
@@ -2117,7 +2117,7 @@ function MoodboardsCard() {
             <button
               onClick={handleUpload}
               disabled={uploading || !file || !name.trim()}
-              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-warm)] text-[var(--color-warm-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               Upload
@@ -2247,7 +2247,7 @@ function BrandDNACard() {
             "flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] transition-all cursor-pointer disabled:opacity-40",
             dna
               ? "text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3"
-              : "bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90"
+              : "bg-[var(--color-action)] text-[var(--color-action-fg)] hover:opacity-90"
           )}
         >
           {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
@@ -2306,7 +2306,7 @@ function BrandDNACard() {
                 <h4 className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Tono de marca</h4>
                 <div className="flex flex-wrap gap-1.5">
                   {dna.tone.map((t, i) => (
-                    <span key={i} className="text-[11px] px-2.5 py-1 bg-[var(--color-warm-muted)] text-[var(--color-warm)] rounded-full font-medium">
+                    <span key={i} className="text-[11px] px-2.5 py-1 bg-[var(--color-action-muted)] text-[var(--color-action)] rounded-full font-medium">
                       {t}
                     </span>
                   ))}
@@ -2465,7 +2465,7 @@ function DesignSystemCard() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90 transition-all cursor-pointer disabled:opacity-40"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] bg-[var(--color-action)] text-[var(--color-action-fg)] hover:opacity-90 transition-all cursor-pointer disabled:opacity-40"
               >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
                 Guardar
@@ -2479,7 +2479,7 @@ function DesignSystemCard() {
                 "flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium rounded-[var(--radius-sm)] transition-all cursor-pointer disabled:opacity-40",
                 ds
                   ? "text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3"
-                  : "bg-[var(--color-warm)] text-[var(--color-warm-fg)] hover:opacity-90"
+                  : "bg-[var(--color-action)] text-[var(--color-action-fg)] hover:opacity-90"
               )}
             >
               {extracting ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
@@ -2746,7 +2746,7 @@ function LogoCard() {
         <label className={cn(
           "flex flex-col items-center gap-2 py-6 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[11px] transition-all",
           uploading
-            ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg-muted"
+            ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg-muted"
             : "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
         )}>
           {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}

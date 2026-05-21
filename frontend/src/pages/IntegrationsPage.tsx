@@ -163,7 +163,7 @@ function IntegrationCard({ integration }: { integration: Integration }) {
                         Manage
                     </button>
                 ) : status === "available" ? (
-                    <button className="w-full px-3 py-2 text-[12px] font-medium text-[var(--color-warm-fg)] bg-[var(--color-warm)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center gap-1.5">
+                    <button className="w-full px-3 py-2 text-[12px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer flex items-center justify-center gap-1.5">
                         <ExternalLink size={12} />
                         Connect
                     </button>

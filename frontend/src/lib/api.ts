@@ -1255,6 +1255,47 @@ export async function createKlingVideo(
     return res.json();
 }
 
+// ── Video Swap (Beeble SwitchX) ─────────────────────────────
+
+export interface VideoSwapResult { job_id: string; status: string; video_url?: string | null; error?: string | null }
+
+export async function createVideoSwap(opts: {
+    sourceVideo: File;
+    alphaMode: "auto" | "select" | "fill" | "custom";
+    prompt?: string;
+    referenceImage?: File | null;
+    alphaMask?: File | null;
+}): Promise<VideoSwapResult> {
+    const fd = new FormData();
+    fd.append("source_video", opts.sourceVideo);
+    fd.append("alpha_mode", opts.alphaMode);
+    if (opts.prompt) fd.append("prompt", opts.prompt);
+    if (opts.referenceImage) fd.append("reference_image", opts.referenceImage);
+    if (opts.alphaMask) fd.append("alpha_mask", opts.alphaMask);
+    const res = await fetch(`${API_BASE}/api/video-swap/create`, { method: "POST", body: fd });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Video swap failed (${res.status})`);
+    }
+    return res.json();
+}
+
+export async function checkVideoSwapStatus(jobId: string): Promise<VideoSwapResult> {
+    const res = await fetch(`${API_BASE}/api/video-swap/status/${encodeURIComponent(jobId)}`);
+    if (!res.ok) throw new Error(`Video swap status failed (${res.status})`);
+    return res.json();
+}
+
+/** Poll a Video Swap job until completed/failed. */
+export async function pollVideoSwap(jobId: string, intervalMs = 4000, maxTries = 150): Promise<VideoSwapResult> {
+    for (let i = 0; i < maxTries; i++) {
+        const r = await checkVideoSwapStatus(jobId);
+        if (r.status === "completed" || r.status === "failed") return r;
+        await new Promise((res) => setTimeout(res, intervalMs));
+    }
+    return { job_id: jobId, status: "failed", error: "Timeout esperando el video swap" };
+}
+
 /**
  * Kling frame-to-frame: animate from a start image to an end image.
  */
