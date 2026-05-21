@@ -57,6 +57,10 @@ interface VideoModelDef {
     provider: "kling" | "seedance";
     modes: Array<"i2v" | "f2f" | "rtv">;
     supportsAudio: boolean;
+    /** Selectable output resolutions. Omit when the model has a fixed resolution (e.g. Kling on Fal). */
+    resolutions?: readonly string[];
+    /** Selectable aspect ratios. Omit when ratio is inferred from the input image (Kling i2v/f2f). */
+    aspectRatios?: readonly string[];
 }
 // Curated lineup — each model covers a distinct case (no clutter):
 //   V3 Pro  → flagship i2v + frame-to-frame
@@ -65,7 +69,7 @@ interface VideoModelDef {
 // (V2.6 Pro/Std removed — redundant with V3 Pro and the turbo option.)
 const VIDEO_MODELS: VideoModelDef[] = [
     { id: "v3-pro",     label: "Kling V3 Pro",       tier: "mejor calidad · i2v + f2f", provider: "kling",    modes: ["i2v", "f2f"], supportsAudio: false },
-    { id: "seedance-2", label: "Seedance 2.0",       tier: "multi-ref + audio lipsync", provider: "seedance", modes: ["rtv"], supportsAudio: true },
+    { id: "seedance-2", label: "Seedance 2.0",       tier: "multi-ref + audio lipsync", provider: "seedance", modes: ["rtv"], supportsAudio: true, resolutions: ["480p", "720p", "1080p"], aspectRatios: ["9:16", "16:9", "1:1", "4:3", "3:4"] },
     { id: "v2-5-turbo", label: "Kling V2.5 Turbo",   tier: "rápido / barato",           provider: "kling",    modes: ["i2v", "f2f"], supportsAudio: false },
 ];
 
@@ -161,15 +165,26 @@ export function ManualLab() {
     const [vidDuration, setVidDuration] = useState<typeof VID_DURATIONS[number]>("5");
     const [videoModel, setVideoModel] = useState<VideoModelId>("v3-pro");
     const [videoMode, setVideoMode] = useState<VideoMode>("i2v");
+    const [vidResolution, setVidResolution] = useState<string>("1080p");
+    const [vidAspectRatio, setVidAspectRatio] = useState<string>("9:16");
 
     // Derived: the model def + its supported modes. Drives mode filtering and audio UI.
     const currentVideoModel = VIDEO_MODELS.find((m) => m.id === videoModel) || VIDEO_MODELS[0];
-    // Auto-sync mode when model changes (e.g. picking Seedance from a Kling state forces "rtv")
+    // Auto-sync mode + resolution + aspect ratio when model changes (e.g. picking Seedance
+    // from a Kling state forces "rtv"; clamp res/AR to what the new model supports).
     useEffect(() => {
         if (!currentVideoModel.modes.includes(videoMode)) {
             setVideoMode(currentVideoModel.modes[0]);
         }
-    }, [videoModel, currentVideoModel, videoMode]);
+        const res = currentVideoModel.resolutions;
+        if (res && !res.includes(vidResolution)) {
+            setVidResolution(res.includes("1080p") ? "1080p" : res[res.length - 1]);
+        }
+        const ars = currentVideoModel.aspectRatios;
+        if (ars && !ars.includes(vidAspectRatio)) {
+            setVidAspectRatio(ars.includes("9:16") ? "9:16" : ars[0]);
+        }
+    }, [videoModel, currentVideoModel, videoMode, vidResolution, vidAspectRatio]);
 
     // Prompt preview / manual override
     const [showPreview, setShowPreview] = useState(false);
@@ -518,6 +533,8 @@ export function ManualLab() {
                     duration: `${vidDuration}s`,
                     model: videoModel,
                     mode: videoMode,
+                    ...(currentVideoModel.aspectRatios ? { aspectRatio: vidAspectRatio } : {}),
+                    ...(currentVideoModel.resolutions ? { resolution: vidResolution } : {}),
                 },
         };
         const pendingResult: ChatTurn = {
@@ -600,6 +617,8 @@ export function ManualLab() {
                         prompt: fullPrompt,
                         referenceImageUrls: submittedRefs.map((r) => r.url),
                         duration: vidDuration,
+                        aspectRatio: currentVideoModel.aspectRatios ? vidAspectRatio : undefined,
+                        resolution: currentVideoModel.resolutions ? vidResolution : undefined,
                         audioUrls: audioRefs.length > 0 ? audioRefs.map((a) => a.dataUrl) : undefined,
                     });
                     if (job.video_url) {
@@ -1052,6 +1071,16 @@ export function ManualLab() {
                                         />
                                     )}
                                     <ParamSelect label="Duración" value={vidDuration} options={VID_DURATIONS as readonly string[]} onChange={(v) => setVidDuration(v as typeof VID_DURATIONS[number])} suffix="s" />
+                                    {currentVideoModel.aspectRatios ? (
+                                        <ParamSelect label="AR" value={vidAspectRatio} options={currentVideoModel.aspectRatios} onChange={setVidAspectRatio} />
+                                    ) : (
+                                        <span className="text-[10px] text-fg-faint">· AR = la de la imagen</span>
+                                    )}
+                                    {currentVideoModel.resolutions ? (
+                                        <ParamSelect label="Res" value={vidResolution} options={currentVideoModel.resolutions} onChange={setVidResolution} />
+                                    ) : (
+                                        <span className="text-[10px] text-fg-faint">· resolución fija por el modelo</span>
+                                    )}
                                     {videoMode === "f2f" && (
                                         <span className={cn("text-[10px]", refs.length >= 2 ? "text-fg-faint" : "text-error")}>
                                             · {refs.length >= 2 ? "primer ref = start, último = end" : "necesita 2 refs"}
