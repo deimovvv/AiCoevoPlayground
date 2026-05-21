@@ -1,82 +1,82 @@
 # Coevo Studio
 
-**Internal agency platform for multi-brand AI-powered content creation.**
+**Plataforma interna de agencia para creación de contenido multi-marca con IA.**
 
-Select a brand and every tool inherits its context — assets, brand DNA, voice, prompts. The AI produces; you direct.
-
----
-
-## What it does
-
-Coevo Studio is a context-aware content factory. Upload a brand's assets once (avatars, products, clothing, backgrounds, logos, moodboards) and they become available to **every** tool automatically. Tools generate multiple variations, you curate the best, and only the winner gets the expensive animation pass.
-
-### Core ideas
-
-- **Context-aware tools** — pick a brand, all tools inherit its assets + guidelines.
-- **3-layer prompts** — tool default → brand override → dynamic variables. Editable, not hardcoded.
-- **Multishot curation** — generate variations, select the best, then animate.
-- **Chat-first config** — describe what you want in plain language; an agent builds the tool config for you.
+Elegís una marca y todas las tools heredan su contexto — assets, ADN de marca, voz, prompts. La IA produce; vos dirigís.
 
 ---
 
-## Tech stack
+## Qué hace
+
+Coevo Studio es una fábrica de contenido context-aware. Cargás los assets de una marca una sola vez (avatares, productos, ropa, fondos, logos, moodboards) y quedan disponibles para **todas** las tools automáticamente. Las tools generan varias variaciones, vos elegís la mejor, y solo a la ganadora se le aplica el paso caro de animación.
+
+### Ideas centrales
+
+- **Tools context-aware** — elegís una marca, todas las tools heredan sus assets + guidelines.
+- **Prompts de 3 capas** — default de la tool → override de marca → variables dinámicas. Editables, no hardcodeados.
+- **Curación multishot** — generás variaciones, elegís la mejor, recién ahí animás.
+- **Chat-first** — describís lo que querés en lenguaje natural; un agente arma la config de la tool por vos.
+
+---
+
+## Stack técnico
 
 - **Frontend** — React 19 + TypeScript 5.9 + Vite 8 + Tailwind CSS v4 + React Router 7
 - **Backend** — FastAPI + Python 3.11+ + Uvicorn
-- **Storage** — JSON files + local media (no database in Phase 1)
-- **AI services**
-  - **Gemini 2.5 Flash** — scripts, chat, prompt assembly, brand DNA, agent config
-  - **Nano Banana 2** (via Fal) — image generation & editing
-  - **GPT Image** — image editing
-  - **Kling V3 Pro / V2.5 Turbo** (via Fal) — image-to-video & frame-to-frame
-  - **Seedance 2.0** (via Fal) — reference-to-video with multi-ref + audio lipsync
-  - **ElevenLabs** — text-to-speech, Voice Design, instant voice cloning
-  - **HeyGen Avatar 4** — talking-photo lip-sync
-  - **Beeble SwitchX** — video-to-video swap (garment/product/background)
-  - **FFmpeg** — video concatenation + word-by-word subtitles
+- **Persistencia** — archivos JSON + media local (sin base de datos en Fase 1)
+- **Servicios de IA**
+  - **Gemini 2.5 Flash** — guiones, chat, armado de prompts, ADN de marca, config del agente
+  - **Nano Banana 2** (vía Fal) — generación y edición de imágenes
+  - **GPT Image** — edición de imágenes
+  - **Kling V3 Pro / V2.5 Turbo** (vía Fal) — image-to-video y frame-to-frame
+  - **Seedance 2.0** (vía Fal) — reference-to-video con multi-ref + lipsync por audio
+  - **ElevenLabs** — text-to-speech, Voice Design, clonado instantáneo de voz
+  - **HeyGen Avatar 4** — lip-sync de foto parlante
+  - **Beeble SwitchX** — swap video-a-video (prenda/producto/fondo)
+  - **FFmpeg** — concatenación de video + subtítulos palabra por palabra
 
 ---
 
-## Prerequisites
+## Requisitos previos
 
-| Requirement | Version | Notes |
-|-------------|---------|-------|
-| Node.js     | 20+     | for the frontend (Vite) |
-| Python      | 3.11+   | for the backend (FastAPI) |
-| FFmpeg      | any recent | required for video render/concat — `brew install ffmpeg` on macOS |
-| Git         | any     | to clone |
+| Requisito | Versión | Notas |
+|-----------|---------|-------|
+| Node.js   | 20+     | para el frontend (Vite) |
+| Python    | 3.11+   | para el backend (FastAPI) |
+| FFmpeg    | reciente | necesario para render/concat de video — `brew install ffmpeg` en macOS |
+| Git       | cualquiera | para clonar |
 
 ---
 
-## Quick start
+## Arranque rápido
 
-### 1. Clone
+### 1. Clonar
 
 ```bash
 git clone <repo-url>
 cd AiCoevoPlayground
 ```
 
-### 2. Configure API keys
+### 2. Configurar las API keys
 
-Create `backend/.env` (see [`backend/.env.example`](backend/.env.example)):
+Creá `backend/.env` (ver [`backend/.env.example`](backend/.env.example)):
 
 ```env
-# Required
+# Requeridas
 GEMINI_API_KEY=...        # Google AI Studio
-FAL_KEY=...               # fal.ai — image + video generation
-ELEVENLABS_API_KEY=...    # ElevenLabs — voices
+FAL_KEY=...               # fal.ai — generación de imagen + video
+ELEVENLABS_API_KEY=...    # ElevenLabs — voces
 
-# Optional
-HEYGEN_API_KEY=...        # HeyGen — talking-photo lip-sync
-BEEBLE_API_KEY=...        # Beeble SwitchX — Video Swap tool
-BEEBLE_API_BASE=...       # Beeble API base URL (if non-default)
-APIFY_API_KEY=...         # Apify — Instagram scraping (Content Analyzer imports)
+# Opcionales
+HEYGEN_API_KEY=...        # HeyGen — lip-sync de foto parlante
+BEEBLE_API_KEY=...        # Beeble SwitchX — tool Video Swap
+BEEBLE_API_BASE=...       # URL base de la API de Beeble (si no es la default)
+APIFY_API_KEY=...         # Apify — scraping de Instagram (imports de Content Analyzer)
 ```
 
-> **Never commit `.env`.** It is gitignored. API keys are billed to whoever owns them.
+> **Nunca commitees el `.env`.** Está gitignoreado. Las API keys se facturan a quien sea su dueño.
 
-### 3. Install dependencies
+### 3. Instalar dependencias
 
 ```bash
 # Backend
@@ -92,17 +92,17 @@ npm install
 cd ..
 ```
 
-### 4. Run
+### 4. Correr
 
-One command starts both servers with prefixed logs (Ctrl+C stops both):
+Un solo comando levanta ambos servidores con logs prefijados (Ctrl+C corta los dos):
 
 ```bash
 ./dev.sh                 # backend :8000 + frontend :5173
-./dev.sh backend         # backend only
-./dev.sh frontend        # frontend only
+./dev.sh backend         # solo backend
+./dev.sh frontend        # solo frontend
 ```
 
-Or run them manually:
+O corrélos manualmente:
 
 ```bash
 # Terminal 1 — backend
@@ -113,94 +113,94 @@ python -m uvicorn main:app --reload --port 8000
 cd frontend && npm run dev
 ```
 
-Open **http://localhost:5173**.
+Abrí **http://localhost:5173**.
 
 ---
 
 ## Tools
 
-11 active tools plus a brand-agnostic sandbox (Manual Lab).
+11 tools activas más un sandbox sin marca (Manual Lab).
 
-| Tool | Category | What it does |
-|------|----------|--------------|
-| **UGC Creator** | video | Avatars talking to camera — script → base image → multishot → voice → lip-sync → render (with/without subtitles). Per-clip editing. |
-| **Video Ad Creator** | video | Cinematic ads — storyboard, keyframes, frame-to-frame Kling animation, voiceover, render. |
-| **Fashion Reel** | video | Editorial fashion reels, no talking. Story mode or Looks mode. Auto/manual frame-to-frame. Per-clip animate editing. |
-| **Product Clip** | video | Short product videos, no people — frame-to-frame product motion. |
-| **Video Swap** | video | Swap garment/product/background in **your own** video, keep subject + motion (Beeble SwitchX). |
-| **Static Ad** | images | Ready-to-publish static ads — 40 composition templates. |
-| **Carousel Creator** | images | Multi-slide carousels with consistent visual story. |
-| **Product Spotlight** | images | Professional product photography in context. |
-| **Ad Creative Lab** | images | Batch creatives from reference images + visual-guide extraction. |
-| **Avatar Creator** | images | Generate new brand avatars or pose sheets for existing ones. |
-| **Content Analyzer** | images | Analyze any video, extract script/scenes/style, map to your brand assets, recreate. |
-| **Manual Lab** | sandbox | Brand-agnostic chat: direct Nano Banana 2 + Kling + Seedance with `[image1]`/`[image2]` ref tagging, multi-turn chaining, gallery. At `/dashboard/lab`. |
+| Tool | Categoría | Qué hace |
+|------|-----------|----------|
+| **UGC Creator** | video | Avatares hablando a cámara — guion → imagen base → multishot → voz → lip-sync → render (con/sin subtítulos). Edición por clip. |
+| **Video Ad Creator** | video | Ads cinematográficos — storyboard, keyframes, animación frame-to-frame con Kling, voz en off, render. |
+| **Fashion Reel** | video | Reels editoriales de moda, sin hablar. Modo Story o modo Looks. Frame-to-frame auto/manual. Edición por clip en el animate. |
+| **Product Clip** | video | Videos cortos de producto, sin personas — movimiento de producto frame-to-frame. |
+| **Video Swap** | video | Cambiá prenda/producto/fondo en **tu propio** video, manteniendo sujeto + movimiento (Beeble SwitchX). |
+| **Static Ad** | imágenes | Ads estáticos listos para publicar — 40 templates de composición. |
+| **Carousel Creator** | imágenes | Carruseles multi-slide con historia visual consistente. |
+| **Product Spotlight** | imágenes | Fotografía profesional de producto en contexto. |
+| **Ad Creative Lab** | imágenes | Batch de creativos a partir de imágenes de referencia + extracción de guía visual. |
+| **Avatar Creator** | imágenes | Generá nuevos avatares de marca o pose sheets para los existentes. |
+| **Content Analyzer** | imágenes | Analizá cualquier video, extraé guion/escenas/estilo, mapealo a tus assets de marca, recreá. |
+| **Manual Lab** | sandbox | Chat sin marca: Nano Banana 2 + Kling + Seedance directo, con tagging de refs `[image1]`/`[image2]`, encadenado multi-turno y galería. En `/dashboard/lab`. |
 
-See [`docs/tools.md`](docs/tools.md) for full pipelines, inputs, and rules.
+Ver [`docs/tools.md`](docs/tools.md) para pipelines, inputs y reglas completas.
 
 ---
 
-## Project structure
+## Estructura del proyecto
 
 ```
 frontend/src/
-  pages/              # route-level views (Generate, ToolRun, BrandSettings, ManualLab, ...)
-  components/         # feature + layout + ui primitives
-  tools/              # per-tool: index.ts (schema/handlers) + handlers.ts
-  lib/                # api.ts (backend client), BrandContext, utils
+  pages/              # vistas por ruta (Generate, ToolRun, BrandSettings, ManualLab, ...)
+  components/         # componentes feature + layout + primitivas ui
+  tools/              # por tool: index.ts (schema/handlers) + handlers.ts
+  lib/                # api.ts (cliente backend), BrandContext, utils
 backend/
-  main.py             # FastAPI app — all endpoints
-  services/           # AI integrations (gemini, fal, elevenlabs, heygen, beeble, ffmpeg, agent, ...)
-  tools/              # registry.json + per-tool default_prompt.txt
-  data/               # JSON storage + brand media (see "Data" below)
-docs/                 # architecture, tools, stack, pipeline, design, onboarding
-dev.sh                # local dev runner (backend + frontend)
+  main.py             # app FastAPI — todos los endpoints
+  services/           # integraciones de IA (gemini, fal, elevenlabs, heygen, beeble, ffmpeg, agent, ...)
+  tools/              # registry.json + default_prompt.txt por tool
+  data/               # storage JSON + media de marca (ver "Datos" abajo)
+docs/                 # arquitectura, tools, stack, pipeline, diseño, onboarding
+dev.sh                # runner de desarrollo local (backend + frontend)
 ```
 
 ---
 
-## Data & what ships in the repo
+## Datos y qué se sube al repo
 
-Brand context assets **are tracked** so a clone arrives ready to use:
+Los assets de contexto de marca **se trackean** para que un clon llegue listo para usar:
 
-- ✅ `backend/data/brands.json` — all brand configs
-- ✅ `backend/data/avatars/`, `products/`, `clothing/`, `backgrounds/`, `moodboards/`, `logos/` — brand-context media
+- ✅ `backend/data/brands.json` — todas las configs de marca
+- ✅ `backend/data/avatars/`, `products/`, `clothing/`, `backgrounds/`, `moodboards/`, `logos/` — media de contexto de marca
 
-Heavy generated output and runtime files are **gitignored**:
+Los outputs generados pesados y los archivos de runtime están **gitignoreados**:
 
-- ❌ `backend/data/renders/` — generated videos (can reach GBs)
-- ❌ `backend/data/generations.json` — generation history
-- ❌ `backend/data/ig-imports/`, `backend/tmp/` — transient
+- ❌ `backend/data/renders/` — videos generados (pueden llegar a GBs)
+- ❌ `backend/data/generations.json` — historial de generaciones
+- ❌ `backend/data/ig-imports/`, `backend/tmp/` — transitorios
 
 ---
 
-## Adding a new tool
+## Agregar una tool nueva
 
-1. `backend/tools/{tool_id}/default_prompt.txt` — prompt template with `{variables}` and `{?cond}...{/cond}` blocks.
-2. Register in `backend/tools/registry.json` with its pipeline steps.
+1. `backend/tools/{tool_id}/default_prompt.txt` — template de prompt con `{variables}` y bloques `{?cond}...{/cond}`.
+2. Registrar en `backend/tools/registry.json` con sus pasos de pipeline.
 3. `frontend/src/tools/{tool_id}/index.ts` — `ToolDefinition` (schema + step handlers).
-4. Register in `frontend/src/tools/registry.ts`.
+4. Registrar en `frontend/src/tools/registry.ts`.
 
 ---
 
-## Documentation
+## Documentación
 
-- [`docs/architecture.md`](docs/architecture.md) — system design, API endpoints, data structures
-- [`docs/tools.md`](docs/tools.md) — all tools: prompts, pipelines, inputs, rules
-- [`docs/stack.md`](docs/stack.md) — technologies, services, environment
-- [`docs/pipeline.md`](docs/pipeline.md) — generation flows, cost optimization, PromptBuilder
-- [`docs/client_onboarding.md`](docs/client_onboarding.md) — what to request from clients (brand brief, assets)
-- [`docs/design_language.md`](docs/design_language.md) — design system, tokens, components
-- [`docs/product_vision_ux.md`](docs/product_vision_ux.md) — UX philosophy, user flows
+- [`docs/architecture.md`](docs/architecture.md) — diseño del sistema, endpoints, estructuras de datos
+- [`docs/tools.md`](docs/tools.md) — todas las tools: prompts, pipelines, inputs, reglas
+- [`docs/stack.md`](docs/stack.md) — tecnologías, servicios, entorno
+- [`docs/pipeline.md`](docs/pipeline.md) — flujos de generación, optimización de costo, PromptBuilder
+- [`docs/client_onboarding.md`](docs/client_onboarding.md) — qué pedirle a los clientes (brief de marca, assets)
+- [`docs/design_language.md`](docs/design_language.md) — sistema de diseño, tokens, componentes
+- [`docs/product_vision_ux.md`](docs/product_vision_ux.md) — filosofía de UX, flujos de usuario
 
 ---
 
-## Notes
+## Notas
 
-- **No auth yet.** Don't expose the app publicly without a gate — there's no login and API calls bill the configured keys.
-- **macOS/Linux** is the primary dev environment.
-- **CORS** allows all origins for local development.
+- **Todavía no hay auth.** No expongas la app públicamente sin un gate — no hay login y las llamadas a la API facturan a las keys configuradas.
+- **macOS/Linux** es el entorno de desarrollo principal.
+- **CORS** permite todos los orígenes para desarrollo local.
 
-## License
+## Licencia
 
-Proprietary — Coevo Agency
+Propietario — Coevo Agency
