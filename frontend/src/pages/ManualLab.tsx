@@ -712,41 +712,6 @@ export function ManualLab() {
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    {/* Brand assets toggle */}
-                    {activeBrand && (
-                        <label className="flex items-center gap-2 text-[12px] text-fg-muted cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={useBrandAssets}
-                                onChange={(e) => setUseBrandAssets(e.target.checked)}
-                                className="cursor-pointer"
-                            />
-                            Usar assets de {activeBrand.name}
-                        </label>
-                    )}
-                    {/* Mode toggle */}
-                    <div className="flex border border-edge rounded-full overflow-hidden p-0.5 bg-surface-1">
-                        <button
-                            onClick={() => setMode("image")}
-                            className={cn(
-                                "px-3.5 py-1 text-[12px] flex items-center gap-1.5 cursor-pointer transition-colors rounded-full",
-                                mode === "image" ? "bg-[var(--color-action-subtle)] text-fg" : "text-fg-muted hover:text-fg",
-                            )}
-                        >
-                            <ImageIcon size={13} /> Image
-                        </button>
-                        <button
-                            onClick={() => setMode("video")}
-                            className={cn(
-                                "px-3.5 py-1 text-[12px] flex items-center gap-1.5 cursor-pointer transition-colors rounded-full",
-                                mode === "video" ? "bg-[var(--color-action-subtle)] text-fg" : "text-fg-muted hover:text-fg",
-                            )}
-                        >
-                            <Video size={13} /> Video
-                        </button>
-                    </div>
-                </div>
             </div>
 
             {/* Body: gallery drawer (left) + chat history (right) */}
@@ -836,8 +801,46 @@ export function ManualLab() {
                 </div>
             )}
 
+            {/* What-to-generate controls — mode + brand assets, sitting right above the
+                input so it's clear they drive this generation (not a global page setting). */}
+            <div className="px-6 pt-2 border-t border-edge-subtle flex items-center justify-between gap-3 flex-wrap">
+                {/* Mode toggle */}
+                <div className="flex border border-edge rounded-full overflow-hidden p-0.5 bg-surface-1">
+                    <button
+                        onClick={() => setMode("image")}
+                        className={cn(
+                            "px-3.5 py-1 text-[12px] flex items-center gap-1.5 cursor-pointer transition-colors rounded-full",
+                            mode === "image" ? "bg-[var(--color-action-subtle)] text-fg" : "text-fg-muted hover:text-fg",
+                        )}
+                    >
+                        <ImageIcon size={13} /> Imagen
+                    </button>
+                    <button
+                        onClick={() => setMode("video")}
+                        className={cn(
+                            "px-3.5 py-1 text-[12px] flex items-center gap-1.5 cursor-pointer transition-colors rounded-full",
+                            mode === "video" ? "bg-[var(--color-action-subtle)] text-fg" : "text-fg-muted hover:text-fg",
+                        )}
+                    >
+                        <Video size={13} /> Video
+                    </button>
+                </div>
+                {/* Brand assets toggle */}
+                {activeBrand && (
+                    <label className="flex items-center gap-2 text-[12px] text-fg-muted cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={useBrandAssets}
+                            onChange={(e) => setUseBrandAssets(e.target.checked)}
+                            className="cursor-pointer"
+                        />
+                        Usar assets de {activeBrand.name}
+                    </label>
+                )}
+            </div>
+
             {/* References row */}
-            <div className="px-6 pt-2 border-t border-edge-subtle">
+            <div className="px-6 pt-2">
                 <div className="flex items-center gap-2 flex-wrap">
                     {refs.map((r) => (
                         <RefChip

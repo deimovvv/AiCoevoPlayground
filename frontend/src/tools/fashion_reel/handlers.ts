@@ -212,14 +212,22 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   const sceneClothing = reelMode === "looks" ? allClothing.slice(0, 1) : allClothing;
 
   const stylePrompt = getVisualStyle(cfg);
-  const imageUrls: string[] = [];
-  const refDescriptions: string[] = [];
-  let imgIdx = 1;
+
+  // Assemble reference images in PRIORITY order, then cap the total. Nano Banana 2
+  // rejects a job ("Could not generate images with the given prompts and images")
+  // when handed too many references to combine — easy to hit when the Content Analyzer
+  // maps several garments + products on top of avatar + background + pose. Keep the
+  // highest-value refs: identity → garments → location → product → pose.
+  const MAX_BASE_REFS = 6;
+  type RefCandidate = { url: string; label: string; priority: number };
+  const candidates: RefCandidate[] = [];
 
   if (selectedAvatar?.imageUrl) {
-    imageUrls.push(selectedAvatar.imageUrl);
-    refDescriptions.push(`Image ${imgIdx}: IDENTITY SOURCE — use this EXACT person's face, features, skin tone, hair and body. Take ONLY the identity from this image — IGNORE its background, lighting, clothing, and pose.`);
-    imgIdx++;
+    candidates.push({
+      url: selectedAvatar.imageUrl,
+      priority: 0,
+      label: `IDENTITY SOURCE — use this EXACT person's face, features, skin tone, hair and body. Take ONLY the identity from this image — IGNORE its background, lighting, clothing, and pose.`,
+    });
   }
 
   const refFiles = (cfg.referenceImages as File[]) || [];
@@ -230,29 +238,43 @@ export const handleBaseImage: StepHandler = async (ctx) => {
       reader.onload = () => resolve(reader.result as string);
       reader.readAsDataURL(file);
     });
-    imageUrls.push(refDataUrl);
     try { const analysis = await analyzePoseReference(file); poseDescription = analysis.pose_description; } catch { /* non-blocking */ }
     // SCOPED pose label: take ONLY body position + camera framing. Explicitly exclude
     // everything else so Nano Banana doesn't copy the pose image's lighting, scene,
     // clothing, or the identity of whoever is in it.
-    refDescriptions.push(
-      `Image ${imgIdx}: POSE REFERENCE — copy ONLY the body position, limb placement, and camera framing/angle${poseDescription ? ` (${poseDescription})` : ""}. ` +
-      `Do NOT copy the lighting, background, scene, clothing, colors, styling, or the identity of any person in this image — those come from the OTHER references. This image contributes pose and framing ONLY.`
-    );
-    imgIdx++;
+    candidates.push({
+      url: refDataUrl,
+      priority: 4,
+      label: `POSE REFERENCE — copy ONLY the body position, limb placement, and camera framing/angle${poseDescription ? ` (${poseDescription})` : ""}. ` +
+        `Do NOT copy the lighting, background, scene, clothing, colors, styling, or the identity of any person in this image — those come from the OTHER references. This image contributes pose and framing ONLY.`,
+    });
   }
 
   sceneClothing.forEach((c) => {
-    if (c.imageUrl) { imageUrls.push(c.imageUrl); refDescriptions.push(`Image ${imgIdx}: GARMENT — the model WEARS this exact item. Reproduce its exact color, fabric, cut and details. Take ONLY the garment — ignore the background/person/pose in this image.`); imgIdx++; }
+    if (c.imageUrl) candidates.push({ url: c.imageUrl, priority: 1, label: `GARMENT — the model WEARS this exact item. Reproduce its exact color, fabric, cut and details. Take ONLY the garment — ignore the background/person/pose in this image.` });
   });
   selectedProducts.filter(Boolean).forEach((p) => {
-    if (p?.imageUrl) { imageUrls.push(p.imageUrl); refDescriptions.push(`Image ${imgIdx}: PRODUCT — the model holds/features this. Reproduce it exactly. Take ONLY the product — ignore the background/person in this image.`); imgIdx++; }
+    if (p?.imageUrl) candidates.push({ url: p.imageUrl, priority: 3, label: `PRODUCT — the model holds/features this. Reproduce it exactly. Take ONLY the product — ignore the background/person in this image.` });
   });
   if (selectedBackground?.imageUrl) {
-    imageUrls.push(selectedBackground.imageUrl);
-    refDescriptions.push(`Image ${imgIdx}: LOCATION + LIGHTING SOURCE — place the model INSIDE this exact environment. Match walls, props, perspective, time of day, AND take the lighting direction/quality from THIS image (not from the pose or identity refs). Take ONLY the environment — ignore any people in it.`);
-    imgIdx++;
+    candidates.push({ url: selectedBackground.imageUrl, priority: 2, label: `LOCATION + LIGHTING SOURCE — place the model INSIDE this exact environment. Match walls, props, perspective, time of day, AND take the lighting direction/quality from THIS image (not from the pose or identity refs). Take ONLY the environment — ignore any people in it.` });
   }
+
+  // Keep the top MAX_BASE_REFS by priority (lower = more important), then restore
+  // assembly order so the "Image N" numbering reads naturally.
+  const kept = candidates
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => a.c.priority - b.c.priority || a.i - b.i)
+    .slice(0, MAX_BASE_REFS)
+    .sort((a, b) => a.i - b.i)
+    .map((x) => x.c);
+
+  if (kept.length < candidates.length) {
+    console.warn(`[fashion_reel] base image: capped references ${candidates.length} → ${kept.length} (dropped ${candidates.length - kept.length} lowest-priority to avoid Nano Banana rejection)`);
+  }
+
+  const imageUrls: string[] = kept.map((c) => c.url);
+  const refDescriptions: string[] = kept.map((c, i) => `Image ${i + 1}: ${c.label}`);
 
   // When 3+ references are present, prepend an explicit role hierarchy so the model
   // knows which image "owns" each aspect and doesn't blend conflicting sources.
@@ -352,26 +374,29 @@ export const handleMultishot: StepHandler = async (ctx) => {
     { label: "Movement implied", desc: "Same setup with implied motion — fabric flowing, mid-gesture." },
   ];
 
-  const buildRefs = (clothingItems: typeof allClothing): string[] => {
-    const urls: string[] = [];
-    if (selectedAvatar?.imageUrl) urls.push(selectedAvatar.imageUrl);
-    clothingItems.forEach((c) => { if (c.imageUrl) urls.push(c.imageUrl); });
-    selectedProducts.filter(Boolean).forEach((p) => { if (p?.imageUrl) urls.push(p.imageUrl); });
-    if (selectedBackground?.imageUrl) urls.push(selectedBackground.imageUrl);
-    return urls;
-  };
+  // Same cap as the base step: never hand Nano Banana more refs than it can combine.
+  // `reserve` leaves room for the chain-mode previous-frame ref. Priority: identity →
+  // garment → location → product.
+  const MAX_SCENE_REFS = 6;
+  const buildCappedRefs = (clothingItems: typeof allClothing, reserve = 0): { urls: string[]; desc: string } => {
+    type RefCandidate = { url: string; label: string; priority: number };
+    const cands: RefCandidate[] = [];
+    if (selectedAvatar?.imageUrl) cands.push({ url: selectedAvatar.imageUrl, priority: 0, label: `same model — EXACT same face, hair, body proportions` });
+    clothingItems.forEach((c) => { if (c.imageUrl) cands.push({ url: c.imageUrl, priority: 1, label: `"${c.name}" — wears this exact garment` }); });
+    if (selectedBackground?.imageUrl) cands.push({ url: selectedBackground.imageUrl, priority: 2, label: `LOCATION ANCHOR — every scene MUST take place in this EXACT environment. Same walls, same props, same lighting direction, same perspective, same time of day. Only the pose and framing change between scenes.` });
+    selectedProducts.filter(Boolean).forEach((p) => { if (p?.imageUrl) cands.push({ url: p!.imageUrl, priority: 3, label: `"${p!.name}"` }); });
 
-  const buildRefDesc = (clothingItems: typeof allClothing): string => {
-    const lines: string[] = [];
-    let idx = 1;
-    if (selectedAvatar?.imageUrl) { lines.push(`Image ${idx}: same model — EXACT same face, hair, body proportions`); idx++; }
-    clothingItems.forEach((c) => { if (c.imageUrl) { lines.push(`Image ${idx}: "${c.name}" — wears this exact garment`); idx++; } });
-    selectedProducts.filter(Boolean).forEach((p) => { if (p?.imageUrl) { lines.push(`Image ${idx}: "${p!.name}"`); idx++; } });
-    if (selectedBackground?.imageUrl) {
-      lines.push(`Image ${idx}: LOCATION ANCHOR — every scene MUST take place in this EXACT environment. Same walls, same props, same lighting direction, same perspective, same time of day. Only the pose and framing change between scenes.`);
-      idx++;
-    }
-    return lines.join("\n");
+    const budget = Math.max(1, MAX_SCENE_REFS - reserve);
+    const kept = cands
+      .map((c, i) => ({ c, i }))
+      .sort((a, b) => a.c.priority - b.c.priority || a.i - b.i)
+      .slice(0, budget)
+      .sort((a, b) => a.i - b.i)
+      .map((x) => x.c);
+    return {
+      urls: kept.map((c) => c.url),
+      desc: kept.map((c, i) => `Image ${i + 1}: ${c.label}`).join("\n"),
+    };
   };
 
   // Chain mode: when the analyzer flagged state_continuity (transformation videos
@@ -408,8 +433,8 @@ export const handleMultishot: StepHandler = async (ctx) => {
     if (reelMode === "looks" && sceneClothing.length === 0 && allClothing.length > 0) {
       sceneClothing = allClothing.slice(-1); // reuse the last garment rather than none
     }
-    const baseRefUrls = buildRefs(sceneClothing);
-    const baseRefDesc = buildRefDesc(sceneClothing);
+    // Reserve one slot for the chain-mode previous frame so the total stays within cap.
+    const { urls: baseRefUrls, desc: baseRefDesc } = buildCappedRefs(sceneClothing, stateContinuity ? 1 : 0);
 
     // Chain mode: prepend previous-frame ref so state propagates
     const refUrls = stateContinuity ? [previousFrameUrl, ...baseRefUrls] : baseRefUrls;

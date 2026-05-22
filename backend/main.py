@@ -2711,8 +2711,11 @@ async def seedance_create_rtv(req: SeedanceRefToVideoRequest):
     if not seedance_video.is_configured():
         raise HTTPException(status_code=500, detail="FAL_KEY not configured")
     try:
-        # Resolve local /static/ URLs by uploading to Fal storage first (same
-        # pattern as Kling). External http(s) URLs and data: URLs go through as-is.
+        # Resolve every reference image to a Fal-hosted URL. Fal's `image_urls`
+        # expects real URLs — data: blobs (uploads / generated results in the Lab)
+        # must be uploaded to Fal storage, same as audio. Without this, multi-ref
+        # requests fail because raw base64 data URLs are rejected.
+        import base64
         resolved_urls: List[str] = []
         static_dirs = {
             "/static/avatars/": brands.get_avatars_dir(),
@@ -2720,7 +2723,25 @@ async def seedance_create_rtv(req: SeedanceRefToVideoRequest):
             "/static/clothing/": brands.get_clothing_dir(),
             "/static/backgrounds/": brands.get_backgrounds_dir(),
         }
+        img_ext_map = {"image/png": ".png", "image/jpeg": ".jpg", "image/jpg": ".jpg", "image/webp": ".webp"}
         for url in req.reference_image_urls:
+            if not url:
+                continue
+            # data: URL → decode + upload to Fal
+            if url.startswith("data:"):
+                try:
+                    header, b64 = url.split(",", 1)
+                    mime = "image/png"
+                    if ":" in header:
+                        mime = header.split(":", 1)[1].split(";", 1)[0] or "image/png"
+                    ext = img_ext_map.get(mime, ".png")
+                    img_bytes = base64.b64decode(b64)
+                    fal_url = await kling_video.upload_image(img_bytes, f"ref{ext}", mime)
+                    resolved_urls.append(fal_url)
+                    print(f"[seedance-endpoint] Resolved image data URL ({len(img_bytes)} bytes, {mime}) -> uploaded to Fal")
+                except Exception as e:
+                    print(f"[seedance-endpoint] FAILED to upload image data URL: {e}")
+                continue
             resolved = url
             if "localhost" in url or "127.0.0.1" in url:
                 for prefix in static_dirs:

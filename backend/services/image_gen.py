@@ -9,7 +9,9 @@ Uses the Fal queue pattern (submit → poll → result).
 """
 
 import os
+import json
 import httpx
+from typing import Union
 
 FAL_BASE = "https://queue.fal.run"
 FAL_MODEL = "fal-ai/nano-banana-2/edit"  # Image edit (requires image_urls)
@@ -32,6 +34,51 @@ def _headers() -> dict:
 def is_configured() -> bool:
     key = _get_key()
     return key is not None and len(key) > 0
+
+
+def _friendly_error(raw: Union[str, dict, list]) -> str:
+    """
+    Turn a raw Fal/Nano-Banana error body into a concise, human-readable message.
+    The common one here is `invalid_request` / "Could not generate images with the
+    given prompts and images" — a generation rejection, usually from an over-long or
+    contradictory prompt, a reference image that can't be combined, or content moderation.
+    """
+    if not raw:
+        return "No se generó ninguna imagen."
+
+    data = raw if isinstance(raw, (dict, list)) else None
+    text = raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
+    if data is None:
+        try:
+            data = json.loads(text)
+        except Exception:
+            data = None
+
+    msg, etype = "", ""
+    if isinstance(data, dict):
+        detail = data.get("detail")
+        if isinstance(detail, list) and detail and isinstance(detail[0], dict):
+            msg = str(detail[0].get("msg") or "")
+            etype = str(detail[0].get("type") or "")
+        elif isinstance(detail, str):
+            msg = detail
+        else:
+            msg = str(data.get("message") or data.get("error") or "")
+
+    blob = f"{msg} {etype} {text}".lower()
+    if "could not generate" in blob or "invalid_request" in blob:
+        return (
+            "Nano Banana no pudo generar la imagen con ese prompt + referencias. Suele pasar "
+            "cuando el prompt es muy largo o contradictorio, una referencia no se puede combinar, "
+            "o el filtro de contenido la bloqueó. Probá: simplificar el prompt, quitar/cambiar "
+            "alguna referencia, o reintentar."
+        )
+    if "content_policy" in blob or "sensitive content" in blob:
+        return (
+            "El filtro de contenido bloqueó la imagen generada (suele ser falso positivo con "
+            "piel o ropa ajustada). Probá reformular el prompt o cambiar la referencia."
+        )
+    return (msg or text)[:300]
 
 
 # ══════════════════════════════════════════════════════════════
@@ -78,7 +125,7 @@ async def create_edit(
 
     if res.status_code not in (200, 201):
         print(f"[image-gen] Submit FAILED: {res.text[:500]}")
-        raise Exception(f"Image gen submit failed ({res.status_code}): {res.text[:400]}")
+        raise Exception(_friendly_error(res.text))
 
     data = res.json()
     request_id = data.get("request_id")
@@ -122,7 +169,7 @@ async def get_status(request_id: str) -> dict:
     print(f"[image-gen] Status response: {res.status_code} - {res.text[:200]}")
 
     if res.status_code not in (200, 202):
-        raise Exception(f"Image gen status check failed ({res.status_code}): {res.text[:300]}")
+        raise Exception(_friendly_error(res.text))
 
     data = res.json()
     status_raw = data.get("status", "UNKNOWN").upper()
@@ -164,7 +211,7 @@ async def get_result(request_id: str) -> dict:
         )
 
     if res.status_code not in (200, 202):
-        raise Exception(f"Image gen result fetch failed ({res.status_code}): {res.text[:300]}")
+        raise Exception(_friendly_error(res.text))
 
     data = res.json()
     images = data.get("images", [])
@@ -217,7 +264,7 @@ async def create_text_to_image(
 
     if res.status_code not in (200, 201):
         print(f"[image-gen/t2i] FAILED: {res.text[:500]}")
-        raise Exception(f"Text-to-image submit failed ({res.status_code}): {res.text[:400]}")
+        raise Exception(_friendly_error(res.text))
 
     data = res.json()
     request_id = data.get("request_id")

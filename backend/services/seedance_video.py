@@ -15,8 +15,9 @@ REST pattern (same as Kling / all Fal queue-based models):
 """
 
 import os
+import json
 import httpx
-from typing import List, Optional
+from typing import List, Optional, Union
 
 FAL_BASE = "https://queue.fal.run"
 FAL_MODEL = "bytedance/seedance-2.0/reference-to-video"
@@ -37,6 +38,47 @@ def _headers() -> dict:
 
 def is_configured() -> bool:
     return bool(_get_key())
+
+
+def _friendly_error(raw: Union[str, dict, list]) -> str:
+    """
+    Turn a raw Fal error body into a concise, human-readable message.
+    Specifically catches ByteDance/Seedance content-moderation rejections
+    (content_policy_violation / partner_validation_failed / "sensitive content"),
+    which are frequent false positives on people, hair, skin or fitted clothing.
+    """
+    if not raw:
+        return "Seedance no devolvió ningún video."
+
+    data = raw if isinstance(raw, (dict, list)) else None
+    text = raw if isinstance(raw, str) else json.dumps(raw, ensure_ascii=False)
+    if data is None:
+        try:
+            data = json.loads(text)
+        except Exception:
+            data = None
+
+    # Extract the first {msg,type} out of Fal's {"detail":[{...}]} shape
+    msg, etype = "", ""
+    if isinstance(data, dict):
+        detail = data.get("detail")
+        if isinstance(detail, list) and detail and isinstance(detail[0], dict):
+            msg = str(detail[0].get("msg") or "")
+            etype = str(detail[0].get("type") or "")
+        elif isinstance(detail, str):
+            msg = detail
+        else:
+            msg = str(data.get("message") or data.get("error") or "")
+
+    blob = f"{msg} {etype} {text}".lower()
+    if "content_policy" in blob or "sensitive content" in blob or "partner_validation" in blob:
+        return (
+            "El filtro de contenido de Seedance marcó el video generado como sensible "
+            "(suele ser un falso positivo con piel, pelo o ropa ajustada). Probá: reformular "
+            "el prompt evitando describir el cuerpo, cambiar la imagen de referencia, o animar "
+            "con Kling en su lugar."
+        )
+    return (msg or text)[:300]
 
 
 async def create_reference_to_video(
@@ -119,11 +161,24 @@ async def get_status(request_id: str) -> dict:
         return {"request_id": request_id, "status": "completed", "video_url": request_id[5:], "error": None}
 
     url = f"{FAL_BASE}/{FAL_MODEL_BASE}/requests/{request_id}/status"
-    async with httpx.AsyncClient(timeout=15) as client:
-        res = await client.get(url, headers=_headers(), params={"logs": "true"})
+    try:
+        # No logs=true — we don't use the logs and the payload can grow large and slow.
+        async with httpx.AsyncClient(timeout=30) as client:
+            res = await client.get(url, headers=_headers())
+    except Exception as e:
+        # Transient network/timeout — keep the job alive so the poller retries
+        # instead of aborting a generation that's still running on Fal.
+        print(f"[seedance] status transient error (will retry): {e}")
+        return {"request_id": request_id, "status": "processing", "video_url": None, "error": None}
+
+    if res.status_code >= 500:
+        # Fal-side hiccup — also transient; keep polling.
+        print(f"[seedance] status {res.status_code} (transient, will retry)")
+        return {"request_id": request_id, "status": "processing", "video_url": None, "error": None}
 
     if res.status_code not in (200, 202):
-        raise Exception(f"Seedance status check failed ({res.status_code}): {res.text[:300]}")
+        # A blocked/failed job often surfaces its reason here (e.g. content policy).
+        return {"request_id": request_id, "status": "failed", "video_url": None, "error": _friendly_error(res.text)}
 
     data = res.json()
     status_raw = data.get("status", "UNKNOWN").upper()
@@ -150,7 +205,7 @@ async def get_result(request_id: str) -> dict:
         res = await client.get(url, headers=_headers())
 
     if res.status_code != 200:
-        return {"request_id": request_id, "status": "failed", "video_url": None, "error": res.text[:300]}
+        return {"request_id": request_id, "status": "failed", "video_url": None, "error": _friendly_error(res.text)}
 
     data = res.json()
     video = data.get("video") or {}
@@ -159,5 +214,5 @@ async def get_result(request_id: str) -> dict:
         "request_id": request_id,
         "status": "completed" if video_url else "failed",
         "video_url": video_url,
-        "error": None if video_url else f"No video URL in response: {str(data)[:200]}",
+        "error": None if video_url else _friendly_error(data),
     }

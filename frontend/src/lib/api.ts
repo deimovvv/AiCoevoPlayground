@@ -1215,12 +1215,33 @@ export async function pollSeedanceVideo(
     if (requestId.startsWith("SYNC:")) {
         return { request_id: requestId, status: "completed", video_url: requestId.slice(5), error: null };
     }
+    let consecutiveErrors = 0;
     for (let i = 0; i < maxAttempts; i++) {
-        const status = await checkSeedanceStatus(requestId);
+        let status: KlingStatus;
+        try {
+            status = await checkSeedanceStatus(requestId);
+            consecutiveErrors = 0;
+        } catch (e) {
+            // A single flaky status poll (transient 5xx / network) shouldn't abort a
+            // job that's still running on Fal. Retry; only give up after several in a row.
+            consecutiveErrors++;
+            if (consecutiveErrors >= 5) throw e;
+            await new Promise((r) => setTimeout(r, intervalMs));
+            continue;
+        }
         if (status.status === "completed") {
             return await getSeedanceResult(requestId);
         }
-        if (status.status === "failed") return status;
+        if (status.status === "failed") {
+            // The failure reason (e.g. content policy) usually lives in the result body.
+            if (status.error) return status;
+            try {
+                const result = await getSeedanceResult(requestId);
+                return result.error ? result : status;
+            } catch {
+                return status;
+            }
+        }
         await new Promise((r) => setTimeout(r, intervalMs));
     }
     throw new Error("Seedance video generation timed out");
