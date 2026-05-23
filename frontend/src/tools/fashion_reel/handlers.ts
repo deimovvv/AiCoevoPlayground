@@ -230,7 +230,9 @@ export const handleBaseImage: StepHandler = async (ctx) => {
     });
   }
 
-  const refFiles = (cfg.referenceImages as File[]) || [];
+  // Only real images can be pose references — filter out any non-image File (e.g. a video
+  // left over from a Content Analyzer run) so we never send a video to Nano Banana.
+  const refFiles = ((cfg.referenceImages as File[]) || []).filter((f) => f && typeof f.type === "string" && f.type.startsWith("image/"));
   let poseDescription = "";
   for (const file of refFiles.slice(0, 1)) {
     const refDataUrl = await new Promise<string>((resolve) => {
@@ -289,9 +291,20 @@ export const handleBaseImage: StepHandler = async (ctx) => {
       `If two images disagree on an attribute, follow the label that OWNS that attribute.\n\n`
     : "";
 
+  // Wardrobe override — fires whenever there's BOTH an identity ref and a garment ref,
+  // regardless of how many images (the role hierarchy above only kicks in at 3+). When
+  // the avatar photo is a full/half-body shot (or a pose sheet) the model otherwise
+  // copies ITS clothing and ignores the selected garment. This forces a re-dress.
+  const hasIdentity = kept.some((c) => c.priority === 0);
+  const hasGarment = kept.some((c) => c.priority === 1);
+  const wardrobeOverride = hasIdentity && hasGarment
+    ? `WARDROBE OVERRIDE (critical): the model must be RE-DRESSED in the GARMENT reference image(s). ` +
+      `Completely IGNORE and REPLACE whatever clothing the person is wearing in the IDENTITY SOURCE image — that image provides face and body ONLY, never the outfit. The final clothing comes 100% from the GARMENT reference(s).\n\n`
+    : "";
+
   const lookSignature = getLookSignature(cfg);
   let prompt = firstScene.image_prompt;
-  if (refDescriptions.length > 0) prompt = `${roleHierarchy}REFERENCE IMAGES:\n${refDescriptions.join("\n")}\n\n${prompt}`;
+  if (refDescriptions.length > 0) prompt = `${roleHierarchy}${wardrobeOverride}REFERENCE IMAGES:\n${refDescriptions.join("\n")}\n\n${prompt}`;
   if (lookSignature) prompt = `${lookSignature}\n\n${prompt}`;
   prompt += ` ${stylePrompt}${NO_TEXT_SUFFIX}`;
 
@@ -433,21 +446,25 @@ export const handleMultishot: StepHandler = async (ctx) => {
     if (reelMode === "looks" && sceneClothing.length === 0 && allClothing.length > 0) {
       sceneClothing = allClothing.slice(-1); // reuse the last garment rather than none
     }
-    // Reserve one slot for the chain-mode previous frame so the total stays within cap.
-    const { urls: baseRefUrls, desc: baseRefDesc } = buildCappedRefs(sceneClothing, stateContinuity ? 1 : 0);
+    // Always anchor each scene to a reference frame so the model/outfit/setting stay
+    // consistent across scenes (the #1 cause of drift was generating scenes 2+ from the
+    // brand assets alone, with no anchor). Chain mode advances the anchor to the previous
+    // scene for state propagation; otherwise we anchor to the base image (scene 1) — a
+    // stable reference that doesn't accumulate drift. Reserve 1 slot for the anchor.
+    const anchorUrl = stateContinuity ? previousFrameUrl : baseImageResult.url;
+    const { urls: baseRefUrls, desc: baseRefDesc } = buildCappedRefs(sceneClothing, 1);
+    const refUrls = [anchorUrl, ...baseRefUrls];
 
-    // Chain mode: prepend previous-frame ref so state propagates
-    const refUrls = stateContinuity ? [previousFrameUrl, ...baseRefUrls] : baseRefUrls;
-    const chainHeader = stateContinuity
+    const anchorHeader = stateContinuity
       ? `Image 1: PREVIOUS FRAME — this is the immediate prior scene. The model must look IDENTICAL in identity, clothing fit, AND all progressing state. ${statefulList} The new scene only changes pose, action and framing — every stateful element CARRIES FORWARD and may continue to progress as described below.\n`
-      : "";
+      : reelMode === "looks"
+        ? `Image 1: MODEL + SCENE ANCHOR — keep the SAME person (face, hair, body) and the SAME location, lighting and overall styling as this frame. Only the OUTFIT changes, to the garment reference(s) listed below.\n`
+        : `Image 1: CONSISTENCY ANCHOR — keep this frame's EXACT model, outfit, hair, styling, location and lighting. ONLY the pose, gesture and camera framing change between scenes — do NOT change the clothing or the person.\n`;
 
-    // Re-number the rest of the refs starting at 2 when chain mode is on
-    const restDesc = stateContinuity
-      ? baseRefDesc.replace(/Image (\d+):/g, (_m, n) => `Image ${parseInt(n, 10) + 1}:`)
-      : baseRefDesc;
+    // Re-number the rest of the refs starting at 2 (the anchor is always Image 1).
+    const restDesc = baseRefDesc.replace(/Image (\d+):/g, (_m, n) => `Image ${parseInt(n, 10) + 1}:`);
 
-    const fullRefDesc = (chainHeader + restDesc).trim();
+    const fullRefDesc = (anchorHeader + restDesc).trim();
     const lookSignature = getLookSignature(cfg);
     const variations: Array<{ id: string; url: string; label: string; prompt: string }> = [];
 

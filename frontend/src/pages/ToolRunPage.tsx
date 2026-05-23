@@ -470,6 +470,10 @@ export function ToolRunPage() {
   const stepsRef = useRef<StepState[]>([]);
   const [activeStep, setActiveStep] = useState(0);
   const [started, setStarted] = useState(false);
+  // Set when an agent/URL hand-off requests auto-start. A dedicated effect picks this
+  // up and runs step 0 — done in an effect (not inline) so handleRunStep executes with
+  // the just-applied config instead of the stale closure from the hand-off effect.
+  const [pendingAutoRun, setPendingAutoRun] = useState(false);
   const [config, setConfig] = useState<ToolConfig>(DEFAULT_CONFIG);
   const [agentInfo, setAgentInfo] = useState<{ reasoning?: string; warnings?: string[] } | null>(null);
   const [mockRunning, setMockRunning] = useState(false);
@@ -815,17 +819,30 @@ export function ToolRunPage() {
       }
 
       // Auto-start the pipeline when the chat's "Generar" button was used.
-      // Wait one tick for config setters to commit before kicking off step 0.
+      // Mark step 0 active and flag the auto-run; the pendingAutoRun effect runs the
+      // step once this render (with the new config) has committed. Previously this only
+      // flipped `started`/`activeStep` and never marked step 0 active or ran it, so the
+      // pipeline sat on "Waiting for previous steps to complete" and generated nothing.
       if ((h.autoStart || autoStartFromUrl) && !started) {
-        setTimeout(() => {
-          setStarted(true);
-          setActiveStep(0);
-        }, 150);
+        setStarted(true);
+        setActiveStep(0);
+        setSteps((prev) => prev.map((s, i) => ({ ...s, status: (i === 0 ? "active" : "pending") as StepStatus })));
+        setPendingAutoRun(true);
       }
     } catch (err) {
       console.error("[chat-handoff] parse error:", err);
     }
   }, [tool, autoStartFromUrl, started]);
+
+  // Run step 0 after an agent/URL auto-start. Lives in its own effect so it fires on the
+  // render where the hand-off's config has already committed — handleRunStep then reads
+  // the agent's selections (avatar, clothing, …) instead of the pre-hand-off defaults.
+  useEffect(() => {
+    if (!pendingAutoRun) return;
+    setPendingAutoRun(false);
+    handleRunStep(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAutoRun]);
 
   // Apply handoff from Content Analyzer routing
   useEffect(() => {
@@ -868,6 +885,14 @@ export function ToolRunPage() {
       // Now safe to consume — remove from sessionStorage
       sessionStorage.removeItem(handoffKey);
       const { adaptData, analyzeData } = handoff;
+
+      // Clear any reference images carried over from the Content Analyzer run. The CA stores
+      // the uploaded video in config.referenceImages, and since the ToolRunPage component is
+      // reused across the :toolId change, that video File would otherwise leak into the
+      // destination tool's "pose reference" slot — which then tries to send a video to Nano
+      // Banana as an image and fails. (URL-analyzed videos don't hit this because they come
+      // through config.objective, not referenceImages.)
+      setConfig((prev) => ({ ...prev, referenceImages: [] }));
 
       // Always restore asset selections regardless of target tool
       const assetUpdates: Partial<ToolConfig> = {};
@@ -4473,7 +4498,7 @@ function StepPanel({
       {/* Step content */}
       <div className="p-5">
         {step.status === "pending" ? (
-          <PendingStep stepId={step.id} />
+          <PendingStep stepId={step.id} isFirst={stepIndex === 0} />
         ) : step.status === "active" ? (
           <ActiveStep
             stepId={step.id}
@@ -4679,7 +4704,7 @@ function RunningStep({
 
 // ── Pending step placeholder ───────────────────────────────
 
-function PendingStep({ stepId }: { stepId: string }) {
+function PendingStep({ stepId, isFirst = false }: { stepId: string; isFirst?: boolean }) {
   const meta = STEP_META[stepId];
   return (
     <div className="text-center py-10 text-fg-faint">
@@ -4687,7 +4712,9 @@ function PendingStep({ stepId }: { stepId: string }) {
         {meta?.icon || <Sparkles size={18} />}
       </div>
       <p className="text-[13px]">
-        Waiting for previous steps to complete
+        {isFirst
+          ? "Revisá la config y tocá Start para empezar"
+          : "Esperando a que terminen los pasos anteriores"}
       </p>
     </div>
   );
@@ -5205,7 +5232,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
               imageUrl={gen.url}
               aspectRatio="1:1"
               resolution="2K"
-              selectedProductId={config?.selectedProductId}
+              selectedProductId={config?.selectedProductId} selectedClothingIds={config?.selectedClothingIds}
               onImageUpdated={(newUrl) => {
                 gen.url = newUrl;
                 if (onUpdateStepResult) onUpdateStepResult("generate", { ...gen });
@@ -6464,7 +6491,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                         imageUrl={baseFrameUrl}
                         aspectRatio={config?.aspectRatio || "9:16"}
                         resolution={config?.resolution || "1K"}
-                        selectedProductId={config?.selectedProductId}
+                        selectedProductId={config?.selectedProductId} selectedClothingIds={config?.selectedClothingIds}
                         onImageUpdated={(newUrl) => {
                           // Stash for review — don't auto-apply or auto-animate
                           handleFrameUpdated(seg, newUrl);
@@ -6693,7 +6720,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   imageUrl={slide.url}
                   aspectRatio={config?.aspectRatio || "4:5"}
                   resolution={config?.resolution || "1K"}
-                  selectedProductId={config?.selectedProductId}
+                  selectedProductId={config?.selectedProductId} selectedClothingIds={config?.selectedClothingIds}
                   onImageUpdated={(newUrl) => { slide.url = newUrl; setEditingImageId(null); }}
                   onClose={() => setEditingImageId(null)}
                 />
@@ -6863,7 +6890,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             imageUrl={activeImg.url}
             aspectRatio={config?.aspectRatio || "4:5"}
             resolution={config?.resolution || "1K"}
-            selectedProductId={config?.selectedProductId}
+            selectedProductId={config?.selectedProductId} selectedClothingIds={config?.selectedClothingIds}
             onImageUpdated={(newUrl) => { activeImg.url = newUrl; setEditingImageId(null); }}
             onClose={() => setEditingImageId(null)}
           />
@@ -7017,6 +7044,11 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       // wardrobe (worn). The user can flip it — controls whether the item gets
       // featured/close-up treatment or styling/background treatment in the output.
       roles?: Record<string, "hero" | "wardrobe">;
+      // How detected garments map to brand assets:
+      //  - "individual" (default): each detected garment → its own asset.
+      //  - "complete": treat the whole look as ONE outfit → a single asset, stored under
+      //    the synthetic confirmation key "outfits:__complete__".
+      outfitMode?: "individual" | "complete";
       skipped?: boolean;
     }
     const data = result as MapResult;
@@ -7128,6 +7160,15 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       onUpdateStepResult("map_assets", { ...data, roles: { ...roles, [`${cat}:${detectedId}`]: role } });
     };
 
+    // Outfit granularity: individual garments vs one complete outfit.
+    const COMPLETE_OUTFIT_KEY = "__complete__";
+    const outfitMode: "individual" | "complete" = data.outfitMode || "individual";
+    const completeOutfitId = confirmations[`outfits:${COMPLETE_OUTFIT_KEY}`] ?? null;
+    const setOutfitMode = (mode: "individual" | "complete") => {
+      if (!onUpdateStepResult) return;
+      onUpdateStepResult("map_assets", { ...data, outfitMode: mode });
+    };
+
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-1">
@@ -7156,7 +7197,46 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 )}
               </div>
 
-              {items.length === 0 ? (
+              {/* Outfit granularity toggle — only for the outfits category */}
+              {key === "outfits" && (
+                <>
+                  <div className="flex items-center gap-1 bg-surface-1 border border-edge rounded-full p-0.5 w-fit">
+                    {([["individual", "👕 Prendas sueltas"], ["complete", "🧥 Outfit completo"]] as const).map(([m, lbl]) => (
+                      <button
+                        key={m}
+                        onClick={() => setOutfitMode(m)}
+                        className={cn(
+                          "px-3 py-1 text-[11px] rounded-full cursor-pointer transition-colors",
+                          outfitMode === m ? "bg-[var(--color-action-subtle)] text-fg" : "text-fg-muted hover:text-fg",
+                        )}
+                      >
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-fg-faint">
+                    {outfitMode === "complete"
+                      ? "El look detectado se mapea a UNA sola prenda/outfit de tu kit."
+                      : "Cada prenda detectada se mapea a su propio asset."}
+                  </p>
+                </>
+              )}
+
+              {key === "outfits" && outfitMode === "complete" ? (
+                <div className="bg-surface-1 rounded-[var(--radius-sm)] p-2.5 space-y-1.5">
+                  <p className="text-[12px] text-fg-muted leading-snug">
+                    Elegí la prenda de tu kit que representa todo el look
+                    {items.length > 0 && (
+                      <span className="text-fg-faint"> · detectado: {items.map((it) => it.description).join(" · ").slice(0, 120)}</span>
+                    )}
+                  </p>
+                  <AssetPickerDropdown
+                    options={brandAssets}
+                    value={completeOutfitId}
+                    onChange={(id) => setChoice("outfits", COMPLETE_OUTFIT_KEY, id)}
+                  />
+                </div>
+              ) : items.length === 0 ? (
                 <p className="text-[11px] text-fg-faint italic">No se detectó ninguno en el video. Podés agregar uno manualmente abajo.</p>
               ) : (
                 items.map((item) => {
@@ -7653,7 +7733,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   imageUrl={img.url}
                   aspectRatio={config?.aspectRatio || "9:16"}
                   resolution={config?.resolution || "1K"}
-                  selectedProductId={config?.selectedProductId}
+                  selectedProductId={config?.selectedProductId} selectedClothingIds={config?.selectedClothingIds}
                   onImageUpdated={(newUrl) => { img.url = newUrl; setEditingId(null); }}
                   onClose={() => setEditingId(null)}
                 />
@@ -7865,7 +7945,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   imageUrl={creative.url}
                   aspectRatio={config?.aspectRatio || "9:16"}
                   resolution={config?.resolution || "1K"}
-                  selectedProductId={config?.selectedProductId}
+                  selectedProductId={config?.selectedProductId} selectedClothingIds={config?.selectedClothingIds}
                   onImageUpdated={(newUrl) => { creative.url = newUrl; setEditingId(null); }}
                   onClose={() => setEditingId(null)}
                 />
@@ -8083,7 +8163,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                           imageUrl={clip.imageUrl}
                           aspectRatio={config?.aspectRatio || "9:16"}
                           resolution={config?.resolution || "1K"}
-                          selectedProductId={config?.selectedProductId}
+                          selectedProductId={config?.selectedProductId} selectedClothingIds={config?.selectedClothingIds}
                           onImageUpdated={(newUrl) => { clip.imageUrl = newUrl; persist(); setEditingFrameSceneId(null); }}
                           onClose={() => setEditingFrameSceneId(null)}
                         />
@@ -8520,8 +8600,19 @@ const ROUTE_TOOLS: Array<{
 ];
 
 function detectSuggestedTool(contentType: string, isVisualOnly?: boolean): string {
-  if (isVisualOnly) return "fashion_reel";
   const lower = contentType.toLowerCase();
+
+  // Visual-fashion content → Fashion Reel, EVEN when a script/voiceover was detected.
+  // Fashion reels are visual by nature and their background music often gets transcribed
+  // as a "script", which used to flip isVisualOnly to false and mis-route them to UGC.
+  // Only fall back to a talking tool when there's an explicit talking signal.
+  const TALKING_SIGNALS = ["talking", "testimonial", "tutorial", "review", "presenter", "narrator", "speaker", "vlog", "explainer", "interview"];
+  const FASHION_SIGNALS = ["fashion", "editorial", "runway", "catwalk", "lookbook", "ootd", "outfit", "model", "moda", "desfile", "pasarela"];
+  const hasTalking = TALKING_SIGNALS.some((kw) => lower.includes(kw));
+  const hasFashion = FASHION_SIGNALS.some((kw) => lower.includes(kw));
+  if (hasFashion && !hasTalking) return "fashion_reel";
+
+  if (isVisualOnly) return "fashion_reel";
   for (const t of ROUTE_TOOLS) {
     if (t.matchKeywords.some((kw) => lower.includes(kw))) return t.id;
   }

@@ -1077,6 +1077,16 @@
         "imageUrl": "/static/avatars/morph-ai_6839f7cb.jpeg",
         "talkingPhotoId": null,
         "heygenStatus": "skipped"
+      },
+      {
+        "id": "d0c9c315",
+        "name": "WhatsApp Image 2026-05-22 at 16.33.15 (Pose Sheet)",
+        "description": "This young adult male, appearing in his early twenties, is of Black ethnicity with a dark brown skin tone. He has short, black dreadlocks styled upwards, an oval face with a defined jawline, prominent lips, and small hoop earrings. His body type is slender and lean.",
+        "filename": "morph-ai_d0c9c315.png",
+        "imageUrl": "/static/avatars/morph-ai_d0c9c315.png",
+        "talkingPhotoId": null,
+        "heygenStatus": "failed",
+        "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
       }
     ],
     "voicePresets": [],
@@ -1577,6 +1587,14 @@
         "tags": [],
         "filename": "koxis_cloth_d7a5a141.png",
         "imageUrl": "/static/clothing/koxis_cloth_d7a5a141.png"
+      },
+      {
+        "id": "1be3ca23",
+        "name": "Screenshot 2026-05-23 at 2.40.37 AM",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_1be3ca23.png",
+        "imageUrl": "/static/clothing/koxis_cloth_1be3ca23.png"
       }
     ]
   }

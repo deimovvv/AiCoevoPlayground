@@ -118,22 +118,33 @@ export const handleAdapt: StepHandler = async (ctx) => {
     confirmations?: Record<string, string | null>;
     overrides?: Record<string, string>;
     roles?: Record<string, "hero" | "wardrobe">;
+    outfitMode?: "individual" | "complete";
   }
   const mapStep = getStepResult("map_assets") as MapResult | undefined;
   const confirmations = mapStep?.confirmations || {};
   const overrides = mapStep?.overrides || {};
   const roles = mapStep?.roles || {};
+  const outfitMode = mapStep?.outfitMode || "individual";
+  const COMPLETE_OUTFIT_KEY = "outfits:__complete__";
+  const completeOutfitId = confirmations[COMPLETE_OUTFIT_KEY] || null;
 
   const confirmedIdsFor = (cat: "persons" | "outfits" | "products" | "locations"): string[] => {
     const out: string[] = [];
     for (const [key, value] of Object.entries(confirmations)) {
+      // Skip the synthetic "complete outfit" key — it's handled separately so it never
+      // leaks an extra clothing id into individual mode.
+      if (key === COMPLETE_OUTFIT_KEY) continue;
       if (key.startsWith(cat + ":") && value) out.push(value);
     }
     return Array.from(new Set(out));
   };
 
   const mappedAvatarIds = confirmedIdsFor("persons");
-  const mappedClothingIds = confirmedIdsFor("outfits");
+  // Complete-outfit mode collapses the whole look to one asset; individual mode keeps
+  // each detected garment's mapping.
+  const mappedClothingIds = outfitMode === "complete"
+    ? (completeOutfitId ? [completeOutfitId] : [])
+    : confirmedIdsFor("outfits");
   const mappedProductIds = confirmedIdsFor("products");
   const mappedBackgroundIds = confirmedIdsFor("locations");
 
@@ -192,7 +203,21 @@ export const handleAdapt: StepHandler = async (ctx) => {
     return lines.join("\n");
   };
 
-  const outfitRules = buildRewriteRules("outfits", selectedClothing);
+  // Complete-outfit mode: collapse all detected garments into ONE rewrite rule pointing
+  // at the single chosen asset, instead of a per-garment rule.
+  const buildCompleteOutfitRule = (): string => {
+    const asset = selectedClothing.find((c) => c && c.id === completeOutfitId);
+    if (!asset) return "";
+    const detectedDescs = (mapStep?.matches?.outfits || []).map((m) => m.description).filter(Boolean);
+    const lookDesc = detectedDescs.length ? detectedDescs.join(" + ") : "the outfit shown in the source";
+    const brandDesc = asset.description ? ` (${asset.description})` : "";
+    return `- The model's COMPLETE OUTFIT in every scene MUST be "${asset.name}"${brandDesc}. ` +
+      `The source video showed: ${lookDesc}. Replace the ENTIRE look with "${asset.name}" — both the script and the image_prompt of every scene must reference this single outfit, never the original garments.`;
+  };
+
+  const outfitRules = outfitMode === "complete"
+    ? buildCompleteOutfitRule()
+    : buildRewriteRules("outfits", selectedClothing);
   const productRules = buildRewriteRules("products", selectedProducts);
 
   // Text-override rules: for any detected item the user edited (e.g. changed

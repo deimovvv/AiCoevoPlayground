@@ -369,65 +369,6 @@ export const handleBaseImage: StepHandler = async (ctx) => {
     };
   }
 
-  const imageUrls: string[] = [];
-
-  // Avatar FIRST (face/identity — highest priority)
-  if (selectedAvatar?.imageUrl) imageUrls.push(selectedAvatar.imageUrl);
-
-  // Composition reference SECOND (pose reference — optional)
-  const refFiles = (config as { referenceImages?: File[] }).referenceImages || [];
-  let poseDescription = "";
-  for (const file of refFiles.slice(0, 1)) {
-    // Convert to data URL for nano-banana (visual reference, still passed as image)
-    const refDataUrl = await new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.readAsDataURL(file);
-    });
-    imageUrls.push(refDataUrl);
-
-    // Also analyze pose with Gemini — extract body positions only (ignores style/lighting)
-    try {
-      const analysis = await analyzePoseReference(file);
-      poseDescription = analysis.pose_description;
-    } catch {
-      // Non-blocking — if pose analysis fails, fall back to generic description
-    }
-  }
-
-  // Then clothing, product
-  if (config.productIsWorn) {
-    if (selectedProduct?.imageUrl) imageUrls.push(selectedProduct.imageUrl);
-    selectedClothingItems.forEach((c) => { if (c.imageUrl) imageUrls.push(c.imageUrl); });
-  } else {
-    selectedClothingItems.forEach((c) => { if (c.imageUrl) imageUrls.push(c.imageUrl); });
-    if (selectedProduct?.imageUrl) imageUrls.push(selectedProduct.imageUrl);
-  }
-  // Pass ALL product images if available (front, back, detail)
-  if (selectedProduct?.images) {
-    for (const img of selectedProduct.images) {
-      if (img.imageUrl) imageUrls.push(img.imageUrl);
-    }
-  }
-  if (selectedBackground?.imageUrl) imageUrls.push(selectedBackground.imageUrl);
-  if (selectedMoodboard?.imageUrl) imageUrls.push(selectedMoodboard.imageUrl);
-
-  // Build prompt with positional references so Nano Banana knows what each image is
-  let prompt = firstScene.image_prompt;
-  const refDescriptions: string[] = [];
-  let imgIdx = 1;
-
-  if (selectedAvatar?.imageUrl) {
-    refDescriptions.push(`Image ${imgIdx}: the person's face and body — use this EXACT person`);
-    imgIdx++;
-  }
-  if (refFiles.length > 0) {
-    const poseNote = poseDescription
-      ? `pose reference — replicate ONLY the body positions and camera framing: ${poseDescription}`
-      : `pose reference — match the body positions and camera framing`;
-    refDescriptions.push(`Image ${imgIdx}: ${poseNote}`);
-    imgIdx++;
-  }
   // CRITICAL: never include the user-typed product/clothing NAME in the reference
   // description — color adjectives in names ("remera azul clarito", "buzo bordó") bias
   // Nano Banana away from the actual pixels. Use neutral pointers ("the garment shown
@@ -435,41 +376,84 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   // the model to honor the visual over any text.
   const PIXEL_FIDELITY = "CRITICAL: reproduce the EXACT color, shade, fabric, print, stitching, and proportions from the reference pixels. Do NOT lighten, darken, saturate, or stylize. If color descriptors in the text appear to conflict with the reference image, the IMAGE IS ALWAYS AUTHORITATIVE.";
 
-  if (config.productIsWorn && selectedProduct?.imageUrl) {
-    refDescriptions.push(`Image ${imgIdx}: the garment shown in this reference — the person WEARS it. ${PIXEL_FIDELITY}`);
-    imgIdx++;
+  // Build references as a priority-ordered candidate list, then cap the total. Nano
+  // Banana rejects jobs with too many refs ("Could not generate images..."), easy to
+  // hit once product sub-images + moodboard + background stack up. Priority (lower =
+  // kept first): identity → product → clothing → background → pose → moodboard → extra
+  // product views.
+  const MAX_BASE_REFS = 6;
+  type RefCandidate = { url: string; label: string; priority: number };
+  const candidates: RefCandidate[] = [];
+
+  if (selectedAvatar?.imageUrl) {
+    candidates.push({ url: selectedAvatar.imageUrl, priority: 0, label: `the person's face and body — use this EXACT person` });
   }
-  for (const c of selectedClothingItems) {
-    if (c.imageUrl) {
-      refDescriptions.push(`Image ${imgIdx}: the clothing item shown in this reference — the person WEARS it exactly as pictured. ${PIXEL_FIDELITY}`);
-      imgIdx++;
-    }
+
+  // Composition / pose reference (optional) — also analyzed by Gemini for body positions.
+  // Only real images can be pose references — filter out any non-image File (e.g. a video
+  // left over from a Content Analyzer run) so we never send a video to Nano Banana.
+  const refFiles = ((config as { referenceImages?: File[] }).referenceImages || []).filter((f) => f && typeof f.type === "string" && f.type.startsWith("image/"));
+  let poseDescription = "";
+  for (const file of refFiles.slice(0, 1)) {
+    const refDataUrl = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+    try { const analysis = await analyzePoseReference(file); poseDescription = analysis.pose_description; } catch { /* non-blocking */ }
+    const poseNote = poseDescription
+      ? `pose reference — replicate ONLY the body positions and camera framing: ${poseDescription}`
+      : `pose reference — match the body positions and camera framing`;
+    candidates.push({ url: refDataUrl, priority: 4, label: poseNote });
   }
-  if (!config.productIsWorn && selectedProduct?.imageUrl) {
-    refDescriptions.push(`Image ${imgIdx}: the product shown in this reference — the person HOLDS or SHOWS it. ${PIXEL_FIDELITY}`);
-    imgIdx++;
+
+  // Product (hero) + clothing (worn). Push order respects productIsWorn for readable numbering.
+  if (config.productIsWorn) {
+    if (selectedProduct?.imageUrl) candidates.push({ url: selectedProduct.imageUrl, priority: 1, label: `the garment shown in this reference — the person WEARS it. ${PIXEL_FIDELITY}` });
+    selectedClothingItems.forEach((c) => { if (c.imageUrl) candidates.push({ url: c.imageUrl, priority: 2, label: `the clothing item shown in this reference — the person WEARS it exactly as pictured. ${PIXEL_FIDELITY}` }); });
+  } else {
+    selectedClothingItems.forEach((c) => { if (c.imageUrl) candidates.push({ url: c.imageUrl, priority: 2, label: `the clothing item shown in this reference — the person WEARS it exactly as pictured. ${PIXEL_FIDELITY}` }); });
+    if (selectedProduct?.imageUrl) candidates.push({ url: selectedProduct.imageUrl, priority: 1, label: `the product shown in this reference — the person HOLDS or SHOWS it. ${PIXEL_FIDELITY}` });
   }
+  // Extra product views (back/detail) — lowest priority, dropped first if over budget.
   if (selectedProduct?.images) {
     for (const img of selectedProduct.images) {
-      if (img.imageUrl) {
-        refDescriptions.push(`Image ${imgIdx}: additional view of the same product — confirms color, fabric, and proportions from another angle. Use this to reinforce pixel-exact matching of the product across the scene.`);
-        imgIdx++;
-      }
+      if (img.imageUrl) candidates.push({ url: img.imageUrl, priority: 6, label: `additional view of the same product — confirms color, fabric, and proportions from another angle. Use this to reinforce pixel-exact matching of the product across the scene.` });
     }
   }
   if (selectedBackground?.imageUrl) {
     const bgName = selectedBackground.description || selectedBackground.name || "background";
-    refDescriptions.push(`Image ${imgIdx}: background/environment — place the person IN this exact setting (${bgName})`);
-    imgIdx++;
+    candidates.push({ url: selectedBackground.imageUrl, priority: 3, label: `background/environment — place the person IN this exact setting (${bgName})` });
   }
   if (selectedMoodboard?.imageUrl) {
     const moodName = selectedMoodboard.description || selectedMoodboard.name || "visual style";
-    refDescriptions.push(`Image ${imgIdx}: visual style moodboard — replicate this aesthetic, color palette, lighting, and mood (${moodName}). Do NOT copy people or objects literally.`);
-    imgIdx++;
+    candidates.push({ url: selectedMoodboard.imageUrl, priority: 5, label: `visual style moodboard — replicate this aesthetic, color palette, lighting, and mood (${moodName}). Do NOT copy people or objects literally.` });
   }
 
+  const kept = candidates
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => a.c.priority - b.c.priority || a.i - b.i)
+    .slice(0, MAX_BASE_REFS)
+    .sort((a, b) => a.i - b.i)
+    .map((x) => x.c);
+  if (kept.length < candidates.length) {
+    console.warn(`[ugc] base image: capped references ${candidates.length} → ${kept.length} (dropped ${candidates.length - kept.length} lowest-priority to avoid Nano Banana rejection)`);
+  }
+
+  const imageUrls: string[] = kept.map((c) => c.url);
+  let prompt = firstScene.image_prompt;
+  const refDescriptions: string[] = kept.map((c, i) => `Image ${i + 1}: ${c.label}`);
+  // Wardrobe override — when there's an identity ref AND a worn garment, force the model
+  // to be re-dressed in the garment and ignore the clothing in the avatar photo (critical
+  // when the avatar is a full-body shot or pose sheet that already shows an outfit).
+  const hasIdentity = kept.some((c) => c.priority === 0);
+  const hasWornGarment = kept.some((c) => c.priority === 2) || (config.productIsWorn === true && kept.some((c) => c.priority === 1));
+  const wardrobeOverride = hasIdentity && hasWornGarment
+    ? `WARDROBE OVERRIDE (critical): the person must be RE-DRESSED in the garment/clothing reference image(s). ` +
+      `Completely IGNORE and REPLACE whatever clothing the person wears in their identity photo — that image is for face and body ONLY, never the outfit. The final clothing comes 100% from the garment reference(s).\n\n`
+    : "";
   if (refDescriptions.length > 0) {
-    prompt = `REFERENCE IMAGES:\n${refDescriptions.join("\n")}\n\n${prompt}`;
+    prompt = `${wardrobeOverride}REFERENCE IMAGES:\n${refDescriptions.join("\n")}\n\n${prompt}`;
   }
   prompt += ` ${baseVisualStyle}${noTextSuffix}`;
 

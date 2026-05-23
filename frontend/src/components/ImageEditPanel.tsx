@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { Loader2, Wand2 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
-import { createImageEdit, pollImageGen, productImageUrl } from "../lib/api";
+import { createImageEdit, pollImageGen, productImageUrl, clothingImageUrl } from "../lib/api";
 import { cn } from "../lib/utils";
 
 interface ImageEditPanelProps {
@@ -20,6 +20,8 @@ interface ImageEditPanelProps {
   defaultPrompt?: string;
   /** Pre-select this product's images as references */
   selectedProductId?: string | null;
+  /** Pre-select these clothing items' images as references */
+  selectedClothingIds?: string[];
 }
 
 export function ImageEditPanel({
@@ -30,18 +32,28 @@ export function ImageEditPanel({
   onClose,
   defaultPrompt = "",
   selectedProductId,
+  selectedClothingIds,
 }: ImageEditPanelProps) {
   const { activeBrand } = useBrand();
   const [prompt, setPrompt] = useState(defaultPrompt);
   const [loading, setLoading] = useState(false);
 
   const products = activeBrand?.products || [];
+  const clothing = activeBrand?.clothing || [];
   const selectedProduct = selectedProductId ? products.find((p) => p.id === selectedProductId) : null;
+  const selectedClothingItems = selectedClothingIds?.length
+    ? clothing.filter((c) => selectedClothingIds.includes(c.id))
+    : [];
 
   // Auto-select the active product's images
   const getProductRefs = (): string[] => {
     if (!selectedProduct) return [];
     return [selectedProduct.imageUrl, ...(selectedProduct.images || []).map((img) => img.imageUrl)];
+  };
+  // Clothing refs: pre-selected items if any, otherwise all clothing in the kit.
+  const getClothingRefs = (): string[] => {
+    const items = selectedClothingItems.length ? selectedClothingItems : clothing;
+    return items.map((c) => c.imageUrl).filter(Boolean);
   };
   const [selectedRefs, setSelectedRefs] = useState<string[]>(getProductRefs);
 
@@ -50,6 +62,8 @@ export function ImageEditPanel({
     { url: p.imageUrl, label: p.name },
     ...(p.images || []).map((img) => ({ url: img.imageUrl, label: img.label || p.name })),
   ]);
+  // All clothing images
+  const allClothingImages = clothing.map((c) => ({ url: c.imageUrl, label: c.name }));
 
   const toggleRef = (url: string) => {
     setSelectedRefs((prev) =>
@@ -93,11 +107,11 @@ export function ImageEditPanel({
         </button>
         <button
           onClick={() => {
-            // Auto-select product refs for clothing fix too
-            const refs = getProductRefs();
+            // Use CLOTHING refs (not product) for a clothing fix.
+            const refs = getClothingRefs();
             if (refs.length > 0) setSelectedRefs((prev) => [...new Set([...prev, ...refs])]);
-            const productName = selectedProduct?.name || "the garment";
-            setPrompt(`Make the clothing match "${productName}" from the reference images exactly — same color, same design, same fit, same texture.`);
+            const garmentName = selectedClothingItems[0]?.name || clothing[0]?.name || "the garment";
+            setPrompt(`Re-dress the person in the clothing shown in the reference images — match "${garmentName}" exactly: same color, same design, same fit, same texture. Replace whatever they are currently wearing.`);
           }}
           className="text-[10px] px-2.5 py-1 bg-surface-3 text-fg-muted rounded-full cursor-pointer hover:text-fg"
         >
@@ -140,6 +154,30 @@ export function ImageEditPanel({
                 title={img.label}
               >
                 <img src={productImageUrl(img.url)} alt={img.label} className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Clothing image picker */}
+      {allClothingImages.length > 0 && (
+        <div className="space-y-1.5">
+          <span className="text-[9px] font-medium text-fg-faint uppercase tracking-wider">Referencia de ropa (click para incluir)</span>
+          <div className="flex gap-1.5 flex-wrap">
+            {allClothingImages.map((img, idx) => (
+              <button
+                key={idx}
+                onClick={() => toggleRef(img.url)}
+                className={cn(
+                  "w-10 h-10 rounded overflow-hidden border-2 cursor-pointer transition-all",
+                  selectedRefs.includes(img.url)
+                    ? "border-[var(--color-action)]"
+                    : "border-edge opacity-50 hover:opacity-100"
+                )}
+                title={img.label}
+              >
+                <img src={clothingImageUrl(img.url)} alt={img.label} className="w-full h-full object-cover" />
               </button>
             ))}
           </div>
