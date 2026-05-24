@@ -139,6 +139,17 @@
     ]
   },
   {
+    "id": "ecommerce_pack",
+    "name": "Ecommerce Pack",
+    "category": "images",
+    "description": "Ficha de producto e-commerce: una prenda sobre modelo en estudio + vistas de la prenda (frente, espalda, detalle), todas consistentes. Elegís qué tomas generar.",
+    "icon": "camera",
+    "status": "active",
+    "pipeline": [
+      "generate_all"
+    ]
+  },
+  {
     "id": "video_swap",
     "name": "Video Swap",
     "category": "video",

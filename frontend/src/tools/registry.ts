@@ -17,10 +17,12 @@ import { carouselCreator } from "./carousel_creator";
 import { avatarCreator } from "./avatar_creator";
 import { fashionReel } from "./fashion_reel";
 import { videoSwap } from "./video_swap";
+import { ecommercePack } from "./ecommerce_pack";
 
 export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   avatar_creator: avatarCreator,
   fashion_reel: fashionReel,
+  ecommerce_pack: ecommercePack,
   video_swap: videoSwap,
   ugc_creator: ugcCreator,
   product_spotlight: productSpotlight,

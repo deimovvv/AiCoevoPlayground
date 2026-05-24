@@ -55,6 +55,7 @@ import {
 } from "../lib/api";
 import { cn } from "../lib/utils";
 import { ImageEditPanel } from "../components/ImageEditPanel";
+import { SHOT_CATALOG, STUDIO_STYLES } from "../tools/ecommerce_pack";
 import { Collapsible } from "../components/ui/section";
 import { ComposeOverlay } from "../components/ComposeOverlay";
 import { UGCPlayer } from "../remotion/UGCPlayer";
@@ -219,6 +220,11 @@ const STEP_META: Record<
     icon: <Eye size={15} />,
     description: "Revisá, editá e iterá sobre los creativos generados",
   },
+  generate_all: {
+    label: "Generar",
+    icon: <Camera size={15} />,
+    description: "Generá todas las tomas seleccionadas, consistentes entre sí",
+  },
 };
 
 const TOOL_ICONS: Record<string, React.ReactNode> = {
@@ -284,6 +290,9 @@ interface ToolConfig {
   visualStyle: "iphone" | "cinematic" | "studio" | "custom" | "editorial";
   visualStyleCustom: string;
   reelMode: "story" | "looks";
+  // Ecommerce Pack
+  studioStyle: string;
+  ecomShots: string[];
   hookType: "none" | "distracted" | "empty-room" | "walks-in" | "looks-down" | "phone-flip";
   hookMode: "standard" | "fooh";
   foohPrompt: string;
@@ -337,6 +346,8 @@ const DEFAULT_CONFIG: ToolConfig = {
   visualStyle: "iphone",
   visualStyleCustom: "",
   reelMode: "story",
+  studioStyle: "white",
+  ecomShots: ["model_front", "model_back", "model_detail", "flat_front"],
   hookType: "none",
   hookMode: "standard",
   foohPrompt: "",
@@ -2861,6 +2872,71 @@ function ConfigPanel({
         );
       })()}
 
+      {tool.id === "ecommerce_pack" && (
+        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-4">
+          {/* Studio style */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Estilo de estudio</span>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(STUDIO_STYLES).map(([id, s]) => (
+                <button
+                  key={id}
+                  onClick={() => setConfig((p) => ({ ...p, studioStyle: id }))}
+                  title={s.clause || "Describí el fondo/luz en el campo de abajo"}
+                  className={cn(
+                    "px-3 py-1 text-[11px] font-medium rounded-full cursor-pointer transition-colors border",
+                    config.studioStyle === id
+                      ? "bg-[var(--color-action-subtle)] border-[var(--color-action-muted)] text-fg"
+                      : "bg-surface-0 border-edge text-fg-muted hover:text-fg",
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-fg-faint">
+              {config.studioStyle === "custom"
+                ? "Describí el fondo/luz que querés en el campo 'Estilo de estudio (custom)' de arriba."
+                : (STUDIO_STYLES[config.studioStyle]?.clause || "")}
+            </p>
+            <p className="text-[10px] text-fg-faint">Afiná con <strong>Look &amp; Feel</strong> (iluminación/estética) y/o <strong>moodboard</strong>. Para la postura de la modelo, usá <strong>Referencia de POSE</strong> (abajo).</p>
+          </div>
+
+          {/* Shot selection */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Tomas a generar</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {Object.entries(SHOT_CATALOG).map(([id, shot]) => {
+                const on = config.ecomShots.includes(id);
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setConfig((p) => ({
+                      ...p,
+                      ecomShots: on ? p.ecomShots.filter((s) => s !== id) : [...p.ecomShots, id],
+                    }))}
+                    className={cn(
+                      "flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--radius-sm)] border text-[11px] cursor-pointer transition-colors text-left",
+                      on ? "bg-[var(--color-action-subtle)] border-[var(--color-action-muted)] text-fg" : "bg-surface-0 border-edge text-fg-muted hover:text-fg",
+                    )}
+                  >
+                    <span className={cn("w-3.5 h-3.5 rounded-[4px] border flex items-center justify-center shrink-0", on ? "bg-[var(--color-action)] border-[var(--color-action)]" : "border-edge-strong")}>
+                      {on && <Check size={10} className="text-[var(--color-action-fg)]" />}
+                    </span>
+                    {shot.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-fg-faint">
+              {config.ecomShots.length === 0
+                ? "Elegí al menos una toma."
+                : `${config.ecomShots.length} toma${config.ecomShots.length === 1 ? "" : "s"} · las on-model necesitan un modelo seleccionado; las flat usan solo la prenda.`}
+            </p>
+          </div>
+        </div>
+      )}
+
       {tool.id === "fashion_reel" && (
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-4">
           {/* Mode toggle */}
@@ -3183,8 +3259,33 @@ function ConfigPanel({
         </div>
       )}
 
-      {(schema.showReference || tool.id === "content_analyzer") && (
-        <div className={cn("gap-4", tool.id === "static_ad" ? "grid grid-cols-2" : "space-y-4")}>
+      {/* Ecommerce Pack: Look & Feel + Pose, compact and side-by-side (not full-width). */}
+      {tool.id === "ecommerce_pack" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <CompactRefCard
+            title="Referencia Look & Feel"
+            hint="Imagen de iluminación/estética — Nano Banana copia el look, no el contenido."
+            files={config.referenceImages}
+            onAdd={(f) => setConfig((p) => ({ ...p, referenceImages: [f] }))}
+            onRemove={(i) => setConfig((p) => ({ ...p, referenceImages: p.referenceImages.filter((_, j) => j !== i) }))}
+          />
+          <CompactRefCard
+            title="Referencia de POSE"
+            hint="Solo postura y encuadre — no toma luz, escena ni estilo."
+            files={config.poseReference}
+            onAdd={(f) => setConfig((p) => ({ ...p, poseReference: [f] }))}
+            onRemove={(i) => setConfig((p) => ({ ...p, poseReference: p.poseReference.filter((_, j) => j !== i) }))}
+          />
+        </div>
+      )}
+
+      {(schema.showReference || tool.id === "content_analyzer") && tool.id !== "ecommerce_pack" && (
+        <div className={cn(
+          "gap-4",
+          tool.id === "static_ad" ? "grid grid-cols-2" : "space-y-4",
+          // Single-image reference tools → keep it compact (not full-width sprawl).
+          ["fashion_reel", "ugc_creator", "product_spotlight", "product_clip"].includes(tool.id) && "sm:max-w-md",
+        )}>
           {/* Reference Image — single for Static Ad, multiple for Ad Creative Lab */}
           <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
             <div className="flex items-center justify-between">
@@ -3193,6 +3294,7 @@ function ConfigPanel({
                   : tool.id === "fashion_reel" ? "Referencia de POSE"
                   : tool.id === "ugc_creator" ? "Composition Reference"
                   : tool.id === "carousel_creator" ? "Template del Carousel"
+                  : tool.id === "ecommerce_pack" ? "Referencia Look & Feel"
                   : (tool.id === "static_ad" || tool.id === "product_clip") ? "Reference Image"
                   : "Reference Images"}
                 <span className="text-fg-faint font-normal ml-1">
@@ -3200,6 +3302,7 @@ function ConfigPanel({
                     : tool.id === "fashion_reel" ? "(solo postura y encuadre — no toma luz ni escena)"
                     : tool.id === "ugc_creator" ? "(optional — pose/setting reference for first scene)"
                     : tool.id === "carousel_creator" ? "(layout / tipografía / estilo que respetan TODOS los slides)"
+                    : tool.id === "ecommerce_pack" ? "(imagen de iluminación/estética — Nano Banana copia el look, no el contenido)"
                     : (tool.id === "static_ad" || tool.id === "product_clip") ? "(style/mood reference)"
                     : "(campaign style references)"}
                 </span>
@@ -3524,47 +3627,16 @@ function ConfigPanel({
       )}
 
       {/* Pose reference — for tools that generate a person (static_ad, product_spotlight).
-          Scoped in the handler: takes ONLY the body position, not the scene/style. */}
+          Compact + half-width, matching Ecommerce Pack. */}
       {(tool.id === "static_ad" || tool.id === "product_spotlight") && (
-        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-[12px] font-semibold text-fg-secondary">
-              Referencia de POSE
-              <span className="text-fg-faint font-normal ml-1">(solo postura — no toma luz, escena ni estilo)</span>
-            </label>
-            <span className="text-[10px] text-fg-faint">{config.poseReference.length} subida</span>
-          </div>
-          {config.poseReference.length > 0 && (
-            <div className="flex gap-1.5 flex-wrap">
-              {config.poseReference.map((file, i) => (
-                <div key={i} className="relative w-12 h-12 rounded-[var(--radius-sm)] overflow-hidden border border-edge group shrink-0">
-                  <img src={URL.createObjectURL(file)} alt={file.name} className="w-full h-full object-cover" />
-                  <button
-                    onClick={() => setConfig((p) => ({ ...p, poseReference: p.poseReference.filter((_, j) => j !== i) }))}
-                    className="absolute top-0 right-0 w-4 h-4 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                  >
-                    <span className="text-white text-[8px]">×</span>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <label className="flex items-center justify-center gap-1.5 py-2 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[10px] transition-all border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg">
-            <Plus size={11} /> Subir pose
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) setConfig((p) => ({ ...p, poseReference: [f] }));
-                e.target.value = "";
-              }}
-            />
-          </label>
-          <p className="text-[10px] text-fg-faint leading-relaxed">
-            El modelo va a copiar la POSTURA de esta imagen. El estilo/mood viene del &ldquo;style reference&rdquo;, la dirección de arte del moodboard.
-          </p>
+        <div className="sm:max-w-md">
+          <CompactRefCard
+            title="Referencia de POSE"
+            hint="Solo postura y encuadre — no toma luz, escena ni estilo. El estilo/mood viene del style reference / moodboard."
+            files={config.poseReference}
+            onAdd={(f) => setConfig((p) => ({ ...p, poseReference: [f] }))}
+            onRemove={(i) => setConfig((p) => ({ ...p, poseReference: p.poseReference.filter((_, j) => j !== i) }))}
+          />
         </div>
       )}
 
@@ -7044,11 +7116,11 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       // wardrobe (worn). The user can flip it — controls whether the item gets
       // featured/close-up treatment or styling/background treatment in the output.
       roles?: Record<string, "hero" | "wardrobe">;
-      // How detected garments map to brand assets:
-      //  - "individual" (default): each detected garment → its own asset.
-      //  - "complete": treat the whole look as ONE outfit → a single asset, stored under
-      //    the synthetic confirmation key "outfits:__complete__".
-      outfitMode?: "individual" | "complete";
+      // Per-scene outfit granularity. Detected garments are grouped by scene; for each
+      // scene the user picks "individual" (each garment → its own asset) or "complete"
+      // (the whole scene look → ONE asset, stored under "outfits:__scene_<N>__").
+      // Keyed by scene number as a string. Default per scene is "individual".
+      outfitSceneModes?: Record<string, "individual" | "complete">;
       skipped?: boolean;
     }
     const data = result as MapResult;
@@ -7160,14 +7232,14 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       onUpdateStepResult("map_assets", { ...data, roles: { ...roles, [`${cat}:${detectedId}`]: role } });
     };
 
-    // Outfit granularity: individual garments vs one complete outfit.
-    const COMPLETE_OUTFIT_KEY = "__complete__";
-    const outfitMode: "individual" | "complete" = data.outfitMode || "individual";
-    const completeOutfitId = confirmations[`outfits:${COMPLETE_OUTFIT_KEY}`] ?? null;
-    const setOutfitMode = (mode: "individual" | "complete") => {
+    // Per-scene outfit granularity. Each scene can be "individual" or "complete".
+    const outfitSceneModes = data.outfitSceneModes || {};
+    const sceneOutfitMode = (s: number): "individual" | "complete" => outfitSceneModes[String(s)] || "individual";
+    const setSceneOutfitMode = (s: number, mode: "individual" | "complete") => {
       if (!onUpdateStepResult) return;
-      onUpdateStepResult("map_assets", { ...data, outfitMode: mode });
+      onUpdateStepResult("map_assets", { ...data, outfitSceneModes: { ...outfitSceneModes, [String(s)]: mode } });
     };
+    const sceneCompleteKey = (s: number) => `__scene_${s}__`;
 
     return (
       <div className="space-y-4">
@@ -7186,6 +7258,30 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
 
         {categories.map(({ key, label, emoji, brandAssets }) => {
           const items = matches[key] || [];
+          // One detected-item row, with every callback wired to this category.
+          const row = (item: MatchItem, showScenes = true) => (
+            <DetectedItemRow
+              key={item.detected_id}
+              item={item}
+              cat={key}
+              brandAssets={brandAssets}
+              confirmedId={confirmations[`${key}:${item.detected_id}`] ?? null}
+              overrideText={overrides[`${key}:${item.detected_id}`]}
+              isEditing={editingId === `ovr:${key}:${item.detected_id}`}
+              role={roleOf(key, item.detected_id)}
+              showScenes={showScenes}
+              onChoice={(id) => setChoice(key, item.detected_id, id)}
+              onToggleRole={() => setRole(key, item.detected_id, roleOf(key, item.detected_id) === "hero" ? "wardrobe" : "hero")}
+              onSetOverride={(t) => setOverride(key, item.detected_id, t)}
+              onStartEdit={() => setEditingId(`ovr:${key}:${item.detected_id}`)}
+              onStopEdit={() => setEditingId(null)}
+              onRemove={() => removeEntry(key, item.detected_id)}
+            />
+          );
+          // Outfits are grouped by scene so it's clear which garments belong where.
+          const sceneNums = key === "outfits"
+            ? [...new Set(items.flatMap((it) => it.scenes || []))].sort((a, b) => a - b)
+            : [];
           return (
             <div key={key} className="bg-surface-0 border border-edge rounded-[var(--radius-md)] p-3 space-y-2.5">
               <div className="text-[11px] font-semibold text-fg uppercase tracking-wider flex items-center justify-between">
@@ -7197,164 +7293,59 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 )}
               </div>
 
-              {/* Outfit granularity toggle — only for the outfits category */}
-              {key === "outfits" && (
-                <>
-                  <div className="flex items-center gap-1 bg-surface-1 border border-edge rounded-full p-0.5 w-fit">
-                    {([["individual", "👕 Prendas sueltas"], ["complete", "🧥 Outfit completo"]] as const).map(([m, lbl]) => (
-                      <button
-                        key={m}
-                        onClick={() => setOutfitMode(m)}
-                        className={cn(
-                          "px-3 py-1 text-[11px] rounded-full cursor-pointer transition-colors",
-                          outfitMode === m ? "bg-[var(--color-action-subtle)] text-fg" : "text-fg-muted hover:text-fg",
-                        )}
-                      >
-                        {lbl}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-fg-faint">
-                    {outfitMode === "complete"
-                      ? "El look detectado se mapea a UNA sola prenda/outfit de tu kit."
-                      : "Cada prenda detectada se mapea a su propio asset."}
-                  </p>
-                </>
+              {key === "outfits" && items.length > 0 && sceneNums.length > 0 && (
+                <p className="text-[10px] text-fg-faint">
+                  Agrupado por escena. En cada una elegí <strong>prendas sueltas</strong> (cada prenda → su asset) o <strong>outfit completo</strong> (todo el look → un asset).
+                </p>
               )}
 
-              {key === "outfits" && outfitMode === "complete" ? (
-                <div className="bg-surface-1 rounded-[var(--radius-sm)] p-2.5 space-y-1.5">
-                  <p className="text-[12px] text-fg-muted leading-snug">
-                    Elegí la prenda de tu kit que representa todo el look
-                    {items.length > 0 && (
-                      <span className="text-fg-faint"> · detectado: {items.map((it) => it.description).join(" · ").slice(0, 120)}</span>
-                    )}
-                  </p>
-                  <AssetPickerDropdown
-                    options={brandAssets}
-                    value={completeOutfitId}
-                    onChange={(id) => setChoice("outfits", COMPLETE_OUTFIT_KEY, id)}
-                  />
-                </div>
-              ) : items.length === 0 ? (
+              {items.length === 0 ? (
                 <p className="text-[11px] text-fg-faint italic">No se detectó ninguno en el video. Podés agregar uno manualmente abajo.</p>
-              ) : (
-                items.map((item) => {
-                  const isManual = item.detected_id.startsWith("manual_");
-                  const confirmedId = confirmations[`${key}:${item.detected_id}`] ?? null;
-                  const confidencePct = Math.round((item.confidence || 0) * 100);
-                  const overrideKey = `${key}:${item.detected_id}`;
-                  const overrideText = overrides[overrideKey];
-                  const isEditingOverride = editingId === `ovr:${overrideKey}`;
+              ) : key === "outfits" && sceneNums.length > 0 ? (
+                // Outfits grouped by scene, each with its own individual/complete toggle.
+                sceneNums.map((s) => {
+                  const sceneItems = items.filter((it) => (it.scenes || []).includes(s));
+                  const mode = sceneOutfitMode(s);
+                  const completeId = confirmations[`outfits:${sceneCompleteKey(s)}`] ?? null;
                   return (
-                    <div key={item.detected_id} className="bg-surface-1 rounded-[var(--radius-sm)] p-2.5 space-y-1.5 relative">
-                      {isManual && (
-                        <span className="absolute top-1.5 right-1.5 text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-action-subtle)] text-[var(--color-action)] uppercase tracking-wider">
-                          manual
+                    <div key={`scene_${s}`} className="border border-edge rounded-[var(--radius-sm)] p-2.5 space-y-2 bg-surface-1/40">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-[11px] font-bold text-fg flex items-center gap-1.5">
+                          <span className="w-5 h-5 rounded-full bg-[var(--color-action-subtle)] text-[var(--color-action)] flex items-center justify-center text-[10px]">{s}</span>
+                          Escena {s} <span className="text-fg-faint font-normal">({sceneItems.length} {sceneItems.length === 1 ? "prenda" : "prendas"})</span>
                         </span>
-                      )}
-                      {/* Original detected description — struck through when an override is active */}
-                      <p className={cn(
-                        "text-[12px] leading-snug pr-12",
-                        overrideText ? "text-fg-faint line-through decoration-1" : "text-fg-muted",
-                      )}>
-                        {item.description}
-                      </p>
-                      {/* Active override — what will actually be used */}
-                      {overrideText && !isEditingOverride && (
-                        <p className="text-[12px] text-blue-300 leading-snug flex items-start gap-1.5 pr-12">
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 uppercase tracking-wider shrink-0 mt-0.5">cambiado</span>
-                          <span>{overrideText}</span>
-                        </p>
-                      )}
-                      {/* Inline editor */}
-                      {isEditingOverride && (
-                        <div className="space-y-1.5">
-                          <textarea
-                            defaultValue={overrideText || item.description}
-                            rows={2}
-                            autoFocus
-                            placeholder="Describí cómo querés que sea en TU versión (ej: 'mujer con vestido largo' / 'playa soleada de día')"
-                            className="w-full text-[12px] text-fg bg-surface-2 border border-[var(--color-edge-focus)] rounded-[var(--radius-sm)] px-2 py-1.5 outline-none resize-none"
-                            onBlur={(e) => { setOverride(key, item.detected_id, e.target.value); setEditingId(null); }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Escape") { e.preventDefault(); setEditingId(null); }
-                            }}
-                          />
-                          <p className="text-[9px] text-fg-faint">Enter/click afuera para guardar · Esc para cancelar</p>
-                        </div>
-                      )}
-                      {item.scenes?.length > 0 && (
-                        <p className="text-[10px] text-fg-faint">Escenas: {item.scenes.join(", ")}</p>
-                      )}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <AssetPickerDropdown
-                          options={brandAssets}
-                          value={confirmedId}
-                          onChange={(id) => setChoice(key, item.detected_id, id)}
-                        />
-                        {/* Role toggle — only for garment categories. Self-explanatory
-                            labels: what the item is FOR in the content. Default inferred
-                            from category; user flips with one click. */}
-                        {(key === "outfits" || key === "products") && (() => {
-                          const role = roleOf(key, item.detected_id);
-                          return (
+                        <div className="flex items-center gap-1 bg-surface-2 border border-edge rounded-full p-0.5">
+                          {([["individual", "👕 Sueltas"], ["complete", "🧥 Outfit completo"]] as const).map(([m, lbl]) => (
                             <button
-                              onClick={() => setRole(key, item.detected_id, role === "hero" ? "wardrobe" : "hero")}
-                              title={role === "hero" ? "Esta prenda es el PRODUCTO QUE VENDÉS en este contenido — recibe close-ups y el foco. Click para marcarla como 'solo la usa'." : "La modelo solo la USA para el look, no es el foco de venta. Click para marcarla como 'producto a vender'."}
-                              className={cn(
-                                "text-[10px] px-2 py-0.5 rounded-full cursor-pointer flex items-center gap-1 font-medium transition-colors",
-                                role === "hero"
-                                  ? "bg-[var(--color-action)]/15 text-[var(--color-action)] hover:bg-[var(--color-action)]/25"
-                                  : "bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3",
-                              )}
+                              key={m}
+                              onClick={() => setSceneOutfitMode(s, m)}
+                              className={cn("px-2.5 py-0.5 text-[10px] rounded-full cursor-pointer transition-colors", mode === m ? "bg-[var(--color-action-subtle)] text-fg" : "text-fg-muted hover:text-fg")}
                             >
-                              {role === "hero" ? "🎯 Producto a vender" : "👕 Solo la usa"}
+                              {lbl}
                             </button>
-                          );
-                        })()}
-                        {/* Adjust / change text — works even when brand kit is empty */}
-                        {!isEditingOverride && (
-                          <button
-                            onClick={() => setEditingId(`ovr:${overrideKey}`)}
-                            className="text-[10px] px-2 py-0.5 rounded-full bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 cursor-pointer flex items-center gap-1"
-                          >
-                            <Pencil size={9} /> {overrideText ? "Editar cambio" : "Ajustar"}
-                          </button>
-                        )}
-                        {overrideText && !isEditingOverride && (
-                          <button
-                            onClick={() => setOverride(key, item.detected_id, "")}
-                            className="text-[10px] text-fg-faint hover:text-error cursor-pointer flex items-center gap-1"
-                          >
-                            <X size={9} /> Quitar cambio
-                          </button>
-                        )}
-                        {!isManual && item.suggested_brand_id && confirmedId === item.suggested_brand_id && (
-                          <span className={cn(
-                            "text-[10px] px-2 py-0.5 rounded-full",
-                            confidencePct >= 75 ? "bg-success-muted text-success" :
-                              confidencePct >= 50 ? "bg-warning-muted text-warning" :
-                                "bg-surface-2 text-fg-faint"
-                          )}>
-                            sugerido · {confidencePct}%
-                          </span>
-                        )}
-                        {!isManual && item.reason && !overrideText && (
-                          <span className="text-[10px] text-fg-faint italic">{item.reason}</span>
-                        )}
-                        {isManual && (
-                          <button
-                            onClick={() => removeEntry(key, item.detected_id)}
-                            className="text-[10px] text-fg-faint hover:text-error cursor-pointer flex items-center gap-1"
-                          >
-                            <X size={10} /> Quitar
-                          </button>
-                        )}
+                          ))}
+                        </div>
                       </div>
+                      {mode === "complete" ? (
+                        <div className="bg-surface-1 rounded-[var(--radius-sm)] p-2.5 space-y-1.5">
+                          <p className="text-[11px] text-fg-muted leading-snug">
+                            Una sola prenda de tu kit para todo el look de esta escena
+                            <span className="text-fg-faint"> · detectado: {sceneItems.map((it) => it.description).join(" · ").slice(0, 140)}</span>
+                          </p>
+                          <AssetPickerDropdown
+                            options={brandAssets}
+                            value={completeId}
+                            onChange={(id) => setChoice("outfits", sceneCompleteKey(s), id)}
+                          />
+                        </div>
+                      ) : (
+                        sceneItems.map((item) => row(item, false))
+                      )}
                     </div>
                   );
                 })
+              ) : (
+                items.map((item) => row(item))
               )}
 
               {/* Add manually */}
@@ -10853,6 +10844,158 @@ function AssetPickerDropdown({ options, value, onChange }: {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * One detected-asset row in the Map Assets step: original description (with optional
+ * override), scene tags, the brand-asset dropdown, role toggle (garments), and the
+ * adjust/remove controls. Reused by every category and by the per-scene outfit grouping.
+ */
+function DetectedItemRow({
+  item, cat, brandAssets, confirmedId, overrideText, isEditing, role, showScenes = true,
+  onChoice, onToggleRole, onSetOverride, onStartEdit, onStopEdit, onRemove,
+}: {
+  item: { detected_id: string; description: string; scenes: number[]; suggested_brand_id: string | null; confidence: number; reason: string };
+  cat: "persons" | "outfits" | "products" | "locations";
+  brandAssets: Array<{ id: string; name: string; description?: string; imageUrl?: string }>;
+  confirmedId: string | null;
+  overrideText?: string;
+  isEditing: boolean;
+  role: "hero" | "wardrobe";
+  showScenes?: boolean;
+  onChoice: (id: string | null) => void;
+  onToggleRole: () => void;
+  onSetOverride: (text: string) => void;
+  onStartEdit: () => void;
+  onStopEdit: () => void;
+  onRemove: () => void;
+}) {
+  const isManual = item.detected_id.startsWith("manual_");
+  const confidencePct = Math.round((item.confidence || 0) * 100);
+  return (
+    <div className="bg-surface-1 rounded-[var(--radius-sm)] p-2.5 space-y-1.5 relative">
+      {isManual && (
+        <span className="absolute top-1.5 right-1.5 text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-action-subtle)] text-[var(--color-action)] uppercase tracking-wider">
+          manual
+        </span>
+      )}
+      <p className={cn("text-[12px] leading-snug pr-12", overrideText ? "text-fg-faint line-through decoration-1" : "text-fg-muted")}>
+        {item.description}
+      </p>
+      {overrideText && !isEditing && (
+        <p className="text-[12px] text-blue-300 leading-snug flex items-start gap-1.5 pr-12">
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 uppercase tracking-wider shrink-0 mt-0.5">cambiado</span>
+          <span>{overrideText}</span>
+        </p>
+      )}
+      {isEditing && (
+        <div className="space-y-1.5">
+          <textarea
+            defaultValue={overrideText || item.description}
+            rows={2}
+            autoFocus
+            placeholder="Describí cómo querés que sea en TU versión (ej: 'mujer con vestido largo' / 'playa soleada de día')"
+            className="w-full text-[12px] text-fg bg-surface-2 border border-[var(--color-edge-focus)] rounded-[var(--radius-sm)] px-2 py-1.5 outline-none resize-none"
+            onBlur={(e) => { onSetOverride(e.target.value); onStopEdit(); }}
+            onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onStopEdit(); } }}
+          />
+          <p className="text-[9px] text-fg-faint">Enter/click afuera para guardar · Esc para cancelar</p>
+        </div>
+      )}
+      {showScenes && item.scenes?.length > 0 && (
+        <p className="text-[10px] text-fg-faint">Escenas: {item.scenes.join(", ")}</p>
+      )}
+      <div className="flex items-center gap-2 flex-wrap">
+        <AssetPickerDropdown options={brandAssets} value={confirmedId} onChange={onChoice} />
+        {(cat === "outfits" || cat === "products") && (
+          <button
+            onClick={onToggleRole}
+            title={role === "hero" ? "Esta prenda es el PRODUCTO QUE VENDÉS en este contenido — recibe close-ups y el foco. Click para marcarla como 'solo la usa'." : "La modelo solo la USA para el look, no es el foco de venta. Click para marcarla como 'producto a vender'."}
+            className={cn(
+              "text-[10px] px-2 py-0.5 rounded-full cursor-pointer flex items-center gap-1 font-medium transition-colors",
+              role === "hero" ? "bg-[var(--color-action)]/15 text-[var(--color-action)] hover:bg-[var(--color-action)]/25" : "bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3",
+            )}
+          >
+            {role === "hero" ? "🎯 Producto a vender" : "👕 Solo la usa"}
+          </button>
+        )}
+        {!isEditing && (
+          <button
+            onClick={onStartEdit}
+            className="text-[10px] px-2 py-0.5 rounded-full bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 cursor-pointer flex items-center gap-1"
+          >
+            <Pencil size={9} /> {overrideText ? "Editar cambio" : "Ajustar"}
+          </button>
+        )}
+        {overrideText && !isEditing && (
+          <button onClick={() => onSetOverride("")} className="text-[10px] text-fg-faint hover:text-error cursor-pointer flex items-center gap-1">
+            <X size={9} /> Quitar cambio
+          </button>
+        )}
+        {!isManual && item.suggested_brand_id && confirmedId === item.suggested_brand_id && (
+          <span className={cn(
+            "text-[10px] px-2 py-0.5 rounded-full",
+            confidencePct >= 75 ? "bg-success-muted text-success" : confidencePct >= 50 ? "bg-warning-muted text-warning" : "bg-surface-2 text-fg-faint",
+          )}>
+            sugerido · {confidencePct}%
+          </span>
+        )}
+        {!isManual && item.reason && !overrideText && (
+          <span className="text-[10px] text-fg-faint italic">{item.reason}</span>
+        )}
+        {isManual && (
+          <button onClick={onRemove} className="text-[10px] text-fg-faint hover:text-error cursor-pointer flex items-center gap-1">
+            <X size={10} /> Quitar
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Compact single-image reference uploader (thumbnail + inline upload zone). Used for the
+ * Look & Feel and Pose slots so they sit half-width in a grid instead of full-width cards.
+ */
+function CompactRefCard({ title, hint, files, accept = "image/*", onAdd, onRemove }: {
+  title: string;
+  hint: string;
+  files: File[];
+  accept?: string;
+  onAdd: (f: File) => void;
+  onRemove: (i: number) => void;
+}) {
+  return (
+    <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-[11px] font-semibold text-fg-secondary">{title}</label>
+        <span className="text-[10px] text-fg-faint shrink-0">{files.length || 0}</span>
+      </div>
+      <p className="text-[10px] text-fg-faint leading-snug">{hint}</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        {files.map((file, i) => (
+          <div key={i} className="relative w-11 h-11 rounded-[var(--radius-sm)] overflow-hidden border border-edge group shrink-0">
+            <img src={URL.createObjectURL(file)} alt={file.name} className="w-full h-full object-cover" />
+            <button
+              onClick={() => onRemove(i)}
+              className="absolute top-0 right-0 w-4 h-4 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+            >
+              <span className="text-white text-[8px]">×</span>
+            </button>
+          </div>
+        ))}
+        <label className="flex-1 min-w-[90px] flex items-center justify-center gap-1.5 py-2 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[10px] transition-all border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg">
+          <Plus size={11} /> Subir
+          <input
+            type="file"
+            accept={accept}
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onAdd(f); e.target.value = ""; }}
+          />
+        </label>
+      </div>
     </div>
   );
 }

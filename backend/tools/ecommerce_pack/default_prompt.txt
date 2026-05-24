@@ -1,0 +1,9 @@
+You are generating an e-commerce product shot pack for a fashion garment.
+
+The shot list, studio style and references are assembled by the frontend handler
+(frontend/src/tools/ecommerce_pack/index.ts), which builds one prompt per selected
+shot and keeps the garment pixel-exact across all of them. This template is a
+placeholder for the 3-layer prompt system; the per-shot prompts are generated client-side.
+
+Brand: {brand_name}
+{?brand_guidance}Brand guidance: {brand_guidance}{/brand_guidance}

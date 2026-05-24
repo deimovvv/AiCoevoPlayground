@@ -3050,9 +3050,13 @@ async def image_gen_edit(
                     )
                     resolved_urls.append(fal_url)
 
-        print(f"[image-gen] Resolved {len(resolved_urls)} image URLs")
-        print(f"[image-gen] Prompt: {prompt[:100]}")
-        print(f"[image-gen] Model: {model}")
+        # Compact diagnostic: ref count + types + prompt length. Flags a "LOCAL!" ref that
+        # Fal can't fetch (should never happen — everything is uploaded above).
+        kinds = [
+            "DATA" if u.startswith("data:") else ("FAL" if "fal" in u else ("LOCAL!" if (u.startswith("/static/") or "localhost" in u) else "EXT"))
+            for u in resolved_urls
+        ]
+        print(f"[image-gen] {len(resolved_urls)} refs {kinds} · prompt_len={len(prompt)} · model={model}", flush=True)
 
         if model == "gpt-image-2":
             request_id = await gpt_image_gen.create_edit(

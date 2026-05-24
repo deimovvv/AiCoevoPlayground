@@ -54,6 +54,7 @@ const TOOL_TAGLINES: Record<string, string> = {
   avatar_creator: "Crear nuevos avatars o generar pose sheets para los que ya tenés",
   content_analyzer: "Analizá un video y adaptálo a tu marca",
   video_swap: "Cambiá ropa, producto o fondo en TU video — sin perder el movimiento",
+  ecommerce_pack: "Ficha de producto: prenda sobre modelo + vistas, en estudio",
 };
 
 // Subtle gradient per tool for fallback previews (when no media)
@@ -69,6 +70,7 @@ const TOOL_GRADIENTS: Record<string, string> = {
   avatar_creator: "from-rose-500/30 via-pink-500/20 to-fuchsia-500/30",
   content_analyzer: "from-green-500/30 via-emerald-500/20 to-teal-500/30",
   video_swap: "from-lime-400/30 via-emerald-500/20 to-teal-500/30",
+  ecommerce_pack: "from-stone-400/30 via-neutral-300/20 to-zinc-500/30",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {

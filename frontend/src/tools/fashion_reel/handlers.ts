@@ -387,15 +387,17 @@ export const handleMultishot: StepHandler = async (ctx) => {
     { label: "Movement implied", desc: "Same setup with implied motion — fabric flowing, mid-gesture." },
   ];
 
-  // Same cap as the base step: never hand Nano Banana more refs than it can combine.
-  // `reserve` leaves room for the chain-mode previous-frame ref. Priority: identity →
-  // garment → location → product.
+  // Same cap as the base step. NOTE: the avatar photo is intentionally NOT included here.
+  // Every scene is anchored to scene 1 (or the previous frame), which already carries the
+  // model's identity AND the correct outfit. Re-adding the avatar photo would inject ITS
+  // clothing as a competing signal — that's exactly why scenes 2+ were coming out wearing
+  // the avatar's clothes instead of the selected outfit. `reserve` leaves room for the
+  // anchor ref. Priority: garment → location → product.
   const MAX_SCENE_REFS = 6;
   const buildCappedRefs = (clothingItems: typeof allClothing, reserve = 0): { urls: string[]; desc: string } => {
     type RefCandidate = { url: string; label: string; priority: number };
     const cands: RefCandidate[] = [];
-    if (selectedAvatar?.imageUrl) cands.push({ url: selectedAvatar.imageUrl, priority: 0, label: `same model — EXACT same face, hair, body proportions` });
-    clothingItems.forEach((c) => { if (c.imageUrl) cands.push({ url: c.imageUrl, priority: 1, label: `"${c.name}" — wears this exact garment` }); });
+    clothingItems.forEach((c) => { if (c.imageUrl) cands.push({ url: c.imageUrl, priority: 1, label: `"${c.name}" — the model WEARS this EXACT garment (color, fabric, cut, print). This is the outfit, NOT whatever clothing may appear in the anchor frame's source.` }); });
     if (selectedBackground?.imageUrl) cands.push({ url: selectedBackground.imageUrl, priority: 2, label: `LOCATION ANCHOR — every scene MUST take place in this EXACT environment. Same walls, same props, same lighting direction, same perspective, same time of day. Only the pose and framing change between scenes.` });
     selectedProducts.filter(Boolean).forEach((p) => { if (p?.imageUrl) cands.push({ url: p!.imageUrl, priority: 3, label: `"${p!.name}"` }); });
 

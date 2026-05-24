@@ -211,6 +211,7 @@ async def get_result(request_id: str) -> dict:
         )
 
     if res.status_code not in (200, 202):
+        print(f"[image-gen] result error {res.status_code}: {res.text[:500]}", flush=True)
         raise Exception(_friendly_error(res.text))
 
     data = res.json()

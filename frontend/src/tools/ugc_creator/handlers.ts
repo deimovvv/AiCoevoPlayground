@@ -1171,8 +1171,13 @@ export const handleLipsync: StepHandler = async (ctx) => {
       sceneType = "creative";
     }
 
+    // Match audio STRICTLY by sceneId. The old `|| voiceData[i]` index fallback was
+    // always misaligned when a non-talking (creative) scene sat between talking ones:
+    // voiceData only holds the talking scenes' audios, so voiceData[i] grabbed the wrong
+    // scene's audio (the creative clip ended up playing the next talking scene's audio,
+    // and the last clips repeated). A creative scene legitimately has no audio → silent.
     const voiceEntry = Array.isArray(voiceData)
-      ? voiceData.find((v) => v.sceneId === scene.sceneId) || voiceData[i]
+      ? voiceData.find((v) => v.sceneId === scene.sceneId)
       : undefined;
     const scriptText = voiceEntry?.script || scriptScene?.script || "";
     // Talking scenes without audio are skipped — creative scenes always get animated (no audio needed)
