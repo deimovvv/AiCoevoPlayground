@@ -14,6 +14,7 @@ REST API (Fal queue pattern):
 import os
 import httpx
 from typing import Dict, Optional
+from services.fal_errors import friendly_error
 
 FAL_BASE = "https://queue.fal.run"
 FAL_MODEL = "fal-ai/kling-video/v3/pro/image-to-video"  # Default — full path for submit
@@ -162,7 +163,7 @@ async def create_video(
 
     if res.status_code not in (200, 201):
         print(f"[kling] Submit FAILED: {res.text[:500]}")
-        raise Exception(f"Kling submit failed ({res.status_code}): {res.text[:400]}")
+        raise Exception(friendly_error(res.text, res.status_code, "la animación con Kling"))
 
     data = res.json()
     request_id = data.get("request_id")
@@ -201,7 +202,7 @@ async def get_status(request_id: str) -> dict:
     print(f"[kling] Status response: {res.status_code} - {res.text[:200]}")
 
     if res.status_code not in (200, 202):
-        raise Exception(f"Kling status check failed ({res.status_code}): {res.text[:300]}")
+        raise Exception(friendly_error(res.text, res.status_code, "la animación con Kling"))
 
     data = res.json()
     status_raw = data.get("status", "UNKNOWN").upper()
@@ -239,7 +240,7 @@ async def get_result(request_id: str) -> dict:
         )
 
     if res.status_code not in (200, 202):
-        raise Exception(f"Kling result fetch failed ({res.status_code}): {res.text[:300]}")
+        raise Exception(friendly_error(res.text, res.status_code, "la animación con Kling"))
 
     data = res.json()
     video_data = data.get("video", {})

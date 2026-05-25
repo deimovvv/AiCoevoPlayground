@@ -15,6 +15,7 @@ REST API flow:
 
 import os
 import httpx
+from services.fal_errors import friendly_error
 import asyncio
 
 FAL_BASE = "https://queue.fal.run"
@@ -136,7 +137,7 @@ async def create_lipsync(
         )
 
     if res.status_code not in (200, 201):
-        raise Exception(f"Fal lipsync submit failed ({res.status_code}): {res.text[:400]}")
+        raise Exception(friendly_error(res.text, res.status_code, "el lip-sync"))
 
     data = res.json()
     request_id = data.get("request_id")
@@ -172,7 +173,7 @@ async def get_status(request_id: str) -> dict:
         )
 
     if res.status_code not in (200, 202):
-        raise Exception(f"Fal status check failed ({res.status_code}): {res.text[:300]}")
+        raise Exception(friendly_error(res.text, res.status_code, "el lip-sync"))
 
     data = res.json()
     status_raw = data.get("status", "UNKNOWN").upper()
@@ -216,7 +217,7 @@ async def get_result(request_id: str) -> dict:
         )
 
     if res.status_code not in (200, 202):
-        raise Exception(f"Fal result fetch failed ({res.status_code}): {res.text[:300]}")
+        raise Exception(friendly_error(res.text, res.status_code, "el lip-sync"))
 
     data = res.json()
     video_data = data.get("video", {})

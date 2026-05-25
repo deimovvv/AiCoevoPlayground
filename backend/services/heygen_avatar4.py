@@ -9,6 +9,7 @@ Replaces the old Fal Fabric lip-sync with HeyGen's superior avatar animation.
 
 import os
 import httpx
+from services.fal_errors import friendly_error
 
 FAL_BASE = "https://queue.fal.run"
 FAL_MODEL = "fal-ai/heygen/avatar4/image-to-video"       # Submit endpoint
@@ -81,7 +82,7 @@ async def create_video(
 
     if res.status_code not in (200, 201):
         print(f"[heygen-avatar4] Submit FAILED: {res.text[:500]}")
-        raise Exception(f"HeyGen Avatar4 submit failed ({res.status_code}): {res.text[:400]}")
+        raise Exception(friendly_error(res.text, res.status_code, "el lip-sync con HeyGen"))
 
     data = res.json()
     request_id = data.get("request_id")
