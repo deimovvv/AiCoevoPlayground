@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Loader2, Bot, User, AlertCircle, Plus, MessageSquare, Trash2, Clock, ImageIcon, Package, Mic, Wand2, ChevronDown, ChevronLeft, ChevronRight, Mountain, Shirt, Check, X, Paperclip } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useBrand } from "../lib/BrandContext";
-import { sendChatMessage, resolveAgentBrief } from "../lib/api";
+import { sendChatMessage, resolveAgentBrief, transcribeAudio } from "../lib/api";
 import type { ChatMessage } from "../lib/api";
 import { cn } from "../lib/utils";
 import { ConfigPreviewCard } from "./ConfigPreviewCard";
@@ -110,6 +110,11 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Voice dictation (mic → record → Gemini transcription → fills the input)
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Attachments — images dropped/uploaded into the chat. They get classified by Gemini Vision
   // and routed to the right slot when the user creates a tool from this conversation.
@@ -336,6 +341,45 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
       .filter((a) => a.name.toLowerCase().includes(q) || a.kind.toLowerCase().includes(q))
       .slice(0, 8);
   })();
+
+  // Voice dictation: tap to record, tap again to stop → transcribe → append to input.
+  const toggleRecording = async () => {
+    if (recording) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
+        if (blob.size === 0) return;
+        setTranscribing(true);
+        try {
+          const { text } = await transcribeAudio(blob, "es");
+          if (text) {
+            setInput((prev) => (prev ? prev + " " : "") + text);
+            inputRef.current?.focus();
+          }
+        } catch (err) {
+          console.error("[stt] transcription failed:", err);
+          setError("No se pudo transcribir el audio. Probá de nuevo.");
+        } finally {
+          setTranscribing(false);
+        }
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setRecording(true);
+    } catch (err) {
+      console.error("[stt] mic error:", err);
+      setError("No se pudo acceder al micrófono. Revisá los permisos del navegador.");
+    }
+  };
 
   // Detect "@<word>" right before caret on input change
   const handleInputChange = (value: string, ta: HTMLTextAreaElement | null) => {
@@ -659,6 +703,18 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
                   target.style.height = Math.min(target.scrollHeight, 120) + "px";
                 }}
               />
+              <button
+                onClick={toggleRecording}
+                disabled={transcribing}
+                type="button"
+                title={recording ? "Detener y transcribir" : "Dictar por voz"}
+                className={cn(
+                  "p-1.5 rounded-[var(--radius-sm)] transition-colors shrink-0 cursor-pointer disabled:opacity-50",
+                  recording ? "bg-[var(--color-error)] text-white animate-pulse" : "text-fg-faint hover:text-fg",
+                )}
+              >
+                {transcribing ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} />}
+              </button>
               <button
                 onClick={handleSubmit}
                 disabled={(!input.trim() && attachments.length === 0) || loading}

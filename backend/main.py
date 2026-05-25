@@ -25,6 +25,7 @@ load_dotenv()
 
 # ── Services ─────────────────────────────────────────────────
 from services import tts, heygen, copy_gen, brands
+from services import stt
 from services import fal_lipsync
 from services import kling_video
 from services import image_gen
@@ -919,6 +920,19 @@ async def regenerate_scene_endpoint(brand_id: str, req: RegenerateSceneRequest):
             video_objective=req.videoObjective,
             product_name=req.productName,
         )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/api/stt/transcribe")
+async def stt_transcribe(audio: UploadFile = File(...), language: str = Form("es")):
+    """Transcribe a recorded voice note to text (Gemini multimodal audio)."""
+    if not stt.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    try:
+        data = await audio.read()
+        text = await stt.transcribe(data, audio.content_type or "audio/webm", language)
+        return {"text": text}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 

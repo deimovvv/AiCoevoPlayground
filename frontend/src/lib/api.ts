@@ -380,6 +380,22 @@ export async function generateCopy(brandId: string, req: GenerateCopyRequest): P
 }
 
 /**
+ * Transcribe a recorded voice note to text (Gemini multimodal audio, backend).
+ * Used by the chat mic button.
+ */
+export async function transcribeAudio(blob: Blob, language = "es"): Promise<{ text: string }> {
+    const fd = new FormData();
+    fd.append("audio", blob, "voice-note.webm");
+    fd.append("language", language);
+    const res = await fetch(`${API_BASE}/api/stt/transcribe`, { method: "POST", body: fd });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Transcription failed (${res.status})`);
+    }
+    return res.json();
+}
+
+/**
  * Rewrite ONE scene of a UGC script. Sends the full script (all scenes) as context so the
  * regenerated scene stays coherent with the rest. Returns the new script + image_prompt.
  */
