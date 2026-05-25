@@ -40,6 +40,7 @@ const TOOL_PREVIEW_MEDIA: Record<string, { url: string; type: "image" | "video" 
   fashion_reel: { url: "/previews/agnatesttt.mp4", type: "video" },
   static_ad: { url: "/previews/staticad.png", type: "image" },
   ecommerce_pack: { url: "/previews/eccomerce.png", type: "image" },
+  avatar_creator: { url: "/previews/avatar.png", type: "image" },
 };
 
 // Punchy tagline per tool — overrides description on card
@@ -98,6 +99,10 @@ export function GeneratePage() {
   }, []);
 
   const filteredTools = filter === "all" ? tools : tools.filter((t) => t.category === filter);
+  // Tools with a real preview (photo/video) go first — they read better in the grid.
+  const orderedTools = [...filteredTools].sort(
+    (a, b) => (TOOL_PREVIEW_MEDIA[b.id] ? 1 : 0) - (TOOL_PREVIEW_MEDIA[a.id] ? 1 : 0),
+  );
   const categories = [...new Set(tools.map((t) => t.category))];
 
   if (loading) {
@@ -146,7 +151,7 @@ export function GeneratePage() {
 
       {/* Tools grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        {filteredTools.map((tool) => (
+        {orderedTools.map((tool) => (
           <ToolCard
             key={tool.id}
             tool={tool}
