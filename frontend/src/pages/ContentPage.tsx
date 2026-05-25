@@ -2,7 +2,7 @@ import { FolderOpen, Image, Video, FileText, Search, Grid3X3, List, Trash2, Exte
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { useBrand } from "../lib/BrandContext";
-import { fetchGenerations, deleteGeneration, createReview, getGenerationReview, listReviews } from "../lib/api";
+import { fetchGenerations, deleteGeneration, createReview, getGenerationReview, listReviews, ensureBrandPortal, setGenerationPublished } from "../lib/api";
 import type { Generation, ReviewData } from "../lib/api";
 import { cn } from "../lib/utils";
 
@@ -40,6 +40,20 @@ export function ContentPage() {
         }).catch(() => setReviewsByGen({}));
     }, [activeBrand?.id]);
 
+    const [portalCopied, setPortalCopied] = useState(false);
+    const copyPortalLink = async () => {
+        if (!activeBrand) return;
+        try {
+            const { token } = await ensureBrandPortal(activeBrand.id);
+            const url = `${window.location.origin}/portal/${token}`;
+            try { await navigator.clipboard.writeText(url); } catch { /* clipboard blocked */ }
+            setPortalCopied(true);
+            setTimeout(() => setPortalCopied(false), 2500);
+        } catch (e) {
+            console.error("[portal] link failed:", e);
+        }
+    };
+
     // Summary of client feedback for a generation, or null if none yet.
     const reviewSummary = (genId: string): { approved: number; changes: number } | null => {
         const r = reviewsByGen[genId];
@@ -75,11 +89,23 @@ export function ContentPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-[22px] font-semibold text-fg tracking-tight">Contenido</h1>
-                <p className="text-[14px] text-fg-muted mt-1">
-                    Todo el contenido generado para {activeBrand?.name || "tu marca"}
-                </p>
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <h1 className="text-[22px] font-semibold text-fg tracking-tight">Contenido</h1>
+                    <p className="text-[14px] text-fg-muted mt-1">
+                        Todo el contenido generado para {activeBrand?.name || "tu marca"}
+                    </p>
+                </div>
+                {activeBrand && (
+                    <button
+                        onClick={copyPortalLink}
+                        title="Link del portal del cliente — ve todo lo que publiques para esta marca"
+                        className="flex items-center gap-1.5 h-9 px-3 rounded-[var(--radius-sm)] text-[12px] font-medium border border-edge text-fg-muted hover:text-fg hover:border-[var(--color-action)] cursor-pointer shrink-0 transition-colors"
+                    >
+                        {portalCopied ? <Check size={14} /> : <Share2 size={14} />}
+                        {portalCopied ? "¡Link copiado!" : "Portal del cliente"}
+                    </button>
+                )}
             </div>
 
             {/* Toolbar */}
@@ -420,6 +446,14 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
     const [copied, setCopied] = useState(false);
     const [clientReview, setClientReview] = useState<ReviewData | null>(null);
     useEffect(() => { getGenerationReview(gen.id).then(setClientReview).catch(() => {}); }, [gen.id]);
+    const [published, setPublished] = useState<boolean>(!!(gen as unknown as { publishedToPortal?: boolean }).publishedToPortal);
+    const [publishing, setPublishing] = useState(false);
+    const togglePublish = async () => {
+        setPublishing(true);
+        try { const r = await setGenerationPublished(gen.id, !published); setPublished(r.published); }
+        catch (e) { console.error("[portal] publish failed:", e); }
+        finally { setPublishing(false); }
+    };
     const clientFeedback = clientReview?.feedback ? Object.entries(clientReview.feedback).filter(([, v]) => v.status) : [];
     const handleShareReview = async () => {
         setSharing(true);
@@ -524,17 +558,31 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                         </div>
                     )}
 
-                    {/* Share for client review — creates a link the client opens to approve / comment per clip */}
+                    {/* Client review + portal */}
                     {gen.status === "completed" && (
                         <div className="space-y-1.5">
-                            <button
-                                onClick={handleShareReview}
-                                disabled={sharing}
-                                className="flex items-center justify-center gap-2 w-full py-2.5 border border-edge hover:border-[var(--color-action)] text-fg-muted hover:text-fg font-medium rounded-[var(--radius-sm)] text-[13px] cursor-pointer disabled:opacity-50 transition-colors"
-                            >
-                                {sharing ? <Loader2 size={13} className="animate-spin" /> : copied ? <Check size={13} /> : <Share2 size={13} />}
-                                {copied ? "¡Link copiado!" : "Compartir review con el cliente"}
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleShareReview}
+                                    disabled={sharing}
+                                    className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-edge hover:border-[var(--color-action)] text-fg-muted hover:text-fg font-medium rounded-[var(--radius-sm)] text-[13px] cursor-pointer disabled:opacity-50 transition-colors"
+                                >
+                                    {sharing ? <Loader2 size={13} className="animate-spin" /> : copied ? <Check size={13} /> : <Share2 size={13} />}
+                                    {copied ? "¡Copiado!" : "Compartir review"}
+                                </button>
+                                <button
+                                    onClick={togglePublish}
+                                    disabled={publishing}
+                                    title={published ? "Visible en el portal del cliente — click para ocultar" : "Publicar al portal del cliente (lo ve junto al resto de su contenido)"}
+                                    className={cn(
+                                        "flex items-center justify-center gap-2 py-2.5 px-3 rounded-[var(--radius-sm)] text-[13px] font-medium cursor-pointer disabled:opacity-50 transition-colors border",
+                                        published ? "bg-[var(--color-action-subtle)] border-[var(--color-action-muted)] text-fg" : "border-edge text-fg-muted hover:text-fg hover:border-[var(--color-action)]",
+                                    )}
+                                >
+                                    {publishing ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                                    {published ? "En el portal" : "Publicar al portal"}
+                                </button>
+                            </div>
                             {shareUrl && (
                                 <p className="text-[10px] text-fg-faint break-all">
                                     <a href={shareUrl} target="_blank" rel="noreferrer" className="hover:text-fg underline">{shareUrl}</a>

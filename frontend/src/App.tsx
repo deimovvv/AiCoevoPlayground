@@ -11,6 +11,7 @@ import PipelineConfigPage from "./pages/PipelineConfigPage";
 import { GeneratePage } from "./pages/GeneratePage";
 import { ToolRunPage } from "./pages/ToolRunPage";
 import { ReviewPage } from "./pages/ReviewPage";
+import { PortalPage } from "./pages/PortalPage";
 import { BrandProvider } from "./lib/BrandContext";
 import { Workspace } from "./pages/Workspace";
 import { BrandSettings } from "./pages/BrandSettings";
@@ -47,8 +48,9 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      {/* Public client review — no BrandProvider / no app nav (client opens with a token) */}
+      {/* Public client review + portal — no BrandProvider / no app nav (token in URL) */}
       <Route path="/review/:token" element={<ReviewPage />} />
+      <Route path="/portal/:token" element={<PortalPage />} />
       <Route
         path="/dashboard"
         element={

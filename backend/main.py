@@ -3463,6 +3463,97 @@ def get_generation_review(gen_id: str):
     return review or {}
 
 
+def _ensure_review(gen: dict) -> dict:
+    """Find or create the review record for a generation (refreshing its clips)."""
+    from datetime import datetime, timezone
+    reviews = _load_reviews()
+    existing = next((r for r in reviews if r.get("generationId") == gen.get("id")), None)
+    if existing:
+        existing["clips"] = _extract_clips(gen)
+        existing["title"] = gen.get("title")
+        existing["outputUrl"] = gen.get("outputUrl")
+        _save_reviews(reviews)
+        return existing
+    review = {
+        "token": f"rv_{uuid.uuid4().hex[:12]}",
+        "generationId": gen.get("id"),
+        "brandId": gen.get("brandId"),
+        "title": gen.get("title"),
+        "outputUrl": gen.get("outputUrl"),
+        "clips": _extract_clips(gen),
+        "feedback": {},
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+    reviews.append(review)
+    _save_reviews(reviews)
+    return review
+
+
+# ══════════════════════════════════════════════════════════════
+#  Client Portal — per-brand magic link, curated by the agency
+# ══════════════════════════════════════════════════════════════
+
+class PublishRequest(BaseModel):
+    published: bool = True
+
+
+@app.post("/api/generations/{gen_id}/publish")
+async def publish_generation(gen_id: str, req: PublishRequest):
+    """Agency: show/hide a generation in the client portal."""
+    gens = _load_generations()
+    gen = next((g for g in gens if g.get("id") == gen_id), None)
+    if not gen:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    gen["publishedToPortal"] = req.published
+    _save_generations(gens)
+    if req.published:
+        _ensure_review(gen)  # so the portal has clips + a review token ready
+    return {"ok": True, "published": req.published}
+
+
+@app.post("/api/brands/{brand_id}/portal")
+async def ensure_brand_portal(brand_id: str):
+    """Agency: get (or create) the brand's client-portal magic link token."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not brand.get("portalToken"):
+        brand["portalToken"] = f"pt_{uuid.uuid4().hex[:12]}"
+        brands.save_brands(all_brands)
+    return {"token": brand["portalToken"]}
+
+
+@app.get("/api/portal/{token}")
+def get_portal(token: str):
+    """Public: the client opens /portal/{token} and sees the brand's PUBLISHED content."""
+    all_brands = brands.load_brands()
+    brand = next((b for b in all_brands if b.get("portalToken") == token), None)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Portal not found")
+    gens = [g for g in _load_generations()
+            if g.get("brandId") == brand.get("id") and g.get("publishedToPortal") and g.get("status") == "completed"]
+    gens.sort(key=lambda g: g.get("createdAt", ""), reverse=True)
+    items = []
+    for g in gens:
+        review = _ensure_review(g)
+        vals = list((review.get("feedback") or {}).values())
+        items.append({
+            "generationId": g.get("id"),
+            "token": review.get("token"),
+            "title": g.get("title"),
+            "type": g.get("type"),
+            "thumbnailUrl": g.get("thumbnailUrl"),
+            "createdAt": g.get("createdAt"),
+            "summary": {
+                "total": len(review.get("clips") or []),
+                "approved": sum(1 for v in vals if v.get("status") == "approved"),
+                "changes": sum(1 for v in vals if v.get("status") == "change"),
+            },
+        })
+    return {"brandName": brand.get("name"), "items": items}
+
+
 @app.patch("/api/generations/{gen_id}")
 async def update_generation(gen_id: str, req: SaveGenerationRequest):
     """Update an existing generation (for auto-save across pipeline steps)."""

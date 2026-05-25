@@ -433,6 +433,40 @@ export async function createReview(generationId: string): Promise<ReviewData> {
     return res.json();
 }
 
+// ── Client Portal ──────────────────────────────────────────
+export interface PortalItem {
+    generationId: string;
+    token: string;
+    title?: string;
+    type?: string;
+    thumbnailUrl?: string | null;
+    createdAt: string;
+    summary: { total: number; approved: number; changes: number };
+}
+export interface PortalData { brandName?: string; items: PortalItem[] }
+
+export async function ensureBrandPortal(brandId: string): Promise<{ token: string }> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal`, { method: "POST" });
+    if (!res.ok) throw new Error(`No se pudo crear el portal (${res.status})`);
+    return res.json();
+}
+
+export async function getPortal(token: string): Promise<PortalData> {
+    const res = await fetch(`${API_BASE}/api/portal/${encodeURIComponent(token)}`);
+    if (!res.ok) throw new Error(`Portal no encontrado (${res.status})`);
+    return res.json();
+}
+
+export async function setGenerationPublished(generationId: string, published: boolean): Promise<{ ok: boolean; published: boolean }> {
+    const res = await fetch(`${API_BASE}/api/generations/${encodeURIComponent(generationId)}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ published }),
+    });
+    if (!res.ok) throw new Error(`No se pudo publicar (${res.status})`);
+    return res.json();
+}
+
 export async function listReviews(): Promise<ReviewData[]> {
     const res = await fetch(`${API_BASE}/api/reviews`);
     if (!res.ok) return [];
