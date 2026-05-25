@@ -1182,6 +1182,16 @@
         "filename": "morph-ai_mood_07b580f0.png",
         "imageUrl": "/static/moodboards/morph-ai_mood_07b580f0.png"
       }
+    ],
+    "clothing": [
+      {
+        "id": "c3bbe416",
+        "name": "Screenshot 2026-05-25 at 2.38.49 AM",
+        "description": "",
+        "tags": [],
+        "filename": "morph-ai_cloth_c3bbe416.png",
+        "imageUrl": "/static/clothing/morph-ai_cloth_c3bbe416.png"
+      }
     ]
   },
   {

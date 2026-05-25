@@ -39,6 +39,7 @@ const TOOL_PREVIEW_MEDIA: Record<string, { url: string; type: "image" | "video" 
   ugc_creator: { url: "/previews/ugccreator.mp4", type: "video" },
   fashion_reel: { url: "/previews/agnatesttt.mp4", type: "video" },
   static_ad: { url: "/previews/staticad.png", type: "image" },
+  ecommerce_pack: { url: "/previews/eccomerce.png", type: "image" },
 };
 
 // Punchy tagline per tool — overrides description on card
