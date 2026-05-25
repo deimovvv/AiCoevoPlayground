@@ -1,8 +1,8 @@
-import { FolderOpen, Image, Video, FileText, Search, Grid3X3, List, Trash2, ExternalLink, Loader2, X, Download, Pencil } from "lucide-react";
+import { FolderOpen, Image, Video, FileText, Search, Grid3X3, List, Trash2, ExternalLink, Loader2, X, Download, Pencil, Share2, Check } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { useBrand } from "../lib/BrandContext";
-import { fetchGenerations, deleteGeneration } from "../lib/api";
+import { fetchGenerations, deleteGeneration, createReview } from "../lib/api";
 import type { Generation } from "../lib/api";
 import { cn } from "../lib/utils";
 
@@ -378,6 +378,23 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
         year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
     });
 
+    const [sharing, setSharing] = useState(false);
+    const [shareUrl, setShareUrl] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
+    const handleShareReview = async () => {
+        setSharing(true);
+        try {
+            const review = await createReview(gen.id);
+            const url = `${window.location.origin}/review/${review.token}`;
+            setShareUrl(url);
+            try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch { /* clipboard blocked */ }
+        } catch (e) {
+            console.error("[review] share failed:", e);
+        } finally {
+            setSharing(false);
+        }
+    };
+
     const fullVideoUrl = gen.outputUrl
         ? gen.outputUrl.startsWith("http") ? gen.outputUrl : `${API_BASE}${gen.outputUrl}`
         : null;
@@ -464,6 +481,25 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                         >
                             <span className="font-medium">Generación antigua</span>
                             <span className="text-[10px]">Sin estado guardado — solo vista</span>
+                        </div>
+                    )}
+
+                    {/* Share for client review — creates a link the client opens to approve / comment per clip */}
+                    {gen.status === "completed" && (
+                        <div className="space-y-1.5">
+                            <button
+                                onClick={handleShareReview}
+                                disabled={sharing}
+                                className="flex items-center justify-center gap-2 w-full py-2.5 border border-edge hover:border-[var(--color-action)] text-fg-muted hover:text-fg font-medium rounded-[var(--radius-sm)] text-[13px] cursor-pointer disabled:opacity-50 transition-colors"
+                            >
+                                {sharing ? <Loader2 size={13} className="animate-spin" /> : copied ? <Check size={13} /> : <Share2 size={13} />}
+                                {copied ? "¡Link copiado!" : "Compartir review con el cliente"}
+                            </button>
+                            {shareUrl && (
+                                <p className="text-[10px] text-fg-faint break-all">
+                                    <a href={shareUrl} target="_blank" rel="noreferrer" className="hover:text-fg underline">{shareUrl}</a>
+                                </p>
+                            )}
                         </div>
                     )}
 
