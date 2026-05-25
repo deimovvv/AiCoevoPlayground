@@ -7,10 +7,11 @@
 import { useState, useEffect } from "react";
 import {
     X, RefreshCw, Save, User, Package, Play,
-    AlertCircle,
+    AlertCircle, Share2, Check, Loader2,
 } from "lucide-react";
 import { type Generation } from "./GenerationCard";
 import { Button } from "./ui/button";
+import { createReview } from "../lib/api";
 
 interface Props {
     generation: Generation | null;
@@ -36,6 +37,9 @@ const STATUS_DOT: Record<string, string> = {
 export function GenerationDetailDrawer({ generation, isOpen, onClose, onSaveContent }: Props) {
     const [scriptDraft, setScriptDraft] = useState("");
     const [selectedShots, setSelectedShots] = useState<Record<string, number>>({});
+    const [sharing, setSharing] = useState(false);
+    const [shareUrl, setShareUrl] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         if (generation) {
@@ -57,6 +61,20 @@ export function GenerationDetailDrawer({ generation, isOpen, onClose, onSaveCont
     const handleSave = () => {
         onSaveContent(gen.id, scriptDraft, 0);
         onClose();
+    };
+
+    const handleShare = async () => {
+        setSharing(true);
+        try {
+            const review = await createReview(gen.id);
+            const url = `${window.location.origin}/review/${review.token}`;
+            setShareUrl(url);
+            try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2500); } catch { /* clipboard blocked — link still shown */ }
+        } catch (e) {
+            console.error("[review] share failed:", e);
+        } finally {
+            setSharing(false);
+        }
     };
 
     // Parse script into acts (split by newlines or manually structured)
@@ -269,11 +287,29 @@ export function GenerationDetailDrawer({ generation, isOpen, onClose, onSaveCont
                 </div>
 
                 {/* ── Footer ── */}
-                <div className="px-6 py-3 border-t border-edge bg-surface-0 shrink-0 flex items-center justify-between">
-                    <Button variant="ghost" onClick={onClose} className="text-fg-muted text-[12px]">
-                        Cerrar
-                    </Button>
+                <div className="px-6 py-3 border-t border-edge bg-surface-0 shrink-0 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Button variant="ghost" onClick={onClose} className="text-fg-muted text-[12px]">
+                            Cerrar
+                        </Button>
+                        {shareUrl && (
+                            <span className="text-[10px] text-fg-faint truncate max-w-[220px]" title={shareUrl}>
+                                {copied ? "¡Link copiado!" : shareUrl}
+                            </span>
+                        )}
+                    </div>
                     <div className="flex items-center gap-2">
+                        {gen.status === "completed" && (
+                            <button
+                                onClick={handleShare}
+                                disabled={sharing}
+                                title="Crear un link para que el cliente revise y comente clip por clip"
+                                className="flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-sm)] text-[12px] font-medium border border-edge text-fg-muted hover:text-fg hover:border-[var(--color-action)] cursor-pointer disabled:opacity-50"
+                            >
+                                {sharing ? <Loader2 size={13} className="animate-spin" /> : copied ? <Check size={13} /> : <Share2 size={13} />}
+                                Compartir review
+                            </button>
+                        )}
                         {gen.status === "completed" ? (
                             <Button className="gap-2 h-8 text-[12px]" variant="default">
                                 <RefreshCw size={13} /> Re-generar

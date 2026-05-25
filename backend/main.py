@@ -3336,6 +3336,127 @@ async def create_generation(req: SaveGenerationRequest):
     return gen
 
 
+# ══════════════════════════════════════════════════════════════
+#  Client Review Links — share a generation for per-clip feedback
+# ══════════════════════════════════════════════════════════════
+
+REVIEWS_FILE = DATA_DIR / "reviews.json"
+
+
+def _load_reviews() -> List[dict]:
+    if not REVIEWS_FILE.exists():
+        return []
+    try:
+        with open(REVIEWS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _save_reviews(reviews: List[dict]):
+    with open(REVIEWS_FILE, "w", encoding="utf-8") as f:
+        json.dump(reviews, f, ensure_ascii=False, indent=2)
+
+
+def _extract_clips(gen: dict) -> List[dict]:
+    """Pull a flat list of reviewable clips (video/image + label) from a generation's scenes."""
+    clips: List[dict] = []
+    for i, s in enumerate(gen.get("scenes") or []):
+        if not isinstance(s, dict):
+            continue
+        url = (s.get("videoUrl") or s.get("video_url") or s.get("url")
+               or s.get("imageUrl") or s.get("image_url") or s.get("selectedUrl"))
+        if not url:
+            continue
+        is_video = bool(s.get("videoUrl") or s.get("video_url")) or (isinstance(url, str) and url.lower().endswith((".mp4", ".webm", ".mov")))
+        clips.append({
+            "id": str(s.get("sceneId") or s.get("id") or f"clip_{i + 1}"),
+            "label": str(s.get("title") or s.get("label") or f"Escena {i + 1}"),
+            "url": url,
+            "type": "video" if is_video else "image",
+        })
+    if not clips and gen.get("outputUrl"):
+        clips.append({"id": "final", "label": "Video final", "url": gen["outputUrl"], "type": "video"})
+    return clips
+
+
+class CreateReviewRequest(BaseModel):
+    generationId: str
+
+
+class ReviewFeedbackRequest(BaseModel):
+    clipId: str
+    status: str = ""        # "approved" | "change" | ""
+    comment: str = ""
+
+
+@app.post("/api/reviews")
+async def create_review(req: CreateReviewRequest):
+    """Create a shareable review link for a generation (snapshots its clips)."""
+    gens = _load_generations()
+    gen = next((g for g in gens if g.get("id") == req.generationId), None)
+    if not gen:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    from datetime import datetime, timezone
+    reviews = _load_reviews()
+    # Reuse an existing review for this generation if present (so the link is stable).
+    existing = next((r for r in reviews if r.get("generationId") == req.generationId), None)
+    if existing:
+        existing["clips"] = _extract_clips(gen)  # refresh clips (e.g. after a per-clip regen)
+        existing["title"] = gen.get("title")
+        existing["outputUrl"] = gen.get("outputUrl")
+        _save_reviews(reviews)
+        return existing
+    review = {
+        "token": f"rv_{uuid.uuid4().hex[:12]}",
+        "generationId": req.generationId,
+        "brandId": gen.get("brandId"),
+        "title": gen.get("title"),
+        "outputUrl": gen.get("outputUrl"),
+        "clips": _extract_clips(gen),
+        "feedback": {},
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+    reviews.append(review)
+    _save_reviews(reviews)
+    return review
+
+
+@app.get("/api/reviews/{token}")
+def get_review(token: str):
+    """Public: the client opens this with the token in the URL — no auth."""
+    reviews = _load_reviews()
+    review = next((r for r in reviews if r.get("token") == token), None)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    return review
+
+
+@app.post("/api/reviews/{token}/feedback")
+async def submit_review_feedback(token: str, req: ReviewFeedbackRequest):
+    """Public: the client approves / requests changes per clip."""
+    from datetime import datetime, timezone
+    reviews = _load_reviews()
+    review = next((r for r in reviews if r.get("token") == token), None)
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+    review.setdefault("feedback", {})[req.clipId] = {
+        "status": req.status,
+        "comment": req.comment,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    _save_reviews(reviews)
+    return {"ok": True}
+
+
+@app.get("/api/generations/{gen_id}/review")
+def get_generation_review(gen_id: str):
+    """Agency-side: the review (+ client feedback) for a generation, if one exists."""
+    reviews = _load_reviews()
+    review = next((r for r in reviews if r.get("generationId") == gen_id), None)
+    return review or {}
+
+
 @app.patch("/api/generations/{gen_id}")
 async def update_generation(gen_id: str, req: SaveGenerationRequest):
     """Update an existing generation (for auto-save across pipeline steps)."""

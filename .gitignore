@@ -39,6 +39,7 @@ lerna-debug.log*
 # IGNORE only the heavy generated outputs (renders, ~GBs) and transient/runtime files.
 backend/data/renders/*
 backend/data/generations.json
+backend/data/reviews.json
 backend/data/ig-imports/*
 backend/tmp/*
 

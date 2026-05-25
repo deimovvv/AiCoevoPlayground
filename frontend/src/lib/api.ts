@@ -407,6 +407,55 @@ export async function generateCopy(brandId: string, req: GenerateCopyRequest): P
     return res.json();
 }
 
+// ══════════════════════════════════════════════════════════════
+//  Client Review Links
+// ══════════════════════════════════════════════════════════════
+
+export interface ReviewClip { id: string; label: string; url: string; type: "video" | "image" }
+export interface ReviewData {
+    token: string;
+    generationId: string;
+    brandId?: string | null;
+    title?: string;
+    outputUrl?: string | null;
+    clips: ReviewClip[];
+    feedback: Record<string, { status: string; comment: string; updatedAt: string }>;
+    createdAt: string;
+}
+
+export async function createReview(generationId: string): Promise<ReviewData> {
+    const res = await fetch(`${API_BASE}/api/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ generationId }),
+    });
+    if (!res.ok) throw new Error(`No se pudo crear el link de review (${res.status})`);
+    return res.json();
+}
+
+export async function getReview(token: string): Promise<ReviewData> {
+    const res = await fetch(`${API_BASE}/api/reviews/${encodeURIComponent(token)}`);
+    if (!res.ok) throw new Error(`Review no encontrada (${res.status})`);
+    return res.json();
+}
+
+export async function submitReviewFeedback(token: string, clipId: string, status: string, comment: string): Promise<{ ok: boolean }> {
+    const res = await fetch(`${API_BASE}/api/reviews/${encodeURIComponent(token)}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clipId, status, comment }),
+    });
+    if (!res.ok) throw new Error(`No se pudo guardar el feedback (${res.status})`);
+    return res.json();
+}
+
+export async function getGenerationReview(generationId: string): Promise<ReviewData | null> {
+    const res = await fetch(`${API_BASE}/api/generations/${encodeURIComponent(generationId)}/review`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && data.token ? data : null;
+}
+
 /**
  * Transcribe a recorded voice note to text (Gemini multimodal audio, backend).
  * Used by the chat mic button.
