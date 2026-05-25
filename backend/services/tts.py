@@ -24,6 +24,21 @@ def _get_client() -> ElevenLabs:
     return _client
 
 
+import re as _re
+
+def _speakable_urls(text: str) -> str:
+    """Convert URLs/domains to spoken Spanish so TTS reads them naturally.
+    'tallerdesantaclara.com.ar' → 'tallerdesantaclara punto com punto ar'."""
+    if not text:
+        return text
+    t = _re.sub(r"https?://", "", text)
+    t = _re.sub(r"\bwww\.", "", t)
+    # Convert known TLD/domain dots to " punto <tld>" (longest patterns implicitly handled
+    # because each dot+tld is matched independently, left to right).
+    t = _re.sub(r"\.(com|ar|net|io|co|org|app|store|shop)\b", lambda m: " punto " + m.group(1), t)
+    return t
+
+
 def generate_audio(
     text: str,
     voice_id: Optional[str] = None,
@@ -49,6 +64,9 @@ def generate_audio(
     """
     client = _get_client()
     voice = voice_id or DEFAULT_VOICE_ID
+    # Make URLs speakable so the script can show "tallerdesantaclara.com.ar" but the TTS
+    # says "…punto com punto ar" instead of reading the dots literally / weirdly.
+    text = _speakable_urls(text)
 
     voice_settings = VoiceSettings(
         stability=stability if stability is not None else 0.5,

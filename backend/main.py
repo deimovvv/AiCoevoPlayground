@@ -172,6 +172,14 @@ class GenerateCopyRequest(BaseModel):
     narrativeMode: bool = False
 
 
+class RegenerateSceneRequest(BaseModel):
+    scenes: List[dict]          # full script (all scenes) for context
+    targetIndex: int            # which scene to rewrite
+    language: str = "es"
+    videoObjective: str = ""
+    productName: str = ""
+
+
 class AddHeygenAvatarRequest(BaseModel):
     talkingPhotoId: str
     name: str
@@ -889,6 +897,28 @@ async def generate_copy(brand_id: str, req: GenerateCopyRequest):
             "model": "gemini-2.5-flash",
             "brief": concept or None,
         }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/api/brands/{brand_id}/regenerate-scene")
+async def regenerate_scene_endpoint(brand_id: str, req: RegenerateSceneRequest):
+    """Rewrite ONE scene of a UGC script, with the full script as context for coherence."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not copy_gen.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    try:
+        return await copy_gen.regenerate_scene(
+            brand_context=brand.get("brandContext", ""),
+            scenes=req.scenes,
+            target_index=req.targetIndex,
+            language=req.language,
+            video_objective=req.videoObjective,
+            product_name=req.productName,
+        )
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 

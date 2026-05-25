@@ -6,6 +6,7 @@ Generates UGC video scripts using Gemini with brand context.
 
 import os
 import json
+import random
 import httpx
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -200,7 +201,19 @@ PLATAFORMA: {platform} | TONO: {tone}
 
     # Always append the narrative-first storytelling rules
     system_prompt = base_prompt + f"""
-━━━ ENFOQUE NARRATIVO (OBLIGATORIO) ━━━
+━━━ REGLA #0 — LA MARCA MANDA (LEÉ ESTO PRIMERO) ━━━
+El CONTEXTO DE MARCA de arriba es la fuente de verdad. Antes de escribir:
+• Si la marca define una ESTRUCTURA propia (ej. "Hook → Desarrollo → CTA"), seguí ESA, no el arco de abajo.
+• Si la marca lista HOOKS o FRASES CLAVE, esas son tu materia prima. Elegí UN hook DISTINTO en cada video y desarrollalo; integrá frases clave de la marca con naturalidad.
+• Respetá el tono de la marca al pie de la letra (incluyendo los ejemplos de tono que dé) y evitá TODO lo que la marca marque como "no hacer".
+• Si la marca es de venta directa / showcase (precio, uso diario, simplicidad), NO la fuerces a un arco de "transformación personal" — mostrá producto + razón + CTA, en su voz.
+
+ROTACIÓN OBLIGATORIA (anti-repetición): cada generación tiene que sentirse NUEVA.
+• Nunca reuses el mismo gancho ni la misma frase de apertura de un video a otro.
+• Rotá el CONCEPTO que ataca el video (precio / multiplicidad / uso diario / simplicidad / resolución de problema / etc. — elegí UNO distinto cada vez).
+• Variá la estructura y el ritmo. Dos videos de la misma marca NO deben sonar calcados.
+
+━━━ ENFOQUE NARRATIVO (DEFAULT — usalo solo si la marca NO define su propia estructura) ━━━
 
 PASO 1 — DISEÑA EL PERSONAJE Y SU HISTORIA:
 Antes de escribir los scripts, define mentalmente:
@@ -220,6 +233,7 @@ REGLAS DE ESCRITURA:
 - Cada beat = UN momento específico. Sin resúmenes. Sin repetir lo del beat anterior.
 - Frases cortas, lenguaje real de persona. Nada de marketing copy genérico.
 - El script de cada escena debe sonar como algo que alguien diría EN ESE MOMENTO, no una presentación.
+- Las URLs escribilas de forma NATURAL (ej: "tallerdesantaclara.com.ar"), NUNCA fonética ("punto com punto ar") — el sistema las convierte solo para el audio.
 - {lang_instruction}
 
 ━━━ LONGITUD DEL SCRIPT POR ESCENA (CRÍTICO) ━━━
@@ -227,20 +241,28 @@ Cada escena en UGC dura entre 4 y 8 segundos. A ritmo de habla natural eso son
 ~10–22 palabras MÁXIMO por escena. Reglas duras:
 - Talking scene: 1 a 2 frases cortas. Nunca más de 22 palabras.
 - CTA: 1 frase + URL/lugar. Nunca más de 18 palabras.
-- Creative scene (voiceover): 0 a 12 palabras, o vacío si es b-roll silencioso.
+- Creative scene (voiceover): 1 frase corta de voz en off (~5-12 palabras) que hace AVANZAR el mensaje. Dejala vacía SOLO si el brief pide explícitamente que sea muda.
 - Si el contenido no entra, CORTÁ — no comprimas todo en una sola escena. Mejor
   sumar otra escena que escribir un párrafo. La gente NO habla en párrafos.
 
-EJEMPLOS DE LONGITUD CORRECTA:
-- BIEN (Hook, 12 palabras): "Che, posta. No tiene mucho sentido que estas remeras estén a este precio."
-- BIEN (CTA, 11 palabras): "Si te copó, entrá a Taller Santa Clara. Directo de fábrica."
-- MAL (demasiado largo, 60 palabras): "En serio, no te complicás. Para todos los días, sin vueltas. Yo uso las mías, las lavás, las usás y no cambian. Así que nada, si te copó este bordó o querés ver todos los otros colores que tenemos de remeras lisas, entrá a la web. Es directo y sin vueltas, en Taller Santa Clara."
-  → CORTÁ. Eso son 3 escenas distintas, no una sola.
+ANTI-CRAMMING (CRÍTICO — esto es lo que más se rompe):
+- UNA sola idea por escena. Si una escena tiene 2+ ideas, está MAL → repartilas o sumá escenas.
+- El CTA va SOLO en su escena, NUNCA pegado a un value prop. "Entrá a la web" no comparte escena con "es de calidad / te llevás varias".
+- NO amontones las frases clave de la marca: usá 1 (máx 2) por escena, repartidas entre escenas. No metas calidad + precio + multiplicidad + CTA juntas.
+- Si una escena es muda/b-roll, NO traslades su "texto faltante" a la escena siguiente. Mantené CADA escena talking corta. Si falta lugar para el mensaje, AGREGÁ una escena (podés hacer 4-5).
+- Antes de cerrar: releé cada escena. Si alguna se lee como párrafo o repite ideas de otra, reescribila más corta o partila.
+
+EJEMPLOS DE LONGITUD (muestran solo el RITMO — NO copies estas palabras; usá SIEMPRE el tono, los hooks y las frases de la marca):
+- BIEN (Hook): una sola frase corta y provocativa que frena el scroll (~8-14 palabras).
+- BIEN (CTA): una frase + dónde conseguirlo (~8-12 palabras).
+- MAL (un párrafo de 40+ palabras que mete todo junto): → CORTALO en varias escenas. La gente NO habla en párrafos.
+IMPORTANTE: los hooks y frases reales salen del CONTEXTO DE MARCA, no de este prompt. Si la marca da ejemplos de tono, sonás como ESOS, no como estos.
 
 ━━━ TIPOS DE ESCENA ━━━
 - "talking": el avatar habla directo a cámara (gancho, CTA, confesión personal, testimonio)
-- "creative": toma de acción donde el script es VOICEOVER (usando el producto, mostrando resultado, manos interactuando, ambiente)
-- Beats 1 y 4 son SIEMPRE "talking". Beats 2 y 3 PUEDEN ser "creative" si la acción lo amerita.
+- "creative": toma de acción donde el script es VOZ EN OFF CORTA (usando el producto, manos, ambiente). Por defecto LLEVA una frase de voz en off que hace avanzar el mensaje — NO la dejes muda salvo pedido explícito del brief. Una escena muda en el medio deja un hueco y empuja todo el texto a la escena siguiente (mal).
+- Beats 1 y 4 (gancho y CTA) son SIEMPRE "talking", a cámara.
+- Si hay mucho mensaje, hacé 4-5 escenas cortas en vez de 3 escenas cargadas. Mejor más escenas livianas que una escena párrafo.
 
 ━━━ CAMPO "avatar" POR ESCENA ━━━
 Cada escena lleva el campo "avatar" (boolean) que controla si se usa la foto del avatar como referencia o generación pura de texto-a-imagen:
@@ -326,6 +348,27 @@ IMPORTANTE: Este brief define la estructura de actos del video. Cada escena que 
         else:
             user_msg += f"\nOBJETIVO DEL VIDEO:\n{video_objective}"
 
+    # Random creative-angle seed — forces each run to take a fresh approach so videos for
+    # the same brand don't come out calcados. Combined with the brand's own hooks (REGLA #0)
+    # this is the main anti-repetition lever.
+    _ANGLES = [
+        "abrí con una afirmación contraintuitiva que desafíe lo que la gente asume",
+        "arrancá a mitad de pensamiento, como si la cámara te agarró ya hablando",
+        "abrí con un momento mínimo y cotidiano que el viewer reconozca al toque",
+        "abrí con la pregunta que el viewer se está haciendo en silencio",
+        "reaccioná al producto como si lo vieras por primera vez",
+        "abrí con un shock de número / precio",
+        "usá el ángulo 'nadie habla de esto'",
+        "señalá un error común que la gente comete",
+        "compará con la alternativa obvia y mostrá por qué esto gana",
+        "abrí con una mini-confesión personal",
+    ]
+    user_msg += (
+        f"\n\nÁNGULO CREATIVO PARA ESTE VIDEO (para que NO se parezca a otros de la marca): "
+        f"{random.choice(_ANGLES)}. Aplicá este ángulo en el tono y con los hooks de la marca — "
+        f"nunca de forma literal ni genérica."
+    )
+
     content = await _call_gemini(system_prompt, user_msg)
 
     # Clean markdown wrappers
@@ -372,3 +415,73 @@ IMPORTANTE: Este brief define la estructura de actos del video. Cada escena que 
             pass
 
     raise Exception(f"Failed to parse script response. Received: {content[:200]}")
+
+
+async def regenerate_scene(
+    brand_context: str,
+    scenes: list[dict],
+    target_index: int,
+    language: str = "es",
+    video_objective: str = "",
+    product_name: str = "",
+) -> dict:
+    """
+    Regenerate ONE scene's script + image_prompt, given the FULL script as context so the
+    new version stays coherent with the other scenes (no repetition, same arc, same tone).
+    Returns {"script": str, "image_prompt": str}.
+    """
+    lang = "en español rioplatense" if language == "es" else "in English"
+    lines: list[str] = []
+    for i, s in enumerate(scenes or []):
+        mark = "   ←★ REESCRIBIR SOLO ESTA" if i == target_index else ""
+        st = s.get("sceneType") or "talking"
+        scr = (s.get("script") or "").replace("\n", " ").strip()
+        vis = (s.get("image_prompt") or s.get("visual") or "").strip()[:160]
+        lines.append(f"[{i}] ({st}){mark}\n    script: \"{scr}\"\n    visual: {vis}")
+    script_block = "\n".join(lines)
+
+    objective_block = f"\nOBJETIVO/BRIEF DEL VIDEO:\n{video_objective}\n" if video_objective else ""
+    product_block = f"\nProducto: {product_name}" if product_name else ""
+
+    system_prompt = f"""Eres guionista UGC de performance. Te paso el guion COMPLETO de un video y reescribís SOLO la escena marcada con ★, manteniéndola coherente con el resto.
+
+CONTEXTO DE MARCA:
+---
+{brand_context}
+---
+{objective_block}{product_block}
+
+GUION COMPLETO (las otras escenas son tu CONTEXTO — NO las toques):
+{script_block}
+
+REGLAS:
+- Reescribí SOLO la escena [{target_index}] (la marcada con ★).
+- Coherencia total con las demás: seguí el hilo, NO repitas lo que ya dicen las otras escenas, respetá el tono y los hooks de la marca.
+- Dame una versión claramente DISTINTA a la actual (fresca), no la misma con otras palabras.
+- Si la escena es "talking": texto hablado corto (1-2 frases, máx ~22 palabras).
+- Si es "creative": "script" es voz en off opcional (vacío si es b-roll mudo); "image_prompt" describe la acción visual concreta.
+- Escribí el campo "script" {lang}.
+- Las URLs escribilas de forma NATURAL (ej: tallerdesantaclara.com.ar), nunca fonética — el sistema las convierte para el audio.
+
+Devolvé SOLO este JSON, sin texto antes ni después:
+{{"script": "...", "image_prompt": "..."}}"""
+
+    raw = await _call_gemini(system_prompt, f"Reescribí la escena [{target_index}]. Solo JSON.")
+    clean = raw.strip().replace("```json", "").replace("```", "").strip()
+    obj: dict = {}
+    try:
+        obj = json.loads(clean)
+    except json.JSONDecodeError:
+        import re
+        m = re.search(r"\{.*\}", clean, re.DOTALL)
+        if m:
+            try:
+                obj = json.loads(m.group(0))
+            except json.JSONDecodeError:
+                obj = {}
+    if not isinstance(obj, dict):
+        obj = {}
+    return {
+        "script": str(obj.get("script") or ""),
+        "image_prompt": str(obj.get("image_prompt") or obj.get("visual") or ""),
+    }

@@ -39,7 +39,7 @@ import { useBrand } from "../lib/BrandContext";
 import {
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl,
   type Brand,
-  generateCopy, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen,
+  generateCopy, regenerateScene, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen,
   createFalLipSync, pollFalLipSync, concatVideos, saveGeneration,
   generateToolPrompt, createKlingVideo, pollKlingVideo,
   createKlingFrameToFrame, createSeedanceReferenceToVideo, pollSeedanceVideo,
@@ -5184,6 +5184,12 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   const [sceneTypes, setSceneTypes] = useState<Record<string, "talking" | "creative">>({});
   const [selectedShots, setSelectedShots] = useState<Record<string, string>>({});
   const [activeHeroId, setActiveHeroId] = useState<string | null>(null);
+  // Script step: per-scene "regenerate" loading + a version counter to force the
+  // uncontrolled textareas to remount with the new text after a regen.
+  const [scriptRegenId, setScriptRegenId] = useState<string | null>(null);
+  const [sceneVersions, setSceneVersions] = useState<Record<string, number>>({});
+  // Creative scenes: explicit "voz en off" (has script → gets audio) vs "muda" (silent b-roll).
+  const [voiceoverByScene, setVoiceoverByScene] = useState<Record<string, boolean>>({});
 
   // ── Avatar Creator: Brief step ───────────────────────────
   if (stepId === "brief" && result) {
@@ -5497,6 +5503,28 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
 
         {/* Storyboard scenes */}
         {scenes.map((scene, i) => {
+          // Rewrite just this scene, passing all scenes for coherence.
+          const handleSceneRegen = async () => {
+            if (!activeBrand) return;
+            setScriptRegenId(scene.id);
+            try {
+              const out = await regenerateScene(activeBrand.id, {
+                scenes: scenes.map((s) => ({ id: s.id, title: s.title, script: s.script, image_prompt: s.image_prompt, sceneType: (s as { sceneType?: string }).sceneType })),
+                targetIndex: i,
+                language: (config?.language as string) || "es",
+                videoObjective: (config?.objective as string) || "",
+                productName: (activeBrand.products || []).find((p) => p.id === config?.selectedProductId)?.name || "",
+              });
+              if (out.script !== undefined) scene.script = out.script;
+              if (out.image_prompt) scene.image_prompt = out.image_prompt;
+              onUpdateStepResult?.("script", result);
+              setSceneVersions((v) => ({ ...v, [scene.id]: (v[scene.id] || 0) + 1 }));
+            } catch (e) {
+              console.error("[script] regen failed:", e);
+            } finally {
+              setScriptRegenId(null);
+            }
+          };
           type AllSceneTypes = "talking" | "creative" | "lifestyle" | "sensorial" | "product_reveal";
 
           // narrativeSceneType is set in normalization above for lifestyle/sensorial/product_reveal
@@ -5557,6 +5585,37 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                     </button>
                   ))}
                 </div>
+                {/* Creative scenes: muda (silent b-roll) vs voz en off (gets audio) */}
+                {displayType !== "talking" && (() => {
+                  const hasVo = voiceoverByScene[scene.id] ?? ((scene.script || "").trim().length > 0);
+                  return (
+                    <div className="flex items-center rounded border border-edge overflow-hidden" title="Esta escena no habla a cámara. Elegí si lleva voz en off o queda muda.">
+                      <button
+                        onClick={() => {
+                          setVoiceoverByScene((v) => ({ ...v, [scene.id]: false }));
+                          scene.script = "";
+                          setSceneVersions((vv) => ({ ...vv, [scene.id]: (vv[scene.id] || 0) + 1 }));
+                          onUpdateStepResult?.("script", result);
+                        }}
+                        className={`px-2 py-0.5 text-[9px] font-medium cursor-pointer ${!hasVo ? "bg-fg text-[var(--color-canvas)]" : "bg-surface-1 text-fg-muted hover:text-fg"}`}
+                      >🔇 Muda</button>
+                      <button
+                        onClick={() => setVoiceoverByScene((v) => ({ ...v, [scene.id]: true }))}
+                        className={`px-2 py-0.5 text-[9px] font-medium cursor-pointer ${hasVo ? "bg-fg text-[var(--color-canvas)]" : "bg-surface-1 text-fg-muted hover:text-fg"}`}
+                      >🎙️ Voz en off</button>
+                    </div>
+                  );
+                })()}
+                {/* Regenerate this scene only (full script as context) */}
+                <button
+                  onClick={handleSceneRegen}
+                  disabled={scriptRegenId === scene.id}
+                  title="Reescribe SOLO esta escena, usando el resto del guion como contexto para que quede coherente"
+                  className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-edge bg-surface-1 text-fg-muted hover:text-fg hover:border-[var(--color-action)] cursor-pointer disabled:opacity-50"
+                >
+                  {scriptRegenId === scene.id ? <Loader2 size={9} className="animate-spin" /> : <RotateCcw size={9} />}
+                  Regenerar
+                </button>
                 {hasAiSuggestion && (
                   <span className="text-[9px] text-fg-faint italic">IA</span>
                 )}
@@ -5641,12 +5700,17 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   <Mic size={10} className="text-fg-faint" />
                   <span className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider">Script</span>
                 </div>
-                <textarea
-                  defaultValue={scene.script}
-                  onChange={(e) => { scene.script = e.target.value; }}
-                  rows={Math.max(3, Math.ceil(scene.script.length / 40))}
-                  className="w-full text-[12px] text-fg leading-relaxed bg-transparent border border-transparent hover:border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] px-2 py-1 outline-none resize-none transition-colors"
-                />
+                {displayType !== "talking" && !(voiceoverByScene[scene.id] ?? ((scene.script || "").trim().length > 0)) ? (
+                  <p className="text-[11px] text-fg-faint italic px-2 py-1">🔇 Clip mudo (b-roll, sin voz). Cambiá a &ldquo;Voz en off&rdquo; arriba si querés que narre.</p>
+                ) : (
+                  <textarea
+                    key={`sc_${scene.id}_${sceneVersions[scene.id] || 0}`}
+                    defaultValue={scene.script}
+                    onChange={(e) => { scene.script = e.target.value; }}
+                    rows={Math.max(3, Math.ceil((scene.script.length || 40) / 40))}
+                    className="w-full text-[12px] text-fg leading-relaxed bg-transparent border border-transparent hover:border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] px-2 py-1 outline-none resize-none transition-colors"
+                  />
+                )}
               </div>
 
               {/* Visual direction column */}
@@ -5659,6 +5723,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 </div>
                 {scene.image_prompt ? (
                   <textarea
+                    key={`vis_${scene.id}_${sceneVersions[scene.id] || 0}`}
                     defaultValue={scene.image_prompt}
                     onChange={(e) => { scene.image_prompt = e.target.value; }}
                     rows={Math.max(3, Math.ceil(scene.image_prompt.length / 40))}
@@ -6837,6 +6902,9 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
     const images = data.images || [];
     const activeImg = images.find((i) => i.id === activeHeroId) || images[0];
     const colorTokens = (data.colors || "").split(/[,;]+/).map((s) => s.trim()).filter(Boolean).slice(0, 5);
+    // Descriptive filenames: <marca>_<toma>.png  (e.g. taller-de-santa-clara_flat-frente-remera.png)
+    const brandSlug = slugify(activeBrand?.name || "coevo");
+    const fileFor = (img: { label?: string }, idx: number) => `${brandSlug}_${slugify(img.label || "") || `toma-${idx + 1}`}.png`;
 
     return (
       <div className="space-y-4">
@@ -6845,27 +6913,33 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             <Check size={14} className="text-[var(--color-success)]" />
             <span className="text-[13px] font-medium text-fg">{images.length} creativo{images.length === 1 ? "" : "s"} generado{images.length === 1 ? "" : "s"}</span>
           </div>
-          <button
-            onClick={async () => {
-              for (const img of images) {
-                if (!img.url) continue;
-                try {
-                  const res = await fetch(img.url);
-                  const blob = await res.blob();
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `static_ad_${img.id}.png`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                } catch { /* */ }
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 rounded-[var(--radius-sm)] cursor-pointer"
-          >
-            <Film size={12} />
-            Descargar todos ({images.length})
-          </button>
+          <div className="flex items-center gap-2">
+            {activeImg?.url && (
+              <button
+                onClick={() => downloadMediaAs(activeImg.url, fileFor(activeImg, images.indexOf(activeImg)))}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 rounded-[var(--radius-sm)] cursor-pointer"
+                title={`Descargar: ${fileFor(activeImg, images.indexOf(activeImg))}`}
+              >
+                <Download size={12} />
+                Descargar esta
+              </button>
+            )}
+            {images.length > 1 && (
+              <button
+                onClick={async () => {
+                  for (let idx = 0; idx < images.length; idx++) {
+                    const img = images[idx];
+                    if (!img.url) continue;
+                    await downloadMediaAs(img.url, fileFor(img, idx));
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 rounded-[var(--radius-sm)] cursor-pointer"
+              >
+                <Download size={12} />
+                Descargar todas ({images.length})
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Split layout: hero image + copy sidebar */}
@@ -10953,6 +11027,33 @@ function DetectedItemRow({
       </div>
     </div>
   );
+}
+
+/** Slug for filenames: lowercased, accent-stripped, dashes, capped. */
+function slugify(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
+/** Fetch a media URL and trigger a real download with the given filename. Falls back to
+ *  opening in a new tab only if the fetch fails (CORS/network). */
+async function downloadMediaAs(url: string, filename: string): Promise<void> {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(objUrl);
+  } catch {
+    window.open(url, "_blank");
+  }
 }
 
 /**

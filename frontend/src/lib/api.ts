@@ -379,6 +379,29 @@ export async function generateCopy(brandId: string, req: GenerateCopyRequest): P
     return res.json();
 }
 
+/**
+ * Rewrite ONE scene of a UGC script. Sends the full script (all scenes) as context so the
+ * regenerated scene stays coherent with the rest. Returns the new script + image_prompt.
+ */
+export async function regenerateScene(brandId: string, req: {
+    scenes: Array<Record<string, unknown>>;
+    targetIndex: number;
+    language?: string;
+    videoObjective?: string;
+    productName?: string;
+}): Promise<{ script: string; image_prompt: string }> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/regenerate-scene`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Scene regeneration failed (${res.status})`);
+    }
+    return res.json();
+}
+
 // ══════════════════════════════════════════════════════════════
 //  Avatar API
 // ══════════════════════════════════════════════════════════════
