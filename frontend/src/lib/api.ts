@@ -433,6 +433,13 @@ export async function createReview(generationId: string): Promise<ReviewData> {
     return res.json();
 }
 
+export async function listReviews(): Promise<ReviewData[]> {
+    const res = await fetch(`${API_BASE}/api/reviews`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.reviews || [];
+}
+
 export async function getReview(token: string): Promise<ReviewData> {
     const res = await fetch(`${API_BASE}/api/reviews/${encodeURIComponent(token)}`);
     if (!res.ok) throw new Error(`Review no encontrada (${res.status})`);

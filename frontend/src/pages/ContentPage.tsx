@@ -2,8 +2,8 @@ import { FolderOpen, Image, Video, FileText, Search, Grid3X3, List, Trash2, Exte
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { useBrand } from "../lib/BrandContext";
-import { fetchGenerations, deleteGeneration, createReview } from "../lib/api";
-import type { Generation } from "../lib/api";
+import { fetchGenerations, deleteGeneration, createReview, getGenerationReview, listReviews } from "../lib/api";
+import type { Generation, ReviewData } from "../lib/api";
 import { cn } from "../lib/utils";
 
 const API_BASE = "http://localhost:8000";
@@ -23,6 +23,7 @@ export function ContentPage() {
     const [deleting, setDeleting] = useState<string | null>(null);
     const [selectedGen, setSelectedGen] = useState<Generation | null>(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [reviewsByGen, setReviewsByGen] = useState<Record<string, ReviewData>>({});
 
     useEffect(() => {
         if (!activeBrand) return;
@@ -31,7 +32,24 @@ export function ContentPage() {
             .then(setGenerations)
             .catch(() => setGenerations([]))
             .finally(() => setLoading(false));
+        // Reviews (for the "cliente revisó" badges) — one fetch, mapped by generation.
+        listReviews().then((rs) => {
+            const map: Record<string, ReviewData> = {};
+            for (const r of rs) map[r.generationId] = r;
+            setReviewsByGen(map);
+        }).catch(() => setReviewsByGen({}));
     }, [activeBrand?.id]);
+
+    // Summary of client feedback for a generation, or null if none yet.
+    const reviewSummary = (genId: string): { approved: number; changes: number } | null => {
+        const r = reviewsByGen[genId];
+        const fb = r?.feedback ? Object.values(r.feedback) : [];
+        if (fb.length === 0) return null;
+        return {
+            approved: fb.filter((v) => v.status === "approved").length,
+            changes: fb.filter((v) => v.status === "change").length,
+        };
+    };
 
     const handleDelete = async (id: string) => {
         setDeleting(id);
@@ -167,6 +185,7 @@ export function ContentPage() {
                         <ContentCard
                             key={gen.id}
                             gen={gen}
+                            review={reviewSummary(gen.id)}
                             deleting={deleting === gen.id}
                             onDelete={() => setConfirmDeleteId(gen.id)}
                             onClick={() => setSelectedGen(gen)}
@@ -179,6 +198,7 @@ export function ContentPage() {
                         <ContentRow
                             key={gen.id}
                             gen={gen}
+                            review={reviewSummary(gen.id)}
                             deleting={deleting === gen.id}
                             onDelete={() => setConfirmDeleteId(gen.id)}
                             onClick={() => setSelectedGen(gen)}
@@ -241,7 +261,7 @@ function resolveMediaUrl(url?: string): string | undefined {
     return `${API_BASE}${url}`;
 }
 
-function ContentCard({ gen, deleting, onDelete, onClick }: { gen: Generation; deleting: boolean; onDelete: () => void; onClick: () => void }) {
+function ContentCard({ gen, review, deleting, onDelete, onClick }: { gen: Generation; review?: { approved: number; changes: number } | null; deleting: boolean; onDelete: () => void; onClick: () => void }) {
     const typeIcon = {
         image: <Image size={16} />,
         video: <Video size={16} />,
@@ -259,6 +279,15 @@ function ContentCard({ gen, deleting, onDelete, onClick }: { gen: Generation; de
                     <img src={thumbUrl} alt={gen.title} className="w-full h-full object-cover" />
                 ) : (
                     typeIcon[gen.type]
+                )}
+                {/* Client review badge */}
+                {review && (
+                    <div className={cn(
+                        "absolute top-2 left-2 text-[9px] font-semibold px-1.5 py-0.5 rounded-full backdrop-blur flex items-center gap-1",
+                        review.changes > 0 ? "bg-[var(--color-warning)]/90 text-black" : "bg-[var(--color-success)]/90 text-white",
+                    )} title="Feedback del cliente">
+                        👁 {review.approved}✓{review.changes > 0 ? ` · ${review.changes}✎` : ""}
+                    </div>
                 )}
                 {/* Overlay actions */}
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -322,7 +351,7 @@ function ContentCard({ gen, deleting, onDelete, onClick }: { gen: Generation; de
     );
 }
 
-function ContentRow({ gen, deleting, onDelete, onClick }: { gen: Generation; deleting: boolean; onDelete: () => void; onClick: () => void }) {
+function ContentRow({ gen, review, deleting, onDelete, onClick }: { gen: Generation; review?: { approved: number; changes: number } | null; deleting: boolean; onDelete: () => void; onClick: () => void }) {
     const typeIcon = {
         image: <Image size={14} />,
         video: <Video size={14} />,
@@ -341,6 +370,14 @@ function ContentRow({ gen, deleting, onDelete, onClick }: { gen: Generation; del
                 <div className="text-fg-muted">{typeIcon[gen.type]}</div>
             )}
             <p className="flex-1 text-[13px] font-medium text-fg truncate">{gen.title}</p>
+            {review && (
+                <span className={cn(
+                    "text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
+                    review.changes > 0 ? "bg-[var(--color-warning)]/20 text-warning" : "bg-success-muted text-success",
+                )} title="Feedback del cliente">
+                    👁 {review.approved}✓{review.changes > 0 ? ` ${review.changes}✎` : ""}
+                </span>
+            )}
             <span className="text-[11px] text-fg-faint">{date}</span>
             <span className={cn(
                 "text-[10px] font-medium px-1.5 py-0.5 rounded",
@@ -381,6 +418,9 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
     const [sharing, setSharing] = useState(false);
     const [shareUrl, setShareUrl] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const [clientReview, setClientReview] = useState<ReviewData | null>(null);
+    useEffect(() => { getGenerationReview(gen.id).then(setClientReview).catch(() => {}); }, [gen.id]);
+    const clientFeedback = clientReview?.feedback ? Object.entries(clientReview.feedback).filter(([, v]) => v.status) : [];
     const handleShareReview = async () => {
         setSharing(true);
         try {
@@ -499,6 +539,43 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                                 <p className="text-[10px] text-fg-faint break-all">
                                     <a href={shareUrl} target="_blank" rel="noreferrer" className="hover:text-fg underline">{shareUrl}</a>
                                 </p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Client feedback (from the review link) */}
+                    {clientFeedback.length > 0 && (
+                        <div className="space-y-2">
+                            <h3 className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider flex items-center gap-1.5">
+                                Feedback del cliente
+                                <span className="text-[var(--color-success)]">{clientFeedback.filter(([, v]) => v.status === "approved").length} ✓</span>
+                                {clientFeedback.some(([, v]) => v.status === "change") && (
+                                    <span className="text-warning">{clientFeedback.filter(([, v]) => v.status === "change").length} cambios</span>
+                                )}
+                            </h3>
+                            <div className="space-y-1.5">
+                                {(clientReview?.clips || []).map((clip) => {
+                                    const fb = clientReview?.feedback?.[clip.id];
+                                    if (!fb || !fb.status) return null;
+                                    const isChange = fb.status === "change";
+                                    return (
+                                        <div key={clip.id} className={cn(
+                                            "rounded-[var(--radius-sm)] border px-3 py-2",
+                                            isChange ? "border-[var(--color-warning)]/40 bg-[var(--color-warning)]/5" : "border-edge bg-surface-1",
+                                        )}>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[11px] font-medium text-fg flex-1 truncate">{clip.label}</span>
+                                                <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wide font-semibold", isChange ? "bg-[var(--color-warning)] text-black" : "bg-success-muted text-success")}>
+                                                    {isChange ? "✎ cambio" : "✓ aprobado"}
+                                                </span>
+                                            </div>
+                                            {fb.comment && <p className="text-[11px] text-fg-muted leading-snug mt-1">"{fb.comment}"</p>}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {clientFeedback.some(([, v]) => v.status === "change") && gen.pipelineState && (
+                                <p className="text-[10px] text-fg-faint">Abrí en el tool para regenerar los clips con cambios.</p>
                             )}
                         </div>
                     )}

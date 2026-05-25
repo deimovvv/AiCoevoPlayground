@@ -3422,6 +3422,12 @@ async def create_review(req: CreateReviewRequest):
     return review
 
 
+@app.get("/api/reviews")
+def list_reviews():
+    """All reviews — used to badge which generations have client feedback."""
+    return {"reviews": _load_reviews()}
+
+
 @app.get("/api/reviews/{token}")
 def get_review(token: str):
     """Public: the client opens this with the token in the URL — no auth."""
