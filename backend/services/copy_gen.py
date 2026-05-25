@@ -485,3 +485,73 @@ Devolvé SOLO este JSON, sin texto antes ni después:
         "script": str(obj.get("script") or ""),
         "image_prompt": str(obj.get("image_prompt") or obj.get("visual") or ""),
     }
+
+
+async def chat_scripts(brand_context: str, messages: list[dict], language: str = "es") -> dict:
+    """
+    Conversational UGC scriptwriter. Given the chat conversation, writes a NEW script or
+    ITERATES the previous one based on the user's last message ("más corto", "cambiá el
+    hook", "metele una de b-roll"). Returns {"reply": str, "scenes": [...]}.
+    """
+    lang = "en español rioplatense (Argentina)" if language == "es" else "in English"
+    convo = "\n".join(
+        f"{'USUARIO' if (m.get('role') == 'user') else 'VOS'}: {m.get('content', '')}"
+        for m in (messages or [])[-12:]
+    )
+
+    system_prompt = f"""Sos un guionista UGC de performance que CHARLA con el usuario en un chat y le escribe / itera guiones para la marca.
+
+CONTEXTO DE MARCA (fuente de verdad — tono, hooks, frases, qué NO hacer):
+---
+{brand_context}
+---
+
+REGLAS DE ESCRITURA (CRÍTICAS):
+- Tono, hooks y frases SIEMPRE de la marca. Si la marca lista hooks/frases clave, ROTÁ — usá uno DISTINTO cada vez, no repitas el mismo gancho.
+- UNA idea por escena. Frases cortas. Talking ≤22 palabras, CTA ≤18, creative (voz en off) ~5-12.
+- El CTA va SOLO en su escena, nunca pegado a un value prop. No amontones frases clave.
+- Beat 1 = "talking" (gancho a cámara). Las "creative" llevan voz en off CORTA (mudas solo si lo piden).
+- Si no entra, SUMÁ escenas (3-6 cortas). Nada de párrafos.
+- URLs naturales (ej: tallerdesantaclara.com.ar) — la app las convierte para el audio.
+
+ESTÁS EN UNA CONVERSACIÓN. Interpretá lo ÚLTIMO que pidió el usuario:
+- Pide un guion nuevo / ideas → escribí uno fresco (ángulo distinto a lo ya hablado).
+- Pide cambios sobre el guion anterior ("más corto", "otro hook", "metele b-roll", "sacá el CTA") → devolvé el guion ACTUALIZADO completo.
+
+CONVERSACIÓN:
+{convo}
+
+Devolvé SOLO este JSON, sin texto antes ni después:
+{{"reply": "respuesta corta y canchera al usuario, 1-2 frases ({lang})", "scenes": [
+  {{"title": "Hook", "script": "...", "image_prompt": "descripción visual concreta", "sceneType": "talking"}}
+]}}"""
+
+    raw = await _call_gemini(system_prompt, "Respondé al usuario y escribí/actualizá el guion. Solo JSON.")
+    clean = raw.strip().replace("```json", "").replace("```", "").strip()
+    obj: dict = {}
+    try:
+        obj = json.loads(clean)
+    except json.JSONDecodeError:
+        import re
+        m = re.search(r"\{.*\}", clean, re.DOTALL)
+        if m:
+            try:
+                obj = json.loads(m.group(0))
+            except json.JSONDecodeError:
+                obj = {}
+    if not isinstance(obj, dict):
+        obj = {}
+
+    raw_scenes = obj.get("scenes") or []
+    scenes: list[dict] = []
+    for i, s in enumerate(raw_scenes if isinstance(raw_scenes, list) else []):
+        if not isinstance(s, dict):
+            continue
+        scenes.append({
+            "id": s.get("id") or f"act_{i + 1}",
+            "title": str(s.get("title") or f"Escena {i + 1}"),
+            "script": str(s.get("script") or ""),
+            "image_prompt": str(s.get("image_prompt") or s.get("visual") or ""),
+            "sceneType": "creative" if str(s.get("sceneType")) == "creative" else "talking",
+        })
+    return {"reply": str(obj.get("reply") or "Te dejé un guion abajo."), "scenes": scenes}

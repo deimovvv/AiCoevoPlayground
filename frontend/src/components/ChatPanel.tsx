@@ -2,8 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Loader2, Bot, User, AlertCircle, Plus, MessageSquare, Trash2, Clock, ImageIcon, Package, Mic, Wand2, ChevronDown, ChevronLeft, ChevronRight, Mountain, Shirt, Check, X, Paperclip } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useBrand } from "../lib/BrandContext";
-import { sendChatMessage, resolveAgentBrief, transcribeAudio } from "../lib/api";
-import type { ChatMessage } from "../lib/api";
+import { sendChatMessage, resolveAgentBrief, transcribeAudio, chatScripts } from "../lib/api";
+import type { ChatMessage, ChatScriptScene } from "../lib/api";
 import { cn } from "../lib/utils";
 import { ConfigPreviewCard } from "./ConfigPreviewCard";
 
@@ -298,6 +298,32 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
 
       const currentSession = sessions.find((s) => s.id === sessionId);
       const allMessages = [...(currentSession?.messages || []), userMessage];
+
+      // Scriptwriter intent: explicit script request, OR a follow-up while already in a
+      // scripting thread (last assistant message was a script → "más corto" etc. iterate it).
+      const lower = text.toLowerCase();
+      const lastAssistantScript = [...(currentSession?.messages || [])].reverse()
+        .find((m) => m.role === "assistant")?.meta?.kind === "script";
+      const wantsScript =
+        /\b(gui[oó]n|guion|script|guiones)\b/.test(lower) ||
+        (/\b(ugc|reel|video|tiktok|tik tok)\b/.test(lower) && /\b(escrib|tirame|tira|dame|generame|gener|armame|arma|hac[eé]|idea|ideas|gancho|hook)\b/.test(lower)) ||
+        lastAssistantScript;
+
+      if (wantsScript) {
+        const { reply, scenes } = await chatScripts(activeBrand.id, allMessages);
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id !== sessionId) return s;
+            return {
+              ...s,
+              messages: [...s.messages, { role: "assistant", content: reply, meta: { kind: "script", scenes } }],
+              updatedAt: new Date().toISOString(),
+            };
+          })
+        );
+        return;
+      }
+
       const reply = await sendChatMessage(activeBrand.id, allMessages);
 
       setSessions((prev) =>
@@ -882,6 +908,7 @@ function MessageBubble({ message, selections, userQuestion, attachments, previou
 }) {
   const isUser = message.role === "user";
   const isIgReplicate = message.meta?.kind === "ig_replicate";
+  const isScript = message.meta?.kind === "script";
 
   return (
     <div className={cn("flex items-start gap-3 py-4", isUser && "flex-row-reverse")}>
@@ -907,7 +934,10 @@ function MessageBubble({ message, selections, userQuestion, attachments, previou
         {!isUser && isIgReplicate && message.meta?.kind === "ig_replicate" && (
           <IgReplicateBubble result={message.meta.result} />
         )}
-        {!isUser && !isIgReplicate && <CreateWithThis content={message.content} userQuestion={userQuestion} selections={selections} attachments={attachments} previousResolved={previousResolved} onResolved={onResolved} />}
+        {!isUser && isScript && message.meta?.kind === "script" && (
+          <ScriptBubble scenes={message.meta.scenes} selections={selections} />
+        )}
+        {!isUser && !isIgReplicate && !isScript && <CreateWithThis content={message.content} userQuestion={userQuestion} selections={selections} attachments={attachments} previousResolved={previousResolved} onResolved={onResolved} />}
       </div>
     </div>
   );
@@ -1075,6 +1105,65 @@ function IgReplicateBubble({ result }: { result: import("../lib/api").InstagramR
       <p className="text-[10px] text-fg-faint italic">
         Slide 1 se va a usar como template visual. Modo: Composición + Compose=Quick.
       </p>
+    </div>
+  );
+}
+
+// ── Script bubble: shows a generated UGC script + "Usar este guion" → UGC tool ──
+
+function ScriptBubble({ scenes, selections }: { scenes: ChatScriptScene[]; selections?: ChatSelections }) {
+  const navigate = useNavigate();
+  if (!scenes || scenes.length === 0) return null;
+
+  const useThis = () => {
+    const override: Record<string, unknown> = {};
+    if (selections?.avatarIds[0]) override.selectedAvatarId = selections.avatarIds[0];
+    if (selections?.productIds[0]) override.selectedProductId = selections.productIds[0];
+    if (selections?.clothingIds.length) override.selectedClothingIds = selections.clothingIds;
+    if (selections?.backgroundIds[0]) override.selectedBackgroundId = selections.backgroundIds[0];
+    if (selections?.voiceId) override.selectedVoiceId = selections.voiceId;
+    const customScript = JSON.stringify(
+      scenes.map((s) => ({ title: s.title, script: s.script, visual: s.image_prompt, sceneType: s.sceneType })),
+    );
+    sessionStorage.setItem("coevo-chat-handoff", JSON.stringify({
+      from: "chat", mode: "script", tool: "ugc_creator",
+      config: { ...override, customScript },
+    }));
+    navigate("/dashboard/generate/ugc_creator");
+  };
+
+  return (
+    <div className="mt-2 border border-edge rounded-[var(--radius-md)] bg-surface-1 overflow-hidden">
+      <div className="px-3 py-2 border-b border-edge flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-fg">Guion · {scenes.length} escena{scenes.length === 1 ? "" : "s"}</span>
+        <button
+          onClick={useThis}
+          className="flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-full bg-[var(--color-action)] text-[var(--color-action-fg)] hover:opacity-90 cursor-pointer shrink-0"
+        >
+          <Wand2 size={12} /> Usar este guion
+        </button>
+      </div>
+      <div className="divide-y divide-edge">
+        {scenes.map((s, i) => (
+          <div key={i} className="px-3 py-2 space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-bold text-fg-faint tabular-nums bg-surface-2 border border-edge rounded px-1.5 py-0.5">{i + 1}</span>
+              <span className="text-[10px] font-medium text-fg-muted">{s.title || `Escena ${i + 1}`}</span>
+              <span className={cn(
+                "text-[8px] px-1.5 py-0.5 rounded-full uppercase tracking-wide",
+                s.sceneType === "creative" ? "bg-blue-500/15 text-blue-300" : "bg-[var(--color-action-subtle)] text-[var(--color-action)]",
+              )}>{s.sceneType === "creative" ? "b-roll" : "habla"}</span>
+            </div>
+            {s.script ? (
+              <p className="text-[12px] text-fg leading-snug whitespace-pre-wrap">{s.script}</p>
+            ) : (
+              <p className="text-[11px] text-fg-faint italic">— sin voz (b-roll) —</p>
+            )}
+            {s.image_prompt && <p className="text-[10px] text-fg-faint leading-snug">🎥 {s.image_prompt}</p>}
+          </div>
+        ))}
+      </div>
+      <p className="px-3 py-1.5 text-[10px] text-fg-faint border-t border-edge">Pedime cambios ("más corto", "otro hook", "metele b-roll") o tocá <strong>Usar este guion</strong>.</p>
     </div>
   );
 }

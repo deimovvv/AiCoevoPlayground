@@ -144,14 +144,42 @@ export interface Brand {
     customerReviews?: string[];
 }
 
+export interface ChatScriptScene {
+    id?: string;
+    title?: string;
+    script: string;
+    image_prompt?: string;
+    sceneType?: "talking" | "creative";
+}
+export interface ChatScriptsResult {
+    reply: string;
+    scenes: ChatScriptScene[];
+}
+
 export interface ChatMessage {
     role: "user" | "assistant";
     content: string;
-    /** Optional structured payload — used for special bubbles like IG replication results. */
-    meta?: {
-        kind: "ig_replicate";
-        result: InstagramReplicationResult;
-    };
+    /** Optional structured payload — used for special bubbles like IG replication or scripts. */
+    meta?:
+        | { kind: "ig_replicate"; result: InstagramReplicationResult }
+        | { kind: "script"; scenes: ChatScriptScene[] };
+}
+
+/**
+ * Conversational UGC scriptwriter. Sends the chat conversation; the model writes (or
+ * iterates) a UGC script with brand context. Returns a short reply + the structured scenes.
+ */
+export async function chatScripts(brandId: string, messages: ChatMessage[]): Promise<ChatScriptsResult> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/chat-scripts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: messages.map((m) => ({ role: m.role, content: m.content })) }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Chat scripts failed (${res.status})`);
+    }
+    return res.json();
 }
 
 // ══════════════════════════════════════════════════════════════

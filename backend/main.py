@@ -924,6 +924,25 @@ async def regenerate_scene_endpoint(brand_id: str, req: RegenerateSceneRequest):
         raise HTTPException(status_code=502, detail=str(e))
 
 
+class ChatScriptsRequest(BaseModel):
+    messages: List[dict]
+
+
+@app.post("/api/brands/{brand_id}/chat-scripts")
+async def chat_scripts_endpoint(brand_id: str, req: ChatScriptsRequest):
+    """Conversational UGC scriptwriter for the chat (writes/iterates scripts with brand context)."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not copy_gen.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    try:
+        return await copy_gen.chat_scripts(brand.get("brandContext", ""), req.messages)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 @app.post("/api/stt/transcribe")
 async def stt_transcribe(audio: UploadFile = File(...), language: str = Form("es")):
     """Transcribe a recorded voice note to text (Gemini multimodal audio)."""
