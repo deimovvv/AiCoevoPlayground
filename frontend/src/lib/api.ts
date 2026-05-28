@@ -65,6 +65,15 @@ export interface MoodboardItem {
     imageUrl: string;
 }
 
+/** Per-brand lighting / color-grade reference. Applied as a relight transfer onto an input image. */
+export interface LookFeelItem {
+    id: string;
+    name: string;
+    description?: string;
+    filename: string;
+    imageUrl: string;
+}
+
 export interface BrandFonts {
     headline?: string;
     body?: string;
@@ -134,6 +143,7 @@ export interface Brand {
     clothing?: ClothingItem[];
     backgrounds?: BackgroundItem[];
     moodboards?: MoodboardItem[];
+    lookAndFeel?: LookFeelItem[];
     logo?: { filename: string; imageUrl: string };
     fonts?: BrandFonts;
     dna?: BrandDNA;
@@ -573,6 +583,23 @@ export async function deleteAvatar(brandId: string, avatarId: string): Promise<v
     if (!res.ok) throw new Error("Failed to delete avatar");
 }
 
+export async function updateAvatar(
+    brandId: string,
+    avatarId: string,
+    patch: { name?: string; description?: string },
+): Promise<Avatar> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/avatars/${avatarId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || "No se pudo actualizar el avatar");
+    }
+    return res.json();
+}
+
 export async function replaceAvatarImage(brandId: string, avatarId: string, image: File): Promise<{ id: string; imageUrl: string; filename: string; [k: string]: unknown }> {
     const formData = new FormData();
     formData.append("image", image);
@@ -724,6 +751,23 @@ export async function uploadClothing(
     return res.json();
 }
 
+export async function updateClothing(
+    brandId: string,
+    itemId: string,
+    patch: { name?: string; description?: string },
+): Promise<ClothingItem> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/clothing/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || "No se pudo actualizar la prenda");
+    }
+    return res.json();
+}
+
 export async function deleteClothing(brandId: string, itemId: string): Promise<void> {
     const res = await fetch(`${API_BASE}/api/brands/${brandId}/clothing/${itemId}`, {
         method: "DELETE",
@@ -763,6 +807,23 @@ export async function uploadBackground(
         throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to upload background (${res.status})`);
     }
 
+    return res.json();
+}
+
+export async function updateBackground(
+    brandId: string,
+    itemId: string,
+    patch: { name?: string; description?: string },
+): Promise<BackgroundItem> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/backgrounds/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || "No se pudo actualizar el fondo");
+    }
     return res.json();
 }
 
@@ -811,6 +872,84 @@ export async function deleteMoodboard(brandId: string, itemId: string): Promise<
 }
 
 export function moodboardImageUrl(relativeUrl: string): string {
+    if (relativeUrl.startsWith("http")) return relativeUrl;
+    return `${API_BASE}${relativeUrl}`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Look & Feel API — per-brand lighting / color-grade references
+// ══════════════════════════════════════════════════════════════
+
+export async function uploadLookAndFeel(
+    brandId: string,
+    name: string,
+    imageFile: File,
+    description = "",
+): Promise<LookFeelItem> {
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("description", description);
+    formData.append("image", imageFile);
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/lookandfeel`, {
+        method: "POST",
+        body: formData,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Upload failed" }));
+        throw new Error(err.detail || "Upload failed");
+    }
+    return res.json();
+}
+
+export async function updateLookAndFeel(
+    brandId: string,
+    itemId: string,
+    patch: { name?: string; description?: string },
+): Promise<LookFeelItem> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/lookandfeel/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || "No se pudo actualizar");
+    }
+    return res.json();
+}
+
+export async function deleteLookAndFeel(brandId: string, itemId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/lookandfeel/${itemId}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete look & feel");
+}
+
+/** Analyze a look & feel reference into a text color-grade recipe (cached server-side). */
+export async function describeLookAndFeel(brandId: string, itemId: string): Promise<{ description: string }> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/lookandfeel/${itemId}/describe`, {
+        method: "POST",
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || "No se pudo analizar la referencia");
+    }
+    return res.json();
+}
+
+/** Analyze an ad-hoc (not saved) look & feel image into a color-grade recipe. */
+export async function describeLookAndFeelUpload(file: File): Promise<{ description: string }> {
+    const fd = new FormData();
+    fd.append("image", file);
+    const res = await fetch(`${API_BASE}/api/lookandfeel/describe-upload`, { method: "POST", body: fd });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || "No se pudo analizar la referencia");
+    }
+    return res.json();
+}
+
+export function lookAndFeelImageUrl(relativeUrl: string): string {
     if (relativeUrl.startsWith("http")) return relativeUrl;
     return `${API_BASE}${relativeUrl}`;
 }
@@ -1102,7 +1241,7 @@ export async function enhanceManualPrompt(opts: {
     refs: Array<{ tag: string; label: string; url: string }>;
     mode: "image" | "video";
     targetModel: ImageModel;
-}): Promise<{ enhanced: string }> {
+}): Promise<{ enhanced: string; interpretation?: string }> {
     const res = await fetch(`${API_BASE}/api/manual/enhance-prompt`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -20,6 +20,7 @@ import {
     uploadProduct, deleteProduct, productImageUrl,
     type Brand, type TalkingPhoto
 } from "../lib/api";
+import { downloadFile } from "../lib/download";
 import { HeygenAvatarSelector } from "../components/HeygenAvatarSelector";
 import { GenerationBoard, MOCK_GENERATIONS } from "../components/GenerationBoard";
 import { type Generation } from "../components/GenerationCard";
@@ -1996,11 +1997,9 @@ export function BrandWorkspace() {
                                                                         </div>
                                                                         <div className="px-3 py-2.5 border-t border-border flex items-center justify-between">
                                                                             <span className="text-xs text-text-secondary">{stepId.replace('lip-', 'Segment ')}</span>
-                                                                            <a href={url} target="_blank" rel="noopener noreferrer" download>
-                                                                                <Button variant="default" size="sm" className="flex items-center gap-1.5 h-7 text-xs">
-                                                                                    <Download size={12} /> Download
-                                                                                </Button>
-                                                                            </a>
+                                                                            <Button variant="default" size="sm" onClick={() => downloadFile(url, `${stepId.replace('lip-', 'segment_')}.mp4`)} className="flex items-center gap-1.5 h-7 text-xs">
+                                                                                <Download size={12} /> Download
+                                                                            </Button>
                                                                         </div>
                                                                     </div>
                                                                 ))}

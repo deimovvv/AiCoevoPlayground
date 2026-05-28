@@ -162,6 +162,29 @@ Respond in English."""
     return await _call_vision(prompt, [(image_bytes, mime_type)])
 
 
+async def describe_lookandfeel(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    """
+    Analyze a reference image into a reusable COLOR-GRADE / MOOD recipe — pure color
+    treatment, ZERO scene content. Used to apply a brand 'look & feel' to another image
+    WITHOUT passing the reference itself, so no objects/sky/scenery leak into the result.
+    """
+    prompt = """Analyze ONLY the color grade and mood of this image and output a reusable COLOR-TREATMENT RECIPE.
+Describe, compactly:
+- color palette (dominant colors with rough hex, and any color cast)
+- white balance / color temperature (warm vs cool, kelvin feel)
+- shadow tint and highlight tint
+- contrast and saturation level
+- film / post characteristics: grain, halation/bloom, vignette, matte vs punchy, dynamic range
+- overall mood / atmosphere in a few words
+
+STRICT: do NOT mention or describe ANY object, person, sky, clouds, scenery, location or composition.
+Output ONLY the color/light treatment, as a compact comma-separated recipe an AI image editor can apply as a grade. One paragraph, no preamble.
+
+Respond in English."""
+
+    return await _call_vision(prompt, [(image_bytes, mime_type)])
+
+
 async def extract_visual_guide(
     reference_images: list[tuple[bytes, str]],
     brand_context: str = "",

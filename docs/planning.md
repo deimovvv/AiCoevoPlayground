@@ -64,14 +64,17 @@
 | Fashion Reel | Video | Active (5-step, Story + Looks modes) |
 | Product Clip | Video | Active |
 | Content Analyzer | Images → Routes | Active |
-| Static Ad | Images | Active |
 | Carousel Creator | Images | Active |
-| Ad Creative Lab | Images | Active |
 | Product Spotlight | Images | Active |
-| Fashion Editorial | Images | Active |
 | Avatar Creator | Images | Active |
+| Ecommerce Pack | Images | Active |
+| Video Swap | Video | Active |
+| Static Ad | Images | Degraded — hidden in Generate (files/prompts kept; statics now done in Manual Lab) |
+| Ad Creative Lab | Images | Degraded — hidden in Generate (files/prompts kept; overlaps Static Ad) |
 | Reel Creator | Video | Coming Soon |
 | Background Remover | Images | Coming Soon |
+
+> **Fashion Editorial** was listed here historically but was never implemented (no code in `frontend/src/tools` or `backend/tools`). Removed. For static fashion use Manual Lab; for product-on-model use Ecommerce Pack.
 
 ---
 
@@ -94,8 +97,13 @@
 
 **Goal**: Handle multiple brands, many generations, team collaboration.
 
-- PostgreSQL in Docker (replace JSON files)
+**DB migration path** (staged — don't jump straight to Postgres):
+1. **SQLite + SQLModel** first. Single file, real transactions (fixes the JSON race condition where two concurrent saves overwrite each other and lose generations), proper queries. Small step up from the current JSON layer, zero ops.
+2. **Postgres** (managed — Supabase or Neon) once there's login / multi-user. Scales, and Supabase ships auth + Row Level Security for the Client Portal.
+
 - Alembic migrations
+- Generation data model: `generation → step → asset` (full provenance per AI image). See [pending-features.md](pending-features.md) #1.
+- Media persistence: download Fal outputs to our own storage (disk → R2/S3), store the storage key in the DB instead of the third-party URL. See [pending-features.md](pending-features.md) #1.
 - Redis job queues for background processing
 - Batch generation (multiple videos at once)
 - Generation search/filter/pagination

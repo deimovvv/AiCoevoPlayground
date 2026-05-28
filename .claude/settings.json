@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -o /dev/null -w \"backend /docs → %{http_code}\\\\n\" --max-time 4 http://127.0.0.1:8000/docs)",
+      "Bash(grep -n \"from \\\\\"../lib/\\\\|from './\\\\|import {\" src/components/GenerationCard.tsx)",
+      "Bash(sed -n '282,292p' src/components/ComposeOverlay.tsx)",
+      "Bash(sed -n '122,130p' src/components/BrandLayer.tsx)",
+      "Bash(npx eslint *)",
+      "Bash(awk '/^## 1\\\\. Generation Persistence/,/^## 2\\\\./' pending-features.md)",
+      "Bash(awk '/^## 9\\\\. Deploy & Infrastructure/,/^## 1[0-9]\\\\./' pending-features.md)",
+      "WebFetch(domain:developer.beeble.ai)",
+      "Bash(curl -s -o /dev/null -w \"PATCH avatar \\(brand inexistente\\) → %{http_code}\\\\n\" -X PATCH \"http://127.0.0.1:8000/api/brands/__nope__/avatars/__nope__\" -H \"Content-Type: application/json\" -d '{\"name\":\"Test\"}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 4 http://127.0.0.1:8000/docs)",
+      "Bash(curl -s --max-time 4 http://127.0.0.1:8000/api/brands/__sandbox__/lookandfeel)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -X PATCH http://127.0.0.1:8000/api/brands/__nope__/lookandfeel/x -H \"Content-Type: application/json\" -d '{\"name\":\"x\"}')",
+      "Bash(curl -s --max-time 5 \"http://localhost:5173/src/pages/BrandSettings.tsx\")",
+      "Bash(curl -s --max-time 5 \"http://localhost:5174/src/pages/BrandSettings.tsx\")",
+      "Bash(kill 9888)",
+      "Bash(awk '/ENHANCE_SYSTEM_PROMPT_IMAGE *=/,/\"\"\"/{print}' services/manual_lab.py)",
+      "Bash(curl -s -o /dev/null -w \"POST .../lookandfeel/x/describe \\(brand inexistente\\) → %{http_code}\\\\n\" -X POST http://127.0.0.1:8000/api/brands/__nope__/lookandfeel/x/describe)"
+    ]
+  }
+}

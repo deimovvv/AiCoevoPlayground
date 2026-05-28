@@ -100,7 +100,14 @@ ENHANCE_SYSTEM_PROMPT_IMAGE = """You are an expert image-editing prompt engineer
 
 The user will give you a casual request in any language, optionally referencing attached images by [imageN] tokens. The attached images are passed to you as inline content in the same order as their tags. You can SEE them — describe what you see when relevant.
 
-Your job: rewrite the user's request as a polished, specific image-generation prompt that {model_name} will execute well. Output ONLY the final prompt text — no preamble, no explanations, no quotes.
+Your job: rewrite the user's request as a polished, specific image-generation prompt that {model_name} will execute well.
+
+OUTPUT FORMAT (exactly):
+- First line: `QUÉ ENTENDÍ: <una frase corta en español resumiendo qué entendiste del pedido del usuario y qué vas a cambiar/hacer>`.
+- Then a new line, and then ONLY the final prompt text in English — no quotes, no other preamble.
+
+How {model_name} reads its reference images (follow this exactly):
+{model_rules}
 
 Rules:
 - Reference images by "Image 1", "Image 2", etc. (matching the position they were attached). Replace any [imageN] tokens with "Image N".
@@ -114,9 +121,37 @@ Rules:
 - End with terse style hints if missing: photorealistic, sharp focus, natural lighting — only when relevant.
 """
 
+# How each image model consumes multi-image references. Built from each model's docs
+# (Gemini/Nano Banana: peers; GPT Image: first image = base). Add new models here —
+# the enhancer wires the matching block into the system prompt per target_model.
+MODEL_REF_RULES = {
+    "nano-banana-2": (
+        "Every reference image is an EQUAL PEER (supports up to ~14 images) — there is NO fixed 'base' image. "
+        "Give each image an explicit role and spell out exactly what to take from each, and how they relate "
+        "(e.g. \"keep the person and face from Image 1, put the garment from Image 2 on them, use Image 3 for the background\"). "
+        "It fuses references well, so be concrete about every image's contribution."
+    ),
+    "gpt-image-2": (
+        "The FIRST image (Image 1) is the BASE that gets edited — it is preserved with the most fidelity, "
+        "especially faces. Image 2 and beyond are references/context only, NOT edited. "
+        "So phrase the prompt as editing Image 1 (\"Edit Image 1: ...\") and pull specifics from the others "
+        "(\"using Image 2 as the color/style reference\", \"add the product shown in Image 3\"). "
+        "The main subject / identity / face must be Image 1 — never put the base anywhere but first."
+    ),
+}
+
+
+def _model_rules_for(target_model: str) -> str:
+    return MODEL_REF_RULES.get(target_model, MODEL_REF_RULES["nano-banana-2"])
+
+
 ENHANCE_SYSTEM_PROMPT_VIDEO = """You are an expert motion-prompt engineer for Kling V3 Pro (image-to-video).
 
-The user gives a casual request describing how a static image (Image 1, attached) should animate. Output a tight motion prompt that Kling will execute well. Output ONLY the final prompt — no preamble, no quotes.
+The user gives a casual request describing how a static image (Image 1, attached) should animate. Produce a tight motion prompt that Kling will execute well.
+
+OUTPUT FORMAT (exactly):
+- First line: `QUÉ ENTENDÍ: <una frase corta en español de qué movimiento vas a aplicar>`.
+- Then a new line, and then ONLY the final motion prompt in English — no quotes, no other preamble.
 
 Rules:
 - Describe MOTION, not the scene: what moves, how it moves, camera behavior.
@@ -146,16 +181,43 @@ async def _fetch_image_bytes(url: str) -> tuple[bytes, str]:
         return res.content, mime
 
 
+# Prompt interpretation/curation benefits from the stronger model (better at nuanced edits
+# like "más porosa", "sin tocar el fondo"). Kept separate from the fast 2.5-flash used elsewhere.
+ENHANCE_MODEL = "gemini-3.1-pro-preview"
+
+
+def _split_interpretation(raw: str) -> tuple[str, str]:
+    """The model starts its output with a 'QUÉ ENTENDÍ: ...' line (Spanish gloss of what it
+    understood), then the final prompt. Returns (interpretation_es, prompt). Falls back to
+    ('', raw) if the marker is absent."""
+    text = (raw or "").strip()
+    lines = text.split("\n")
+    if lines:
+        head = lines[0].strip()
+        if head.upper().startswith("QUÉ ENTENDÍ") or head.upper().startswith("QUE ENTENDI"):
+            interp = head.split(":", 1)[1].strip() if ":" in head else ""
+            prompt = "\n".join(lines[1:]).strip()
+            if prompt[:3] in ("---", "==="):  # drop an optional separator line
+                prompt = prompt.split("\n", 1)[1].strip() if "\n" in prompt else ""
+            return interp, prompt
+    return "", text
+
+
 async def enhance_prompt(
     user_input: str,
     refs: list[dict],  # [{tag, label, url}]
     mode: str = "image",  # "image" | "video"
     target_model: str = "nano-banana-2",
-) -> str:
-    """Take a casual user request + reference images and produce a polished prompt for the target model."""
+) -> dict:
+    """Take a casual user request + reference images and produce a polished prompt for the
+    target model. Returns {"enhanced": <english prompt>, "interpretation": <spanish gloss>}."""
     user_input = (user_input or "").strip()
     if not user_input:
-        return ""
+        # Video + an image but no text → recommend a motion from the image itself.
+        if mode == "video" and refs:
+            user_input = "Recommend a tasteful, natural animation for this image. Decide the motion yourself based on what you see."
+        else:
+            return {"enhanced": "", "interpretation": ""}
 
     # Try to fetch each ref's bytes for Vision input — skip refs we can't resolve
     images: list[tuple[bytes, str]] = []
@@ -172,7 +234,11 @@ async def enhance_prompt(
             print(f"[manual-enhance] Skipping ref {r.get('tag')}: {e}")
 
     model_name = "Nano Banana 2" if target_model == "nano-banana-2" else "GPT Image 2"
-    system = (ENHANCE_SYSTEM_PROMPT_IMAGE if mode == "image" else ENHANCE_SYSTEM_PROMPT_VIDEO).format(model_name=model_name)
+    # Image enhancer is model-aware (per-model reference rules); video is Kling-only.
+    if mode == "image":
+        system = ENHANCE_SYSTEM_PROMPT_IMAGE.format(model_name=model_name, model_rules=_model_rules_for(target_model))
+    else:
+        system = ENHANCE_SYSTEM_PROMPT_VIDEO
 
     refs_block = ""
     if resolved_refs:
@@ -180,11 +246,14 @@ async def enhance_prompt(
             f"- [{r.get('tag')}] {r.get('label', '')}" for r in resolved_refs
         )
 
-    full_prompt = f"{system}\n\n{refs_block}\n\nUser request:\n{user_input}\n\nFinal prompt:".strip()
+    full_prompt = f"{system}\n\n{refs_block}\n\nUser request:\n{user_input}\n\nOutput:".strip()
 
     if not images:
-        # No images resolved — fall back to text-only Gemini
-        return await _call_gemini(system, f"{refs_block}\n\nUser request:\n{user_input}\n\nFinal prompt:")
+        # No images resolved — fall back to text-only Gemini (fast model is fine here).
+        raw = await _call_gemini(system, f"{refs_block}\n\nUser request:\n{user_input}\n\nOutput:")
+    else:
+        raw = await _call_vision(full_prompt, images, model=ENHANCE_MODEL)
 
-    return await _call_vision(full_prompt, images)
+    interpretation, enhanced = _split_interpretation(raw)
+    return {"enhanced": enhanced, "interpretation": interpretation}
 

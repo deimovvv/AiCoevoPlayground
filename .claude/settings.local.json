@@ -146,7 +146,19 @@
       "Bash(awk '{s+=$1}1')",
       "Bash(grep -oE \"[A-Z_]{4,}\")",
       "Bash(grep -rEn \"\\(sk-[a-zA-Z0-9]{20}|AIza[0-9A-Za-z_-]{20}|Bearer [a-zA-Z0-9]{20}|api[_-]?key.{0,3}[:=].{0,3}['\\\\\"][a-zA-Z0-9]{20}\\)\" backend/data/brands.json backend/main.py)",
-      "Bash(grep -E \"\\(^|/\\)\\\\.env$\")"
+      "Bash(grep -E \"\\(^|/\\)\\\\.env$\")",
+      "Bash(curl -s --max-time 5 \"http://localhost:5173/src/pages/ManualLab.tsx\")",
+      "Bash(curl -s --max-time 4 http://127.0.0.1:8000/api/tools)",
+      "Bash(grep -rln \"Fashion Editorial\\\\|fashion_editorial\" docs/ CLAUDE.md)",
+      "Bash(grep -rn \"Fashion Editorial\" docs/ CLAUDE.md)",
+      "Bash(sed -n '60,75p' docs/planning.md)",
+      "Bash(sed -n '88,100p' docs/tools.md)",
+      "Bash(curl -s -o /dev/null -w \"POST /api/lookandfeel/describe-upload \\(sin archivo\\) → %{http_code}\\\\n\" -X POST http://127.0.0.1:8000/api/lookandfeel/describe-upload)",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"clothing PATCH → %{http_code}\\\\n\" -X PATCH \"http://127.0.0.1:8000/api/brands/__nope__/clothing/x\" -H \"Content-Type: application/json\" -d '{\"name\":\"t\"}')",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"backgrounds PATCH → %{http_code}\\\\n\" -X PATCH \"http://127.0.0.1:8000/api/brands/__nope__/backgrounds/x\" -H \"Content-Type: application/json\" -d '{\"name\":\"t\"}')",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"products PATCH → %{http_code}\\\\n\" -X PATCH \"http://127.0.0.1:8000/api/brands/__nope__/products/x\" -H \"Content-Type: application/json\" -d '{\"name\":\"t\"}')",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 4 http://127.0.0.1:8000/docs)",
+      "Bash(grep -iE \"\\\\.env$\")"
     ],
     "deny": [],
     "ask": []

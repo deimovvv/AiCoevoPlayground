@@ -58,7 +58,9 @@
   - Select a video → auto-fills URL for analysis
 - Background selection transfers through handoff to destination tool
 
-### Static Ad (images)
+### Static Ad (images) — ⚠️ DEGRADED (hidden in Generate; files/prompts kept)
+> Hidden via `"hidden": true` in `backend/tools/registry.json`. Statics are now done in Manual Lab. The 40 templates remain in `static_ad/templates.json` for future re-integration. Flip the flag to restore.
+
 **Pipeline:** prompt → generate_all
 - Ready-to-publish static ads with copy, product, logo
 - 40 ad templates with detailed composition prompts
@@ -76,7 +78,9 @@
 - Product always first in references
 - Handoff from Content Analyzer: scene outline pre-loaded as brief
 
-### Ad Creative Lab (images)
+### Ad Creative Lab (images) — ⚠️ DEGRADED (hidden in Generate; files/prompts kept)
+> Hidden via `"hidden": true` in `backend/tools/registry.json` (overlaps Static Ad; statics now done in Manual Lab). Flip the flag to restore.
+
 **Pipeline:** visual_guide → prompts → generate_batch
 - Brand-consistent ad creatives from reference images
 - Visual guide extraction with Gemini Vision
@@ -89,11 +93,7 @@
 - Professional product photography in context
 - Moodboard visual style reference support
 
-### Fashion Editorial (images)
-**Pipeline:** prompt → generate → variations
-- High-end fashion editorial photography
-- Avatar + garments + pose direction with professional lighting and styling
-- Moodboard visual style reference support
+> **Fashion Editorial** — listed here historically but never implemented (no code). Removed. Use Manual Lab for static fashion, or Ecommerce Pack for product-on-model.
 
 ### Avatar Creator (images)
 **Pipeline:** brief → generate → save

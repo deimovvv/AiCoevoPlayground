@@ -61,12 +61,12 @@ frontend/src/
     fashion_reel/
     product_clip/
     content_analyzer/
-    static_ad/
+    static_ad/                # degraded (hidden in Generate; files kept)
     carousel_creator/
-    ad_creative_lab/
+    ad_creative_lab/          # degraded (hidden in Generate; files kept)
     product_spotlight/
-    fashion_editorial/
     avatar_creator/
+    ecommerce_pack/
     shared/
   remotion/                 # Video preview
     SubtitleOverlay.tsx        # Word-by-word karaoke
@@ -101,12 +101,13 @@ backend/
     fashion_reel/
     product_clip/
     content_analyzer/
-    static_ad/               # default_prompt.txt + templates.json (40 templates)
+    static_ad/               # default_prompt.txt + templates.json (40 templates) — degraded (hidden)
     carousel_creator/        # default_prompt.txt + carousel_types.json (8 types)
-    ad_creative_lab/
+    ad_creative_lab/         # degraded (hidden)
     product_spotlight/
-    fashion_editorial/
     avatar_creator/
+    ecommerce_pack/
+    video_swap/
 ```
 
 ## Key Patterns
@@ -151,6 +152,13 @@ POST submit -> request_id
 poll status -> IN_QUEUE | IN_PROGRESS | COMPLETED
 GET result -> final URL
 ```
+
+### Media Downloads (centralized)
+Every "download" action in the app goes through one helper — `frontend/src/lib/download.ts` → `downloadFile(url, filename)` — which hits the backend proxy `GET /api/download?url=&filename=`.
+
+Why a proxy: Fal CDN URLs are cross-origin and send no `Content-Disposition`, so a plain `<a download>` is ignored and the file **opens in a new tab instead of saving**; a client-side `fetch()` is blocked by CORS. The proxy fetches server-side (no CORS) and streams the file back as an attachment (RFC 5987 `filename*` so accents/spaces survive). `blob:`/`data:` URLs download directly (same-origin) and skip the proxy. Allowed hosts are whitelisted in `ALLOWED_DOWNLOAD_HOSTS` (Fal, Google Storage, localhost).
+
+In Manual Lab the output inherits the source image's filename: the input ref's `baseName` is propagated through edit / use-as-ref / animate chains.
 
 ### Manual Lab (brand-agnostic generation sandbox)
 A standalone page (`/dashboard/lab`) that bypasses the pipeline/curation system entirely. It lets internal users hit Nano Banana 2 / Kling V3 directly with chat-style references, optionally using brand assets but never requiring a brand.

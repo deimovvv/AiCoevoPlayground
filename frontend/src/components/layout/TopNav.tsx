@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
-    LayoutGrid, Wand2, FolderOpen, BarChart3, Settings,
-    Plug, Zap, ChevronDown, FlaskConical, Loader2, MessageSquare, Moon, Sun,
+    LayoutGrid, Wand2, FolderOpen, Settings,
+    ChevronDown, FlaskConical, Loader2, MessageSquare, Moon, Sun,
 } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
 import { useTheme } from "../../lib/theme";
@@ -21,18 +21,17 @@ interface NavItem {
 // Brand-flow nav: everything that operates WITH the active brand context.
 const PRIMARY_NAV: NavItem[] = [
     { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={15} />, title: "Gestioná tus marcas y su brand kit" },
-    { label: "Chat", href: "/dashboard/chat", exact: true, icon: <MessageSquare size={15} />, title: "Asistente CON tu marca — ideas, estrategia, rutea a tools" },
+    { label: "Copiloto", href: "/dashboard/chat", exact: true, icon: <MessageSquare size={15} />, title: "Copiloto: charlá, ideá, escribí guiones y 'armame X' con contexto de marca" },
     { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={15} />, title: "Tools de generación de contenido para tu marca" },
     { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={15} />, title: "Biblioteca de generaciones" },
-    { label: "Performance", href: "/dashboard/performance/organic", icon: <BarChart3 size={15} />, title: "Analytics de contenido" },
+    // Performance / Integraciones / Automatizaciones ocultos por ahora (mock). Rutas vivas por URL.
 ];
 
 // Lab lives OUTSIDE the brand flow — a brand-agnostic sandbox. Visually separated.
 const LAB_NAV: NavItem = { label: "Lab", href: "/dashboard/lab", exact: true, icon: <FlaskConical size={15} />, title: "Sandbox SIN marca — Nano Banana + Kling/Seedance directo, para experimentar" };
 
 const SETTINGS_NAV: NavItem[] = [
-    { label: "Integraciones", href: "/dashboard/integrations", exact: true, icon: <Plug size={14} /> },
-    { label: "Automatizaciones", href: "/dashboard/automations", exact: true, icon: <Zap size={14} /> },
+    // Integraciones / Automatizaciones ocultas por ahora (mock). Rutas vivas por URL.
     { label: "Ajustes", href: "/dashboard/settings", exact: true, icon: <Settings size={14} /> },
 ];
 

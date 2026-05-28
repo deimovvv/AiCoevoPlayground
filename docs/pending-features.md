@@ -6,13 +6,29 @@ Features discussed and planned but not yet implemented.
 
 ## 1. Generation Persistence
 
-**Problem:** Pipeline state is lost when leaving the page. Only final result saves.
+**Problem:** Pipeline state is lost when leaving the page. Only the final result saves — and it saves the *Fal URL*, not the file (`create_generation` stores `outputUrl` as-is into `generations.json`).
 
 **Need:**
 - Save complete pipeline state per generation (every step result)
 - Store intermediate images, audio files
 - Re-open a generation and resume/edit from any step
 - Delete associated files when deleting a generation
+
+**Data model (when this moves off flat JSON):**
+```
+generation     the run: brand, tool, date, status
+  └─ step       each pipeline step (script, base, multishot, voice, render…)
+       └─ asset     EACH generated image / video / audio
+            id, type, prompt, model, params (json),
+            refs            (input images used),
+            storageKey      (OUR stored file),
+            sourceUrl       (original Fal URL — audit only),
+            parentAssetId   (which asset it derived from — edit/variant chains),
+            createdAt
+```
+Keeps full provenance per AI image (which prompt + model + ref produced it, and what it derived from) and lets curation reconstruct variant/edit chains.
+
+**Media persistence (consideration — deferred):** Fal output URLs are a third-party CDN, not our system of record; they can be purged over time even when Fal itself is healthy. To *guarantee* every step is saved, download each output to our own storage at save time and persist `storageKey`, keeping `sourceUrl` for audit only. Not urgent — current usage relies on Fal URLs directly and that's acceptable for now.
 
 ---
 

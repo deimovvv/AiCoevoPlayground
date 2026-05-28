@@ -54,6 +54,7 @@ import {
   type ActionCategory,
 } from "../lib/api";
 import { cn } from "../lib/utils";
+import { downloadFile } from "../lib/download";
 import { ImageEditPanel } from "../components/ImageEditPanel";
 import { SHOT_CATALOG, STUDIO_STYLES } from "../tools/ecommerce_pack";
 import { Collapsible } from "../components/ui/section";
@@ -6762,13 +6763,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         <div className="flex justify-center gap-3 pt-2">
           {fullVideoUrl && (
             <button
-              onClick={async () => {
-                const res = await fetch(fullVideoUrl);
-                const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a"); a.href = url; a.download = "ugc_with_subs.mp4"; a.click();
-                URL.revokeObjectURL(url);
-              }}
+              onClick={() => downloadFile(fullVideoUrl, "ugc_with_subs.mp4")}
               className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
             >
               <Film size={14} />
@@ -6777,13 +6772,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           )}
           {fullVideoUrlNoSubs && (
             <button
-              onClick={async () => {
-                const res = await fetch(fullVideoUrlNoSubs);
-                const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a"); a.href = url; a.download = "ugc_no_subs.mp4"; a.click();
-                URL.revokeObjectURL(url);
-              }}
+              onClick={() => downloadFile(fullVideoUrlNoSubs, "ugc_no_subs.mp4")}
               className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-fg bg-surface-2 hover:bg-surface-3 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
             >
               <Film size={14} />
@@ -6870,16 +6859,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             onClick={async () => {
               for (const slide of slides) {
                 if (!slide.url) continue;
-                try {
-                  const res = await fetch(slide.url);
-                  const blob = await res.blob();
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `carousel_${slide.id}.png`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                } catch { /* */ }
+                downloadFile(slide.url, `carousel_${slide.id}.png`);
               }
             }}
             className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
@@ -8027,10 +8007,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
               onClick={(e) => {
                 e.preventDefault();
                 data.creatives.filter((c) => c.url).forEach((c, i) => {
-                  const link = document.createElement("a");
-                  link.href = c.url;
-                  link.download = `creative_${i + 1}_${c.style}.png`;
-                  link.click();
+                  downloadFile(c.url, `creative_${i + 1}_${c.style}.png`);
                 });
               }}
               className="flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
@@ -11039,21 +11016,10 @@ function slugify(s: string): string {
     .slice(0, 60);
 }
 
-/** Fetch a media URL and trigger a real download with the given filename. Falls back to
- *  opening in a new tab only if the fetch fails (CORS/network). */
+/** Download a media URL with the given filename, via the backend proxy so it always
+ *  saves (never opens a new tab). See lib/download.ts. */
 async function downloadMediaAs(url: string, filename: string): Promise<void> {
-  try {
-    const res = await fetch(url);
-    const blob = await res.blob();
-    const objUrl = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = objUrl;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(objUrl);
-  } catch {
-    window.open(url, "_blank");
-  }
+  downloadFile(url, filename);
 }
 
 /**

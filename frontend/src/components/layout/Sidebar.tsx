@@ -51,25 +51,10 @@ export function Sidebar() {
                 { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} /> },
             ],
         },
-        {
-            title: "AJUSTES",
-            items: [
-                { label: "Integraciones", href: "/dashboard/integrations", exact: true, icon: <Plug size={18} /> },
-                { label: "Automatizaciones", href: "/dashboard/automations", exact: true, icon: <Zap size={18} /> },
-            ],
-        },
-        {
-            title: "MARKETING",
-            items: [],
-            collapsible: {
-                label: "Performance",
-                icon: <BarChart3 size={18} />,
-                items: [
-                    { label: "Orgánico", href: "/dashboard/performance/organic", icon: <TrendingUp size={16} /> },
-                    { label: "Ads", href: "/dashboard/performance/ads", icon: <Target size={16} /> },
-                ],
-            },
-        },
+        // Hidden for now (still reachable by direct URL, routes remain in App.tsx):
+        // - AJUSTES: Integraciones, Automatizaciones — mock, not needed yet.
+        // - MARKETING: Performance (Orgánico / Ads) — mock, not needed yet.
+        // Re-add the sections here to bring them back.
     ];
 
     const isActive = (item: MenuItem) =>

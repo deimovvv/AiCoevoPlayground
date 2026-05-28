@@ -5,6 +5,7 @@ import { useBrand } from "../lib/BrandContext";
 import { fetchGenerations, deleteGeneration, createReview, getGenerationReview, listReviews, ensureBrandPortal, setGenerationPublished } from "../lib/api";
 import type { Generation, ReviewData } from "../lib/api";
 import { cn } from "../lib/utils";
+import { downloadFile } from "../lib/download";
 
 const API_BASE = "http://localhost:8000";
 
@@ -41,11 +42,13 @@ export function ContentPage() {
     }, [activeBrand?.id]);
 
     const [portalCopied, setPortalCopied] = useState(false);
+    const [portalUrl, setPortalUrl] = useState<string | null>(null);
     const copyPortalLink = async () => {
         if (!activeBrand) return;
         try {
             const { token } = await ensureBrandPortal(activeBrand.id);
             const url = `${window.location.origin}/portal/${token}`;
+            setPortalUrl(url);
             try { await navigator.clipboard.writeText(url); } catch { /* clipboard blocked */ }
             setPortalCopied(true);
             setTimeout(() => setPortalCopied(false), 2500);
@@ -97,14 +100,27 @@ export function ContentPage() {
                     </p>
                 </div>
                 {activeBrand && (
-                    <button
-                        onClick={copyPortalLink}
-                        title="Link del portal del cliente — ve todo lo que publiques para esta marca"
-                        className="flex items-center gap-1.5 h-9 px-3 rounded-[var(--radius-sm)] text-[12px] font-medium border border-edge text-fg-muted hover:text-fg hover:border-[var(--color-action)] cursor-pointer shrink-0 transition-colors"
-                    >
-                        {portalCopied ? <Check size={14} /> : <Share2 size={14} />}
-                        {portalCopied ? "¡Link copiado!" : "Portal del cliente"}
-                    </button>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <button
+                            onClick={copyPortalLink}
+                            title="Link del portal del cliente — ve todo lo que publiques para esta marca"
+                            className="flex items-center gap-1.5 h-9 px-3 rounded-[var(--radius-sm)] text-[12px] font-medium border border-edge text-fg-muted hover:text-fg hover:border-[var(--color-action)] cursor-pointer transition-colors"
+                        >
+                            {portalCopied ? <Check size={14} /> : <Share2 size={14} />}
+                            {portalCopied ? "¡Link copiado!" : "Portal del cliente"}
+                        </button>
+                        {portalUrl && (
+                            <a
+                                href={portalUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[11px] text-[var(--color-action)] hover:underline max-w-[260px] truncate"
+                                title={`Abrir portal: ${portalUrl}`}
+                            >
+                                Abrir portal ↗
+                            </a>
+                        )}
+                    </div>
                 )}
             </div>
 
@@ -657,23 +673,15 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                                         <div key={scene.id || i} className="space-y-1 group/img">
                                             {sceneImg && (
                                                 <div className="aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge relative cursor-pointer"
-                                                    onClick={() => window.open(sceneImg, "_blank")}
+                                                    onClick={() => downloadFile(sceneImg!, `creative_${i + 1}.png`)}
+                                                    title="Descargar"
                                                 >
                                                     <img src={sceneImg} alt={scene.title || `${i + 1}`} className="w-full h-full object-cover" />
                                                     <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/30 transition-colors flex items-center justify-center gap-2">
                                                         <button
-                                                            onClick={async (e) => {
+                                                            onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                try {
-                                                                    const res = await fetch(sceneImg);
-                                                                    const blob = await res.blob();
-                                                                    const url = URL.createObjectURL(blob);
-                                                                    const a = document.createElement("a");
-                                                                    a.href = url;
-                                                                    a.download = `creative_${i + 1}.png`;
-                                                                    a.click();
-                                                                    URL.revokeObjectURL(url);
-                                                                } catch { /* silent */ }
+                                                                downloadFile(sceneImg!, `creative_${i + 1}.png`);
                                                             }}
                                                             className="opacity-0 group-hover/img:opacity-100 p-1.5 bg-white/20 rounded-full hover:bg-white/40 transition-all cursor-pointer"
                                                         >

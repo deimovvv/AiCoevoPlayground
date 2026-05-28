@@ -5,6 +5,7 @@ import {
     Play, Download, Trash2, Clock, RotateCcw, ChevronRight, User, Package,
     FileText, Image, Mic, Video, Loader2, CheckCircle2, AlertCircle,
 } from "lucide-react";
+import { downloadFile } from "../lib/download";
 
 export interface GenerationScene {
     id: string;
@@ -243,11 +244,12 @@ export function GenerationCard({ generation, onDelete, onRestart, onClick }: Pro
                                         <Play size={11} /> Play
                                     </button>
                                 </a>
-                                <a href={gen.finalVideoUrl} download>
-                                    <button className="cursor-pointer flex items-center gap-1 h-7 px-2 rounded border border-edge bg-surface-0 text-fg-faint hover:text-fg hover:border-edge-strong transition-all">
-                                        <Download size={11} />
-                                    </button>
-                                </a>
+                                <button
+                                    onClick={() => downloadFile(gen.finalVideoUrl!, `${(gen.title || gen.id).slice(0, 50)}.mp4`)}
+                                    className="cursor-pointer flex items-center gap-1 h-7 px-2 rounded border border-edge bg-surface-0 text-fg-faint hover:text-fg hover:border-edge-strong transition-all"
+                                >
+                                    <Download size={11} />
+                                </button>
                             </>
                         )}
                         {gen.status === "failed" && onRestart && (

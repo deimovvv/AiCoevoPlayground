@@ -25,21 +25,30 @@ import {
   X,
   Wand2,
   UploadCloud,
+  Sun,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
   updateBrand,
   uploadAvatar,
   deleteAvatar,
+  updateAvatar,
   uploadProduct,
   deleteProduct,
+  updateProduct,
   uploadClothing,
   deleteClothing,
+  updateClothing,
   uploadBackground,
   deleteBackground,
+  updateBackground,
   uploadMoodboard,
   deleteMoodboard,
   moodboardImageUrl,
+  uploadLookAndFeel,
+  deleteLookAndFeel,
+  updateLookAndFeel,
+  lookAndFeelImageUrl,
   addVoicePreset,
   deleteVoicePreset,
   createVoiceDesignPreviews,
@@ -58,7 +67,7 @@ import {
   addProductImage,
   generateTTS,
 } from "../lib/api";
-import type { Avatar, Product, ClothingItem, BackgroundItem, MoodboardItem, DesignSystem } from "../lib/api";
+import type { Avatar, Product, ClothingItem, BackgroundItem, MoodboardItem, LookFeelItem, DesignSystem } from "../lib/api";
 import { cn } from "../lib/utils";
 import { PromptsCard } from "../components/PromptsCard";
 import { BusinessCard, BrandSourcesCard, CustomerReviewsCard, CompetitorsCard, BrandHealthCard, SectionHeader, BrandIdentityExportCard } from "../components/BrandLayer";
@@ -124,6 +133,7 @@ export function BrandSettings() {
         <AvatarsCard />
         <LogoCard />
         <MoodboardsCard />
+        <LookAndFeelCard />
         <BackgroundsCard />
         <VoicesCard />
         <ClothingCard />
@@ -493,6 +503,7 @@ function AvatarsCard() {
   const { activeBrand, refreshBrands } = useBrand();
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [name, setName] = useState("");
@@ -531,6 +542,18 @@ function AvatarsCard() {
       console.error("Error al eliminar:", err);
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleUpdate = async (avatarId: string, patch: { name?: string; description?: string }) => {
+    setRenaming(avatarId);
+    try {
+      await updateAvatar(activeBrand.id, avatarId, patch);
+      await refreshBrands();
+    } catch (err) {
+      console.error("Error al actualizar avatar:", err);
+    } finally {
+      setRenaming(null);
     }
   };
 
@@ -623,7 +646,9 @@ function AvatarsCard() {
               key={a.id}
               avatar={a}
               deleting={deleting === a.id}
+              busy={renaming === a.id}
               onDelete={() => handleDelete(a.id)}
+              onSave={(patch) => handleUpdate(a.id, patch)}
             />
           ))}
         </div>
@@ -632,39 +657,130 @@ function AvatarsCard() {
   );
 }
 
+/**
+ * Reusable editable footer for asset tiles: inline rename (click name → input,
+ * Enter/blur saves, Esc cancels) + editable description (click to edit, add if empty)
+ * + delete. Used by Avatar / Product / Clothing / Background tiles.
+ * The parent tile must have `className="group ..."` for the hover affordances.
+ */
+function AssetEditableMeta({
+  name,
+  description,
+  busy = false,
+  deleting,
+  onSave,
+  onDelete,
+  children,
+}: {
+  name: string;
+  description?: string;
+  busy?: boolean;
+  deleting: boolean;
+  onSave: (patch: { name?: string; description?: string }) => void;
+  onDelete: () => void;
+  children?: React.ReactNode;
+}) {
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(name);
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descDraft, setDescDraft] = useState(description || "");
+
+  const commitName = () => {
+    const next = nameDraft.trim();
+    setEditingName(false);
+    if (next && next !== name) onSave({ name: next });
+  };
+  const commitDesc = () => {
+    setEditingDesc(false);
+    const next = descDraft.trim();
+    if (next !== (description || "").trim()) onSave({ description: next });
+  };
+
+  return (
+    <div className="p-2 space-y-1">
+      <div className="flex items-center justify-between gap-1">
+        {editingName ? (
+          <input
+            autoFocus
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={commitName}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitName();
+              if (e.key === "Escape") { setEditingName(false); setNameDraft(name); }
+            }}
+            className="flex-1 min-w-0 bg-surface-1 border border-[var(--color-edge-focus)] rounded px-1 py-0.5 text-[11px] text-fg outline-none"
+          />
+        ) : (
+          <button
+            onClick={() => { setNameDraft(name); setEditingName(true); }}
+            title="Renombrar"
+            className="flex-1 min-w-0 flex items-center gap-1 text-left cursor-pointer"
+          >
+            <span className="text-[11px] text-fg font-medium truncate">{name}</span>
+            {busy
+              ? <Loader2 size={9} className="animate-spin text-fg-faint shrink-0" />
+              : <Pencil size={9} className="text-fg-faint shrink-0 opacity-0 group-hover:opacity-60 transition-opacity" />}
+          </button>
+        )}
+        {editingName ? (
+          <button onMouseDown={(e) => e.preventDefault()} onClick={commitName} title="Guardar"
+            className="p-0.5 rounded text-fg-faint hover:text-[var(--color-action)] transition-colors cursor-pointer shrink-0">
+            <Check size={11} />
+          </button>
+        ) : (
+          <button onClick={onDelete} disabled={deleting}
+            className="p-0.5 rounded text-fg-faint hover:text-error transition-colors cursor-pointer opacity-0 group-hover:opacity-100 shrink-0">
+            {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
+          </button>
+        )}
+      </div>
+
+      {editingDesc ? (
+        <textarea
+          autoFocus
+          value={descDraft}
+          onChange={(e) => setDescDraft(e.target.value)}
+          onBlur={commitDesc}
+          onKeyDown={(e) => { if (e.key === "Escape") { setEditingDesc(false); setDescDraft(description || ""); } }}
+          rows={2}
+          placeholder="Descripción (se usa en los prompts)"
+          className="w-full bg-surface-1 border border-[var(--color-edge-focus)] rounded px-1.5 py-1 text-[10px] text-fg outline-none resize-none"
+        />
+      ) : description ? (
+        <button onClick={() => { setDescDraft(description); setEditingDesc(true); }} title="Editar descripción" className="block w-full text-left cursor-text">
+          <p className="text-[10px] text-fg-faint leading-tight line-clamp-2 hover:text-fg-muted transition-colors">{description}</p>
+        </button>
+      ) : (
+        <button onClick={() => { setDescDraft(""); setEditingDesc(true); }} className="text-[10px] text-fg-faint/70 hover:text-fg-muted cursor-pointer transition-colors">
+          + descripción
+        </button>
+      )}
+
+      {children}
+    </div>
+  );
+}
+
 function AvatarTile({
   avatar,
   deleting,
+  busy,
   onDelete,
+  onSave,
 }: {
   avatar: Avatar;
   deleting: boolean;
+  busy: boolean;
   onDelete: () => void;
+  onSave: (patch: { name?: string; description?: string }) => void;
 }) {
   return (
     <div className="group relative rounded-[var(--radius-sm)] bg-surface-2 overflow-hidden">
       <div className="aspect-square">
-        <img
-          src={avatarImageUrl(avatar.imageUrl)}
-          alt={avatar.name}
-          className="w-full h-full object-cover"
-        />
+        <img src={avatarImageUrl(avatar.imageUrl)} alt={avatar.name} className="w-full h-full object-cover" />
       </div>
-      <div className="p-2 space-y-0.5">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] text-fg font-medium truncate">{avatar.name}</span>
-          <button
-            onClick={onDelete}
-            disabled={deleting}
-            className="p-0.5 rounded text-fg-faint hover:text-error transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
-          >
-            {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
-          </button>
-        </div>
-        {avatar.description && (
-          <p className="text-[10px] text-fg-faint leading-tight line-clamp-2">{avatar.description}</p>
-        )}
-      </div>
+      <AssetEditableMeta name={avatar.name} description={avatar.description} busy={busy} deleting={deleting} onDelete={onDelete} onSave={onSave} />
     </div>
   );
 }
@@ -840,13 +956,9 @@ function ProductsCard() {
               }}
               onUpdate={async (newName, newDesc) => {
                 try {
-                  await fetch(`http://localhost:8000/api/brands/${activeBrand.id}/products/${p.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name: newName, description: newDesc }),
-                  });
+                  await updateProduct(activeBrand.id, p.id, { name: newName, description: newDesc });
                   await refreshBrands();
-                } catch { /* silent */ }
+                } catch (err) { console.error("Error al actualizar producto:", err); }
               }}
             />
           ))}
@@ -997,6 +1109,7 @@ function ClothingCard() {
   const { activeBrand, refreshBrands } = useBrand();
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [name, setName] = useState("");
@@ -1037,6 +1150,18 @@ function ClothingCard() {
       console.error("Error al eliminar:", err);
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleUpdate = async (itemId: string, patch: { name?: string; description?: string }) => {
+    setSaving(itemId);
+    try {
+      await updateClothing(activeBrand.id, itemId, patch);
+      await refreshBrands();
+    } catch (err) {
+      console.error("Error al actualizar prenda:", err);
+    } finally {
+      setSaving(null);
     }
   };
 
@@ -1136,7 +1261,9 @@ function ClothingCard() {
               key={c.id}
               item={c}
               deleting={deleting === c.id}
+              busy={saving === c.id}
               onDelete={() => handleDelete(c.id)}
+              onSave={(patch) => handleUpdate(c.id, patch)}
             />
           ))}
         </div>
@@ -1148,45 +1275,30 @@ function ClothingCard() {
 function ClothingTile({
   item,
   deleting,
+  busy,
   onDelete,
+  onSave,
 }: {
   item: ClothingItem;
   deleting: boolean;
+  busy: boolean;
   onDelete: () => void;
+  onSave: (patch: { name?: string; description?: string }) => void;
 }) {
   return (
     <div className="group relative rounded-[var(--radius-sm)] bg-surface-2 overflow-hidden">
       <div className="aspect-square">
-        <img
-          src={clothingImageUrl(item.imageUrl)}
-          alt={item.name}
-          className="w-full h-full object-cover"
-        />
+        <img src={clothingImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
       </div>
-      <div className="p-2 space-y-0.5">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] text-fg font-medium truncate">{item.name}</span>
-          <button
-            onClick={onDelete}
-            disabled={deleting}
-            className="p-0.5 rounded text-fg-faint hover:text-error transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
-          >
-            {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
-          </button>
-        </div>
-        {item.description && (
-          <p className="text-[10px] text-fg-faint leading-tight line-clamp-2">{item.description}</p>
-        )}
+      <AssetEditableMeta name={item.name} description={item.description} busy={busy} deleting={deleting} onDelete={onDelete} onSave={onSave}>
         {item.tags && item.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
+          <div className="flex flex-wrap gap-1">
             {item.tags.map((t) => (
-              <span key={t} className="text-[9px] px-1.5 py-0.5 bg-surface-3 rounded text-fg-faint">
-                {t}
-              </span>
+              <span key={t} className="text-[9px] px-1.5 py-0.5 bg-surface-3 rounded text-fg-faint">{t}</span>
             ))}
           </div>
         )}
-      </div>
+      </AssetEditableMeta>
     </div>
   );
 }
@@ -1810,6 +1922,7 @@ function BackgroundsCard() {
   const { activeBrand, refreshBrands } = useBrand();
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [name, setName] = useState("");
@@ -1850,6 +1963,18 @@ function BackgroundsCard() {
       console.error("Error al eliminar:", err);
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleUpdate = async (itemId: string, patch: { name?: string; description?: string }) => {
+    setSaving(itemId);
+    try {
+      await updateBackground(activeBrand.id, itemId, patch);
+      await refreshBrands();
+    } catch (err) {
+      console.error("Error al actualizar fondo:", err);
+    } finally {
+      setSaving(null);
     }
   };
 
@@ -1947,7 +2072,9 @@ function BackgroundsCard() {
               key={bg.id}
               item={bg}
               deleting={deleting === bg.id}
+              busy={saving === bg.id}
               onDelete={() => handleDelete(bg.id)}
+              onSave={(patch) => handleUpdate(bg.id, patch)}
             />
           ))}
         </div>
@@ -1959,45 +2086,30 @@ function BackgroundsCard() {
 function BackgroundTile({
   item,
   deleting,
+  busy,
   onDelete,
+  onSave,
 }: {
   item: BackgroundItem;
   deleting: boolean;
+  busy: boolean;
   onDelete: () => void;
+  onSave: (patch: { name?: string; description?: string }) => void;
 }) {
   return (
     <div className="group relative rounded-[var(--radius-sm)] bg-surface-2 overflow-hidden">
       <div className="aspect-video">
-        <img
-          src={backgroundImageUrl(item.imageUrl)}
-          alt={item.name}
-          className="w-full h-full object-cover"
-        />
+        <img src={backgroundImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
       </div>
-      <div className="p-2 space-y-0.5">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] text-fg font-medium truncate">{item.name}</span>
-          <button
-            onClick={onDelete}
-            disabled={deleting}
-            className="p-0.5 rounded text-fg-faint hover:text-error transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
-          >
-            {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
-          </button>
-        </div>
-        {item.description && (
-          <p className="text-[10px] text-fg-faint leading-tight line-clamp-2">{item.description}</p>
-        )}
+      <AssetEditableMeta name={item.name} description={item.description} busy={busy} deleting={deleting} onDelete={onDelete} onSave={onSave}>
         {item.tags && item.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1">
+          <div className="flex flex-wrap gap-1">
             {item.tags.map((t) => (
-              <span key={t} className="text-[9px] px-1.5 py-0.5 bg-surface-3 rounded text-fg-faint">
-                {t}
-              </span>
+              <span key={t} className="text-[9px] px-1.5 py-0.5 bg-surface-3 rounded text-fg-faint">{t}</span>
             ))}
           </div>
         )}
-      </div>
+      </AssetEditableMeta>
     </div>
   );
 }
@@ -2159,6 +2271,233 @@ function MoodboardTile({ item, deleting, onDelete }: { item: MoodboardItem; dele
         {item.description && (
           <p className="text-[10px] text-fg-faint leading-tight line-clamp-2">{item.description}</p>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Look & Feel Card (lighting / color-grade references) ────────
+
+function LookAndFeelCard() {
+  const { activeBrand, refreshBrands } = useBrand();
+  const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [name, setName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  if (!activeBrand) return null;
+
+  const items = activeBrand.lookAndFeel || [];
+  const atLimit = items.length >= 12;
+
+  const handleUpload = async () => {
+    if (!file || !name.trim()) return;
+    setUploading(true);
+    setError(null);
+    try {
+      await uploadLookAndFeel(activeBrand.id, name.trim(), file);
+      await refreshBrands();
+      setShowUpload(false);
+      setName("");
+      setFile(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falló la subida");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (itemId: string) => {
+    setDeleting(itemId);
+    try {
+      await deleteLookAndFeel(activeBrand.id, itemId);
+      await refreshBrands();
+    } catch (err) {
+      console.error("Error al eliminar:", err);
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const handleRename = async (itemId: string, newName: string) => {
+    setRenaming(itemId);
+    try {
+      await updateLookAndFeel(activeBrand.id, itemId, { name: newName });
+      await refreshBrands();
+    } catch (err) {
+      console.error("Error al renombrar:", err);
+    } finally {
+      setRenaming(null);
+    }
+  };
+
+  return (
+    <Card
+      icon={<Sun size={16} />}
+      title={`Look & Feel (${items.length})`}
+      description="Referencias de iluminación / color — se aplican a una imagen en Lab"
+      action={
+        !atLimit ? (
+          <button
+            onClick={() => setShowUpload(!showUpload)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium text-fg-muted hover:text-fg bg-surface-1 hover:bg-surface-2 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+          >
+            <Plus size={12} />
+            Add
+          </button>
+        ) : (
+          <span className="text-[11px] text-fg-faint">Max 12</span>
+        )
+      }
+    >
+      {showUpload && (
+        <div className="mb-4 p-3 bg-surface-0 border border-edge rounded-[var(--radius-sm)] space-y-2.5">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nombre (ej. Golden hour cálido, Estudio neutro, Neón nocturno)"
+            className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
+          />
+          <div
+            onClick={() => fileRef.current?.click()}
+            className={cn(
+              "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
+              file ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+            )}
+          >
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }} />
+            {file ? (
+              <span className="text-[12px] text-fg-secondary">{file.name}</span>
+            ) : (
+              <div className="space-y-1">
+                <Upload size={16} className="mx-auto text-fg-faint" />
+                <p className="text-[12px] text-fg-faint">Imagen con la iluminación/estética que querés aplicar</p>
+              </div>
+            )}
+          </div>
+          {error && (
+            <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-error)]">
+              <AlertCircle size={12} /> {error}
+            </div>
+          )}
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => { setShowUpload(false); setName(""); setFile(null); setError(null); }}
+              className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleUpload}
+              disabled={uploading || !file || !name.trim()}
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+            >
+              {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+              Upload
+            </button>
+          </div>
+        </div>
+      )}
+
+      {items.length === 0 && !showUpload ? (
+        <EmptyState onClick={() => setShowUpload(true)} label="Subí tu primera referencia de look & feel" />
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {items.map((m) => (
+            <LookFeelTile
+              key={m.id}
+              item={m}
+              deleting={deleting === m.id}
+              renaming={renaming === m.id}
+              onDelete={() => handleDelete(m.id)}
+              onRename={(newName) => handleRename(m.id, newName)}
+            />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function LookFeelTile({
+  item,
+  deleting,
+  renaming,
+  onDelete,
+  onRename,
+}: {
+  item: LookFeelItem;
+  deleting: boolean;
+  renaming: boolean;
+  onDelete: () => void;
+  onRename: (name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(item.name);
+
+  const commit = () => {
+    const next = draft.trim();
+    setEditing(false);
+    if (next && next !== item.name) onRename(next);
+  };
+
+  return (
+    <div className="group relative rounded-[var(--radius-sm)] bg-surface-2 overflow-hidden">
+      <div className="aspect-square">
+        <img src={lookAndFeelImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
+      </div>
+      <div className="p-2">
+        <div className="flex items-center justify-between gap-1">
+          {editing ? (
+            <input
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commit();
+                if (e.key === "Escape") { setEditing(false); setDraft(item.name); }
+              }}
+              className="flex-1 min-w-0 bg-surface-1 border border-[var(--color-edge-focus)] rounded px-1 py-0.5 text-[11px] text-fg outline-none"
+            />
+          ) : (
+            <button
+              onClick={() => { setDraft(item.name); setEditing(true); }}
+              title="Renombrar"
+              className="flex-1 min-w-0 flex items-center gap-1 text-left cursor-pointer"
+            >
+              <span className="text-[11px] text-fg font-medium truncate">{item.name}</span>
+              {renaming ? (
+                <Loader2 size={9} className="animate-spin text-fg-faint shrink-0" />
+              ) : (
+                <Pencil size={9} className="text-fg-faint shrink-0 opacity-0 group-hover:opacity-60 transition-opacity" />
+              )}
+            </button>
+          )}
+          {editing ? (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={commit}
+              className="p-0.5 rounded text-fg-faint hover:text-[var(--color-action)] transition-colors cursor-pointer shrink-0"
+              title="Guardar"
+            >
+              <Check size={11} />
+            </button>
+          ) : (
+            <button
+              onClick={onDelete}
+              disabled={deleting}
+              className="p-0.5 rounded text-fg-faint hover:text-error transition-colors cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+            >
+              {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

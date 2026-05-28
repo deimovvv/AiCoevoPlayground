@@ -18,6 +18,7 @@ CLOTHING_DIR = DATA_DIR / "clothing"
 BACKGROUNDS_DIR = DATA_DIR / "backgrounds"
 LOGOS_DIR = DATA_DIR / "logos"
 MOODBOARDS_DIR = DATA_DIR / "moodboards"
+LOOKANDFEEL_DIR = DATA_DIR / "lookandfeel"
 
 # Ensure directories exist
 DATA_DIR.mkdir(exist_ok=True)
@@ -27,6 +28,7 @@ CLOTHING_DIR.mkdir(exist_ok=True)
 BACKGROUNDS_DIR.mkdir(exist_ok=True)
 LOGOS_DIR.mkdir(exist_ok=True)
 MOODBOARDS_DIR.mkdir(exist_ok=True)
+LOOKANDFEEL_DIR.mkdir(exist_ok=True)
 
 
 SANDBOX_BRAND = {
@@ -40,6 +42,7 @@ SANDBOX_BRAND = {
     "clothing": [],
     "backgrounds": [],
     "moodboards": [],
+    "lookAndFeel": [],
 }
 
 
@@ -109,3 +112,7 @@ def get_logos_dir() -> Path:
 
 def get_moodboards_dir() -> Path:
     return MOODBOARDS_DIR
+
+
+def get_lookandfeel_dir() -> Path:
+    return LOOKANDFEEL_DIR

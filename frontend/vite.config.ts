@@ -8,4 +8,9 @@ export default defineConfig({
     tailwindcss(),
     react()
   ],
+  server: {
+    // Listen on IPv4 (127.0.0.1) + IPv6 + LAN. Without this Vite binds IPv6-only,
+    // so links opened in a new tab via 127.0.0.1 get ERR_CONNECTION_REFUSED.
+    host: true,
+  },
 })

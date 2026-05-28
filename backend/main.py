@@ -275,6 +275,10 @@ def list_tools():
     registry = _load_registry()
     tools = []
     for entry in registry:
+        # "hidden" tools are degraded: kept in the registry + their files/prompts intact,
+        # just not shown in Generate. Flip the flag in registry.json to bring one back.
+        if entry.get("hidden"):
+            continue
         config = _load_tool_config(entry["id"])
         tools.append({**entry, **(config or {})})
     return {"tools": tools}
@@ -1133,6 +1137,32 @@ async def replace_avatar_image(
     return avatar
 
 
+class UpdateAvatarRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+@app.patch("/api/brands/{brand_id}/avatars/{avatar_id}")
+def update_avatar(brand_id: str, avatar_id: str, req: UpdateAvatarRequest):
+    """Rename an avatar (and optionally update its description). Keeps ID + image."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    avatar = next((a for a in brand.get("avatars", []) if a.get("id") == avatar_id), None)
+    if not avatar:
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    if req.name is not None:
+        name = req.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+        avatar["name"] = name
+    if req.description is not None:
+        avatar["description"] = req.description.strip()
+    brands.save_brands(all_brands)
+    return avatar
+
+
 @app.delete("/api/brands/{brand_id}/avatars/{avatar_id}")
 def delete_avatar(brand_id: str, avatar_id: str):
     all_brands = brands.load_brands()
@@ -1321,23 +1351,6 @@ async def add_product_image(
     return product
 
 
-@app.patch("/api/brands/{brand_id}/products/{product_id}")
-def update_product(brand_id: str, product_id: str, req: dict):
-    all_brands = brands.load_brands()
-    brand = brands.find_brand(all_brands, brand_id)
-    if not brand:
-        raise HTTPException(status_code=404, detail="Brand not found")
-    product = next((p for p in brand.get("products", []) if p["id"] == product_id), None)
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    if "name" in req:
-        product["name"] = req["name"]
-    if "description" in req:
-        product["description"] = req["description"]
-    brands.save_brands(all_brands)
-    return product
-
-
 @app.delete("/api/brands/{brand_id}/products/{product_id}")
 def delete_product(brand_id: str, product_id: str):
     all_brands = brands.load_brands()
@@ -1419,6 +1432,27 @@ async def upload_clothing(
     return item
 
 
+@app.patch("/api/brands/{brand_id}/clothing/{item_id}")
+def update_clothing(brand_id: str, item_id: str, req: UpdateAvatarRequest):
+    """Rename a clothing item (and optionally update its description)."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((c for c in brand.get("clothing", []) if c.get("id") == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Clothing item not found")
+    if req.name is not None:
+        name = req.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+        item["name"] = name
+    if req.description is not None:
+        item["description"] = req.description.strip()
+    brands.save_brands(all_brands)
+    return item
+
+
 @app.delete("/api/brands/{brand_id}/clothing/{item_id}")
 def delete_clothing(brand_id: str, item_id: str):
     all_brands = brands.load_brands()
@@ -1491,6 +1525,27 @@ async def upload_background(
     if "backgrounds" not in brand:
         brand["backgrounds"] = []
     brand["backgrounds"].append(item)
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.patch("/api/brands/{brand_id}/backgrounds/{item_id}")
+def update_background(brand_id: str, item_id: str, req: UpdateAvatarRequest):
+    """Rename a background (and optionally update its description)."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((b for b in brand.get("backgrounds", []) if b.get("id") == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Background not found")
+    if req.name is not None:
+        name = req.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+        item["name"] = name
+    if req.description is not None:
+        item["description"] = req.description.strip()
     brands.save_brands(all_brands)
     return item
 
@@ -1599,6 +1654,151 @@ def delete_moodboard(brand_id: str, item_id: str):
     brand["moodboards"] = [m for m in brand["moodboards"] if m["id"] != item_id]
     brands.save_brands(all_brands)
     return {"ok": True}
+
+
+# ══════════════════════════════════════════════════════════════
+#  Look & Feel API — per-brand lighting / color-grade reference library.
+#  Distinct from moodboards: these are applied as a relight/grade transfer
+#  onto an input image (mainly in Manual Lab), not a style ref for fresh gen.
+# ══════════════════════════════════════════════════════════════
+
+app.mount("/static/lookandfeel", StaticFiles(directory=str(brands.get_lookandfeel_dir())), name="lookandfeel")
+
+
+@app.get("/api/brands/{brand_id}/lookandfeel")
+def list_lookandfeel(brand_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    return {"lookAndFeel": brand.get("lookAndFeel", [])}
+
+
+@app.post("/api/brands/{brand_id}/lookandfeel")
+async def upload_lookandfeel(
+    brand_id: str,
+    name: str = Form(...),
+    description: str = Form(""),
+    image: UploadFile = File(...),
+):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    if len(brand.get("lookAndFeel", [])) >= 12:
+        raise HTTPException(status_code=400, detail="Maximum 12 look & feel references per brand")
+
+    image_data = await image.read()
+    if len(image_data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
+    ext = Path(image.filename or "lookfeel.png").suffix or ".png"
+    item_id = str(uuid.uuid4())[:8]
+    filename = f"{brand_id}_lf_{item_id}{ext}"
+    filepath = brands.get_lookandfeel_dir() / filename
+    with open(filepath, "wb") as f:
+        f.write(image_data)
+
+    item = {
+        "id": item_id,
+        "name": name,
+        "description": description.strip(),
+        "filename": filename,
+        "imageUrl": f"/static/lookandfeel/{filename}",
+    }
+    if "lookAndFeel" not in brand:
+        brand["lookAndFeel"] = []
+    brand["lookAndFeel"].append(item)
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.patch("/api/brands/{brand_id}/lookandfeel/{item_id}")
+def update_lookandfeel(brand_id: str, item_id: str, req: UpdateAvatarRequest):
+    """Rename a look & feel reference (and optionally update its description)."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((m for m in brand.get("lookAndFeel", []) if m.get("id") == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Look & feel reference not found")
+    if req.name is not None:
+        name = req.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+        item["name"] = name
+    if req.description is not None:
+        item["description"] = req.description.strip()
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.delete("/api/brands/{brand_id}/lookandfeel/{item_id}")
+def delete_lookandfeel(brand_id: str, item_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((m for m in brand.get("lookAndFeel", []) if m["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Look & feel reference not found")
+    filename = item.get("filename", "")
+    if filename:
+        img_path = brands.get_lookandfeel_dir() / filename
+        if img_path.exists() and img_path.is_file():
+            img_path.unlink()
+    brand["lookAndFeel"] = [m for m in brand["lookAndFeel"] if m["id"] != item_id]
+    brands.save_brands(all_brands)
+    return {"ok": True}
+
+
+@app.post("/api/brands/{brand_id}/lookandfeel/{item_id}/describe")
+async def describe_lookandfeel_item(brand_id: str, item_id: str):
+    """Analyze a look & feel reference into a text color-grade recipe (cached on the item).
+    Powers the 'recipe' apply mode in Lab — apply the grade without passing the image."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((m for m in brand.get("lookAndFeel", []) if m.get("id") == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Look & feel reference not found")
+    if item.get("description"):
+        return {"description": item["description"]}  # cached
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=400, detail="Gemini no está configurado para analizar la referencia")
+    filename = item.get("filename", "")
+    path = brands.get_lookandfeel_dir() / filename
+    if not filename or not path.exists():
+        raise HTTPException(status_code=404, detail="Archivo de la referencia no encontrado")
+    mime = "image/png" if filename.lower().endswith(".png") else "image/jpeg"
+    try:
+        recipe = await image_analysis.describe_lookandfeel(path.read_bytes(), mime)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"No se pudo analizar la referencia: {str(e)[:200]}")
+    item["description"] = (recipe or "").strip()
+    brands.save_brands(all_brands)
+    return {"description": item["description"]}
+
+
+@app.post("/api/lookandfeel/describe-upload")
+async def describe_lookandfeel_upload(image: UploadFile = File(...)):
+    """Analyze an ad-hoc (not saved to any brand) look & feel image into a color-grade recipe.
+    Powers the 'recipe' mode when you upload a one-off reference in Manual Lab."""
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=400, detail="Gemini no está configurado para analizar la referencia")
+    data = await image.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
+    try:
+        recipe = await image_analysis.describe_lookandfeel(data, image.content_type or "image/jpeg")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"No se pudo analizar la referencia: {str(e)[:200]}")
+    return {"description": (recipe or "").strip()}
 
 
 # ══════════════════════════════════════════════════════════════
@@ -3077,6 +3277,7 @@ async def image_gen_edit(
                             "/static/clothing/": brands.get_clothing_dir(),
                             "/static/backgrounds/": brands.get_backgrounds_dir(),
                             "/static/moodboards/": brands.get_moodboards_dir(),
+                            "/static/lookandfeel/": brands.get_lookandfeel_dir(),
                             "/static/logos/": brands.get_logos_dir(),
                         }
                         for prefix, directory in static_dirs.items():
@@ -4061,13 +4262,13 @@ async def manual_lab_enhance(req: ManualLabEnhanceRequest):
     if not manual_lab.is_configured():
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
     try:
-        enhanced = await manual_lab.enhance_prompt(
+        result = await manual_lab.enhance_prompt(
             user_input=req.prompt,
             refs=[r.model_dump() for r in req.refs],
             mode=req.mode,
             target_model=req.targetModel,
         )
-        return {"enhanced": enhanced}
+        return {"enhanced": result.get("enhanced", ""), "interpretation": result.get("interpretation", "")}
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Enhance error: {str(e)[:300]}")
 
@@ -4133,8 +4334,15 @@ async def download_proxy(url: str, filename: Optional[str] = None):
 
         # Sanitize filename for header — strip newlines, quotes
         safe_name = filename.replace("\n", "").replace("\r", "").replace('"', "")
+        # RFC 5987: `filename*` carries the full UTF-8 name (accents, spaces) for modern
+        # browsers; the plain ASCII `filename` is a fallback for old ones.
+        from urllib.parse import quote
+        ascii_fallback = safe_name.encode("ascii", "ignore").decode("ascii").strip() or "download"
         headers = {
-            "Content-Disposition": f'attachment; filename="{safe_name}"',
+            "Content-Disposition": (
+                f'attachment; filename="{ascii_fallback}"; '
+                f"filename*=UTF-8''{quote(safe_name)}"
+            ),
         }
         if content_length:
             headers["Content-Length"] = content_length
