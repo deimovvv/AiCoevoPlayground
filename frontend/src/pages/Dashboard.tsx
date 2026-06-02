@@ -11,7 +11,7 @@ import { fetchBrands, createBrand, deleteBrand, type Brand } from "../lib/api";
 import { useBrand } from "../lib/BrandContext";
 import { cn } from "../lib/utils";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://127.0.0.1:8000";
 
 type FilterKey = "all" | "with_dna" | "with_design_system" | "incomplete";
 

@@ -49,6 +49,10 @@ import {
   deleteLookAndFeel,
   updateLookAndFeel,
   lookAndFeelImageUrl,
+  uploadBrandLogo,
+  updateBrandLogo,
+  deleteBrandLogo,
+  brandLogoImageUrl,
   addVoicePreset,
   deleteVoicePreset,
   createVoiceDesignPreviews,
@@ -874,7 +878,7 @@ function ProductsCard() {
                     formData.append("image", file);
                     formData.append("type", "product");
                     formData.append("name", name);
-                    const res = await fetch("http://localhost:8000/api/analyze/image", { method: "POST", body: formData });
+                    const res = await fetch("http://127.0.0.1:8000/api/analyze/image", { method: "POST", body: formData });
                     if (res.ok) {
                       const data = await res.json();
                       setDescription(data.description || "");
@@ -1002,7 +1006,7 @@ function ProductTile({
       formData.append("image", blob, "product.jpg");
       formData.append("type", "product");
       formData.append("name", editName);
-      const analyzeRes = await fetch("http://localhost:8000/api/analyze/image", { method: "POST", body: formData });
+      const analyzeRes = await fetch("http://127.0.0.1:8000/api/analyze/image", { method: "POST", body: formData });
       if (analyzeRes.ok) {
         const data = await analyzeRes.json();
         setEditDesc(data.description || "");
@@ -3016,87 +3020,264 @@ function DesignListField({ label, items, onChange }: { label: string; items: str
   );
 }
 
-// ── Logo Card ──────────────────────────────────────────────
+// ── Logo Card (multi-logo: isotipo, logotipo, variants) ────────
 
 function LogoCard() {
   const { activeBrand, refreshBrands } = useBrand();
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [name, setName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   if (!activeBrand) return null;
 
-  const logo = activeBrand.logo as { filename: string; imageUrl: string } | undefined;
-  const API_BASE = "http://localhost:8000";
+  const items = activeBrand.logos || [];
+  // Legacy single-logo from before multi-logo: surfaced read-only as "Logo".
+  // Stays visible until the user uploads a real one through the new API.
+  const legacy = activeBrand.logo;
+  const atLimit = items.length >= 8;
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = async () => {
+    if (!file || !name.trim()) return;
     setUploading(true);
+    setError(null);
     try {
-      const formData = new FormData();
-      formData.append("image", file);
-      const res = await fetch(`${API_BASE}/api/brands/${activeBrand.id}/logo`, {
-        method: "POST",
-        body: formData,
-      });
-      if (res.ok) await refreshBrands();
-    } catch { /* silent */ } finally {
+      await uploadBrandLogo(activeBrand.id, name.trim(), file);
+      await refreshBrands();
+      setShowUpload(false);
+      setName("");
+      setFile(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falló la subida");
+    } finally {
       setUploading(false);
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (itemId: string) => {
+    setDeleting(itemId);
     try {
-      await fetch(`${API_BASE}/api/brands/${activeBrand.id}/logo`, { method: "DELETE" });
+      await deleteBrandLogo(activeBrand.id, itemId);
       await refreshBrands();
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error("Error al eliminar:", err);
+    } finally {
+      setDeleting(null);
+    }
   };
+
+  const handleRename = async (itemId: string, newName: string) => {
+    setRenaming(itemId);
+    try {
+      await updateBrandLogo(activeBrand.id, itemId, { name: newName });
+      await refreshBrands();
+    } catch (err) {
+      console.error("Error al renombrar:", err);
+    } finally {
+      setRenaming(null);
+    }
+  };
+
+  const handleDeleteLegacy = async () => {
+    setDeleting("__legacy__");
+    try {
+      await fetch(`http://127.0.0.1:8000/api/brands/${activeBrand.id}/logo`, { method: "DELETE" });
+      await refreshBrands();
+    } catch { /* silent */ } finally {
+      setDeleting(null);
+    }
+  };
+
+  const total = items.length + (legacy ? 1 : 0);
 
   return (
     <Card
       icon={<ImageIcon size={16} />}
-      title="Logo de marca"
-      description="Usado en composiciones de ads y contenido de marca"
+      title={`Logos (${total})`}
+      description="Isotipo, logotipo y variantes — disponibles en Lab como assets"
+      action={
+        !atLimit ? (
+          <button
+            onClick={() => setShowUpload(!showUpload)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium text-fg-muted hover:text-fg bg-surface-1 hover:bg-surface-2 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+          >
+            <Plus size={12} />
+            Add
+          </button>
+        ) : (
+          <span className="text-[11px] text-fg-faint">Max 8</span>
+        )
+      }
     >
-      {logo?.imageUrl ? (
-        <div className="space-y-2">
-          <div className="relative group inline-block">
-            <div className="w-32 h-32 rounded-[var(--radius-sm)] border border-edge overflow-hidden bg-white flex items-center justify-center p-2">
-              <img
-                src={`${API_BASE}${logo.imageUrl}`}
-                alt="Brand logo"
-                className="max-w-full max-h-full object-contain"
-              />
+      {showUpload && (
+        <div className="mb-4 p-3 bg-surface-0 border border-edge rounded-[var(--radius-sm)] space-y-2.5">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nombre (ej. Isotipo, Logotipo horizontal, Versión clara)"
+            className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none focus:border-[var(--color-edge-focus)] transition-colors"
+          />
+          <div
+            onClick={() => fileRef.current?.click()}
+            className={cn(
+              "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
+              file ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+            )}
+          >
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }} />
+            {file ? (
+              <span className="text-[12px] text-fg-secondary">{file.name}</span>
+            ) : (
+              <div className="space-y-1">
+                <Upload size={16} className="mx-auto text-fg-faint" />
+                <p className="text-[12px] text-fg-faint">PNG con transparencia recomendado</p>
+              </div>
+            )}
+          </div>
+          {error && (
+            <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-error)]">
+              <AlertCircle size={12} /> {error}
             </div>
+          )}
+          <div className="flex gap-2 justify-end">
             <button
-              onClick={handleDelete}
-              className="absolute top-1 right-1 p-1 rounded bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              onClick={() => { setShowUpload(false); setName(""); setFile(null); setError(null); }}
+              className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
             >
-              <Trash2 size={10} />
+              Cancelar
+            </button>
+            <button
+              onClick={handleUpload}
+              disabled={uploading || !file || !name.trim()}
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+            >
+              {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+              Upload
             </button>
           </div>
-          <label className="flex items-center gap-1.5 text-[11px] text-fg-muted hover:text-fg cursor-pointer">
-            <Upload size={11} /> Reemplazar
-            <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleUpload(f);
-              e.target.value = "";
-            }} />
-          </label>
         </div>
+      )}
+
+      {total === 0 && !showUpload ? (
+        <EmptyState onClick={() => setShowUpload(true)} label="Subí el isotipo / logotipo de la marca" />
       ) : (
-        <label className={cn(
-          "flex flex-col items-center gap-2 py-6 border border-dashed rounded-[var(--radius-sm)] cursor-pointer text-[11px] transition-all",
-          uploading
-            ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg-muted"
-            : "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
-        )}>
-          {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-          {uploading ? "Subiendo..." : "Subir logo de marca"}
-          <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleUpload(f);
-            e.target.value = "";
-          }} />
-        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {legacy && (
+            <LogoTile
+              key="__legacy__"
+              imageUrl={brandLogoImageUrl(legacy.imageUrl)}
+              name="Logo"
+              deleting={deleting === "__legacy__"}
+              renaming={false}
+              onDelete={handleDeleteLegacy}
+              // Legacy single-logo can't be renamed (no id) — hide the rename affordance.
+              onRename={null}
+            />
+          )}
+          {items.map((m) => (
+            <LogoTile
+              key={m.id}
+              imageUrl={brandLogoImageUrl(m.imageUrl)}
+              name={m.name}
+              deleting={deleting === m.id}
+              renaming={renaming === m.id}
+              onDelete={() => handleDelete(m.id)}
+              onRename={(newName) => handleRename(m.id, newName)}
+            />
+          ))}
+        </div>
       )}
     </Card>
+  );
+}
+
+function LogoTile({
+  imageUrl,
+  name,
+  deleting,
+  renaming,
+  onDelete,
+  onRename,
+}: {
+  imageUrl: string;
+  name: string;
+  deleting: boolean;
+  renaming: boolean;
+  onDelete: () => void;
+  /** Null = rename disabled (legacy single-logo). */
+  onRename: ((name: string) => void) | null;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+
+  const commit = () => {
+    const next = draft.trim();
+    setEditing(false);
+    if (onRename && next && next !== name) onRename(next);
+  };
+
+  return (
+    <div className="group relative rounded-[var(--radius-sm)] bg-surface-2 overflow-hidden">
+      {/* white plate so dark logos with transparent bg are visible */}
+      <div className="aspect-square bg-white flex items-center justify-center p-3">
+        <img src={imageUrl} alt={name} className="max-w-full max-h-full object-contain" />
+      </div>
+      <div className="p-2">
+        <div className="flex items-center justify-between gap-1">
+          {editing && onRename ? (
+            <input
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commit();
+                if (e.key === "Escape") { setEditing(false); setDraft(name); }
+              }}
+              className="flex-1 min-w-0 bg-surface-1 border border-[var(--color-edge-focus)] rounded px-1 py-0.5 text-[11px] text-fg outline-none"
+            />
+          ) : (
+            <button
+              onClick={() => { if (!onRename) return; setDraft(name); setEditing(true); }}
+              title={onRename ? "Renombrar" : undefined}
+              className={cn(
+                "flex-1 min-w-0 flex items-center gap-1 text-left",
+                onRename ? "cursor-pointer" : "cursor-default"
+              )}
+            >
+              <span className="text-[11px] text-fg font-medium truncate">{name}</span>
+              {renaming ? (
+                <Loader2 size={9} className="animate-spin text-fg-faint shrink-0" />
+              ) : onRename ? (
+                <Pencil size={9} className="text-fg-faint shrink-0 opacity-0 group-hover:opacity-60 transition-opacity" />
+              ) : null}
+            </button>
+          )}
+          {editing && onRename ? (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={commit}
+              className="p-0.5 rounded text-fg-faint hover:text-[var(--color-action)] transition-colors cursor-pointer shrink-0"
+              title="Guardar"
+            >
+              <Check size={11} />
+            </button>
+          ) : (
+            <button
+              onClick={onDelete}
+              disabled={deleting}
+              className="p-0.5 rounded text-fg-faint hover:text-error transition-colors cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+            >
+              {deleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

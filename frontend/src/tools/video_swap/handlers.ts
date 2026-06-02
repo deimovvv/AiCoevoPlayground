@@ -12,7 +12,7 @@ import { createVideoSwap, pollVideoSwap, productImageUrl, clothingImageUrl } fro
 // Resolve a brand asset URL → File (fetch the image so we can upload it to Beeble).
 async function urlToFile(url: string, name: string): Promise<File | null> {
   try {
-    const full = url.startsWith("http") ? url : `http://localhost:8000${url}`;
+    const full = url.startsWith("http") ? url : `http://127.0.0.1:8000${url}`;
     const res = await fetch(full);
     const blob = await res.blob();
     return new File([blob], name, { type: blob.type || "image/png" });

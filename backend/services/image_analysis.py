@@ -63,6 +63,101 @@ Respond in English."""
     return await _call_vision(prompt, [(image_bytes, mime_type)])
 
 
+async def describe_product_sheet(
+    images: list[tuple[bytes, str]],
+    direction: str = "",
+    mode: str = "sheet",
+) -> dict:
+    """
+    Cross-analyze 1-4 photos of the SAME product and return a structured brief used
+    by the Product Sheet tool. Returns a dict the frontend can show/edit:
+      {
+        "name": short product name (≤ 6 words),
+        "category": "footwear" | "garment" | "bottle" | ...,
+        "summary": 1-2 sentence factual description (no marketing),
+        "shape": silhouette / form description,
+        "materials": ["leather", "rubber sole", ...],
+        "colors": ["off-white #f5f0e6", "burgundy ~ #7a1f2a"] (specific shades),
+        "scale": approximate real-world size hint,
+        "packaging": packaging if visible, else empty,
+        "distinctive_details": ["logo on tongue", "ridged sole", ...],
+        "visible_views": ["front", "3/4", "side", ...] — angles ALREADY shown in refs,
+        "missing_views": ["back", "top", ...] — angles NOT shown, to be inferred,
+        "image_prompt": polished English prompt for Nano Banana to render the sheet
+      }
+
+    `mode`:
+      - "sheet"   → infer/generate all canonical views (front, 3/4, back, side, top, hero, scale)
+      - "details" → close-ups of texture / logo / labels / materials / connectors
+    """
+    if not images:
+        raise RuntimeError("describe_product_sheet requires at least one image")
+
+    mode = (mode or "sheet").lower()
+    # The instructions for the `image_prompt` differ per mode — everything else (the
+    # objective product facts) is identical. Keep the JSON shape stable so the frontend
+    # can render one approval card regardless of mode.
+    if mode == "details":
+        prompt_instructions = (
+            "MODE: 'details' — close-ups. Compose `image_prompt` to render a single image with "
+            "MULTIPLE MACRO close-ups of the same product on a pure white background: texture / "
+            "material macro, primary logo / branding close-up, label / tag close-up, stitching or "
+            "joinery close-up, hardware / fastener / connector close-up. Each close-up must show "
+            "the EXACT same product (consistent colors, materials, finish). No text labels on the "
+            "image itself. Studio lighting, sharp focus."
+        )
+    else:
+        prompt_instructions = (
+            "MODE: 'sheet' — multi-view product sheet. Compose `image_prompt` to render a single "
+            "seamless image on pure white background with these views of the SAME product: front "
+            "elevation (center, large), 3/4 angle, back view, side profile, top-down view, hero "
+            "shot (slight angle, premium feel), and a small scale reference (e.g. held in hand or "
+            "next to a neutral cube). All views must show identical product features (same color, "
+            "material, finish, hardware). No text, no labels, no grid lines."
+        )
+
+    direction_block = f"\n\nUSER DIRECTION (optional, weave in if relevant):\n{direction.strip()}" if direction.strip() else ""
+
+    system = f"""You are analyzing {len(images)} photo(s) of the SAME product. Cross-reference all views to build a complete factual description suitable for an AI image generator.
+
+{prompt_instructions}
+
+Return ONLY a JSON object (no markdown, no preamble) with this exact shape:
+{{
+  "name": "≤6 words, no adjectives like 'beautiful'",
+  "category": "footwear | garment | bottle | bag | accessory | electronics | beauty | food | other",
+  "summary": "1-2 factual sentences",
+  "shape": "form / silhouette in one phrase",
+  "materials": ["..."],
+  "colors": ["specific named shades, include hex when confident — e.g. 'deep burgundy ~ #7a1f2a'"],
+  "scale": "real-world size hint or empty string",
+  "packaging": "packaging description or empty string",
+  "distinctive_details": ["concrete features visible in the photos"],
+  "visible_views": ["angles SEEN in the input photos: front, 3/4, back, side, top, detail, etc"],
+  "missing_views": ["angles NOT seen but useful for the sheet"],
+  "image_prompt": "polished English prompt for Nano Banana 2 to render the {'sheet' if mode == 'sheet' else 'detail close-ups'}. Describe layout, lighting, what each view shows. Strictly factual about the product (use the materials/colors/details above). White background. No text overlays."
+}}
+
+Describe ONLY what you SEE across the photos — never invent features not visible.{direction_block}
+
+Respond with the JSON only."""
+
+    raw = await _call_vision(system, images)
+    # Best-effort JSON extraction — Gemini occasionally wraps in ```json.
+    text = (raw or "").strip()
+    if text.startswith("```"):
+        text = text.replace("```json", "").replace("```", "").strip()
+    if not text.startswith("{"):
+        start, end = text.find("{"), text.rfind("}")
+        if start != -1 and end != -1:
+            text = text[start:end + 1]
+    import json as _json
+    try:
+        return _json.loads(text)
+    except _json.JSONDecodeError as e:
+        raise RuntimeError(f"Failed to parse product-sheet brief JSON: {e}; raw={raw[:400]}")
+
+
 async def describe_avatar(image_bytes: bytes, mime_type: str = "image/jpeg", avatar_name: str = "") -> str:
     """
     Analyze an avatar/person image and return a visual description.

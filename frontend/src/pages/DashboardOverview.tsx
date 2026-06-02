@@ -22,7 +22,7 @@ export function DashboardOverview() {
     useEffect(() => {
         Promise.all([
             fetchBrands().catch(() => []),
-            fetch("http://localhost:8000/api/tools")
+            fetch("http://127.0.0.1:8000/api/tools")
                 .then((r) => r.json())
                 .then((d) => d.tools || [])
                 .catch(() => []),

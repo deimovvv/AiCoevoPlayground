@@ -386,7 +386,7 @@ async function createKlingFrameToFrame(
   duration: string = "5",
   aspectRatio: string = "9:16",
 ): Promise<string> {
-  const API_BASE = "http://localhost:8000";
+  const API_BASE = "http://127.0.0.1:8000";
   const res = await fetch(`${API_BASE}/api/kling/frame-to-frame`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

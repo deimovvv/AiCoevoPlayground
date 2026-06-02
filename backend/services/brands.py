@@ -19,6 +19,7 @@ BACKGROUNDS_DIR = DATA_DIR / "backgrounds"
 LOGOS_DIR = DATA_DIR / "logos"
 MOODBOARDS_DIR = DATA_DIR / "moodboards"
 LOOKANDFEEL_DIR = DATA_DIR / "lookandfeel"
+VOICE_LAB_DIR = DATA_DIR / "voice_lab"   # ephemeral TTS clips from /api/voice/turn
 
 # Ensure directories exist
 DATA_DIR.mkdir(exist_ok=True)
@@ -29,6 +30,7 @@ BACKGROUNDS_DIR.mkdir(exist_ok=True)
 LOGOS_DIR.mkdir(exist_ok=True)
 MOODBOARDS_DIR.mkdir(exist_ok=True)
 LOOKANDFEEL_DIR.mkdir(exist_ok=True)
+VOICE_LAB_DIR.mkdir(exist_ok=True)
 
 
 SANDBOX_BRAND = {
@@ -116,3 +118,7 @@ def get_moodboards_dir() -> Path:
 
 def get_lookandfeel_dir() -> Path:
     return LOOKANDFEEL_DIR
+
+
+def get_voice_lab_dir() -> Path:
+    return VOICE_LAB_DIR

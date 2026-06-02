@@ -2,7 +2,7 @@
  * Manual Lab — brand-agnostic sandbox for Nano Banana 2 + Kling V3
  * ─────────────────────────────────────────────────────────────────
  * One-shot generations with chat-style history. References get auto-tagged
- * (image1, image2, ...) and can be inserted as [imageN] in the prompt.
+ * (img1, img2, ...) and can be inserted as [imgN] in the prompt.
  *
  * No pipeline, no curation, no brand requirement. Optionally pulls assets
  * from the active brand if the user enables the toggle.
@@ -10,9 +10,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
-import { Image as ImageIcon, Video, Plus, X, Send, Sparkles, RefreshCw, Download, AlertCircle, FlaskConical, Wand2, Eye, RotateCcw, ChevronDown, Check, Sun } from "lucide-react";
+import { Image as ImageIcon, Video, Plus, X, Send, Sparkles, RefreshCw, Download, AlertCircle, FlaskConical, Wand2, Eye, RotateCcw, ChevronDown, Check, Sun, MessageSquare } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
+import { ChatPanel } from "../components/ChatPanel";
 import { useBrand } from "../lib/BrandContext";
 import {
     createImageEdit,
@@ -20,6 +21,7 @@ import {
     pollImageGen,
     createKlingVideo,
     createKlingFrameToFrame,
+    ensureHostedRefUrl,
     pollKlingVideo,
     createSeedanceReferenceToVideo,
     pollSeedanceVideo,
@@ -32,6 +34,8 @@ import {
     clothingImageUrl,
     backgroundImageUrl,
     lookAndFeelImageUrl,
+    moodboardImageUrl,
+    brandLogoImageUrl,
     describeLookAndFeel,
     describeLookAndFeelUpload,
     type Generation,
@@ -109,7 +113,7 @@ interface ChatTurn {
 }
 
 const IMG_ASPECT_RATIOS = ["9:16", "1:1", "16:9", "4:5", "3:4"] as const;
-const IMG_RESOLUTIONS = ["1K", "2K"] as const;
+const IMG_RESOLUTIONS = ["1K", "2K", "4K"] as const;
 const VID_DURATIONS = ["5", "10"] as const;
 const VARIANT_COUNTS = ["1", "2", "3", "4"] as const;
 
@@ -141,13 +145,22 @@ function primaryBaseName(refs: RefImage[]): string | undefined {
     return refs.find((r) => r.baseName)?.baseName;
 }
 
+/** Friendly filename for a generation: prefer the propagated baseName (input image's
+ *  name), otherwise derive a short slug from the prompt itself. Fallback to the id. */
+function downloadBaseName(turn: ChatTurn): string {
+    if (turn.baseName) return turn.baseName;
+    const slug = sanitizeName(turn.prompt || "").slice(0, 60).trim();
+    if (slug) return slug;
+    return `manual_lab_${turn.id.slice(-6)}`;
+}
+
 // Download via the shared proxy helper (saves cleanly instead of opening a tab).
 const forceDownload = downloadFile;
 
 function buildPromptWithRefs(rawPrompt: string, refs: RefImage[]): string {
     if (refs.length === 0) return rawPrompt;
     const refLines = refs.map((r, i) => `Image ${i + 1}: ${r.label || r.tag}`).join("\n");
-    // Replace [imageN] tokens with "Image N" so the model knows which ref the user means
+    // Replace [imgN] tokens with "Image N" so the model knows which ref the user means
     let body = rawPrompt;
     refs.forEach((r, i) => {
         const re = new RegExp(`\\[${r.tag}\\]`, "gi");
@@ -169,7 +182,10 @@ export function ManualLab() {
     const [suggestion, setSuggestion] = useState<{ tool_id: string; reason: string } | null>(null);
     const [showAssetPicker, setShowAssetPicker] = useState(false);
     const [showLookFeel, setShowLookFeel] = useState(false);
-    const [lookFeelMode, setLookFeelMode] = useState<"image" | "recipe">("image");
+    // Default to "recipe" — analyzing the L&F into a text grade is far more reliable than
+    // attaching it as an image reference (Nano Banana tends to copy the reference's scene
+    // even when the prompt says "use only as a color swatch").
+    const [lookFeelMode, setLookFeelMode] = useState<"image" | "recipe">("recipe");
     const [lfAnalyzing, setLfAnalyzing] = useState<string | null>(null);  // item id being analyzed (recipe mode)
 
     // Image params
@@ -207,6 +223,9 @@ export function ManualLab() {
     const [showPreview, setShowPreview] = useState(false);
     const [manualPrompt, setManualPrompt] = useState<string | null>(null);  // non-null = user took over
     const [interpretation, setInterpretation] = useState("");  // Spanish gloss: "qué entendí" from the enhancer
+    // When ON (default): your raw text is sent LITERAL to the image model — no curation step.
+    // When OFF: two-stage flow (Preparar → Gemini cures the prompt in English → Generar).
+    const [passThroughPrompt, setPassThroughPrompt] = useState(true);
 
     // Auto-enhance is always ON: Gemini Vision rewrites the prompt before sending,
     // unless the user explicitly edited the preview (manualPrompt !== null).
@@ -217,6 +236,10 @@ export function ManualLab() {
     const [mention, setMention] = useState<{ open: boolean; query: string; anchorTop: number; anchorLeft: number; activeIdx: number }>({
         open: false, query: "", anchorTop: 0, anchorLeft: 0, activeIdx: 0,
     });
+
+    // Copiloto side panel — same chat as /dashboard/chat (shared sessions/memory),
+    // accessible from within the Lab for prompt brainstorm without leaving the page.
+    const [showCopiloto, setShowCopiloto] = useState(false);
 
     // Lightbox (click-to-zoom for any image/video)
     const [lightbox, setLightbox] = useState<{ url: string; type: "image" | "video"; label?: string; name?: string } | null>(null);
@@ -282,7 +305,7 @@ export function ManualLab() {
         setMention((m) => ({ ...m, open: false }));
     };
 
-    // Replace the current "@query" segment with [imageN]
+    // Replace the current "@query" segment with [imgN]
     const commitMention = (ref_: RefImage) => {
         const ta = promptRef.current;
         if (!ta) return;
@@ -302,11 +325,51 @@ export function ManualLab() {
     };
 
     // Load past Manual Lab history once
+    // Lab gallery is per-brand: when Koxis is active, only Koxis's Lab generations show;
+    // Sandbox / no brand → brand-agnostic ones. Re-fetch when the active brand changes.
     useEffect(() => {
-        fetchManualGenerations().then((gens) => {
-            const past = gens.slice(0, 30).reverse().map((g) => generationToTurn(g));
+        const isSandbox = !activeBrand || activeBrand.id === "__sandbox__";
+        const filter = isSandbox ? "__none__" : activeBrand.id;
+        fetchManualGenerations(filter).then((gens) => {
+            const labOnly = gens.filter((g) => g.toolId === "manual_lab");
+            const past = labOnly.slice(0, 30).reverse().map((g) => generationToTurn(g));
             setTurns(past);
         }).catch(() => { /* empty history */ });
+    }, [activeBrand?.id]);
+
+    // Copiloto → Lab handoff: a prompt candidate (and optionally refs) carried over from
+    // the chat. Applied on mount (cold open from Copiloto page) AND on a custom event
+    // (warm: when the Copiloto SIDE PANEL fires "Usar en Lab" while the Lab is already mounted).
+    useEffect(() => {
+        const applyHandoff = () => {
+            try {
+                const raw = sessionStorage.getItem("coevo-lab-prompt-handoff");
+                if (!raw) return;
+                sessionStorage.removeItem("coevo-lab-prompt-handoff");
+                const data = JSON.parse(raw) as { kind?: string; prompt?: string; title?: string; refs?: Array<{ data: string; mime?: string }> };
+                if (data.kind !== "prompt" || !data.prompt) return;
+                setMode("image");
+                setPrompt(data.prompt);
+                if (Array.isArray(data.refs) && data.refs.length) {
+                    const refsImported: RefImage[] = data.refs.slice(0, 4).map((r, i) => {
+                        const url = r.data.startsWith("data:") ? r.data : `data:${r.mime || "image/jpeg"};base64,${r.data}`;
+                        return {
+                            tag: `img${i + 1}`,
+                            label: `del Copiloto${data.title ? `: ${data.title}` : ""}`,
+                            url,
+                            source: "upload",
+                        };
+                    });
+                    setRefs(refsImported);
+                }
+                setShowCopiloto(false);  // close the side panel after applying
+            } catch (e) {
+                console.warn("[lab] handoff parse failed:", e);
+            }
+        };
+        applyHandoff();  // cold mount
+        window.addEventListener("coevo-lab-handoff", applyHandoff);  // warm (from side panel)
+        return () => window.removeEventListener("coevo-lab-handoff", applyHandoff);
     }, []);
 
     // On first load, jump to the BOTTOM (latest output) — not the top of history.
@@ -365,7 +428,7 @@ export function ManualLab() {
                 const url = await fileToDataUrl(file);
                 const stem = file.name.replace(/\.[^.]+$/, "");
                 newRefs.push({
-                    tag: `image${counter}`,
+                    tag: `img${counter}`,
                     label: stem,
                     url,
                     source: "upload",
@@ -395,7 +458,7 @@ export function ManualLab() {
     const removeAudioRef = (id: string) => setAudioRefs((prev) => prev.filter((a) => a.id !== id));
 
     const addAssetRef = (
-        kind: "avatar" | "product" | "clothing" | "background",
+        kind: "avatar" | "product" | "clothing" | "background" | "moodboard" | "lookfeel" | "logo",
         item: { id: string; name: string; imageUrl?: string },
     ) => {
         if (!item.imageUrl) return;
@@ -403,16 +466,24 @@ export function ManualLab() {
             kind === "avatar" ? avatarImageUrl :
             kind === "product" ? productImageUrl :
             kind === "clothing" ? clothingImageUrl :
-            backgroundImageUrl;
+            kind === "background" ? backgroundImageUrl :
+            kind === "moodboard" ? moodboardImageUrl :
+            kind === "lookfeel" ? lookAndFeelImageUrl :
+            brandLogoImageUrl; // logo
         const fullUrl = resolver(item.imageUrl);
+        // assetType in RefImage only knows the original 4 categories; moodboard/lookfeel/logo
+        // are treated as plain assets (no special handling downstream).
+        const assetType = (["avatar", "product", "clothing", "background"] as const).includes(kind as "avatar")
+            ? (kind as "avatar" | "product" | "clothing" | "background")
+            : undefined;
         setRefs((prev) => [
             ...prev,
             {
-                tag: `image${prev.length + 1}`,
+                tag: `img${prev.length + 1}`,
                 label: `${kind}: ${item.name}`,
                 url: fullUrl,
                 source: "asset",
-                assetType: kind,
+                assetType,
                 baseName: sanitizeName(item.name) || undefined,
             },
         ]);
@@ -421,9 +492,25 @@ export function ManualLab() {
 
     // Apply a brand Look & Feel reference as a COLOR-GRADE / MOOD pass — never the
     // reference's shadows or scene content. Two modes:
-    //   "image"  → pass the reference image, prompt it to be used only as a palette swatch.
     //   "recipe" → analyze the reference into a text grade and apply that; the image is NOT
-    //              sent, so no objects/sky/clouds can leak into the result.
+    //              sent, so no objects/sky/clouds can leak into the result. DEFAULT.
+    //   "image"  → pass the reference image, prompt it to be used only as a palette swatch.
+    //              Faster but less reliable — Nano Banana often copies the reference's scene.
+    //
+    // Build and inject the recipe-mode prompt. Pure helper — no state about which item.
+    const applyRecipePrompt = (item: LookFeelItem & { adhocFile?: File }, recipeText: string) => {
+        const grade = (recipeText || "").trim() || `the "${item.name}" color treatment`;
+        const promptText =
+            `Apply this exact color grade / mood to [img1] as a color-treatment pass (like a film LUT): ${grade}\n` +
+            `Keep [img1] completely identical otherwise — same subject, face and identity, pose, light direction, shadows, highlights, exposure, framing, composition, background and product. Change ONLY color, tone and mood. Do NOT add, remove or alter any object or scene element.`;
+        // Only set the PREPARED prompt (preview). Leave the raw input untouched so you don't
+        // see the same text in two places.
+        setManualPrompt(promptText);
+        setShowPreview(true);
+        setShowLookFeel(false);
+        promptRef.current?.focus();
+    };
+
     // `adhocFile` is set when the reference was uploaded on the spot (not saved to the brand).
     const applyLookAndFeel = async (item: LookFeelItem & { adhocFile?: File }) => {
         if (mode !== "image") setMode("image");
@@ -433,54 +520,57 @@ export function ManualLab() {
         }
 
         if (lookFeelMode === "recipe") {
-            // Resolve the text recipe. Ad-hoc → analyze the upload directly; saved → cached endpoint.
-            let recipe = item.description?.trim() || "";
-            if (!recipe) {
-                setLfAnalyzing(item.id);
-                try {
+            // Direct flow: analyze the reference (or reuse the cached description) → apply.
+            // No modal — the prepared prompt becomes editable in the "Prompt final" textarea
+            // anyway, so giving the user a second editor in a modal was redundant friction.
+            setLfAnalyzing(item.id);
+            try {
+                // Prefer a cached `description` if the brand item already has one (it's the
+                // same recipe text the analyzer would produce, just persisted).
+                let recipe = (item.description || "").trim();
+                if (!recipe) {
                     const r = item.adhocFile
                         ? await describeLookAndFeelUpload(item.adhocFile)
                         : activeBrand ? await describeLookAndFeel(activeBrand.id, item.id) : { description: "" };
                     recipe = (r.description || "").trim();
-                } catch (e) {
-                    console.error("[lookfeel] describe failed:", e);
-                } finally {
-                    setLfAnalyzing(null);
                 }
+                applyRecipePrompt(item, recipe);
+            } catch (e) {
+                console.error("[lookfeel] describe failed:", e);
+                // Fall back to a generic prompt that at least references the item name —
+                // beats silently doing nothing.
+                applyRecipePrompt(item, "");
+            } finally {
+                setLfAnalyzing(null);
             }
-            const grade = recipe || `the "${item.name}" color treatment`;
-            const promptText =
-                `Apply this exact color grade / mood to [image1] as a color-treatment pass (like a film LUT): ${grade}\n` +
-                `Keep [image1] completely identical otherwise — same subject, face and identity, pose, light direction, shadows, highlights, exposure, framing, composition, background and product. Change ONLY color, tone and mood. Do NOT add, remove or alter any object or scene element.`;
-            setShowLookFeel(false);
-            setPrompt(promptText);
-            setManualPrompt(promptText);  // send literally — no reference image attached
-            setShowPreview(true);
-            promptRef.current?.focus();
             return;
         }
 
         // image mode: pass the reference, strongly constrained to color/mood only.
-        const lfTag = `image${refs.length + 1}`;
+        const lfTag = `img${refs.length + 1}`;
         // Ad-hoc refs carry a data: URL — use it as-is; saved ones resolve via the static host.
         const refUrl = item.imageUrl.startsWith("data:") ? item.imageUrl : lookAndFeelImageUrl(item.imageUrl);
         setRefs((prev) => [
             ...prev,
             {
-                tag: `image${prev.length + 1}`,
+                tag: `img${prev.length + 1}`,
                 label: `look&feel: ${item.name}`,
                 url: refUrl,
                 source: "asset",
                 baseName: sanitizeName(item.name) || undefined,
             },
         ]);
+        // Prompt ordering matters: Nano Banana 2 tends to return whichever image is
+        // mentioned first as the output. So [img1] MUST come first, declared as the base,
+        // and [${lfTag}] only appears later as a color-grade reference.
         const promptText =
-            `Use [${lfTag}] ONLY as a color/mood palette swatch to grade [image1]. [${lfTag}] is NOT scene content.\n` +
-            `Take from [${lfTag}] ONLY: color palette, color grade, white balance / temperature, tonal contrast, saturation and overall mood / atmosphere.\n` +
-            `Do NOT copy or reproduce ANY object, person, sky, clouds, scenery, texture, lighting direction or composition from [${lfTag}]. Do NOT relight [image1] or transplant its shadows.\n` +
-            `Keep [image1] identical — same subject, face and identity, pose, own light direction, shadows, exposure, framing, composition, background and product. Only the color and mood treatment changes.`;
+            `Output: [img1] regraded with the color treatment of [${lfTag}]. The result IS [img1] with a different color/mood — nothing else. Composition, subject, identity, pose, framing, background and product all come from [img1].\n` +
+            `KEEP from [img1] exactly: subject, face and identity, pose, framing, composition, background, product, light direction, shadows, highlights and exposure.\n` +
+            `TAKE from [${lfTag}] ONLY: color palette, white balance / temperature, tonal contrast, saturation and overall mood / atmosphere. Treat [${lfTag}] as a film LUT or a Photoshop color-balance layer — never as scene content.\n` +
+            `NEVER copy or reproduce from [${lfTag}]: objects, people, sky, clouds, scenery, textures, lighting direction or composition. Do NOT return [${lfTag}] or anything resembling it. Do NOT relight [img1].`;
         setShowLookFeel(false);
-        setPrompt(promptText);
+        // Only set the PREPARED prompt (preview). Leave the raw input untouched so you don't
+        // see the same text in two places.
         setManualPrompt(promptText);
         setShowPreview(true);
         promptRef.current?.focus();
@@ -509,7 +599,7 @@ export function ManualLab() {
             const anchor = filtered.find((r) => r.isAnchor);
             const rest = filtered.filter((r) => !r.isAnchor);
             const ordered = anchor ? [anchor, ...rest] : rest;
-            return ordered.map((r, i) => ({ ...r, tag: `image${i + 1}` }));
+            return ordered.map((r, i) => ({ ...r, tag: `img${i + 1}` }));
         });
     };
 
@@ -537,7 +627,7 @@ export function ManualLab() {
         setRefs((prev) => [
             ...prev,
             {
-                tag: `image${prev.length + 1}`,
+                tag: `img${prev.length + 1}`,
                 label: `result ${turn.id.slice(-4)}`,
                 url: turn.outputUrl!,
                 source: "result",
@@ -551,7 +641,7 @@ export function ManualLab() {
         if (!url) return;
         setRefs((prev) => [
             ...prev,
-            { tag: `image${prev.length + 1}`, label: "variante", url, source: "result" },
+            { tag: `img${prev.length + 1}`, label: "variante", url, source: "result" },
         ]);
     };
 
@@ -569,7 +659,7 @@ export function ManualLab() {
     const editResult = (turn: ChatTurn) => {
         if (!turn.outputUrl || turn.type !== "image") return;
         setRefs([{
-            tag: "image1",
+            tag: "img1",
             label: `editando: result ${turn.id.slice(-4)}`,
             url: turn.outputUrl,
             source: "anchor",
@@ -580,14 +670,14 @@ export function ManualLab() {
     };
 
     const clearAnchor = () => {
-        setRefs((prev) => prev.filter((r) => !r.isAnchor).map((r, i) => ({ ...r, tag: `image${i + 1}` })));
+        setRefs((prev) => prev.filter((r) => !r.isAnchor).map((r, i) => ({ ...r, tag: `img${i + 1}` })));
     };
 
     const animateResult = (turn: ChatTurn) => {
         if (!turn.outputUrl || turn.type !== "image") return;
         setMode("video");
         setRefs([{
-            tag: "image1",
+            tag: "img1",
             label: `previous result`,
             url: turn.outputUrl,
             source: "result",
@@ -603,7 +693,7 @@ export function ManualLab() {
         const exact = turn.sentPrompt || turn.prompt || "";
         setMode(turn.mode);
         setRefs((turn.refs || []).map((r, i) => ({
-            tag: `image${i + 1}`,
+            tag: `img${i + 1}`,
             label: r.label,
             url: r.url,
             source: "result" as const,
@@ -637,7 +727,9 @@ export function ManualLab() {
         }));
         try {
             await saveGeneration({
-                brandId: useBrandAssets && activeBrand ? activeBrand.id : null,
+                // Tag with the active brand so the Lab gallery shows per-brand history.
+                // Sandbox (no real brand) → null (shows under the brand-agnostic view).
+                brandId: activeBrand && activeBrand.id !== "__sandbox__" ? activeBrand.id : null,
                 toolId: "manual_lab",
                 title: turn.prompt?.slice(0, 80) || "Manual Lab",
                 type: turn.type,
@@ -657,7 +749,10 @@ export function ManualLab() {
     };
 
     const submit = async () => {
-        if (!prompt.trim() || busy) return;
+        // We have content when either the raw input has text OR a prepared prompt was set
+        // (e.g. via Look & Feel apply, where the input stays empty).
+        const hasContent = prompt.trim() || (manualPrompt && manualPrompt.trim());
+        if (!hasContent || busy) return;
         if (mode === "video" && refs.length === 0) {
             alert("Para generar video, agregá al menos una imagen de referencia.");
             return;
@@ -693,7 +788,7 @@ export function ManualLab() {
         // GPT Image 2 preserves the FIRST image with the most fidelity (esp. faces), so the
         // base must be image_urls[0]. The edit anchor IS the base → keep it first. (image1 is
         // already first by construction; this is a safety net. We don't reorder arbitrary refs
-        // because the prompt's [imageN] tokens are position-based and would break.)
+        // because the prompt's [imgN] tokens are position-based and would break.)
         if (imgModel === "gpt-image-2" && mode === "image" && submittedRefs.length > 1) {
             const aIdx = submittedRefs.findIndex((r) => r.isAnchor);
             if (aIdx > 0) submittedRefs = [submittedRefs[aIdx], ...submittedRefs.filter((_, i) => i !== aIdx)];
@@ -708,7 +803,10 @@ export function ManualLab() {
             //   2. Else if auto-enhance ON → call Gemini Vision to rewrite
             //   3. Else → assemble manually (REFERENCE IMAGES: + Image N substitution)
             let fullPrompt: string;
-            if (manualPrompt !== null) {
+            if (passThroughPrompt && submittedPrompt.trim()) {
+                // "Tal cual" mode: bypass Gemini entirely and send your text literal.
+                fullPrompt = submittedPrompt;
+            } else if (manualPrompt !== null) {
                 // User opened the preview and edited — respect their literal text.
                 fullPrompt = manualPrompt;
             } else {
@@ -778,19 +876,25 @@ export function ManualLab() {
                 for (let i = 0; i < urls.length; i++) {
                     await persist({ ...finalTurn, outputUrl: urls[i], variants: undefined, baseName: outputBaseName ? `${outputBaseName}_v${i + 1}` : undefined });
                 }
-                // Working memory: a single new result becomes the active image to keep iterating on,
-                // so "más cálido" / "ponele el sweater" build on it without re-attaching. The anchor
-                // chip's ✕ clears it ("empezar de cero"). Skip for variants/batch (multiple outputs).
-                if (urls.length === 1) {
-                    setRefs([{ tag: "image1", label: "último resultado", url: urls[0], source: "anchor", isAnchor: true, baseName: outputBaseName }]);
-                }
+                // The prompt + refs (assets) PERSIST after a generation, so you can tweak the
+                // instruction and re-run with the same setup. To switch base, click "Editar" on
+                // a result; to start fresh, clear refs / the prompt manually.
             } else {
                 // Video: dispatch by mode
                 //   - i2v (Kling): single image as start frame
                 //   - f2f (Kling): start + end frame
                 //   - rtv (Seedance 2.0): all refs as visual guides, no fixed frame role
-                const startUrl = submittedRefs[0]?.url;
-                if (!startUrl) throw new Error("No image to animate.");
+                const startUrlRaw = submittedRefs[0]?.url;
+                if (!startUrlRaw) throw new Error("No image to animate.");
+
+                // Fal/Kling rejects long `data:` URLs ("URL too long"). Re-host any data
+                // URLs on Fal Storage first — short refs (http(s)) pass through unchanged.
+                // We do this in parallel because each upload is independent and Fal handles
+                // concurrent uploads fine.
+                const hostedRefUrls = await Promise.all(
+                    submittedRefs.map((r, i) => ensureHostedRefUrl(r.url, r.baseName ? `${r.baseName}.png` : `lab_ref_${i + 1}.png`)),
+                );
+                const startUrl = hostedRefUrls[0];
 
                 let result: { status: string; video_url?: string | null; error?: string | null };
 
@@ -798,7 +902,7 @@ export function ManualLab() {
                     if (submittedRefs.length < 1) throw new Error("Reference-to-video necesita al menos 1 referencia.");
                     const job = await createSeedanceReferenceToVideo({
                         prompt: fullPrompt,
-                        referenceImageUrls: submittedRefs.map((r) => r.url),
+                        referenceImageUrls: hostedRefUrls,
                         duration: vidDuration,
                         aspectRatio: currentVideoModel.aspectRatios ? vidAspectRatio : undefined,
                         resolution: currentVideoModel.resolutions ? vidResolution : undefined,
@@ -811,7 +915,7 @@ export function ManualLab() {
                     }
                 } else if (videoMode === "f2f") {
                     if (submittedRefs.length < 2) throw new Error("Frame-to-frame necesita al menos 2 referencias (start + end).");
-                    const endUrl = submittedRefs[submittedRefs.length - 1].url;
+                    const endUrl = hostedRefUrls[hostedRefUrls.length - 1];
                     // f2f only valid for Kling models — coerce videoModel to a Kling id (safe because
                     // the mode dropdown filtered it already, but guard against stale state).
                     const klingModelId = (currentVideoModel.provider === "kling" ? videoModel : "v3-pro") as KlingModel;
@@ -846,10 +950,9 @@ export function ManualLab() {
                 await persist(finalTurn);
             }
 
-            setPrompt("");
-            setManualPrompt(null);
-            setInterpretation("");
-            setShowPreview(false);
+            // Don't clear the prompt / prepared prompt / preview — they persist across
+            // generations so you can tweak the same setup and re-run. The result lands in
+            // the chat; your inputs (refs + prompt) stay exactly as they were.
         } catch (e) {
             const msg = e instanceof Error ? e.message : "Unknown error";
             setTurns((t) => t.map((x) => (x.id === pendingResult.id ? { ...x, status: "failed", error: msg } : x)));
@@ -1071,11 +1174,11 @@ export function ManualLab() {
                                     <p className="text-[10px] text-fg-faint px-1.5 pt-1 leading-snug">
                                         Aplica color/mood a <code className="px-1 rounded bg-surface-2">image1</code> sin cambiar su contenido.
                                     </p>
-                                    {/* Mode toggle: image ref vs text recipe */}
+                                    {/* Mode toggle: text recipe (default, reliable) vs image ref (faster but copies scene). */}
                                     <div className="flex gap-1 p-1">
                                         {([
-                                            { v: "image" as const, label: "Imagen ref", title: "Pasa la imagen como paleta. Más fiel al color, puede filtrar algo." },
-                                            { v: "recipe" as const, label: "Receta", title: "Analiza la referencia y aplica solo el color en texto. Sin filtrado de contenido." },
+                                            { v: "recipe" as const, label: "Receta (auto)", title: "Click → Gemini analiza la referencia y aplica solo color/mood. La imagen NO se manda al generador. Recomendado." },
+                                            { v: "image" as const, label: "Imagen ref", title: "Pasa la imagen como ref. Más rápido pero Nano Banana suele copiar la escena, incluso con prompts restrictivos." },
                                         ]).map((m) => (
                                             <button
                                                 key={m.v}
@@ -1090,6 +1193,13 @@ export function ManualLab() {
                                             </button>
                                         ))}
                                     </div>
+                                    {/* Honest warning — Nano Banana frequently returns the reference image itself
+                                        when given two refs, regardless of how strict the prompt is. */}
+                                    {lookFeelMode === "image" && (
+                                        <p className="text-[10px] text-[var(--color-warning,#f5a623)] px-1.5 pb-1 leading-snug">
+                                            ⚠ Nano Banana puede devolverte la imagen del look&feel en vez de aplicarla. Si pasa, cambiá a Receta.
+                                        </p>
+                                    )}
                                     {/* Ad-hoc: upload a one-off reference (not saved to the brand) */}
                                     <button
                                         onClick={() => lookFeelFileRef.current?.click()}
@@ -1253,7 +1363,7 @@ export function ManualLab() {
                             />
                             <p className="text-[10px] text-fg-faint">
                                 {manualPrompt !== null
-                                    ? "Se enviará tu texto literal — los [imageN] no se expandirán."
+                                    ? "Se enviará tu texto literal — los [imgN] no se expandirán."
                                     : "Se ensambla automáticamente desde tu prompt + refs. Editá para tomar control."}
                             </p>
                         </div>
@@ -1268,6 +1378,16 @@ export function ManualLab() {
                                 const v = e.target.value;
                                 setPrompt(v);
                                 handleMentionTrigger(v, e.target);
+                                // Invalidate the previously prepared prompt — user edited the raw
+                                // instruction, so the stale "Preparar" output should not be re-sent.
+                                // Also close the preview so the user re-Preparates to get a fresh
+                                // English version from Gemini (otherwise the panel falls back to
+                                // showing the raw Spanish placeholder, which looks confusing).
+                                if (manualPrompt !== null) {
+                                    setManualPrompt(null);
+                                    setInterpretation("");
+                                    setShowPreview(false);
+                                }
                             }}
                             placeholder={
                                 mode === "image"
@@ -1323,6 +1443,29 @@ export function ManualLab() {
                                     >
                                         A cada imagen
                                     </button>
+                                    <div
+                                        className="inline-flex border border-edge rounded-full overflow-hidden p-0.5 gap-0.5"
+                                        title="Tal cual: tu texto se manda LITERAL al modelo. Curar: Gemini lo interpreta y cura el prompt antes."
+                                    >
+                                        <button
+                                            onClick={() => setPassThroughPrompt(true)}
+                                            className={cn(
+                                                "px-2 py-0.5 rounded-full text-[10px] cursor-pointer transition-colors",
+                                                passThroughPrompt ? "bg-[var(--color-action-subtle)] text-fg border border-[var(--color-action-muted)]" : "text-fg-muted hover:text-fg",
+                                            )}
+                                        >
+                                            Tal cual
+                                        </button>
+                                        <button
+                                            onClick={() => setPassThroughPrompt(false)}
+                                            className={cn(
+                                                "px-2 py-0.5 rounded-full text-[10px] cursor-pointer transition-colors",
+                                                !passThroughPrompt ? "bg-[var(--color-action-subtle)] text-fg border border-[var(--color-action-muted)]" : "text-fg-muted hover:text-fg",
+                                            )}
+                                        >
+                                            Curar con Gemini
+                                        </button>
+                                    </div>
                                     {refs.length > 0 && (
                                         <span className={cn("text-[10px]", currentModelInfo.resHonored ? "text-[var(--color-action)]" : "text-fg-faint")}>
                                             · {currentModelInfo.note}
@@ -1411,21 +1554,29 @@ export function ManualLab() {
                             </button>
                             <Button
                                 onClick={() => {
-                                    if (busy || enhancing || !prompt.trim()) return;
+                                    if (busy || enhancing) return;
+                                    const hasContent = prompt.trim() || (manualPrompt && manualPrompt.trim());
+                                    if (!hasContent) return;
+                                    // "Tal cual": one-click Generar — bypasses Gemini, sends your raw text literal.
+                                    if (passThroughPrompt) { submit(); return; }
                                     // Two-stage: first prepare the model-aware prompt for review,
                                     // then (once there's a prompt to confirm) actually generate.
                                     if (manualPrompt === null) { enhanceNow(); return; }
                                     submit();
                                 }}
-                                disabled={busy || enhancing || !prompt.trim()}
+                                disabled={busy || enhancing || (!prompt.trim() && !manualPrompt)}
                                 size="sm"
                                 className="rounded-full px-4"
                             >
                                 {busy || enhancing
                                     ? <RefreshCw size={13} className="animate-spin" />
-                                    : manualPrompt === null ? <Sparkles size={13} /> : <Send size={13} />}
+                                    : (passThroughPrompt || manualPrompt !== null) ? <Send size={13} /> : <Sparkles size={13} />}
                                 <span className="ml-1.5">
-                                    {busy ? busyLabel : enhancing ? "Preparando…" : manualPrompt === null ? "Preparar prompt" : "Generar"}
+                                    {busy ? busyLabel
+                                        : enhancing ? "Preparando…"
+                                        : passThroughPrompt ? "Generar"
+                                        : manualPrompt === null ? "Preparar prompt"
+                                        : "Generar"}
                                 </span>
                             </Button>
                         </div>
@@ -1443,6 +1594,45 @@ export function ManualLab() {
                     name={lightbox.name}
                     onClose={() => setLightbox(null)}
                 />
+            )}
+
+            {/* Copiloto — same chat, same memory as /dashboard/chat. Slides in from the right. */}
+            {!showCopiloto && (
+                <button
+                    onClick={() => setShowCopiloto(true)}
+                    title="Copiloto — pedile prompts para probar acá"
+                    className="fixed bottom-5 right-5 z-30 flex items-center gap-2 h-11 px-4 rounded-full bg-[var(--color-action)] text-[var(--color-action-fg)] shadow-xl hover:scale-[1.03] transition-transform cursor-pointer"
+                >
+                    <MessageSquare size={16} />
+                    <span className="text-[12px] font-semibold">Copiloto</span>
+                </button>
+            )}
+            {showCopiloto && (
+                <>
+                    <div
+                        onClick={() => setShowCopiloto(false)}
+                        className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm transition-opacity"
+                    />
+                    <div className="fixed top-0 right-0 z-40 h-screen w-full sm:w-[600px] bg-[var(--color-canvas)] border-l border-edge flex flex-col shadow-2xl">
+                        <div className="flex items-center justify-between px-4 py-2.5 border-b border-edge">
+                            <div className="flex items-center gap-2">
+                                <MessageSquare size={14} className="text-[var(--color-action)]" />
+                                <span className="text-[12px] font-semibold text-fg">Copiloto</span>
+                                <span className="text-[10px] text-fg-faint">misma sesión que /chat</span>
+                            </div>
+                            <button
+                                onClick={() => setShowCopiloto(false)}
+                                className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-surface-2 text-fg-muted hover:text-fg cursor-pointer"
+                                title="Cerrar"
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                        <div className="flex-1 min-h-0 overflow-hidden flex">
+                            <ChatPanel compact />
+                        </div>
+                    </div>
+                </>
             )}
         </div>
     );
@@ -1552,7 +1742,7 @@ function EmptyState({ mode }: { mode: Mode }) {
             <p className="text-[14px] text-fg font-medium">Generá libremente</p>
             <p className="text-[12px] text-fg-muted max-w-md mt-1">
                 {mode === "image"
-                    ? "Subí imágenes como referencia, taggeá con [image1], [image2] en el prompt y generá con Nano Banana 2."
+                    ? "Subí imágenes como referencia, taggeá con [img1], [img2] en el prompt y generá con Nano Banana 2."
                     : "Subí una imagen como frame inicial, describí el movimiento y generá con Kling V3 Pro."}
             </p>
         </div>
@@ -1651,7 +1841,7 @@ function TurnBubble({ turn, isAnchored, busyLabel, showFull = true, onEdit, onUs
                                             </button>
                                             <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover/v:opacity-100 transition-opacity">
                                                 <button onClick={() => onPickVariant(url)} title="Usar esta como referencia para seguir" className="px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] backdrop-blur hover:bg-[var(--color-action)] hover:text-[var(--color-action-fg)] cursor-pointer">Usar</button>
-                                                <button onClick={() => forceDownload(url, `${turn.baseName || `manual_lab_${turn.id.slice(-6)}`}_v${i + 1}.png`)} title="Descargar" className="w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur hover:bg-black/80 cursor-pointer"><Download size={11} /></button>
+                                                <button onClick={() => forceDownload(url, `${downloadBaseName(turn)}_v${i + 1}.png`)} title="Descargar" className="w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur hover:bg-black/80 cursor-pointer"><Download size={11} /></button>
                                             </div>
                                             <span className="absolute bottom-1 left-1 text-[9px] text-white/90 bg-black/50 rounded px-1">{i + 1}</span>
                                         </div>
@@ -1699,7 +1889,7 @@ function TurnBubble({ turn, isAnchored, busyLabel, showFull = true, onEdit, onUs
                             <button
                                 onClick={() => {
                                     const ext = turn.type === "video" ? "mp4" : "png";
-                                    const base = turn.baseName || `manual_lab_${turn.id.slice(-6)}`;
+                                    const base = downloadBaseName(turn);
                                     forceDownload(turn.outputUrl!, `${base}.${ext}`);
                                 }}
                                 className="text-[11px] px-3 py-1 rounded-full hover:bg-surface-2 text-fg-muted hover:text-fg cursor-pointer flex items-center gap-1"
@@ -1773,29 +1963,46 @@ function Lightbox({ url, type, label, name, onClose }: {
     );
 }
 
+type AssetKind = "avatar" | "product" | "clothing" | "background" | "moodboard" | "lookfeel" | "logo";
+
+const ASSET_TAB_LABELS: Record<AssetKind, string> = {
+    avatar: "avatar", product: "producto", clothing: "ropa", background: "fondo",
+    moodboard: "moodboard", lookfeel: "look&feel", logo: "logo",
+};
+
 function AssetPicker({ brand, onPick, onClose }: {
     brand: NonNullable<ReturnType<typeof useBrand>["activeBrand"]>;
-    onPick: (kind: "avatar" | "product" | "clothing" | "background", item: { id: string; name: string; imageUrl?: string }) => void;
+    onPick: (kind: AssetKind, item: { id: string; name: string; imageUrl?: string }) => void;
     onClose: () => void;
 }) {
-    const [tab, setTab] = useState<"avatar" | "product" | "clothing" | "background">("avatar");
+    const [tab, setTab] = useState<AssetKind>("avatar");
     const items: Array<{ id: string; name: string; imageUrl?: string }> =
         tab === "avatar" ? (brand.avatars || []) :
         tab === "product" ? (brand.products || []).map((p) => ({ id: p.id, name: p.name, imageUrl: p.imageUrl })) :
         tab === "clothing" ? (brand.clothing || []) :
-        (brand.backgrounds || []);
+        tab === "background" ? (brand.backgrounds || []) :
+        tab === "moodboard" ? (brand.moodboards || []) :
+        tab === "lookfeel" ? (brand.lookAndFeel || []) :
+        // logos: multi-logo array + legacy single-logo merged into one list
+        [
+            ...(brand.logo?.imageUrl ? [{ id: "__legacy_logo__", name: "Logo", imageUrl: brand.logo.imageUrl }] : []),
+            ...((brand.logos || []).map((l) => ({ id: l.id, name: l.name, imageUrl: l.imageUrl }))),
+        ];
 
     const resolver =
         tab === "avatar" ? avatarImageUrl :
         tab === "product" ? productImageUrl :
         tab === "clothing" ? clothingImageUrl :
-        backgroundImageUrl;
+        tab === "background" ? backgroundImageUrl :
+        tab === "moodboard" ? moodboardImageUrl :
+        tab === "lookfeel" ? lookAndFeelImageUrl :
+        brandLogoImageUrl;
 
     return (
         <div className="mt-2 mb-2 border border-edge rounded-[var(--radius-md)] bg-surface-1 p-2">
-            <div className="flex items-center justify-between mb-2">
-                <div className="flex gap-1">
-                    {(["avatar", "product", "clothing", "background"] as const).map((t) => (
+            <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="flex gap-1 flex-wrap">
+                    {(["avatar", "product", "clothing", "background", "moodboard", "lookfeel", "logo"] as const).map((t) => (
                         <button
                             key={t}
                             onClick={() => setTab(t)}
@@ -1804,38 +2011,77 @@ function AssetPicker({ brand, onPick, onClose }: {
                                 tab === t ? "bg-surface-2 text-fg" : "text-fg-muted hover:bg-surface-2",
                             )}
                         >
-                            {t}
+                            {ASSET_TAB_LABELS[t]}
                         </button>
                     ))}
                 </div>
-                <button onClick={onClose} className="text-fg-faint hover:text-fg cursor-pointer">
+                <button onClick={onClose} className="text-fg-faint hover:text-fg cursor-pointer shrink-0">
                     <X size={14} />
                 </button>
             </div>
             {items.length === 0 ? (
-                <p className="text-[11px] text-fg-faint p-3">No hay {tab}s en esta marca.</p>
+                <p className="text-[11px] text-fg-faint p-3">No hay {ASSET_TAB_LABELS[tab]} en esta marca.</p>
             ) : (
                 <div className="grid grid-cols-6 gap-1.5">
                     {items.map((it) => (
-                        <button
-                            key={it.id}
-                            onClick={() => onPick(tab, it)}
-                            className="cursor-pointer group relative aspect-square overflow-hidden rounded-sm border border-edge-subtle hover:border-edge-strong"
-                            title={it.name}
-                        >
-                            {it.imageUrl ? (
-                                <img src={resolver(it.imageUrl)} alt={it.name} className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full bg-surface-2" />
-                            )}
-                            <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] truncate px-1 py-0.5 opacity-0 group-hover:opacity-100">
-                                {it.name}
-                            </span>
-                        </button>
+                        <AssetTile key={it.id} item={it} resolver={resolver} onPick={() => onPick(tab, it)} />
                     ))}
                 </div>
             )}
         </div>
+    );
+}
+
+/**
+ * One tile in the AssetPicker grid. Renders the asset image with an `onError` fallback
+ * that swaps in a neutral plate + the item's initials when the image fails to load
+ * (404, network error, etc.). Keeps the tile clickable so the asset can still be
+ * selected even if its preview can't render — the picker writes the imageUrl through
+ * to the ref regardless of preview state.
+ */
+function AssetTile({
+    item,
+    resolver,
+    onPick,
+}: {
+    item: { id: string; name: string; imageUrl?: string };
+    resolver: (u: string) => string;
+    onPick: () => void;
+}) {
+    const [broken, setBroken] = useState(false);
+    const initials = (item.name || "?")
+        .split(/\s+/)
+        .map((w) => w[0])
+        .filter(Boolean)
+        .slice(0, 2)
+        .join("")
+        .toUpperCase();
+
+    return (
+        <button
+            onClick={onPick}
+            className="cursor-pointer group relative aspect-square overflow-hidden rounded-sm border border-edge-subtle hover:border-edge-strong"
+            title={item.name}
+        >
+            {item.imageUrl && !broken ? (
+                <img
+                    src={resolver(item.imageUrl)}
+                    alt={item.name}
+                    className="w-full h-full object-cover"
+                    onError={() => setBroken(true)}
+                />
+            ) : (
+                <div className="w-full h-full bg-surface-2 flex flex-col items-center justify-center gap-0.5 text-fg-faint">
+                    <span className="text-[14px] font-semibold text-fg-muted">{initials || "?"}</span>
+                    <span className="text-[8px] uppercase tracking-wider opacity-60">
+                        {item.imageUrl ? "sin preview" : "sin imagen"}
+                    </span>
+                </div>
+            )}
+            <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] truncate px-1 py-0.5 opacity-0 group-hover:opacity-100">
+                {item.name}
+            </span>
+        </button>
     );
 }
 
@@ -1881,9 +2127,18 @@ function LabGallery({
     onAnimate: (t: ChatTurn) => void;
     onDelete: (t: ChatTurn) => void;
 }) {
-    // Newest first — only completed outputs with a URL.
+    // Newest first — completed outputs with a URL. Variant sets are EXPANDED here so each
+    // variant shows as its own thumbnail; otherwise only the first variant would be visible.
     const outputs = turns
-        .filter((t) => t.role === "result" && t.status === "completed" && t.outputUrl && t.type)
+        .filter((t) => t.role === "result" && t.status === "completed" && t.type)
+        .flatMap((t): ChatTurn[] => {
+            if (t.variants && t.variants.length > 1) {
+                return t.variants
+                    .filter(Boolean)
+                    .map((url, i) => ({ ...t, id: `${t.id}_v${i + 1}`, outputUrl: url, variants: undefined }));
+            }
+            return t.outputUrl ? [t] : [];
+        })
         .reverse();
 
     if (!open) {

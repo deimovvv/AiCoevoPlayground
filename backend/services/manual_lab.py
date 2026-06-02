@@ -110,7 +110,7 @@ How {model_name} reads its reference images (follow this exactly):
 {model_rules}
 
 Rules:
-- Reference images by "Image 1", "Image 2", etc. (matching the position they were attached). Replace any [imageN] tokens with "Image N".
+- Reference images by "Image 1", "Image 2", etc. (matching the position they were attached). Replace any [imgN] or [imageN] tokens in the user's text with "Image N".
 - Start with a short "REFERENCE IMAGES:" block listing each image's role (e.g. "Image 1: the woman to feature", "Image 2: the garment to put on her") IF there are references. Skip the block if no references.
 - Be photographic and concrete: lighting, composition, framing, pose, materials, surface, depth.
 - If the user asks to change visible text (e.g. "que diga X en vez de Y"), be explicit: "Replace the text 'Y' (currently visible on the {{element}}) with 'X', preserving the original typography, color, weight, and placement."

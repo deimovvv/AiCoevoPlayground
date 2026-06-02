@@ -7,7 +7,7 @@ import type { Generation, ReviewData } from "../lib/api";
 import { cn } from "../lib/utils";
 import { downloadFile } from "../lib/download";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://127.0.0.1:8000";
 
 type ContentType = "all" | "image" | "video" | "copy";
 type StatusFilter = "all" | "draft" | "completed";

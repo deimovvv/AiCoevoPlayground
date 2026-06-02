@@ -1217,7 +1217,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
           sceneId: scene.sceneId,
           title: scene.title,
           scriptText: "",
-          videoUrl: klingVideoUrl.startsWith("http") ? klingVideoUrl : `http://localhost:8000${klingVideoUrl}`,
+          videoUrl: klingVideoUrl.startsWith("http") ? klingVideoUrl : `http://127.0.0.1:8000${klingVideoUrl}`,
           hookVideoUrl,
           imageUrl: scene.selectedUrl,
           sceneType: "creative",
@@ -1225,7 +1225,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
         continue;
       }
       const overlayResult = await overlayAudio(
-        klingVideoUrl.startsWith("http") ? klingVideoUrl : `http://localhost:8000${klingVideoUrl}`,
+        klingVideoUrl.startsWith("http") ? klingVideoUrl : `http://127.0.0.1:8000${klingVideoUrl}`,
         falAudioUrl,
       );
       lipsyncResults.push({
@@ -1234,7 +1234,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
         scriptText,
         videoUrl: overlayResult.video_url.startsWith("http")
           ? overlayResult.video_url
-          : `http://localhost:8000${overlayResult.video_url}`,
+          : `http://127.0.0.1:8000${overlayResult.video_url}`,
         hookVideoUrl,
         imageUrl: scene.selectedUrl,
         sceneType: "creative",
@@ -1291,7 +1291,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
         klingDuration,
       );
       const lipsyncJob = await createSyncLipsync({
-        video_url: klingVideoUrl.startsWith("http") ? klingVideoUrl : `http://localhost:8000${klingVideoUrl}`,
+        video_url: klingVideoUrl.startsWith("http") ? klingVideoUrl : `http://127.0.0.1:8000${klingVideoUrl}`,
         audio_url: falAudioUrl!,
         sync_mode: "cut_off",
       });

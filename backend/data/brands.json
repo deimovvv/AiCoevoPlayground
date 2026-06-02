@@ -827,8 +827,8 @@
       ]
     },
     "logo": {
-      "filename": "coevo_logo.png",
-      "imageUrl": "/static/logos/coevo_logo.png"
+      "filename": "coevo_logo.jpg",
+      "imageUrl": "/static/logos/coevo_logo.jpg"
     },
     "moodboards": [
       {
@@ -1365,7 +1365,8 @@
       ],
       "product_presentation": "El producto se muestra integrado en su contexto de origen o uso, con énfasis en su trazabilidad y materialidad. Se priorizan los detalles que conectan el objeto con su historia y el territorio del que proviene.",
       "motion_rules": "Ritmo pausado y sin urgencia, con planos sostenidos y movimientos de cámara lentos y deliberados (dolly, steadycam o handheld suave). La idea es permitir apreciar los detalles, los procesos y el entorno sin cortes rápidos o dinamismo excesivo."
-    }
+    },
+    "portalToken": "pt_8ddaaa8f282f"
   },
   {
     "id": "koxis",
@@ -1374,20 +1375,10 @@
     "avatars": [
       {
         "id": "5616c021",
-        "name": "WhatsApp Image 2026-05-20 at 12.52.12 (Pose Sheet)",
+        "name": "Pia",
         "description": "This is a female in her late 30s to early 40s with a medium olive skin tone. Her dark brown hair is pulled back tightly from her face, revealing a neat hairline. She has an oval-shaped face with high cheekbones, deep-set dark brown eyes, a straight nose, and naturally arched, medium-thick eyebrows. Her lips are medium full, and she appears to have a slender build based on her visible neck and shoulders.",
         "filename": "koxis_5616c021.png",
         "imageUrl": "/static/avatars/koxis_5616c021.png",
-        "talkingPhotoId": null,
-        "heygenStatus": "failed",
-        "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
-      },
-      {
-        "id": "c0275d0b",
-        "name": "A (Pose Sheet)",
-        "description": "This is a Caucasian female in her early to mid-20s with a slender build. She has long, wavy dirty blonde hair with lighter highlights, styled with a center part and wispy bangs that frame her face. Her oval-shaped face features green eyes, a straight nose, full lips, and prominent freckles scattered across her nose and cheeks. She has a fair skin tone.",
-        "filename": "koxis_c0275d0b.png",
-        "imageUrl": "/static/avatars/koxis_c0275d0b.png",
         "talkingPhotoId": null,
         "heygenStatus": "failed",
         "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
@@ -1401,6 +1392,15 @@
         "talkingPhotoId": null,
         "heygenStatus": "failed",
         "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
+      },
+      {
+        "id": "e1d7c420",
+        "name": "Sofia",
+        "description": "This is a young adult female, likely in her early to mid-20s, of Mediterranean or Middle Eastern descent, with a light to medium olive skin tone. She has long, dark brown, wavy hair styled with a center part, reaching past her shoulders. Her oval-shaped face features large, almond-shaped light green eyes, thick dark eyebrows, a prominent nose, and full lips. She has a slender build.",
+        "filename": "koxis_e1d7c420.png",
+        "imageUrl": "/static/avatars/koxis_e1d7c420.png",
+        "talkingPhotoId": null,
+        "heygenStatus": "skipped"
       }
     ],
     "voicePresets": [],
@@ -1598,6 +1598,14 @@
         "tags": [],
         "filename": "koxis_cloth_1be3ca23.png",
         "imageUrl": "/static/clothing/koxis_cloth_1be3ca23.png"
+      },
+      {
+        "id": "6a410536",
+        "name": "manual_lab (1)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_6a410536.png",
+        "imageUrl": "/static/clothing/koxis_cloth_6a410536.png"
       }
     ],
     "portalToken": "pt_09a9cdc59e7a",
@@ -1605,7 +1613,7 @@
       {
         "id": "05712209",
         "name": "Lookandfeelkoxis",
-        "description": "",
+        "description": "Color palette: Dominant bright sky blue (~#6090C0), clean white (~#F8F8F8), and deep black (~#101010), with a subtle cool cast; white balance: cool daylight, around 6000K; shadow tint: subtle cool blue; highlight tint: neutral to very slightly cool; contrast: medium-high with deep blacks and bright whites; saturation: medium-high, especially for blues; film/post characteristics: clean, no visible grain, minimal halation, no vignette, punchy and crisp, good dynamic range; overall mood: fresh, vibrant, clear, light, optimistic.",
         "filename": "koxis_lf_05712209.png",
         "imageUrl": "/static/lookandfeel/koxis_lf_05712209.png"
       },
@@ -1622,6 +1630,22 @@
         "description": "",
         "filename": "koxis_lf_ad9e29d0.png",
         "imageUrl": "/static/lookandfeel/koxis_lf_ad9e29d0.png"
+      }
+    ]
+  },
+  {
+    "id": "geely",
+    "name": "Geely",
+    "brandContext": "",
+    "avatars": [],
+    "voicePresets": [],
+    "lookAndFeel": [
+      {
+        "id": "7acc2af0",
+        "name": "LookAndFeel-Minimalismo",
+        "description": "Color palette: cool-neutral, light grays, clean whites, subtle blue/cyan cast, occasional soft pastel gradients; White balance: cool daylight (6800K feel); Shadow tint: subtle cool blue; Highlight tint: clean neutral with soft bloom; Contrast: moderate-high, crisp; Saturation: moderate-slightly desaturated; Film characteristics: clean digital, minimal grain, good dynamic range, refined punchy; Mood: modern, clean, sophisticated, serene.",
+        "filename": "geely_lf_7acc2af0.jpeg",
+        "imageUrl": "/static/lookandfeel/geely_lf_7acc2af0.jpeg"
       }
     ]
   }

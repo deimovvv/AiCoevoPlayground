@@ -3,7 +3,7 @@ import { Loader2, FlaskConical, LayoutGrid } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 import { cn } from "../../lib/utils";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://127.0.0.1:8000";
 
 export function BrandSwitcher() {
   const { activeBrand, loading } = useBrand();

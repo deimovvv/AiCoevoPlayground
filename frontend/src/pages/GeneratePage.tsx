@@ -57,6 +57,7 @@ const TOOL_TAGLINES: Record<string, string> = {
   content_analyzer: "Analizá un video y adaptálo a tu marca",
   video_swap: "Cambiá ropa, producto o fondo en TU video — sin perder el movimiento",
   ecommerce_pack: "Ficha de producto: prenda sobre modelo + vistas, en estudio",
+  fashion_editorial: "Editorial de moda: modelo + prenda, look de revista. Brief en español → variantes",
 };
 
 // Subtle gradient per tool for fallback previews (when no media)
@@ -73,6 +74,7 @@ const TOOL_GRADIENTS: Record<string, string> = {
   content_analyzer: "from-green-500/30 via-emerald-500/20 to-teal-500/30",
   video_swap: "from-lime-400/30 via-emerald-500/20 to-teal-500/30",
   ecommerce_pack: "from-stone-400/30 via-neutral-300/20 to-zinc-500/30",
+  fashion_editorial: "from-rose-500/30 via-fuchsia-500/20 to-purple-500/30",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -89,7 +91,7 @@ export function GeneratePage() {
   const [filter, setFilter] = useState<"all" | "video" | "images" | "copy">("all");
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/tools")
+    fetch("http://127.0.0.1:8000/api/tools")
       .then((r) => r.json())
       .then((data) => {
         setTools(data.tools || []);

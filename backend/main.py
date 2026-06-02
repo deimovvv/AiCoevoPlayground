@@ -187,9 +187,15 @@ class AddHeygenAvatarRequest(BaseModel):
     previewUrl: str
 
 
+class ChatImage(BaseModel):
+    data: str                     # base64 string OR full data: URL — backend accepts both
+    mime: Optional[str] = None
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
+    images: Optional[List[ChatImage]] = None   # optional vision attachments per message
 
 
 class ChatRequest(BaseModel):
@@ -1806,6 +1812,7 @@ async def describe_lookandfeel_upload(image: UploadFile = File(...)):
 # ══════════════════════════════════════════════════════════════
 
 app.mount("/static/logos", StaticFiles(directory=str(brands.get_logos_dir())), name="logos")
+app.mount("/static/voice-lab", StaticFiles(directory=str(brands.get_voice_lab_dir())), name="voice-lab")
 
 
 @app.post("/api/brands/{brand_id}/logo")
@@ -1846,6 +1853,87 @@ def delete_logo(brand_id: str):
         if img_path.exists():
             img_path.unlink()
     brand.pop("logo", None)
+    brands.save_brands(all_brands)
+    return {"ok": True}
+
+
+# ── Multi-logo API ─────────────────────────────────────────────
+# Brands often need more than one logo (isotipo, logotipo, dark/light, etc.).
+# `brand.logos[]` is the array form; the legacy `brand.logo` (single) is kept
+# read-only for backwards compat and shown alongside in the UI.
+
+@app.post("/api/brands/{brand_id}/logos")
+async def upload_brand_logo(
+    brand_id: str,
+    name: str = Form(...),
+    image: UploadFile = File(...),
+):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    image_data = await image.read()
+    if len(image_data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
+
+    ext = Path(image.filename or "logo.png").suffix or ".png"
+    item_id = str(uuid.uuid4())[:8]
+    filename = f"{brand_id}_logo_{item_id}{ext}"
+    filepath = brands.get_logos_dir() / filename
+    with open(filepath, "wb") as f:
+        f.write(image_data)
+
+    item = {
+        "id": item_id,
+        "name": name.strip() or "Logo",
+        "filename": filename,
+        "imageUrl": f"/static/logos/{filename}",
+    }
+    if "logos" not in brand:
+        brand["logos"] = []
+    brand["logos"].append(item)
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.patch("/api/brands/{brand_id}/logos/{logo_id}")
+def update_brand_logo(brand_id: str, logo_id: str, req: UpdateAvatarRequest):
+    """Rename a logo (reuses UpdateAvatarRequest — name + optional description)."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((l for l in brand.get("logos", []) if l.get("id") == logo_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Logo not found")
+    if req.name is not None:
+        name = req.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+        item["name"] = name
+    if req.description is not None:
+        item["description"] = req.description.strip()
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.delete("/api/brands/{brand_id}/logos/{logo_id}")
+def delete_brand_logo(brand_id: str, logo_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((l for l in brand.get("logos", []) if l.get("id") == logo_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Logo not found")
+    filename = item.get("filename", "")
+    if filename:
+        img_path = brands.get_logos_dir() / filename
+        if img_path.exists() and img_path.is_file():
+            img_path.unlink()
+    brand["logos"] = [l for l in brand["logos"] if l["id"] != logo_id]
     brands.save_brands(all_brands)
     return {"ok": True}
 
@@ -2412,6 +2500,56 @@ async def tiktok_video_info(url: str = Form(...)):
         return info
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Upload-to-Fal — turn a data URL / base64 / file into a public Fal URL.
+#  Used by Manual Lab before sending refs to Kling/Seedance because Fal rejects
+#  long data: URIs ("URL too long" errors on long base64 strings).
+# ══════════════════════════════════════════════════════════════
+
+class UploadDataUrlRequest(BaseModel):
+    """`data` may be a `data:image/png;base64,...` URL or a raw base64 string."""
+    data: str
+    filename: Optional[str] = None
+    mime: Optional[str] = None
+
+
+@app.post("/api/upload-to-fal")
+async def upload_to_fal(req: UploadDataUrlRequest):
+    """Decode a data URL / base64 string and re-host it on Fal Storage. Returns a public URL."""
+    import base64
+    raw = (req.data or "").strip()
+    if not raw:
+        raise HTTPException(400, "Empty data")
+
+    mime = req.mime or "image/png"
+    payload = raw
+    # Strip the data: prefix if present and recover the real mime from it.
+    if payload.startswith("data:"):
+        head, _, b64 = payload.partition(",")
+        # head looks like `data:image/png;base64`
+        try:
+            mime = head.split(";")[0].split(":", 1)[1] or mime
+        except Exception:
+            pass
+        payload = b64
+
+    try:
+        image_bytes = base64.b64decode(payload, validate=False)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid base64: {e}")
+    if not image_bytes:
+        raise HTTPException(400, "Empty image bytes")
+
+    ext = (mime.split("/", 1)[-1] or "png").split("+")[0]
+    filename = req.filename or f"lab_ref_{uuid.uuid4().hex[:10]}.{ext}"
+
+    try:
+        url = await kling_video.upload_image(image_bytes, filename, mime)
+    except Exception as e:
+        raise HTTPException(502, f"Fal upload failed: {e}")
+    return {"url": url, "size_bytes": len(image_bytes), "mime": mime}
 
 
 @app.post("/api/tts/generate-and-upload")
@@ -4123,6 +4261,71 @@ def preview_prompt(brand_id: str, tool_id: str, req: Optional[dict] = None):
 #  Chat (Gemini)
 # ══════════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════════
+#  Product Sheet — cross-analyze 1-4 photos → structured brief
+#  Sibling of avatar-brief but for objects. Used by the product_sheet tool.
+# ══════════════════════════════════════════════════════════════
+
+@app.post("/api/brands/{brand_id}/product-sheet-brief")
+async def generate_product_sheet_brief(
+    brand_id: str,
+    direction: str = Form(""),
+    mode: str = Form("sheet"),           # "sheet" | "details"
+    product_id: str = Form(""),           # if set, photos come from the saved product
+    images: List[UploadFile] = File([]),  # otherwise, 1-4 uploaded photos
+):
+    """Cross-analyze 1-4 photos of a product and return a JSON brief the user can edit."""
+    if not image_analysis.is_configured():
+        raise HTTPException(500, "GEMINI_API_KEY not configured")
+
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(404, "Brand not found")
+
+    # Resolve image bytes — either from a saved Product or from uploaded files.
+    photos: list[tuple[bytes, str]] = []
+
+    if product_id:
+        product = next((p for p in brand.get("products", []) if p.get("id") == product_id), None)
+        if not product:
+            raise HTTPException(404, f"Product {product_id} not found in brand")
+        # Read the primary image + any additional photos (front/back/detail).
+        candidates = []
+        if product.get("filename"):
+            candidates.append(product["filename"])
+        for extra in (product.get("images") or []):
+            fn = extra.get("filename")
+            if fn and fn not in candidates:
+                candidates.append(fn)
+        for fn in candidates[:4]:
+            path = brands.get_products_dir() / fn
+            if path.exists() and path.is_file():
+                photos.append((path.read_bytes(), "image/jpeg"))
+
+    # Append any uploaded photos (up to 4 total).
+    for f in (images or [])[: max(0, 4 - len(photos))]:
+        data = await f.read()
+        if not data:
+            continue
+        ct = f.content_type or "image/jpeg"
+        photos.append((data, ct))
+
+    if not photos:
+        raise HTTPException(400, "Need at least one product photo (upload or product_id)")
+
+    try:
+        brief = await image_analysis.describe_product_sheet(
+            photos,
+            direction=direction or "",
+            mode=mode or "sheet",
+        )
+    except Exception as e:
+        raise HTTPException(502, f"Product sheet brief failed: {e}")
+
+    return brief
+
+
 @app.post("/api/brands/{brand_id}/avatar-brief")
 async def generate_avatar_brief(brand_id: str, req: dict = None):
     """Generate an avatar character brief using Gemini based on brand context."""
@@ -4177,9 +4380,124 @@ async def chat_endpoint(req: ChatRequest):
         raise HTTPException(status_code=404, detail="Brand not found")
 
     try:
-        messages = [{"role": m.role, "content": m.content} for m in req.messages]
+        messages = [
+            {"role": m.role, "content": m.content, "images": [i.model_dump() for i in (m.images or [])]}
+            for m in req.messages
+        ]
         reply = await chat_service.chat(brand, messages)
         return {"reply": reply}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Voice Lab — browser STT → Gemini → ElevenLabs → audio reply
+#  Experimental real-time-ish voice conversation. The browser does STT (Web
+#  Speech API) and sends finalized transcripts here; we route to Gemini for a
+#  short spoken reply and to ElevenLabs for synthesis, then return the audio
+#  URL alongside the text. Old clips are cleaned up best-effort per turn so
+#  the voice_lab/ folder doesn't accumulate forever.
+# ══════════════════════════════════════════════════════════════
+
+class VoiceTurnMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class VoiceTurnRequest(BaseModel):
+    brandId: Optional[str] = None  # null/__sandbox__ → no brand context
+    voiceId: Optional[str] = None  # ElevenLabs voice id; falls back to default
+    messages: List[VoiceTurnMessage]  # full conversation history; the last entry is the user's new utterance
+
+
+def _cleanup_voice_lab_dir(keep_recent: int = 40) -> None:
+    """Trim voice_lab/ to the N most recent clips. Best-effort, never raises."""
+    try:
+        d = brands.get_voice_lab_dir()
+        clips = sorted(d.glob("*.mp3"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for old in clips[keep_recent:]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
+@app.post("/api/voice/turn")
+async def voice_turn(req: VoiceTurnRequest):
+    """One round-trip of the voice conversation: transcript in → reply text + spoken MP3 URL out."""
+    if not chat_service.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    if not tts.is_configured():
+        raise HTTPException(status_code=500, detail="ELEVENLABS_API_KEY not configured")
+
+    # Resolve brand (optional — sandbox or null means generic assistant)
+    brand: dict = {}
+    if req.brandId and req.brandId != "__sandbox__":
+        all_brands = brands.load_brands()
+        found = brands.find_brand(all_brands, req.brandId)
+        if found:
+            brand = found
+
+    # Be tolerant of the client's history: drop empty messages (e.g. assistant placeholders
+    # that slipped in) and trailing assistant turns. We need a user message at the end so
+    # Gemini knows what to reply to, but the rest of the history is best-effort.
+    messages = [
+        {"role": m.role, "content": m.content}
+        for m in req.messages
+        if (m.content or "").strip()
+    ]
+    while messages and messages[-1].get("role") != "user":
+        messages.pop()
+    if not messages:
+        raise HTTPException(status_code=400, detail="No user message to reply to")
+
+    # 1) Gemini → short spoken reply
+    try:
+        reply = await chat_service.chat_voice(brand, messages)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Gemini error: {e}")
+
+    # 2) ElevenLabs → MP3 bytes
+    try:
+        audio_bytes = tts.generate_audio(text=reply, voice_id=req.voiceId)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"TTS error: {e}")
+
+    # 3) Persist to /static/voice-lab/ so the browser can <audio> it
+    clip_id = uuid.uuid4().hex[:12]
+    filename = f"{clip_id}.mp3"
+    out_path = brands.get_voice_lab_dir() / filename
+    out_path.write_bytes(audio_bytes)
+    _cleanup_voice_lab_dir()
+
+    return {
+        "reply": reply,
+        "audioUrl": f"/static/voice-lab/{filename}",
+    }
+
+
+class ChatPromptsRequest(BaseModel):
+    messages: List[ChatMessage]
+
+
+@app.post("/api/brands/{brand_id}/chat-prompts")
+async def chat_prompts_endpoint(brand_id: str, req: ChatPromptsRequest):
+    """Conversational prompt brainstormer: returns {reply, prompts:[{title, prompt, why?}]}
+    based on the chat history + any image attachments. Powers the Copiloto panel in the Lab."""
+    if not chat_service.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    try:
+        messages = [
+            {"role": m.role, "content": m.content, "images": [i.model_dump() for i in (m.images or [])]}
+            for m in req.messages
+        ]
+        return await chat_service.chat_prompts(brand, messages)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 

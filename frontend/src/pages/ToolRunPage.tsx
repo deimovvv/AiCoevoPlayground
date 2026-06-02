@@ -57,6 +57,7 @@ import { cn } from "../lib/utils";
 import { downloadFile } from "../lib/download";
 import { ImageEditPanel } from "../components/ImageEditPanel";
 import { SHOT_CATALOG, STUDIO_STYLES } from "../tools/ecommerce_pack";
+import { EDITORIAL_FRAMINGS, EDITORIAL_LIGHTING, EDITORIAL_VIBES } from "../tools/fashion_editorial";
 import { Collapsible } from "../components/ui/section";
 import { ComposeOverlay } from "../components/ComposeOverlay";
 import { UGCPlayer } from "../remotion/UGCPlayer";
@@ -294,6 +295,10 @@ interface ToolConfig {
   // Ecommerce Pack
   studioStyle: string;
   ecomShots: string[];
+  // Fashion Editorial
+  editorialFraming: string;
+  editorialLighting: string;
+  editorialVibe: string;
   hookType: "none" | "distracted" | "empty-room" | "walks-in" | "looks-down" | "phone-flip";
   hookMode: "standard" | "fooh";
   foohPrompt: string;
@@ -349,6 +354,9 @@ const DEFAULT_CONFIG: ToolConfig = {
   reelMode: "story",
   studioStyle: "white",
   ecomShots: ["model_front", "model_back", "model_detail", "flat_front"],
+  editorialFraming: "full_body",
+  editorialLighting: "dramatic",
+  editorialVibe: "magazine",
   hookType: "none",
   hookMode: "standard",
   foohPrompt: "",
@@ -500,7 +508,7 @@ export function ToolRunPage() {
 
   useEffect(() => {
     if (!toolId) return;
-    fetch(`http://localhost:8000/api/tools/${toolId}`)
+    fetch(`http://127.0.0.1:8000/api/tools/${toolId}`)
       .then((r) => {
         if (!r.ok) throw new Error("Not found");
         return r.json();
@@ -656,7 +664,7 @@ export function ToolRunPage() {
   // Load saved generation pipeline state if ?gen= param present
   useEffect(() => {
     if (!generationId || !tool) return;
-    fetch(`http://localhost:8000/api/generations/${generationId}`)
+    fetch(`http://127.0.0.1:8000/api/generations/${generationId}`)
       .then((r) => { if (!r.ok) throw new Error("Not found"); return r.json(); })
       .then((gen) => {
         if (!gen.pipelineState) return;
@@ -2783,6 +2791,69 @@ function ConfigPanel({
         </>
       )}
 
+      {/* Product Sheet: mode (multi-view vs detail close-ups) + save destination */}
+      {tool.id === "product_sheet" && (
+        <>
+          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+            <label className="text-[12px] font-semibold text-fg-secondary">¿Qué querés generar?</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setConfig((p) => ({ ...p, productSheetMode: "sheet" }))}
+                className={cn(
+                  "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
+                  config.productSheetMode !== "details"
+                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
+                    : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
+                )}
+              >
+                <div className="font-semibold">Sheet completa</div>
+                <div className="text-[9px] text-fg-faint mt-0.5">Front, 3/4, back, side, top, hero y escala en una sola imagen sobre fondo blanco</div>
+              </button>
+              <button
+                onClick={() => setConfig((p) => ({ ...p, productSheetMode: "details" }))}
+                className={cn(
+                  "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
+                  config.productSheetMode === "details"
+                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
+                    : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
+                )}
+              >
+                <div className="font-semibold">Planos y detalles</div>
+                <div className="text-[9px] text-fg-faint mt-0.5">Close-ups de textura, logo, etiqueta, hardware y stitching del mismo producto</div>
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+            <label className="text-[12px] font-semibold text-fg-secondary">Guardar como</label>
+            <div className="inline-flex bg-surface-2 rounded-[var(--radius-sm)] p-0.5 gap-0.5">
+              <button
+                onClick={() => setConfig((p) => ({ ...p, productSheetSave: "new" }))}
+                className={cn(
+                  "px-3 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+                  config.productSheetSave === "new" ? "bg-fg text-[var(--color-canvas)]" : "text-fg-faint hover:text-fg"
+                )}
+              >
+                Producto nuevo
+              </button>
+              <button
+                onClick={() => setConfig((p) => ({ ...p, productSheetSave: "asset" }))}
+                className={cn(
+                  "px-3 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+                  config.productSheetSave === "asset" ? "bg-fg text-[var(--color-canvas)]" : "text-fg-faint hover:text-fg"
+                )}
+              >
+                Solo asset (no toca catálogo)
+              </button>
+            </div>
+            <p className="text-[10px] text-fg-faint">
+              "Producto nuevo" lo agrega al Brand Kit con la descripción que sacó Gemini.
+              "Solo asset" te deja la imagen para descargar/usar en Lab sin ensuciar el catálogo.
+            </p>
+          </div>
+        </>
+      )}
+
       {/* UGC production settings — presets + grouped sections */}
       {tool.id === "ugc_creator" && (
         <UGCConfigPanel config={config} setConfig={setConfig} />
@@ -2935,6 +3006,41 @@ function ConfigPanel({
                 : `${config.ecomShots.length} toma${config.ecomShots.length === 1 ? "" : "s"} · las on-model necesitan un modelo seleccionado; las flat usan solo la prenda.`}
             </p>
           </div>
+        </div>
+      )}
+
+      {tool.id === "fashion_editorial" && (
+        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-4">
+          {([
+            { key: "editorialFraming" as const, title: "Encuadre", opts: EDITORIAL_FRAMINGS },
+            { key: "editorialLighting" as const, title: "Luz", opts: EDITORIAL_LIGHTING },
+            { key: "editorialVibe" as const, title: "Vibe", opts: EDITORIAL_VIBES },
+          ]).map(({ key, title, opts }) => (
+            <div key={key} className="space-y-1.5">
+              <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">{title}</span>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(opts).map(([id, o]) => {
+                  const active = (config[key] as string) === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setConfig((p) => ({ ...p, [key]: id }))}
+                      title={o.clause}
+                      className={cn(
+                        "px-3 py-1 text-[11px] font-medium rounded-full cursor-pointer transition-colors border",
+                        active ? "bg-[var(--color-action-subtle)] border-[var(--color-action-muted)] text-fg" : "bg-surface-0 border-edge text-fg-muted hover:text-fg",
+                      )}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <p className="text-[10px] text-fg-faint leading-snug">
+            Elegí <strong>modelo</strong> + <strong>prenda</strong> arriba. Escribí tu pedido en <strong>español</strong> en &ldquo;Tu pedido&rdquo; — Gemini lo interpreta y arma el prompt. Afiná con <strong>moodboard</strong> y/o <strong>Look &amp; Feel</strong> (se analiza en receta, sin filtrar la escena). Generá varias <strong>variantes</strong> y elegí la mejor.
+          </p>
         </div>
       )}
 
@@ -3285,7 +3391,7 @@ function ConfigPanel({
           "gap-4",
           tool.id === "static_ad" ? "grid grid-cols-2" : "space-y-4",
           // Single-image reference tools → keep it compact (not full-width sprawl).
-          ["fashion_reel", "ugc_creator", "product_spotlight", "product_clip"].includes(tool.id) && "sm:max-w-md",
+          ["fashion_reel", "ugc_creator", "product_spotlight", "product_clip", "fashion_editorial"].includes(tool.id) && "sm:max-w-md",
         )}>
           {/* Reference Image — single for Static Ad, multiple for Ad Creative Lab */}
           <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
@@ -3296,6 +3402,7 @@ function ConfigPanel({
                   : tool.id === "ugc_creator" ? "Composition Reference"
                   : tool.id === "carousel_creator" ? "Template del Carousel"
                   : tool.id === "ecommerce_pack" ? "Referencia Look & Feel"
+                  : tool.id === "fashion_editorial" ? "Referencia Look & Feel"
                   : (tool.id === "static_ad" || tool.id === "product_clip") ? "Reference Image"
                   : "Reference Images"}
                 <span className="text-fg-faint font-normal ml-1">
@@ -3304,6 +3411,7 @@ function ConfigPanel({
                     : tool.id === "ugc_creator" ? "(optional — pose/setting reference for first scene)"
                     : tool.id === "carousel_creator" ? "(layout / tipografía / estilo que respetan TODOS los slides)"
                     : tool.id === "ecommerce_pack" ? "(imagen de iluminación/estética — Nano Banana copia el look, no el contenido)"
+                    : tool.id === "fashion_editorial" ? "(iluminación/color — se analiza en receta de texto, sin filtrar la escena)"
                     : (tool.id === "static_ad" || tool.id === "product_clip") ? "(style/mood reference)"
                     : "(campaign style references)"}
                 </span>
@@ -3557,7 +3665,7 @@ function ConfigPanel({
               {activeBrand.logo?.imageUrl && config.graphicAssets.length === 0 && (
                 <div className="flex items-center gap-2 bg-surface-2 rounded-[var(--radius-sm)] px-3 py-2">
                   <div className="w-8 h-8 rounded bg-white overflow-hidden flex items-center justify-center p-0.5 shrink-0">
-                    <img src={`http://localhost:8000${activeBrand.logo.imageUrl}`} alt="Brand logo" className="max-w-full max-h-full object-contain" />
+                    <img src={`http://127.0.0.1:8000${activeBrand.logo.imageUrl}`} alt="Brand logo" className="max-w-full max-h-full object-contain" />
                   </div>
                   <span className="text-[10px] text-fg-muted">Brand Kit logo will be used automatically</span>
                 </div>
@@ -5192,6 +5300,97 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   // Creative scenes: explicit "voz en off" (has script → gets audio) vs "muda" (silent b-roll).
   const [voiceoverByScene, setVoiceoverByScene] = useState<Record<string, boolean>>({});
 
+  // ── Product Sheet: Brief step ────────────────────────────
+  // Distinguished from the Avatar brief by the presence of product-specific keys.
+  // We do this by-shape so we don't need to plumb `toolId` into DoneStep.
+  if (
+    stepId === "brief"
+    && result
+    && typeof result === "object"
+    && ("materials" in (result as object) || "distinctive_details" in (result as object))
+  ) {
+    const brief = result as {
+      name: string; category: string; summary: string; shape: string;
+      materials: string[]; colors: string[]; scale: string; packaging: string;
+      distinctive_details: string[]; visible_views: string[]; missing_views: string[];
+      image_prompt: string; mode?: "sheet" | "details";
+    };
+    // Single-line fields (name, category, scale, packaging) — short, editable inline.
+    const textFields: Array<{ label: string; key: "name" | "category" | "shape" | "scale" | "packaging"; rows?: number }> = [
+      { label: "Nombre", key: "name" },
+      { label: "Categoría", key: "category" },
+      { label: "Forma / Silueta", key: "shape", rows: 2 },
+      { label: "Escala (hint)", key: "scale" },
+      { label: "Packaging", key: "packaging" },
+    ];
+    // List fields — render as one-per-line textareas. Edits split by newline back to array.
+    const listFields: Array<{ label: string; key: "materials" | "colors" | "distinctive_details" | "visible_views" | "missing_views" }> = [
+      { label: "Materiales", key: "materials" },
+      { label: "Colores (con shade específico)", key: "colors" },
+      { label: "Detalles distintivos", key: "distinctive_details" },
+      { label: "Vistas presentes en las refs", key: "visible_views" },
+      { label: "Vistas faltantes (a inferir)", key: "missing_views" },
+    ];
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Check size={14} className="text-[var(--color-success)]" />
+          <span className="text-[13px] font-medium text-fg">
+            Brief del producto — modo: {brief.mode === "details" ? "Planos y detalles" : "Sheet completa"}
+          </span>
+        </div>
+        <div className="space-y-1">
+          <div className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">Resumen</div>
+          <textarea
+            defaultValue={brief.summary || ""}
+            onChange={(e) => { brief.summary = e.target.value; }}
+            rows={2}
+            className="w-full text-[12px] text-fg bg-surface-2 border border-transparent hover:border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] px-2 py-1.5 outline-none resize-none transition-colors"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {textFields.map(({ label, key, rows }) => (
+            <div key={key} className="space-y-1">
+              <div className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">{label}</div>
+              <textarea
+                defaultValue={brief[key] || ""}
+                onChange={(e) => { brief[key] = e.target.value; }}
+                rows={rows || 1}
+                className="w-full text-[12px] text-fg bg-surface-2 border border-transparent hover:border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] px-2 py-1.5 outline-none resize-none transition-colors"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {listFields.map(({ label, key }) => (
+            <div key={key} className="space-y-1">
+              <div className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">{label}</div>
+              <textarea
+                defaultValue={(brief[key] || []).join("\n")}
+                onChange={(e) => {
+                  // Newline-separated; trim + drop empties so we don't write `[""]`.
+                  brief[key] = e.target.value.split("\n").map((s) => s.trim()).filter(Boolean);
+                }}
+                rows={Math.max(2, (brief[key] || []).length)}
+                placeholder="Uno por línea"
+                className="w-full text-[12px] text-fg bg-surface-2 border border-transparent hover:border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] px-2 py-1.5 outline-none resize-none transition-colors"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="space-y-1">
+          <div className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">Prompt de imagen (lo que recibe Nano Banana)</div>
+          <textarea
+            defaultValue={brief.image_prompt || ""}
+            onChange={(e) => { brief.image_prompt = e.target.value; }}
+            rows={4}
+            className="w-full text-[12px] text-fg-muted font-mono bg-surface-2 border border-transparent hover:border-edge focus:border-[var(--color-action)] rounded-[var(--radius-sm)] p-3 outline-none resize-none transition-colors"
+          />
+        </div>
+      </div>
+    );
+  }
+
   // ── Avatar Creator: Brief step ───────────────────────────
   if (stepId === "brief" && result) {
     const brief = result as {
@@ -5255,7 +5454,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         )}
         {swap.url && (
           <a
-            href={`http://localhost:8000/api/download?url=${encodeURIComponent(swap.url)}&filename=video_swap.mp4`}
+            href={`http://127.0.0.1:8000/api/download?url=${encodeURIComponent(swap.url)}&filename=video_swap.mp4`}
             className="inline-flex items-center gap-2 px-4 py-2 text-[12px] font-medium rounded-[var(--radius-sm)] bg-surface-2 hover:bg-surface-3 text-fg cursor-pointer"
           >
             <Download size={13} /> Descargar
@@ -5364,7 +5563,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         )}
         <div className="text-[13px] text-fg">
           <span className="font-medium">{saved.name}</span>
-          <span className="text-fg-faint ml-2">is now available in Avatar Creator across all tools.</span>
+          <span className="text-fg-faint ml-2">quedó guardado y disponible en todas las tools que usan avatares.</span>
         </div>
       </div>
     );
@@ -6712,8 +6911,8 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       subtitleEngine?: string;
       remotionScenes?: Array<{ videoUrl: string; scriptText: string; durationInFrames: number }>;
     };
-    const fullVideoUrl = info.videoUrl ? `http://localhost:8000${info.videoUrl}` : undefined;
-    const fullVideoUrlNoSubs = info.videoUrlNoSubs ? `http://localhost:8000${info.videoUrlNoSubs}` : undefined;
+    const fullVideoUrl = info.videoUrl ? `http://127.0.0.1:8000${info.videoUrl}` : undefined;
+    const fullVideoUrlNoSubs = info.videoUrlNoSubs ? `http://127.0.0.1:8000${info.videoUrlNoSubs}` : undefined;
 
     return (
       <div className="space-y-4">
@@ -6878,7 +7077,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   }
 
   if (stepId === "generate_all" && result) {
-    const data = result as { images: Array<{ id: string; url: string; label: string }>; headline?: string; subline?: string; cta?: string; colors?: string };
+    const data = result as { images: Array<{ id: string; url: string; label: string }>; headline?: string; subline?: string; cta?: string; colors?: string; interpretation?: string };
     const images = data.images || [];
     const activeImg = images.find((i) => i.id === activeHeroId) || images[0];
     const colorTokens = (data.colors || "").split(/[,;]+/).map((s) => s.trim()).filter(Boolean).slice(0, 5);
@@ -6888,6 +7087,11 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
 
     return (
       <div className="space-y-4">
+        {data.interpretation && (
+          <div className="text-[11px] text-fg-muted bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 leading-snug">
+            <span className="text-[var(--color-action)] font-medium">Qué entendí:</span> {data.interpretation}
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Check size={14} className="text-[var(--color-success)]" />
@@ -7565,7 +7769,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   setEditLoading(true);
                   try {
                     const product = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
-                    const res = await fetch("http://localhost:8000/api/tools/generate-prompt", {
+                    const res = await fetch("http://127.0.0.1:8000/api/tools/generate-prompt", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
@@ -9552,7 +9756,7 @@ function InstagramCarouselImporter({ onUseAsTemplate }: { onUseAsTemplate: (slid
     try {
       const slideUrl = post.slides[chosenIdx].url;
       // Backend serves IG images as /static/ig-imports/... → prepend the API host
-      const fullUrl = slideUrl.startsWith("http") ? slideUrl : `http://localhost:8000${slideUrl}`;
+      const fullUrl = slideUrl.startsWith("http") ? slideUrl : `http://127.0.0.1:8000${slideUrl}`;
       const res = await fetch(fullUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status} al descargar la imagen`);
       const blob = await res.blob();
@@ -9617,7 +9821,7 @@ function InstagramCarouselImporter({ onUseAsTemplate }: { onUseAsTemplate: (slid
           {/* Slides grid (clickable to choose) */}
           <div className="grid grid-cols-5 gap-1.5">
             {post.slides.map((s, i) => {
-              const thumbUrl = s.url.startsWith("http") ? s.url : `http://localhost:8000${s.url}`;
+              const thumbUrl = s.url.startsWith("http") ? s.url : `http://127.0.0.1:8000${s.url}`;
               return (
                 <button
                   key={i}
@@ -9734,7 +9938,7 @@ function TemplateSelector({ selectedId, onSelect }: { selectedId: string; onSele
   const [filterCat, setFilterCat] = useState<string>("all");
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/tools/static-ad/templates")
+    fetch("http://127.0.0.1:8000/api/tools/static-ad/templates")
       .then((r) => r.json())
       .then((data) => setTemplates(data.templates || []))
       .catch(() => {});
@@ -9843,7 +10047,7 @@ function CarouselTypeSelector({
   const [types, setTypes] = useState<CarouselType[]>([]);
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/tools/carousel-creator/types")
+    fetch("http://127.0.0.1:8000/api/tools/carousel-creator/types")
       .then((r) => r.json())
       .then((data) => setTypes(data.types || []))
       .catch(() => {});

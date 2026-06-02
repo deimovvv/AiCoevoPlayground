@@ -69,6 +69,10 @@ export interface ToolConfig {
   avatarToolMode: "create" | "poses";
   // Avatar tool (poses mode): what to do after generating — "new" saves as new avatar, "replace" overwrites the source avatar
   avatarPosesSave: "new" | "replace";
+  // Product Sheet tool: "sheet" = multi-view (front/3-4/back/side/top/hero) | "details" = macro close-ups (texture/logo/label/hardware)
+  productSheetMode: "sheet" | "details";
+  // Product Sheet: what to do with the result on save — "new" creates a new product entry, "replace" overwrites the source product's primary photo, "asset" saves without touching the catalog
+  productSheetSave: "new" | "replace" | "asset";
   // Compose mode (Carousel/Static Ad): "quick" = text in image (fast) | "compose" = clean image + HTML overlay with brand fonts (perfect typography)
   composeMode: "quick" | "compose";
   // Selected overlay template id when composeMode = "compose"
@@ -130,6 +134,8 @@ export const DEFAULT_CONFIG: ToolConfig = {
   includeCopy: true,
   avatarToolMode: "create",
   avatarPosesSave: "new",
+  productSheetMode: "sheet",
+  productSheetSave: "new",
   composeMode: "quick",
   overlayTemplate: "editorial_bottom",
   settingOverride: "",

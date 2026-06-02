@@ -12,7 +12,7 @@ import { useParams } from "react-router";
 import { Check, X, Loader2, MessageSquare } from "lucide-react";
 import { getReview, submitReviewFeedback, type ReviewData } from "../lib/api";
 
-const resolveUrl = (u: string) => (u && u.startsWith("http") ? u : `http://localhost:8000${u}`);
+const resolveUrl = (u: string) => (u && u.startsWith("http") ? u : `http://127.0.0.1:8000${u}`);
 
 export function ReviewPage() {
   const { token } = useParams();
