@@ -26,6 +26,16 @@
     ]
   },
   {
+    "id": "ecommerce_batch",
+    "name": "Ecommerce Batch",
+    "category": "images",
+    "description": "Drop a folder of outfits and a folder of poses, then batch-generate the full catalog: every outfit with canonical poses, plus lifestyle poses for the ones you mark as hero.",
+    "icon": "shirt",
+    "status": "active",
+    "pipeline": ["batch"],
+    "route": "/dashboard/ecommerce-batch"
+  },
+  {
     "id": "ugc_creator",
     "name": "UGC Creator",
     "category": "video",

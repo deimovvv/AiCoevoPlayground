@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
     LayoutGrid, Wand2, FolderOpen, Settings,
-    ChevronDown, FlaskConical, Loader2, Moon, Sun, Mic,
+    ChevronDown, FlaskConical, Loader2, Moon, Sun,
 } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
 import { useTheme } from "../../lib/theme";
@@ -31,8 +31,8 @@ const PRIMARY_NAV: NavItem[] = [
 // Lab lives OUTSIDE the brand flow — a brand-agnostic sandbox. Visually separated.
 const LAB_NAV: NavItem = { label: "Lab", href: "/dashboard/lab", exact: true, icon: <FlaskConical size={15} />, title: "Sandbox SIN marca — Nano Banana + Kling/Seedance directo, para experimentar" };
 
-// Voice Lab — experimental voice conversation (browser STT → Gemini → ElevenLabs).
-const VOICE_NAV: NavItem = { label: "Voz", href: "/dashboard/voice-lab", exact: true, icon: <Mic size={15} />, title: "Experimental — hablale a Gemini y te responde con voz de ElevenLabs" };
+// Voice Lab está oculto del nav. La ruta /dashboard/voice-lab sigue viva por URL,
+// así se prueba directo sin sumar ruido al nav.
 
 const SETTINGS_NAV: NavItem[] = [
     // Integraciones / Automatizaciones ocultas por ahora (mock). Rutas vivas por URL.
@@ -125,26 +125,9 @@ export function TopNav() {
                     );
                 })()}
 
-                {/* Voice Lab — experimental sibling of Lab. Same brand-agnostic vibe, distinct affordance. */}
-                {(() => {
-                    const active = isActive(VOICE_NAV);
-                    return (
-                        <Link
-                            to={VOICE_NAV.href}
-                            title={VOICE_NAV.title}
-                            className={cn(
-                                "flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-full transition-colors",
-                                active
-                                    ? "text-[var(--color-action-fg)] bg-[var(--color-action)]"
-                                    : "text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)]"
-                            )}
-                        >
-                            <span className={cn(!active && "text-[var(--color-action)]")}>{VOICE_NAV.icon}</span>
-                            {VOICE_NAV.label}
-                            <span className="text-[8px] font-bold uppercase tracking-wider opacity-60">beta</span>
-                        </Link>
-                    );
-                })()}
+                {/* Voice Lab oculto del nav (la ruta /dashboard/voice-lab sigue viva por URL).
+                    Patrón análogo al de Performance/Integraciones/Automatizaciones —
+                    se accede directo sin chip cuando se quiere testear. */}
             </nav>
 
             {/* Right side: brand chip + settings */}

@@ -22,6 +22,7 @@ import { PerformancePage } from "./pages/PerformancePage";
 import { ChatPage } from "./pages/ChatPage";
 import { ManualLab } from "./pages/ManualLab";
 import { VoiceLab } from "./pages/VoiceLab";
+import { EcommerceBatch } from "./pages/EcommerceBatch";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -75,6 +76,7 @@ function App() {
         <Route path="generate/:toolId" element={<ErrorBoundary><ToolRunPage /></ErrorBoundary>} />
         <Route path="lab" element={<ErrorBoundary><ManualLab /></ErrorBoundary>} />
         <Route path="voice-lab" element={<ErrorBoundary><VoiceLab /></ErrorBoundary>} />
+        <Route path="ecommerce-batch" element={<ErrorBoundary><EcommerceBatch /></ErrorBoundary>} />
         <Route path="tools/images" element={<ToolsPage />} />
         <Route path="tools/video" element={<ToolsPage />} />
         <Route path="pipeline" element={<PipelineConfigPage />} />

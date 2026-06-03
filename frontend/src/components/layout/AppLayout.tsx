@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from "react-router";
 import { TopNav } from "./TopNav";
 
-const FULL_BLEED_ROUTES: string[] = ["/dashboard/chat", "/dashboard/voice-lab"];
+const FULL_BLEED_ROUTES: string[] = ["/dashboard/chat", "/dashboard/voice-lab", "/dashboard/ecommerce-batch"];
 
 export function AppLayout() {
     const location = useLocation();

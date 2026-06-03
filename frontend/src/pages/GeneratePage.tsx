@@ -22,6 +22,9 @@ interface ToolEntry {
   icon: string;
   status: "active" | "coming_soon";
   pipeline: string[];
+  /** Optional custom route for tools that have their own page outside ToolRunPage
+   *  (e.g. batch flows that don't fit the brief→generate→save pipeline). */
+  route?: string;
 }
 
 const ICON_MAP: Record<string, React.ReactNode> = {
@@ -58,6 +61,8 @@ const TOOL_TAGLINES: Record<string, string> = {
   video_swap: "Cambiá ropa, producto o fondo en TU video — sin perder el movimiento",
   ecommerce_pack: "Ficha de producto: prenda sobre modelo + vistas, en estudio",
   fashion_editorial: "Editorial de moda: modelo + prenda, look de revista. Brief en español → variantes",
+  ecommerce_batch: "Batch: drop carpeta de outfits + poses, generá todas las fotos de catálogo de una",
+  product_sheet: "Sheet del producto: vistas múltiples o close-ups, desde 1-4 fotos",
 };
 
 // Subtle gradient per tool for fallback previews (when no media)
@@ -75,6 +80,8 @@ const TOOL_GRADIENTS: Record<string, string> = {
   video_swap: "from-lime-400/30 via-emerald-500/20 to-teal-500/30",
   ecommerce_pack: "from-stone-400/30 via-neutral-300/20 to-zinc-500/30",
   fashion_editorial: "from-rose-500/30 via-fuchsia-500/20 to-purple-500/30",
+  ecommerce_batch: "from-stone-400/30 via-zinc-400/20 to-neutral-500/30",
+  product_sheet: "from-cyan-500/30 via-sky-500/20 to-blue-500/30",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -158,7 +165,7 @@ export function GeneratePage() {
             key={tool.id}
             tool={tool}
             disabled={!activeBrand || tool.status !== "active"}
-            onClick={() => navigate(`/dashboard/generate/${tool.id}`)}
+            onClick={() => navigate(tool.route || `/dashboard/generate/${tool.id}`)}
           />
         ))}
       </div>
