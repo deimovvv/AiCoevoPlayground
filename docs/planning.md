@@ -66,15 +66,23 @@
 | Content Analyzer | Images → Routes | Active |
 | Carousel Creator | Images | Active |
 | Product Spotlight | Images | Active |
-| Avatar Creator | Images | Active |
+| Avatar Sheet (was "Avatar Creator") | Images | Active (`create` + `poses` modes) |
+| Product Sheet | Images | Active (`sheet` + `details` modes — multi-view from 1-4 photos) |
 | Ecommerce Pack | Images | Active |
+| Fashion Editorial | Images | Active (model + clothing + look&feel recipe → variants) |
+| Ecommerce Batch | Images | **Prototype** — UI ready at `/dashboard/ecommerce-batch`, generation not wired yet |
 | Video Swap | Video | Active |
+| Voice Lab | Experimental | **Hidden from nav** — accessible by URL at `/dashboard/voice-lab` |
 | Static Ad | Images | Degraded — hidden in Generate (files/prompts kept; statics now done in Manual Lab) |
 | Ad Creative Lab | Images | Degraded — hidden in Generate (files/prompts kept; overlaps Static Ad) |
 | Reel Creator | Video | Coming Soon |
 | Background Remover | Images | Coming Soon |
 
-> **Fashion Editorial** was listed here historically but was never implemented (no code in `frontend/src/tools` or `backend/tools`). Removed. For static fashion use Manual Lab; for product-on-model use Ecommerce Pack.
+**Rename history.** `Avatar Creator` → `Avatar Sheet` (display only — id `avatar_creator` kept for backwards compat with persisted generations).
+
+**Fashion Editorial** se construyó en 2026-06 tras estar marcada como "removed" en una versión anterior de este doc. Tiene presets de framing / lighting / vibe y usa Look & Feel en modo receta.
+
+**Voice Lab** (browser STT → Gemini → ElevenLabs → autoplay) se construyó como experimento y se ocultó del nav. Ver `decisions-log.md` 2026-06 para el racional.
 
 ---
 

@@ -217,15 +217,22 @@ KLING_API_KEY=...      # optional
 - Avatar, product, clothing, background, logo upload with auto-description (Gemini Vision)
 - Voice presets with TTS preview playback
 - AI Chat (Gemini 2.5 Flash) with brand context, asset chips
-- 15 registered tools (10 active with full pipelines)
+- 15+ registered tools (most active with full pipelines)
 - UGC Creator: 7-step pipeline with custom scripts, shot selector, voice editing, dual render
 - Video Ad Creator: 6-step pipeline with 10-frame storyboard, Kling V3 animation
-- Static Ad: 40 templates with detailed composition prompts
+- Static Ad: 40 templates with detailed composition prompts (hidden in Generate, kept on disk)
 - Carousel Creator: 8 types, base_scene visual consistency system
-- Ad Creative Lab: visual guide extraction + batch generation
+- Ad Creative Lab: visual guide extraction + batch generation (hidden in Generate)
 - Content Analyzer: video analysis with Gemini Vision
 - Product Clip: frame-to-frame product videos
-- Manual Lab: brand-agnostic chat sandbox at `/dashboard/lab` — direct Nano Banana 2 + Kling V3 with `[image1]`/`[image2]` reference tagging, multi-turn chaining (Use as ref / Animate), optional brand-asset toggle, and Gemini-based pipeline suggestion banner
+- Avatar Sheet (id `avatar_creator`): multi-view sheet — `create` from brief or `poses` from existing avatar
+- Product Sheet: multi-view sheet (`sheet`) or detail close-ups (`details`) from 1-4 product photos
+- Fashion Editorial: model + clothing + look&feel recipe → editorial variants with framing/lighting/vibe presets
+- Ecommerce Batch (prototype, `/dashboard/ecommerce-batch`): drop folder of outfits + folder of poses, generate the full catalog. Visual flow ready; generation not wired yet
+- Voice Lab (hidden, `/dashboard/voice-lab`): browser STT → Gemini → ElevenLabs → autoplay. Working but hidden from nav pending validation
+- Manual Lab: brand-agnostic chat sandbox at `/dashboard/lab` — direct Nano Banana 2 + Kling V3 with `[img1]`/`[img2]` reference tagging (formerly `[imageN]`), multi-turn chaining (Use as ref / Animate), optional brand-asset toggle, Look & Feel with "Receta" (default) and "Imagen ref" modes, Copiloto panel, Gemini-based pipeline suggestion banner
+- Look & Feel: color-grade transfer with two modes — Receta (Gemini analyzes image into text, image NOT sent to generator) and Imagen ref (image as palette swatch — flaky with Nano Banana, warned in UI)
+- Multi-logo per brand: `brand.logos[]` (isotipo, logotipo, variants) + legacy `brand.logo` read-only
 - ImageEditPanel: reusable edit component across all tools (product picker + quick actions)
 - 3-layer prompt system with response normalizer
 - Word-by-word karaoke subtitles (Remotion)
@@ -264,6 +271,8 @@ KLING_API_KEY=...      # optional
 - **[product_vision_ux.md](docs/product_vision_ux.md)**: UX philosophy, user flows
 - **[design.md](docs/design.md)**: Design system, color tokens, typography
 - **[planning.md](docs/planning.md)**: Development roadmap (7 phases)
+- **[pending-features.md](docs/pending-features.md)**: Backlog with detailed plans per feature
+- **[decisions-log.md](docs/decisions-log.md)**: Chronological log of design/product decisions with rationale — read this when something in the codebase seems weird or when you're about to revisit a closed discussion
 - **[setup.md](docs/setup.md)**: How to run locally, environment variables
 
 ## Common Debugging
