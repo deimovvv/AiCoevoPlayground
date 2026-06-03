@@ -180,7 +180,8 @@ export function ManualLab() {
     const [galleryOpen, setGalleryOpen] = useState(true);
     const [busy, setBusy] = useState(false);
     const [suggestion, setSuggestion] = useState<{ tool_id: string; reason: string } | null>(null);
-    const [showAssetPicker, setShowAssetPicker] = useState(false);
+    // (legacy: el state showAssetPicker se eliminó cuando el picker pasó a abrirse inline
+    // junto al toggle "Usar assets de marca". Mantengo el comment como recordatorio.)
     const [showLookFeel, setShowLookFeel] = useState(false);
     // Default to "recipe" — analyzing the L&F into a text grade is far more reliable than
     // attaching it as an image reference (Nano Banana tends to copy the reference's scene
@@ -487,7 +488,8 @@ export function ManualLab() {
                 baseName: sanitizeName(item.name) || undefined,
             },
         ]);
-        setShowAssetPicker(false);
+        // Antes cerrábamos el picker al seleccionar un asset. Ahora se queda abierto
+        // para permitir agregar varios assets consecutivos sin re-abrir.
     };
 
     // Apply a brand Look & Feel reference as a COLOR-GRADE / MOOD pass — never the
@@ -1132,9 +1134,11 @@ export function ManualLab() {
                 )}
             </div>
 
-            {/* References row */}
+            {/* References row — cards of 88px wide so thumbs are legible at a glance.
+                Action buttons (Subir / Asset / Look & Feel) match the height of a card
+                so the row aligns visually. `items-stretch` keeps everything the same height. */}
             <div className="px-6 pt-2">
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-stretch gap-2 flex-wrap">
                     {refs.map((r) => (
                         <RefChip
                             key={r.tag}
@@ -1146,28 +1150,22 @@ export function ManualLab() {
                     ))}
                     <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-1 px-3 py-1.5 text-[11px] border border-dashed border-edge rounded-full text-fg-muted hover:text-fg hover:border-edge-strong cursor-pointer"
+                        className="w-[88px] flex flex-col items-center justify-center gap-1 border border-dashed border-edge rounded-[var(--radius-sm)] text-fg-muted hover:text-fg hover:border-edge-strong hover:bg-surface-1 cursor-pointer transition-colors text-[11px]"
                         title="Subir imagen"
                     >
-                        <Plus size={12} /> Subir
+                        <Plus size={16} />
+                        Subir
                     </button>
-                    {useBrandAssets && activeBrand && (
-                        <button
-                            onClick={() => setShowAssetPicker((v) => !v)}
-                            className="flex items-center gap-1 px-3 py-1.5 text-[11px] border border-dashed border-edge rounded-full text-fg-muted hover:text-fg hover:border-edge-strong cursor-pointer"
-                        >
-                            <Plus size={12} /> Asset
-                        </button>
-                    )}
                     {/* Look & Feel: apply a saved OR ad-hoc lighting/grade reference to image1 */}
                     {mode === "image" && (
                         <div className="relative">
                             <button
                                 onClick={() => setShowLookFeel((v) => !v)}
-                                className="flex items-center gap-1 px-3 py-1.5 text-[11px] border border-dashed border-edge rounded-full text-fg-muted hover:text-fg hover:border-edge-strong cursor-pointer"
+                                className="w-[88px] h-full flex flex-col items-center justify-center gap-1 border border-dashed border-edge rounded-[var(--radius-sm)] text-fg-muted hover:text-fg hover:border-edge-strong hover:bg-surface-1 cursor-pointer transition-colors text-[11px]"
                                 title="Aplicar un look & feel a image1 — de la marca o subiendo uno en el momento"
                             >
-                                <Sun size={12} /> Look & Feel
+                                <Sun size={16} />
+                                Look & Feel
                             </button>
                             {showLookFeel && (
                                 <div className="absolute z-20 mt-1 left-0 w-64 max-h-80 overflow-y-auto bg-surface-1 border border-edge rounded-[var(--radius-md)] shadow-xl p-1.5">
@@ -1295,8 +1293,12 @@ export function ManualLab() {
                         e.target.value = "";
                     }}
                 />
-                {showAssetPicker && useBrandAssets && activeBrand && (
-                    <AssetPicker brand={activeBrand} onPick={addAssetRef} onClose={() => setShowAssetPicker(false)} />
+                {/* Asset picker inline: aparece automáticamente cuando se activa "Usar assets de marca".
+                    Antes había que hacer doble click (toggle + botón "+ Asset"). Ahora es 1 solo paso —
+                    se ven los assets al toque y el botón "+ Asset" desaparece. El usuario puede ocultar
+                    el picker apagando el toggle. */}
+                {useBrandAssets && activeBrand && (
+                    <AssetPicker brand={activeBrand} onPick={addAssetRef} onClose={() => setUseBrandAssets(false)} />
                 )}
             </div>
 
@@ -1394,8 +1396,11 @@ export function ManualLab() {
                                     ? `Describe la imagen. Tipeá @ para referenciar imágenes adjuntas.`
                                     : `Describe el movimiento. La primera referencia se anima como frame de inicio.`
                             }
-                            rows={2}
-                            className="resize-none text-[13px] rounded-[var(--radius-md)] px-3.5"
+                            // rows=5 da 5 líneas por default — suficiente para escribir un prompt
+                            // con contexto sin sentir que la caja es chiquita. resize-y deja al
+                            // usuario agrandarla si necesita más espacio (sin contraer horizontal).
+                            rows={5}
+                            className="resize-y text-[13px] rounded-[var(--radius-md)] px-3.5 py-2.5 leading-relaxed min-h-[80px]"
                             onKeyDown={(e) => {
                                 if (mention.open) {
                                     if (e.key === "ArrowDown") { e.preventDefault(); setMention((m) => ({ ...m, activeIdx: Math.min(m.activeIdx + 1, filteredRefs.length - 1) })); return; }
@@ -1706,27 +1711,51 @@ function MentionPopover({ refs, activeIdx, onPick, top, left }: {
     );
 }
 
+/**
+ * RefChip — referencia cargada en la sesión actual (subida, generada o asset).
+ *
+ * Layout: card vertical de ~88px de ancho con thumbnail cuadrada arriba (80px),
+ * tag/label debajo, X arriba a la derecha en hover. Reemplaza al chip horizontal
+ * anterior (36px) porque a esa escala los thumbs eran ilegibles y perdías noción
+ * de qué tenías cargado. El click sobre el thumb abre el lightbox (zoom);
+ * el click sobre el tag inserta el `[imgN]` en el prompt; la X lo remueve.
+ */
 function RefChip({ ref_, onRemove, onInsert, onZoom }: { ref_: RefImage; onRemove: () => void; onInsert: () => void; onZoom: () => void }) {
     const isAnchor = ref_.isAnchor;
     return (
         <div className={cn(
-            "group relative flex items-center gap-2 pl-1 pr-2 py-1 rounded-full text-[11px] transition-all",
+            "group relative w-[88px] shrink-0 rounded-[var(--radius-sm)] overflow-hidden transition-all border",
             isAnchor
-                ? "bg-[var(--color-action-subtle)] border border-[var(--color-action-muted)]"
-                : "bg-surface-1 border border-edge hover:border-edge-strong",
+                ? "bg-[var(--color-action-subtle)] border-[var(--color-action-muted)]"
+                : "bg-surface-1 border-edge hover:border-edge-strong",
         )}>
+            {/* Thumb (80×80) — click to zoom in lightbox */}
             <button
                 onClick={onZoom}
-                className="cursor-zoom-in shrink-0 transition-transform hover:scale-110"
+                className="block w-full aspect-square cursor-zoom-in overflow-hidden bg-surface-2"
                 title="Ver imagen en grande"
             >
-                <img src={ref_.url} alt={ref_.label} className="w-9 h-9 object-cover rounded-full" />
+                <img src={ref_.url} alt={ref_.label} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
             </button>
-            <button onClick={onInsert} className="text-fg cursor-pointer flex items-center gap-1.5" title="Insertar tag en el prompt">
-                <code className={cn(isAnchor ? "text-[var(--color-action-strong)]" : "text-[var(--color-action)]")}>[{ref_.tag}]</code>
-                <span className="text-fg-faint">{ref_.label.slice(0, 18)}{ref_.label.length > 18 ? "…" : ""}</span>
+            {/* Tag + label row — click inserts the `[imgN]` token into the prompt */}
+            <button
+                onClick={onInsert}
+                className="w-full px-1.5 py-1 text-left cursor-pointer hover:bg-surface-2"
+                title="Insertar tag en el prompt"
+            >
+                <code className={cn("text-[10px] font-semibold block", isAnchor ? "text-[var(--color-action-strong)]" : "text-[var(--color-action)]")}>
+                    [{ref_.tag}]
+                </code>
+                <span className="text-[9px] text-fg-faint block truncate leading-tight">
+                    {ref_.label}
+                </span>
             </button>
-            <button onClick={onRemove} className="text-fg-faint hover:text-error cursor-pointer ml-1 w-4 h-4 rounded-full flex items-center justify-center hover:bg-surface-2">
+            {/* Remove button — appears on hover only so it doesn't compete visually */}
+            <button
+                onClick={onRemove}
+                title="Quitar referencia"
+                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white opacity-0 group-hover:opacity-100 hover:bg-black flex items-center justify-center cursor-pointer transition-opacity"
+            >
                 <X size={11} />
             </button>
         </div>
