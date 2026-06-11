@@ -663,7 +663,8 @@
         "filename": "personal_bg_54b7330b.png",
         "imageUrl": "/static/backgrounds/personal_bg_54b7330b.png"
       }
-    ]
+    ],
+    "portalToken": "pt_e19627a6ef83"
   },
   {
     "id": "posadas-la-manso",
@@ -1401,6 +1402,26 @@
         "imageUrl": "/static/avatars/koxis_e1d7c420.png",
         "talkingPhotoId": null,
         "heygenStatus": "skipped"
+      },
+      {
+        "id": "230840c8",
+        "name": "Isabella",
+        "description": "This is a Caucasian female in her late 20s to early 30s with fair, warm-toned skin. She has long, wavy light brown hair with subtle blonde highlights, styled with a natural center part. Her oval-shaped face features prominent cheekbones, large hazel eyes, a delicate nose, and full lips. She has natural, medium-thick light brown eyebrows.",
+        "filename": "koxis_230840c8.png",
+        "imageUrl": "/static/avatars/koxis_230840c8.png",
+        "talkingPhotoId": null,
+        "heygenStatus": "failed",
+        "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
+      },
+      {
+        "id": "18d6bbee",
+        "name": "magnific__a-highresolution-photorealistic-mediumcloseup-port__37582 (1)",
+        "description": "This is a young adult Caucasian female with a fair skin tone. She has long, wavy, light brown hair with subtle blonde highlights, parted down the middle. Her face is oval-shaped, featuring almond-shaped hazel eyes, naturally arched medium eyebrows, a straight nose, and medium full lips. She appears to have a slender build.",
+        "filename": "koxis_18d6bbee.png",
+        "imageUrl": "/static/avatars/koxis_18d6bbee.png",
+        "talkingPhotoId": null,
+        "heygenStatus": "failed",
+        "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
       }
     ],
     "voicePresets": [],
@@ -1557,7 +1578,24 @@
       "product_presentation": "El producto se muestra tanto en fichas de e-commerce con planos detallados y completos, como integrado en contextos de lifestyle, enfatizando su uso real y durabilidad. Se prioriza el calce y la funcionalidad de las prendas en el día a día de la mujer KOXIS.",
       "motion_rules": "El ritmo de los videos es dinámico pero sin ser frenético, combinando planos sostenidos que capturan el mood y la atmósfera, con cortes más ágiles para formatos de redes sociales. Se busca la naturalidad de la cámara en mano para reflejar la vida real, con soundtracks de indie folk argentino."
     },
-    "backgrounds": [],
+    "backgrounds": [
+      {
+        "id": "bb0f29be",
+        "name": "A26I0118-CHOCOLATE (1)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_bg_bb0f29be.jpg",
+        "imageUrl": "/static/backgrounds/koxis_bg_bb0f29be.jpg"
+      },
+      {
+        "id": "5793fd89",
+        "name": "Shaina Mote (2)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_bg_5793fd89.jpg",
+        "imageUrl": "/static/backgrounds/koxis_bg_5793fd89.jpg"
+      }
+    ],
     "clothing": [
       {
         "id": "d84cd62a",
@@ -1606,6 +1644,166 @@
         "tags": [],
         "filename": "koxis_cloth_6a410536.png",
         "imageUrl": "/static/clothing/koxis_cloth_6a410536.png"
+      },
+      {
+        "id": "2ac4209d",
+        "name": "CAMPERA",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_2ac4209d.webp",
+        "imageUrl": "/static/clothing/koxis_cloth_2ac4209d.webp"
+      },
+      {
+        "id": "78e778f2",
+        "name": "PARTE ABAJO CAMPERA 4",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_78e778f2.webp",
+        "imageUrl": "/static/clothing/koxis_cloth_78e778f2.webp"
+      },
+      {
+        "id": "b643d59b",
+        "name": "CAMPERA 3",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_b643d59b.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_b643d59b.jpg"
+      },
+      {
+        "id": "0f3dc2c7",
+        "name": "CALZA 2",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_0f3dc2c7.webp",
+        "imageUrl": "/static/clothing/koxis_cloth_0f3dc2c7.webp"
+      },
+      {
+        "id": "7598cbc6",
+        "name": "sweter",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_7598cbc6.png",
+        "imageUrl": "/static/clothing/koxis_cloth_7598cbc6.png"
+      },
+      {
+        "id": "24e3c886",
+        "name": "SWEATER 2",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_24e3c886.webp",
+        "imageUrl": "/static/clothing/koxis_cloth_24e3c886.webp"
+      },
+      {
+        "id": "ac1e1db2",
+        "name": "campera1",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_ac1e1db2.png",
+        "imageUrl": "/static/clothing/koxis_cloth_ac1e1db2.png"
+      },
+      {
+        "id": "c02dda45",
+        "name": "Buzo",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_c02dda45.webp",
+        "imageUrl": "/static/clothing/koxis_cloth_c02dda45.webp"
+      },
+      {
+        "id": "c2046ee8",
+        "name": "Buzonegro",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_c2046ee8.webp",
+        "imageUrl": "/static/clothing/koxis_cloth_c2046ee8.webp"
+      },
+      {
+        "id": "956257c6",
+        "name": "SweaterGum",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_956257c6.webp",
+        "imageUrl": "/static/clothing/koxis_cloth_956257c6.webp"
+      },
+      {
+        "id": "a8cbee00",
+        "name": "Screenshot 2026-06-05 at 8.56.36 PM",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_a8cbee00.png",
+        "imageUrl": "/static/clothing/koxis_cloth_a8cbee00.png"
+      },
+      {
+        "id": "5649fb32",
+        "name": "magnific__a-highresolution-photorealistic-mediumcloseup-port__37582 (1",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_5649fb32.png",
+        "imageUrl": "/static/clothing/koxis_cloth_5649fb32.png"
+      },
+      {
+        "id": "694dbbf9",
+        "name": "A26I0043_1793",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_694dbbf9.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_694dbbf9.jpg"
+      },
+      {
+        "id": "b4a8a94c",
+        "name": "A26I0052-BLANCO (3)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_b4a8a94c.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_b4a8a94c.jpg"
+      },
+      {
+        "id": "103e108d",
+        "name": "A26I0118-CHOCOLATE (1)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_103e108d.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_103e108d.jpg"
+      },
+      {
+        "id": "a77bd501",
+        "name": "A26I0310-GRIS (4)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_a77bd501.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_a77bd501.jpg"
+      },
+      {
+        "id": "ca60cb8c",
+        "name": "A26I0150_2568",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_ca60cb8c.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_ca60cb8c.jpg"
+      },
+      {
+        "id": "660c12db",
+        "name": "A26I0224-BLACK GREY (2)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_660c12db.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_660c12db.jpg"
+      },
+      {
+        "id": "26f2a878",
+        "name": "A26I0450-NATURAL (4)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_26f2a878.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_26f2a878.jpg"
+      },
+      {
+        "id": "adb90c76",
+        "name": "A26I0050_923",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_adb90c76.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_adb90c76.jpg"
       }
     ],
     "portalToken": "pt_09a9cdc59e7a",

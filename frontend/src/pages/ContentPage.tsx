@@ -322,11 +322,12 @@ function ContentCard({ gen, review, deleting, onDelete, onClick }: { gen: Genera
                 ) : (
                     typeIcon[gen.type]
                 )}
-                {/* Client review badge */}
+                {/* Client review badge — burgundy para "tiene cambios" (era amarillo
+                    warning que rompía la estética); success verde para aprobado. */}
                 {review && (
                     <div className={cn(
                         "absolute top-2 left-2 text-[9px] font-semibold px-1.5 py-0.5 rounded-full backdrop-blur flex items-center gap-1",
-                        review.changes > 0 ? "bg-[var(--color-warning)]/90 text-black" : "bg-[var(--color-success)]/90 text-white",
+                        review.changes > 0 ? "bg-[var(--color-brand)]/90 text-[var(--color-brand-fg)]" : "bg-[var(--color-success)]/90 text-white",
                     )} title="Feedback del cliente">
                         👁 {review.approved}✓{review.changes > 0 ? ` · ${review.changes}✎` : ""}
                     </div>
@@ -415,7 +416,7 @@ function ContentRow({ gen, review, deleting, onDelete, onClick }: { gen: Generat
             {review && (
                 <span className={cn(
                     "text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
-                    review.changes > 0 ? "bg-[var(--color-warning)]/20 text-warning" : "bg-success-muted text-success",
+                    review.changes > 0 ? "bg-[var(--color-brand-muted)] text-[var(--color-brand)]" : "bg-success-muted text-success",
                 )} title="Feedback del cliente">
                     👁 {review.approved}✓{review.changes > 0 ? ` ${review.changes}✎` : ""}
                 </span>

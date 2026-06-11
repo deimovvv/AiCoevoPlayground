@@ -39,6 +39,8 @@ import {
   uploadClothing,
   deleteClothing,
   updateClothing,
+  addClothingImage,
+  deleteClothingImage,
   uploadBackground,
   deleteBackground,
   updateBackground,
@@ -1016,49 +1018,57 @@ function ProductTile({
     }
   };
 
+  // Cap subido de 3 → 10. Productos complejos (autos, electros) necesitan muchos
+  // ángulos para que Product Sheet no invente vistas.
+  const MAX_PRODUCT_IMAGES = 10;
   const allImages = [
     { imageUrl: product.imageUrl, label: "Main" },
     ...(product.images || []),
   ];
-  const canAddMore = allImages.length < 3;
+  const canAddMore = allImages.length < MAX_PRODUCT_IMAGES;
 
   return (
     <div className="group relative rounded-[var(--radius-sm)] bg-surface-2 overflow-hidden">
-      {/* Image gallery — main + extras */}
-      <div className="flex gap-0.5">
-        <div className="flex-1 aspect-square">
-          <img src={productImageUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
-        </div>
+      {/* Main image arriba a ancho completo */}
+      <div className="relative aspect-square">
+        <img src={productImageUrl(product.imageUrl)} alt={product.name} className="w-full h-full object-cover" />
+        {/* Contador "X/10" arriba a la derecha — solo visible si hay extras o se puede agregar */}
         {(product.images || []).length > 0 && (
-          <div className="flex flex-col gap-0.5" style={{ width: "30%" }}>
-            {(product.images || []).map((img, idx) => (
-              <div key={idx} className="flex-1">
-                <img src={productImageUrl(img.imageUrl)} alt={img.label || `Photo ${idx + 2}`} className="w-full h-full object-cover" />
-              </div>
-            ))}
-            {canAddMore && (
-              <label className="flex-1 flex items-center justify-center bg-surface-3 cursor-pointer hover:bg-surface-2 transition-colors text-fg-faint hover:text-fg-muted">
-                <Plus size={12} />
-                <input ref={extraFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) onAddImage(f);
-                  e.target.value = "";
-                }} />
-              </label>
-            )}
+          <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-full bg-black/60 backdrop-blur text-white text-[9px] font-semibold">
+            {allImages.length} / {MAX_PRODUCT_IMAGES}
           </div>
         )}
+        {/* Add first extra — only when no extras yet, mismo lugar que el contador */}
+        {(product.images || []).length === 0 && (
+          <label className="absolute top-1 right-1 p-1 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title={`Sumar fotos (hasta ${MAX_PRODUCT_IMAGES})`}>
+            <Plus size={10} />
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onAddImage(f);
+              e.target.value = "";
+            }} />
+          </label>
+        )}
       </div>
-      {/* Add first extra photo button — only when no extras yet */}
-      {(product.images || []).length === 0 && (
-        <label className="absolute top-1 right-1 p-1 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title="Agregar más fotos (hasta 3)">
-          <Plus size={10} />
-          <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onAddImage(f);
-            e.target.value = "";
-          }} />
-        </label>
+      {/* Extras row horizontal scrollable — escala bien hasta 10 fotos */}
+      {(product.images || []).length > 0 && (
+        <div className="flex gap-0.5 overflow-x-auto p-0.5 bg-surface-3/40">
+          {(product.images || []).map((img, idx) => (
+            <div key={idx} className="w-10 h-10 shrink-0 rounded-sm overflow-hidden" title={img.label || `Foto ${idx + 2}`}>
+              <img src={productImageUrl(img.imageUrl)} alt={img.label || `Photo ${idx + 2}`} className="w-full h-full object-cover" />
+            </div>
+          ))}
+          {canAddMore && (
+            <label className="w-10 h-10 shrink-0 flex items-center justify-center bg-surface-3 cursor-pointer hover:bg-surface-2 transition-colors text-fg-faint hover:text-fg-muted rounded-sm" title="Sumar otra foto">
+              <Plus size={12} />
+              <input ref={extraFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onAddImage(f);
+                e.target.value = "";
+              }} />
+            </label>
+          )}
+        </div>
       )}
       <div className="p-2 space-y-0.5">
         {editing ? (
@@ -1268,6 +1278,22 @@ function ClothingCard() {
               busy={saving === c.id}
               onDelete={() => handleDelete(c.id)}
               onSave={(patch) => handleUpdate(c.id, patch)}
+              onAddImage={async (file) => {
+                try {
+                  await addClothingImage(activeBrand.id, c.id, file);
+                  await refreshBrands();
+                } catch (err) {
+                  console.error("Error al agregar foto:", err);
+                }
+              }}
+              onRemoveImage={async (imageIdx) => {
+                try {
+                  await deleteClothingImage(activeBrand.id, c.id, imageIdx);
+                  await refreshBrands();
+                } catch (err) {
+                  console.error("Error al quitar foto:", err);
+                }
+              }}
             />
           ))}
         </div>
@@ -1282,18 +1308,77 @@ function ClothingTile({
   busy,
   onDelete,
   onSave,
+  onAddImage,
+  onRemoveImage,
 }: {
   item: ClothingItem;
   deleting: boolean;
   busy: boolean;
   onDelete: () => void;
   onSave: (patch: { name?: string; description?: string }) => void;
+  /** Suma una foto extra (back / detail) a esta prenda. Max 2 extras. */
+  onAddImage: (file: File) => void;
+  /** Quita una foto extra por índice (no afecta la principal). */
+  onRemoveImage: (imageIdx: number) => void;
 }) {
+  // Cap subido de 3 → 10 fotos por prenda (mismo criterio que productos).
+  const MAX_CLOTHING_IMAGES = 10;
+  const extras = item.images || [];
+  const canAddMore = extras.length < MAX_CLOTHING_IMAGES - 1;
   return (
     <div className="group relative rounded-[var(--radius-sm)] bg-surface-2 overflow-hidden">
-      <div className="aspect-square">
-        <img src={clothingImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
+      {/* Gallery — main image grande + extras chicos a la derecha (mismo patrón que Products) */}
+      <div className="flex gap-0.5">
+        <div className="flex-1 aspect-square">
+          <img src={clothingImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
+        </div>
+        {extras.length > 0 && (
+          <div className="flex flex-col gap-0.5" style={{ width: "30%" }}>
+            {extras.map((img, idx) => (
+              <div key={idx} className="flex-1 relative group/extra">
+                <img
+                  src={clothingImageUrl(img.imageUrl)}
+                  alt={img.label || `Photo ${idx + 2}`}
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  onClick={() => onRemoveImage(idx)}
+                  title="Quitar esta foto"
+                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 text-white opacity-0 group-hover/extra:opacity-100 hover:bg-black flex items-center justify-center cursor-pointer transition-opacity"
+                >
+                  <X size={9} />
+                </button>
+                {img.label && (
+                  <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] truncate px-1 py-0.5 opacity-0 group-hover/extra:opacity-100">
+                    {img.label}
+                  </span>
+                )}
+              </div>
+            ))}
+            {canAddMore && (
+              <label className="flex-1 flex items-center justify-center bg-surface-3 cursor-pointer hover:bg-surface-2 transition-colors text-fg-faint hover:text-fg-muted">
+                <Plus size={12} />
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onAddImage(f);
+                  e.target.value = "";
+                }} />
+              </label>
+            )}
+          </div>
+        )}
       </div>
+      {/* Botón "+ foto" superpuesto cuando todavía no hay extras (visible en hover) */}
+      {extras.length === 0 && (
+        <label className="absolute top-1 right-1 p-1 rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" title={`Sumar fotos (hasta ${MAX_CLOTHING_IMAGES}: front, back, detail, etc.)`}>
+          <Plus size={10} />
+          <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onAddImage(f);
+            e.target.value = "";
+          }} />
+        </label>
+      )}
       <AssetEditableMeta name={item.name} description={item.description} busy={busy} deleting={deleting} onDelete={onDelete} onSave={onSave}>
         {item.tags && item.tags.length > 0 && (
           <div className="flex flex-wrap gap-1">

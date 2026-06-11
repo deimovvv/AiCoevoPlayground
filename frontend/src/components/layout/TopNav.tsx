@@ -104,21 +104,24 @@ export function TopNav() {
                 {/* Divider — Lab is outside the brand flow */}
                 <span className="mx-2 h-5 w-px bg-edge" />
 
-                {/* Lab — sandbox sin marca, trato visual distinto (acento lime experimental) */}
+                {/* Lab — el sandbox que ahora corre v2 por default. El pill chico de "v2"
+                    se eliminó porque /dashboard/lab YA es v2. Si alguien necesita el legacy,
+                    el archivo ManualLab.tsx queda en disco — alcanza con re-importarlo y
+                    sumar la ruta. */}
                 {(() => {
-                    const active = isActive(LAB_NAV);
+                    const labActive = isActive(LAB_NAV);
                     return (
                         <Link
                             to={LAB_NAV.href}
                             title={LAB_NAV.title}
                             className={cn(
                                 "flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-full transition-colors",
-                                active
+                                labActive
                                     ? "text-[var(--color-action-fg)] bg-[var(--color-action)]"
                                     : "text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)]"
                             )}
                         >
-                            <span className={cn(!active && "text-[var(--color-action)]")}>{LAB_NAV.icon}</span>
+                            <span className={cn(!labActive && "text-[var(--color-action)]")}>{LAB_NAV.icon}</span>
                             {LAB_NAV.label}
                             <span className="text-[8px] font-bold uppercase tracking-wider opacity-60">sandbox</span>
                         </Link>

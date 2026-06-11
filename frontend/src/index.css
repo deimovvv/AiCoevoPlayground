@@ -13,11 +13,13 @@
 
   /* Surfaces — stepped contrast so cards clearly separate from the canvas.
      Canvas is near-black; each surface is a visibly lighter step (not a hair). */
-  --color-canvas: #08080a;
-  --color-surface-0: #131316;
-  --color-surface-1: #1d1d21;
-  --color-surface-2: #2a2a30;
-  --color-surface-3: #38383f;
+  /* Surfaces dark mode — más contraste entre niveles para que las cards de imagen
+     "floten" sobre el bg (antes los pasos eran muy parejos y todo se veía liso). */
+  --color-canvas: #060608;
+  --color-surface-0: #131318;
+  --color-surface-1: #1f1f26;
+  --color-surface-2: #2d2d35;
+  --color-surface-3: #3c3c45;
 
   /* Foreground — brighter muted/faint so secondary text is actually readable. */
   --color-fg: #f4f4f5;
@@ -29,7 +31,9 @@
   --color-edge: rgba(255, 255, 255, 0.15);
   --color-edge-subtle: rgba(255, 255, 255, 0.08);
   --color-edge-strong: rgba(255, 255, 255, 0.26);
-  --color-edge-focus: rgba(220, 220, 220, 0.45);
+  /* Focus ring antes era gris claro neutro — pasa a burgundy con alpha para que
+     todos los inputs/textareas/selects compartan el acento brand en focus. */
+  --color-edge-focus: rgba(196, 88, 48, 0.55);
 
   /* Accent (neutral) */
   --color-accent: #cccccc;
@@ -42,11 +46,14 @@
   --color-warm-subtle: rgba(250, 205, 234, 0.08);
   --color-warm-fg: #1a1a1a;
 
-  /* Action accent — electric lime */
-  --color-action: #BCFC11;
-  --color-action-strong: #A8E500;
-  --color-action-muted: rgba(188, 252, 17, 0.18);
-  --color-action-subtle: rgba(188, 252, 17, 0.09);
+  /* Action accent — off-white minimal (Linear/Vercel style).
+     En dark mode el acento es blanco; los botones quedan blancos sobre fondo negro,
+     calmos y premium. Los muted/subtle son el mismo blanco con alpha bajo para
+     fondos sutiles (cards activas, badges). El fg es negro porque va sobre blanco. */
+  --color-action: #F5F5F5;
+  --color-action-strong: #FFFFFF;
+  --color-action-muted: rgba(245, 245, 245, 0.14);
+  --color-action-subtle: rgba(245, 245, 245, 0.07);
   --color-action-fg: #0a0a0a;
 
   /* Calm accent — soft mint */
@@ -55,6 +62,16 @@
   --color-calm-muted: rgba(212, 252, 241, 0.15);
   --color-calm-subtle: rgba(212, 252, 241, 0.08);
   --color-calm-fg: #0a0a0a;
+
+  /* Brand burgundy — acento cálido secundario. Para tags importantes, hover de pills,
+     border de "elemento activo", focus rings. NO se usa como fill en CTAs primarios
+     (eso queda con --color-action en off-white) — solo en momentos puntuales que
+     rompen la planicie del minimal. */
+  --color-brand: #C45830;
+  --color-brand-strong: #A8421C;
+  --color-brand-muted: rgba(196, 88, 48, 0.18);
+  --color-brand-subtle: rgba(196, 88, 48, 0.09);
+  --color-brand-fg: #FFFFFF;
 
   /* Semantic */
   --color-success: #3DBF8A;
@@ -107,12 +124,15 @@
 }
 
 /* ──────────── LIGHT theme override ──────────── */
+/* Surfaces de gris fino — el blanco puro cansaba la vista y se sentía clínico.
+   Canvas es gris medio-claro; surfaces se elevan progresivamente pero sin llegar
+   a blanco puro. Las cards "flotan" por contraste con el canvas, no por blancura. */
 [data-theme="light"] {
-  --color-canvas: #fafaf8;
-  --color-surface-0: #ffffff;
-  --color-surface-1: #f5f5f3;
-  --color-surface-2: #ececea;
-  --color-surface-3: #e2e2df;
+  --color-canvas: #e5e5e8;
+  --color-surface-0: #ededf0;
+  --color-surface-1: #f1f1f4;
+  --color-surface-2: #e2e2e5;
+  --color-surface-3: #d4d4d7;
 
   --color-fg: #0a0a0a;
   --color-fg-secondary: #333333;
@@ -122,7 +142,8 @@
   --color-edge: rgba(10, 10, 10, 0.08);
   --color-edge-subtle: rgba(10, 10, 10, 0.04);
   --color-edge-strong: rgba(10, 10, 10, 0.16);
-  --color-edge-focus: rgba(10, 10, 10, 0.35);
+  /* Focus ring también en burgundy para light mode (consistencia con dark) */
+  --color-edge-focus: rgba(196, 88, 48, 0.45);
 
   --color-accent: #0a0a0a;
   --color-accent-muted: rgba(10, 10, 10, 0.06);
@@ -136,8 +157,13 @@
   --color-warm-muted: rgba(200, 69, 140, 0.12);
   --color-warm-subtle: rgba(200, 69, 140, 0.07);
 
-  --color-action-muted: rgba(188, 252, 17, 0.25);
-  --color-action-subtle: rgba(188, 252, 17, 0.12);
+  /* Light mode — invertimos: el acento es negro sobre fondo blanco.
+     Mantiene el mismo efecto premium pero con polaridad opuesta. */
+  --color-action: #1a1a1a;
+  --color-action-strong: #000000;
+  --color-action-muted: rgba(10, 10, 10, 0.10);
+  --color-action-subtle: rgba(10, 10, 10, 0.05);
+  --color-action-fg: #FFFFFF;
 
   --color-calm-muted: rgba(212, 252, 241, 0.40);
   --color-calm-subtle: rgba(212, 252, 241, 0.20);
@@ -183,6 +209,31 @@ body {
     radial-gradient(ellipse 50% 40% at 95% 15%, var(--bg-hotspot-2), transparent 60%),
     radial-gradient(ellipse 40% 30% at 50% 110%, var(--bg-hotspot-3), transparent 65%);
   background-attachment: fixed;
+  /* `color-scheme` le indica al browser que renderice form controls nativos
+     (selects, scrollbars, date pickers) en dark mode. Sin esto, Windows pinta
+     el dropdown del <select> con sus defaults claros, lo que se cruza con
+     nuestros estilos dark y produce "texto blanco sobre fondo blanco" en el
+     <option> list — el bug que reportaba Windows. */
+  color-scheme: dark;
+}
+
+/* Light theme: el operador puede toggle a light. Le decimos al browser que
+   renderice los controles nativos en su modo claro. */
+.light body,
+[data-theme="light"] body {
+  color-scheme: light;
+}
+
+/* Native <select> options — Windows no hereda el styling del <select> wrapper
+   en su dropdown. Forzamos colores legibles globalmente para que cualquier
+   <select> en cualquier página tenga options visibles.
+
+   IMPORTANTE: Chrome/Edge en Windows respetan estos colors, Safari y Firefox
+   en Mac tienen sus propios renderers nativos y los ignoran — que está bien,
+   porque ahí no había bug. */
+option {
+  background-color: var(--color-surface-2);
+  color: var(--color-fg);
 }
 
 /* Premium typography tightening for headings */

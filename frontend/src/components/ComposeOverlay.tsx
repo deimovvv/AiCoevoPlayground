@@ -84,7 +84,8 @@ function resolveColor(token: string, brightness: "light" | "dark", ds?: Record<s
     if (found?.hex) return found.hex;
   }
   if (token === "warm") return "#FACDEA";
-  if (token === "action") return "#BCFC11";
+  // Action token — kept aligned with `--color-action` in index.css (off-white minimal).
+  if (token === "action") return "#F5F5F5";
   if (token === "calm") return "#D4FCF1";
   return "#ffffff";
 }

@@ -46,6 +46,9 @@ export interface ClothingItem {
     tags?: string[];
     filename: string;
     imageUrl: string;
+    /** Fotos adicionales (típicamente back + detail). Max 2 extras + 1 principal = 3 total.
+     *  Las usa Ecommerce Pack para entender el producto desde múltiples ángulos. */
+    images?: Array<{ filename: string; imageUrl: string; label?: string }>;
 }
 
 export interface BackgroundItem {
@@ -872,6 +875,32 @@ export async function deleteClothing(brandId: string, itemId: string): Promise<v
         method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete clothing item");
+}
+
+/** Suma una foto extra a una prenda. Max 2 extras (3 total con la principal).
+ *  El label típicamente es "Back" o "Detail" — se muestra en la UI y se le pasa al modelo. */
+export async function addClothingImage(brandId: string, itemId: string, imageFile: File, label = ""): Promise<ClothingItem> {
+    const formData = new FormData();
+    formData.append("image", imageFile);
+    formData.append("label", label);
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/clothing/${itemId}/images`, {
+        method: "POST",
+        body: formData,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || "Failed to add clothing image");
+    }
+    return res.json();
+}
+
+/** Borra una foto extra por su índice en item.images[]. La principal no se afecta. */
+export async function deleteClothingImage(brandId: string, itemId: string, imageIdx: number): Promise<ClothingItem> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/clothing/${itemId}/images/${imageIdx}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete clothing image");
+    return res.json();
 }
 
 export function clothingImageUrl(relativeUrl: string): string {
@@ -1974,6 +2003,43 @@ export async function analyzePoseReference(imageFile: File): Promise<{ pose_desc
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
         throw new Error((typeof err.detail === "string" ? err.detail : "Pose analysis failed"));
+    }
+    return res.json();
+}
+
+/** Toma un texto libre del usuario (ej. en español "agarra la cartera con energía")
+ *  y devuelve un motion prompt curado en inglés, listo para Kling V3 Pro. La idea es
+ *  que el usuario pueda tipear en su idioma natural y el sistema lo traduce/ordena. */
+export async function curateMotionPrompt(text: string, sceneContext = ""): Promise<{ motion: string }> {
+    const res = await fetch(`${API_BASE}/api/curate/motion`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, sceneContext }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : "Curate failed"));
+    }
+    return res.json();
+}
+
+/** Analiza un video de referencia (URL o file) y devuelve solo motion suggestions —
+ *  versión liviana de /api/analyze/video pensada para "inspirar" la animación de
+ *  un clip estático en Fashion Reel / UGC. La respuesta queda lista para inyectar
+ *  al animationHint del clip. */
+export async function analyzeMotionFromVideo(opts: {
+    url?: string;
+    file?: File;
+    imageContext?: string;
+}): Promise<{ motion: string; pacing?: string; camera?: string; signature_beat?: string }> {
+    const formData = new FormData();
+    if (opts.url) formData.append("url", opts.url);
+    if (opts.file) formData.append("video", opts.file);
+    if (opts.imageContext) formData.append("image_context", opts.imageContext);
+    const res = await fetch(`${API_BASE}/api/analyze/motion`, { method: "POST", body: formData });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : "Motion analysis failed"));
     }
     return res.json();
 }

@@ -139,6 +139,7 @@ export const handleImages: StepHandler = async (ctx) => {
 export const handleAnimate: StepHandler = async (ctx) => {
   const { config, getStepResult } = ctx;
   const imageData = getStepResult("images") as { images: Array<{ frame: number; url: string }> } | undefined;
+  const scriptData = getStepResult("script") as { frames?: Array<{ animationHint?: string }> } | undefined;
   if (!imageData?.images) throw new Error("No images found.");
 
   const successfulImages = imageData.images.filter((img) => img.url).sort((a, b) => a.frame - b.frame);
@@ -146,6 +147,13 @@ export const handleAnimate: StepHandler = async (ctx) => {
 
   const { pollKlingVideo, createKlingVideo } = await import("../../lib/api");
   const isFrameToFrame = config.animationMode !== "image-to-video";
+
+  // Lookup helper para tomar el animationHint que el usuario tipeó/inspiró en el
+  // step images antes de animar. Si está, se inyecta con marca de prioridad.
+  const hintFor = (frameIdx: number): string => {
+    const hint = scriptData?.frames?.[frameIdx]?.animationHint?.trim();
+    return hint ? ` USER DIRECTION (priority): ${hint}.` : "";
+  };
 
   const segments = [];
 
@@ -161,7 +169,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
           body: JSON.stringify({
             start_image_url: startImg.url,
             end_image_url: endImg.url,
-            prompt: "Smooth cinematic product transition, elegant camera movement, no people",
+            prompt: `Smooth cinematic product transition, elegant camera movement, no people.${hintFor(i)}`,
             duration: "4",
             aspect_ratio: config.aspectRatio,
           }),
@@ -179,7 +187,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
     for (let i = 0; i < successfulImages.length; i++) {
       const img = successfulImages[i];
       try {
-        const job = await createKlingVideo(img.url, "Subtle cinematic product movement, elegant rotation or zoom, no people", "4");
+        const job = await createKlingVideo(img.url, `Subtle cinematic product movement, elegant rotation or zoom, no people.${hintFor(i)}`, "4");
         const result = await pollKlingVideo(job.request_id);
         segments.push({ index: i, videoUrl: result.video_url || "", startFrame: img.frame, endFrame: img.frame, status: result.video_url ? "done" : "failed" });
       } catch {

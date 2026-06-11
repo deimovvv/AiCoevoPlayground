@@ -20,7 +20,10 @@ import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { AutomationsPage } from "./pages/AutomationsPage";
 import { PerformancePage } from "./pages/PerformancePage";
 import { ChatPage } from "./pages/ChatPage";
-import { ManualLab } from "./pages/ManualLab";
+// v1 (ManualLab) está desconectada del flujo pero el archivo se mantiene en disco
+// como fallback. Si alguien lo necesita: importar y agregar de vuelta la ruta.
+// import { ManualLab } from "./pages/ManualLab";
+import { ManualLabV2 } from "./pages/ManualLabV2";
 import { VoiceLab } from "./pages/VoiceLab";
 import { EcommerceBatch } from "./pages/EcommerceBatch";
 
@@ -74,7 +77,10 @@ function App() {
         <Route path="brands/:brandId/generate" element={<GenerationPipeline />} />
         <Route path="generate" element={<GeneratePage />} />
         <Route path="generate/:toolId" element={<ErrorBoundary><ToolRunPage /></ErrorBoundary>} />
-        <Route path="lab" element={<ErrorBoundary><ManualLab /></ErrorBoundary>} />
+        {/* /dashboard/lab ahora es v2 (el "Manual Lab" único). /dashboard/lab-v2 queda
+            como alias por compat con cualquier link viejo apuntando a la beta. */}
+        <Route path="lab" element={<ErrorBoundary><ManualLabV2 /></ErrorBoundary>} />
+        <Route path="lab-v2" element={<ErrorBoundary><ManualLabV2 /></ErrorBoundary>} />
         <Route path="voice-lab" element={<ErrorBoundary><VoiceLab /></ErrorBoundary>} />
         <Route path="ecommerce-batch" element={<ErrorBoundary><EcommerceBatch /></ErrorBoundary>} />
         <Route path="tools/images" element={<ToolsPage />} />

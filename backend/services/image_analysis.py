@@ -10,6 +10,7 @@ Used for:
 """
 
 import os
+import json
 import base64
 import httpx
 from pathlib import Path
@@ -598,6 +599,124 @@ async def _call_vision_with_video(prompt: str, video_bytes: bytes, mime_type: st
         raise Exception("No response from Gemini Vision")
 
     return candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+
+
+async def analyze_motion_from_video(
+    video_bytes: bytes,
+    mime_type: str = "video/mp4",
+    image_context: str = "",
+) -> dict:
+    """Versión liviana de analyze_video_direct enfocada SOLO en motion para
+    image-to-video. Devuelve sugerencias concretas listas para inyectarse al
+    prompt de Kling. No hace el análisis pesado de Content Analyzer (script,
+    narrative_shape, detected_assets, visual_signature). Diseñada para correr
+    desde el step Animate del Fashion Reel / UGC donde el usuario querría
+    "inspirar" el motion de un clip desde una referencia.
+    """
+    prompt = f"""You are a motion designer analyzing a reference video to suggest how to animate a STATIC image.
+
+The user has a still image and wants to animate it. Watch this video carefully and extract the MOTION DNA you'd transfer to that still.
+
+{f'CONTEXT of the static image to animate: {image_context}' if image_context else ''}
+
+Focus EXCLUSIVELY on motion — ignore style, color, identity, location. Just movement.
+
+Analyze:
+1. Subject movement: how does the person/object move? (walks, rotates, dances, gestures, holds something)
+2. Camera movement: static / push-in / pull-back / orbit / handheld / pan / tilt
+3. Pacing: slow & smooth / dynamic & energetic / staccato / fluid
+4. Loop behavior: does it cycle, or has a clear start-end?
+5. Key gesture or signature beat (the "moment" that defines the clip)
+
+Respond ONLY with a valid JSON object — no markdown, no extra text. Schema:
+{{
+  "motion": "2-3 sentence English description of the EXACT motion to apply. Concrete. Use verbs. Reference camera + subject + pacing. Example: 'Model walks slowly toward camera with hands relaxed at sides, slight head turn to the right at the end. Camera holds steady with a barely perceptible push-in. Smooth fluid pace, no cuts.'",
+  "pacing": "slow | medium | dynamic",
+  "camera": "static | push-in | pull-back | orbit | handheld | pan | tilt",
+  "signature_beat": "one phrase capturing the defining moment, or empty string"
+}}"""
+
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": prompt},
+                {"inline_data": {"mime_type": mime_type, "data": base64.b64encode(video_bytes).decode()}},
+            ],
+        }],
+        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 800},
+    }
+
+    headers = {"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY}
+    async with httpx.AsyncClient(timeout=180) as client:
+        res = await client.post(_gemini_url(GEMINI_VIDEO_MODEL), headers=headers, json=payload)
+        res.raise_for_status()
+        result = res.json()
+        candidates = result.get("candidates", [])
+        if not candidates:
+            raise Exception("No response from Gemini Vision")
+        raw = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+
+    # Parse JSON (best-effort cleanup of markdown fences if Gemini wraps the reply).
+    clean = raw
+    if clean.startswith("```json"):
+        clean = clean.replace("```json", "").replace("```", "").strip()
+    elif clean.startswith("```"):
+        clean = clean.replace("```", "").strip()
+    if not clean.startswith("{"):
+        start = clean.find("{")
+        if start != -1:
+            clean = clean[start:]
+    try:
+        return json.loads(clean)
+    except json.JSONDecodeError:
+        return {"motion": raw, "pacing": "medium", "camera": "static", "signature_beat": ""}
+
+
+async def curate_motion_prompt(user_text: str, scene_context: str = "") -> str:
+    """Toma un texto libre del usuario (en cualquier idioma, posiblemente desordenado
+    o coloquial) y lo convierte en un motion prompt limpio, en inglés, listo para
+    inyectar a Kling V3 Pro. NO inventa motion — respeta literalmente la intención
+    del usuario, solo la traduce y ordena.
+    Ejemplos de input → output:
+      "que agarre la cartera con energía" → "Model picks up the bag with energy,
+        a confident grip and a slight upward gesture as she lifts it."
+      "se da vuelta lentamente mirando a cámara" → "Model rotates slowly and
+        glances back over her shoulder toward camera, holding eye contact at the
+        end of the turn."
+    """
+    if not GEMINI_API_KEY:
+        return user_text  # fail open: pasar tal cual
+    prompt = f"""You are a motion prompt curator for AI video models (Kling V3 Pro).
+
+Your job: take the user's raw instruction below (probably in Spanish, possibly informal) and rewrite it as a clean, concrete English motion prompt — 1-3 sentences.
+
+RULES:
+- Keep the user's intent EXACTLY. Do not invent new motions.
+- Translate to English (Kling responds best to English).
+- Use concrete verbs (walks, turns, grips, tilts, glances, push-in, dolly-back) instead of abstract adjectives.
+- Reference SUBJECT motion and CAMERA motion when applicable.
+- No flowery language. No marketing speak. Just motion.
+- Output ONLY the curated prompt. No quotes, no preamble, no JSON.
+
+{f'SCENE CONTEXT (for grounding): {scene_context}' if scene_context else ''}
+
+USER INSTRUCTION:
+{user_text}
+
+CURATED MOTION PROMPT:"""
+    headers = {"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 250},
+    }
+    async with httpx.AsyncClient(timeout=60) as client:
+        res = await client.post(_gemini_url(), headers=headers, json=payload)
+        res.raise_for_status()
+        result = res.json()
+        candidates = result.get("candidates", [])
+        if not candidates:
+            return user_text
+        return candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
 
 
 async def analyze_pose(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:

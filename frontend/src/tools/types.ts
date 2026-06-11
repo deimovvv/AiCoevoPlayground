@@ -194,6 +194,19 @@ export interface ScriptScene {
   _showProduct?: boolean;
   /** false = skip avatar references, use text-to-image for this scene */
   _useAvatar?: boolean;
+  /** Fashion Reel Looks-mode: id del clothing item al que pertenece esta escena.
+   *  Si está presente, el pipeline lo usa para anclar la ref de garment correcta —
+   *  reemplaza el viejo `slice(i, i+1)` que asumía 1 escena = 1 outfit. */
+  garmentId?: string;
+  /** Fashion Reel Looks-mode: id del shot del VIDEO_SHOT_CATALOG (general / detail / etc.).
+   *  El handler de animate lo lee para inyectar el motion hint apropiado. */
+  shotId?: string;
+  /** Dirección de animación específica para esta escena que el usuario tipea durante
+   *  la curación (step Shots), ANTES de animar. Se inyecta al motionPrompt del clip
+   *  junto con el motion del catálogo del shot. Ej. "agarra la cartera con energía",
+   *  "gira lento mirando a cámara". Permite anticipar la intención sin tener que
+   *  animar primero y descubrir que no era lo que querías. */
+  animationHint?: string;
 }
 
 /** Normalize a raw scene object from Gemini (handles field name inconsistencies) */

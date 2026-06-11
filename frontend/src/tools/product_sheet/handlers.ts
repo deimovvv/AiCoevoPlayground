@@ -16,6 +16,7 @@ import {
   productImageUrl,
   moodboardImageUrl,
 } from "../../lib/api";
+import { PRODUCT_BASE_PROMPT, PRODUCT_FIDELITY_RULES, PRODUCT_VIEW_CATALOG, DEFAULT_PRODUCT_VIEWS } from "./index";
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -88,20 +89,28 @@ export const handleGenerate: StepHandler = async (ctx) => {
   const refDescriptions: string[] = [];
   let imgIdx = 1;
 
+  // Cap subido de 4 → 8 refs para soportar productos complejos (autos, electros)
+  // que necesitan muchos ángulos para que Nano Banana no invente vistas. 8 está
+  // dentro de los límites de la API; los 8 viajan como image_edit refs.
+  const MAX_REFS = 8;
+
   // 1) Source product photos (if a Brand Kit product was selected) — these are the
-  //    strongest identity anchors. Use the primary `imageUrl` first, then any extras.
+  //    strongest identity anchors. Use the primary `imageUrl` first, then any extras
+  //    con sus labels para que el prompt diga EXACTAMENTE qué ángulo es cada uno.
   const product = (activeBrand.products || []).find((p) => p.id === brief.sourceProductId);
   if (product) {
-    const photoUrls: string[] = [];
-    if (product.imageUrl) photoUrls.push(product.imageUrl);
+    type LabeledPhoto = { url: string; label?: string };
+    const photos: LabeledPhoto[] = [];
+    if (product.imageUrl) photos.push({ url: product.imageUrl, label: "main view" });
     for (const extra of product.images || []) {
-      if (extra.imageUrl) photoUrls.push(extra.imageUrl);
+      if (extra.imageUrl) photos.push({ url: extra.imageUrl, label: extra.label });
     }
-    for (const u of photoUrls.slice(0, 4)) {
-      const full = u.startsWith("http") ? u : productImageUrl(u);
+    for (const p of photos.slice(0, MAX_REFS)) {
+      const full = p.url.startsWith("http") ? p.url : productImageUrl(p.url);
       refUrls.push(full);
+      const labelPart = p.label ? ` (this photo shows: ${p.label})` : "";
       refDescriptions.push(
-        `Image ${imgIdx}: photo of the EXACT product to render. Reproduce identical color, materials, finish, hardware and proportions. This is the source of truth.`,
+        `Image ${imgIdx}: photo of the EXACT product to render${labelPart}. Reproduce identical color, materials, finish, hardware and proportions. This is the source of truth — never invent angles or details not visible across the reference photos.`,
       );
       imgIdx++;
     }
@@ -109,7 +118,7 @@ export const handleGenerate: StepHandler = async (ctx) => {
 
   // 2) Uploaded reference photos — same role as the product photos when no product is selected.
   const refFiles = (cfg.referenceImages as File[]) || [];
-  for (let i = 0; i < refFiles.length && refUrls.length < 4; i++) {
+  for (let i = 0; i < refFiles.length && refUrls.length < MAX_REFS; i++) {
     const file = refFiles[i];
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -125,9 +134,10 @@ export const handleGenerate: StepHandler = async (ctx) => {
   }
 
   // 3) Optional moodboard — purely aesthetic guidance (lighting / palette / mood),
-  //    NEVER copy its content. Capped so it never bumps a product photo out of the 4-ref budget.
+  //    NEVER copy its content. Capped al mismo MAX_REFS para que no robe un slot
+  //    a una foto de producto.
   const selectedMoodboard = (activeBrand.moodboards || []).find((m) => m.id === config.selectedMoodboardId);
-  if (selectedMoodboard?.imageUrl && refUrls.length < 4) {
+  if (selectedMoodboard?.imageUrl && refUrls.length < MAX_REFS) {
     const url = selectedMoodboard.imageUrl.startsWith("http")
       ? selectedMoodboard.imageUrl
       : moodboardImageUrl(selectedMoodboard.imageUrl);
@@ -142,56 +152,97 @@ export const handleGenerate: StepHandler = async (ctx) => {
     throw new Error("No hay imágenes de referencia — no puedo generar un sheet sin saber cómo es el producto.");
   }
 
-  // Mode-specific layout instructions. The brief.image_prompt already encodes
-  // the layout per mode (from the backend), but we re-state it here to fence
-  // the model in tight — Nano Banana benefits from redundant guardrails.
-  const layoutBlock = brief.mode === "details"
-    ? [
-        `Layout: a single image divided into multiple macro CLOSE-UP panels of the SAME product on a pure white (#FFFFFF) seamless background.`,
-        `Panels include: texture / material macro, primary logo / branding close-up, label / tag close-up, stitching or joinery close-up, hardware / fastener / connector close-up.`,
-        `All panels show identical product features (same color, material, finish, hardware) — they are different framings of ONE product, never variants.`,
-      ].join(" ")
-    : [
-        `Layout: a single seamless image on a pure white (#FFFFFF) background with multiple views of the SAME product, evenly spaced:`,
-        `front elevation (center, larger), 3/4 angle, back view, side profile, top-down view, and an optional small scale reference.`,
-        `All views show identical product features (same color, material, finish, hardware) — they are angles of ONE product, never variants.`,
-      ].join(" ");
-
+  // Productos facts — descripción densa que se inyecta en cada prompt para que
+  // Nano Banana refuerce identidad además de las imágenes ref.
   const productFacts = [
-    brief.summary && `Product: ${brief.summary}`,
+    brief.summary && `Product: ${brief.summary}.`,
     brief.shape && `Shape: ${brief.shape}.`,
     brief.colors?.length && `Exact colors: ${brief.colors.join("; ")}.`,
     brief.materials?.length && `Materials: ${brief.materials.join(", ")}.`,
-    brief.distinctive_details?.length && `Must include these distinctive details: ${brief.distinctive_details.join("; ")}.`,
+    brief.distinctive_details?.length && `Distinctive details: ${brief.distinctive_details.join("; ")}.`,
     brief.scale && `Scale hint: ${brief.scale}.`,
   ].filter(Boolean).join(" ");
 
-  const compositePrompt = [
-    layoutBlock,
-    "",
-    productFacts,
-    "",
-    "Studio lighting, soft shadows beneath each view, sharp focus, photorealistic. No text, no labels, no captions, no borders, no grid lines, no decorative elements. Background is pure white only.",
-    brief.image_prompt && brief.image_prompt.trim() ? `\nAdditional direction from analysis: ${brief.image_prompt.trim()}` : "",
-  ].join(" ").trim();
+  const refBlock = `REFERENCE IMAGES:\n${refDescriptions.join("\n")}`;
+  const directionExtra = brief.image_prompt?.trim()
+    ? `\nAdditional direction from analysis: ${brief.image_prompt.trim()}`
+    : "";
 
-  const finalPrompt =
-    `REFERENCE IMAGES:\n${refDescriptions.join("\n")}\n\n` +
-    `CRITICAL: The output image must show the EXACT product visible in the reference photos — same color, materials, finish, hardware, logo, proportions. Do NOT generate a similar-but-different product.\n\n` +
-    compositePrompt;
+  // ── DETAILS MODE: keep the old composite (close-ups don't benefit from per-view) ──
+  if (brief.mode === "details") {
+    const layoutBlock = `Layout: a single image divided into multiple macro CLOSE-UP panels of the SAME product on a pure white (#FFFFFF) seamless background. Panels include: texture / material macro, primary logo / branding close-up, label / tag close-up, stitching or joinery close-up, hardware / fastener / connector close-up. All panels show identical product features — different framings of ONE product, never variants.`;
+    const compositePrompt = [layoutBlock, "", productFacts, "", PRODUCT_BASE_PROMPT, directionExtra].join(" ").trim();
+    const finalPrompt = `${refBlock}\n\n${PRODUCT_FIDELITY_RULES}\n\n${compositePrompt}`;
+    const job = await createImageEdit(refUrls, finalPrompt, "1:1", "2K");
+    const result = await pollImageGen(job.request_id);
+    if (result.status === "failed") throw new Error(result.error || "Image generation failed");
+    return {
+      result: {
+        // Compat: dejamos `url` (formato viejo) para que UI legacy siga funcionando,
+        // y también `views[]` con una sola entrada para el nuevo render multi-vista.
+        url: result.image_url,
+        views: [{ key: "details", label: "Detalles", url: result.image_url, aspectRatio: "1:1", prompt: compositePrompt }],
+        brief,
+        mode: "details" as const,
+        sourceProductId: brief.sourceProductId,
+        prompt: compositePrompt,
+      },
+      needsApproval: true,
+    };
+  }
 
-  // Always image-edit (we always have at least one ref).
-  const job = await createImageEdit(refUrls, finalPrompt, "1:1", "2K");
-  const result = await pollImageGen(job.request_id);
-  if (result.status === "failed") throw new Error(result.error || "Image generation failed");
+  // ── SHEET MODE: generate ONE image per selected view ────────────────────
+  //
+  // Filosofía (inspirada en el recipe del usuario): cada vista = base_prompt común
+  // + composition específico + aspect ratio óptimo. Nano Banana se enfoca en una
+  // sola vista por imagen, sale más fiel y limpia que un composite con 6 vistas.
+  const requestedViews = (cfg.productSheetViews as string[]) || DEFAULT_PRODUCT_VIEWS;
+  const validViews = requestedViews.filter((k) => PRODUCT_VIEW_CATALOG[k]);
+  const selectedViews = validViews.length > 0 ? validViews : DEFAULT_PRODUCT_VIEWS;
+
+  type ViewResult = { key: string; label: string; url: string; aspectRatio: string; prompt: string; error?: string };
+  const views: ViewResult[] = [];
+
+  for (const viewKey of selectedViews) {
+    const viewMeta = PRODUCT_VIEW_CATALOG[viewKey];
+    const viewPrompt = [
+      PRODUCT_BASE_PROMPT,
+      "",
+      `VIEW SPECIFIC: ${viewMeta.composition}`,
+      "",
+      productFacts,
+      directionExtra,
+    ].join(" ").trim();
+    const finalPrompt = `${refBlock}\n\n${PRODUCT_FIDELITY_RULES}\n\n${viewPrompt}`;
+
+    try {
+      const job = await createImageEdit(refUrls, finalPrompt, viewMeta.aspectRatio, "2K");
+      const result = await pollImageGen(job.request_id);
+      if (result.status === "failed" || !result.image_url) {
+        views.push({ key: viewKey, label: viewMeta.label, url: "", aspectRatio: viewMeta.aspectRatio, prompt: viewPrompt, error: result.error || "generation failed" });
+      } else {
+        views.push({ key: viewKey, label: viewMeta.label, url: result.image_url, aspectRatio: viewMeta.aspectRatio, prompt: viewPrompt });
+      }
+    } catch (e) {
+      views.push({ key: viewKey, label: viewMeta.label, url: "", aspectRatio: viewMeta.aspectRatio, prompt: viewPrompt, error: e instanceof Error ? e.message : "failed" });
+    }
+  }
+
+  const firstOk = views.find((v) => v.url);
+  if (!firstOk) {
+    throw new Error("Todas las vistas fallaron al generar. Revisá las imágenes de referencia y el brief.");
+  }
 
   return {
     result: {
-      url: result.image_url,
+      // Backwards compat: `url` apunta a la primera vista exitosa para que el UI
+      // legacy (que solo lee `url`) muestre algo. Multi-view UI lee `views[]`.
+      url: firstOk.url,
+      views,
       brief,
-      mode: brief.mode || "sheet",
+      mode: "sheet" as const,
       sourceProductId: brief.sourceProductId,
-      prompt: compositePrompt,
+      prompt: views[0]?.prompt || "",
     },
     needsApproval: true,
   };
@@ -204,32 +255,34 @@ export const handleSave: StepHandler = async (ctx) => {
   const cfg = config as unknown as Record<string, unknown>;
   const generateResult = getStepResult("generate") as {
     url: string;
+    views?: Array<{ key: string; label: string; url: string; aspectRatio: string }>;
     brief: ProductSheetBrief;
     mode: "sheet" | "details";
     sourceProductId?: string;
   } | undefined;
   if (!generateResult?.url) throw new Error("No hay imagen generada para guardar.");
 
-  // Fetch the generated image once.
-  const imageRes = await fetch(generateResult.url);
-  if (!imageRes.ok) throw new Error("No se pudo descargar la imagen generada.");
-  const imageBlob = await imageRes.blob();
-
   const brief = generateResult.brief;
   const modeSuffix = generateResult.mode === "details" ? "Detalles" : "Sheet";
   const productName = `${brief.name || "Producto"} (${modeSuffix})`;
-  const filename = `${productName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}.png`;
-  const imageFile = new File([imageBlob], filename, { type: imageBlob.type || "image/png" });
+
+  // Selección de vistas a guardar — todas las exitosas del views[] (o si es legacy
+  // sin views[], usa solo `url`). La PRIMERA vista exitosa va como main; el resto
+  // como extras del producto generado.
+  const allViews = (generateResult.views || []).filter((v) => v.url);
+  const viewsToSave = allViews.length > 0
+    ? allViews
+    : [{ key: "main", label: "Main", url: generateResult.url, aspectRatio: "1:1" }];
 
   const saveMode = (cfg.productSheetSave as "new" | "replace" | "asset") || "new";
 
-  // "asset" mode: we don't touch the catalog — just return the URL so the user
-  // can download it manually or pick it up from the content library. The
-  // backend already persists the rendered image; nothing else to do here.
+  // "asset" mode: we don't touch the catalog — just return the URLs so the user
+  // can download them manually or pick them up from the content library.
   if (saveMode === "asset") {
     return {
       result: {
         imageUrl: generateResult.url,
+        views: viewsToSave,
         name: productName,
         brief,
         savedTo: "asset",
@@ -237,8 +290,7 @@ export const handleSave: StepHandler = async (ctx) => {
     };
   }
 
-  // Build a concise description from the structured brief — useful in the catalog
-  // and as context for downstream tools that consume the product's `description`.
+  // Build a concise description from the structured brief.
   const description = [
     brief.summary,
     brief.materials?.length && `Materials: ${brief.materials.join(", ")}.`,
@@ -246,22 +298,37 @@ export const handleSave: StepHandler = async (ctx) => {
     brief.distinctive_details?.length && `Details: ${brief.distinctive_details.join("; ")}.`,
   ].filter(Boolean).join(" ");
 
-  // "replace" mode: overwrite the source product's primary photo with the new sheet.
-  // We do this by adding the sheet as an extra image labeled "sheet" and re-uploading
-  // as a new product — the original stays intact. (A true in-place replace would
-  // need a backend endpoint we don't have yet; this is the safest UX for now.)
-  // For the "new" mode, same path — we create a fresh product entry.
-  const saved = await uploadProduct(
-    activeBrand.id,
-    productName,
-    imageFile,
-    description,
-  );
+  // Helper para convertir una URL de view → File listo para upload.
+  const fetchAsFile = async (url: string, name: string): Promise<File> => {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`No se pudo descargar la vista ${name}`);
+    const blob = await r.blob();
+    const filename = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}.png`;
+    return new File([blob], filename, { type: blob.type || "image/png" });
+  };
+
+  // Primera vista = main del producto generado
+  const mainFile = await fetchAsFile(viewsToSave[0].url, `${productName}_${viewsToSave[0].label}`);
+  const saved = await uploadProduct(activeBrand.id, productName, mainFile, description);
+
+  // Resto de las vistas se agregan como extras (max 10 total — el cap del backend).
+  // Si una falla, no rompe el save general (la vista 1 ya está persistida).
+  const { addProductImage } = await import("../../lib/api");
+  for (let i = 1; i < viewsToSave.length && i < 10; i++) {
+    const v = viewsToSave[i];
+    try {
+      const extraFile = await fetchAsFile(v.url, `${productName}_${v.label}`);
+      await addProductImage(activeBrand.id, saved.id, extraFile, v.label);
+    } catch (e) {
+      console.warn(`[product_sheet] failed to attach view "${v.label}":`, e);
+    }
+  }
 
   return {
     result: {
       product: saved,
       imageUrl: generateResult.url,
+      views: viewsToSave,
       name: productName,
       brief,
       savedTo: saveMode,

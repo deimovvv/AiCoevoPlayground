@@ -368,3 +368,24 @@ Si el equipo necesita esas capacidades, exporta de Coevo y edita en CapCut/Descr
 **Prerequisito:** Feature #1 (Generation Persistence) — necesitás que las generaciones guarden todo su estado (escenas individuales, audio, subs) para poder editarlas después.
 
 **Cuándo:** Después de Phase 5. Es polish, no funcionalidad core. Los pipelines tienen que estar sólidos antes de sumar refinement layer.
+
+---
+
+## 13. ToolRunPage rediseño — layout split (aprobado 2026-06)
+
+**Contexto.** Las páginas de tools acumularon mucho durante 2025-2026: brief box, Coevo Agent, mode toggle, visual style, references, allow faces, tabs de assets, ajustes técnicos en desplegable, motor de video, duración, direction, setting, style ref. Para Fashion Reel hay que scrollear 3 veces. Ajustes técnicos están detrás de un desplegable que casi nadie abre.
+
+El Lab v2 demostró que `sidebar control 420px + área principal` funciona mejor para flujos densos. La idea es replicar ese patrón en `ToolRunPage`.
+
+**Decisiones a confirmar antes de codear** (ver decisions-log.md 2026-06 — entrada "ToolRunPage gigante (DEUDA UX abierta)"):
+
+- ¿Migrar **todas** las tools o solo las densas (Fashion Reel + Ecommerce Pack + Video Ad Creator)? Mi voto: progresivo desde las densas.
+- ¿`Coevo Agent` / brief box queda dentro del sidebar (compacto) o queda arriba a pantalla completa como hoy? Mi voto: dentro del sidebar plegable, no full-width.
+- ¿El **pipeline de steps** queda en sidebar o en área principal? Mi voto: vivir del lado principal (es el contenido), no del control.
+- ¿Mantenemos el `Manage Prompt` / `Generar` arriba a la derecha o los movemos al footer del sidebar (como en Lab v2)? Mi voto: footer del sidebar, sticky.
+
+**Riesgo.** ToolRunPage tiene 6000+ líneas y lógica condicional por toolId (`tool.id === "ugc_creator"`, etc.). El refactor no se hace en un solo commit. Approach: ir tool por tool, manteniendo el layout viejo para las no migradas.
+
+**Por qué no aplicar a todas las tools indiscriminadamente:** Content Analyzer, Avatar Sheet, Product Sheet tienen flujos lineales que el layout actual cubre bien. El split solo gana en tools con muchos parámetros.
+
+**Cuándo:** Antes del rollout interno definitivo. Cuanto más esperemos, más se nota la inconsistencia entre Lab v2 (nuevo layout) y todas las tools (viejo layout).

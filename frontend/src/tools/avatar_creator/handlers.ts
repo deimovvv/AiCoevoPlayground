@@ -168,6 +168,10 @@ export const handleGenerate: StepHandler = async (ctx) => {
     `Pure white (#FFFFFF) seamless background. Studio lighting, clean and professional.`,
     `All views show the EXACT same person with consistent features.`,
     `Hands are empty — no objects, no props, no products, no bags, no phones, nothing held in hands.`,
+    // Clothing safeguard — sin esta línea Nano Banana suele sacar modelos en ropa interior
+    // o con muy poca ropa, especialmente en modo poses cuando el brief no especifica outfit.
+    // Forzamos prendas básicas neutras a menos que el brief.style mande otra cosa.
+    `The person is FULLY CLOTHED in neutral everyday clothing — basic plain t-shirt or top + neutral pants or jeans, consistent across all views. NEVER in underwear, NEVER nude, NEVER in lingerie or swimwear (unless explicitly requested in the character description above).`,
     `No text, no labels, no borders, no grid lines.`,
   ].join(" ");
 

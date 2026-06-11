@@ -1332,9 +1332,12 @@ async def add_product_image(
         raise HTTPException(status_code=404, detail="Product not found")
 
     existing_images = product.get("images", [])
-    # Count total: main image + extras
-    if len(existing_images) >= 2:
-        raise HTTPException(status_code=400, detail="Maximum 3 images per product (1 main + 2 extra)")
+    # Count total: main image + extras. Subido de 3 → 10 para productos complejos
+    # (autos, electrodomésticos) que necesitan muchos ángulos: ext frontal, lateral,
+    # 3/4, trasera, top, interior dashboard, asientos, trunk, motor, detalles. Sin
+    # esos ángulos, Nano Banana inventa y la sheet sale fantasiosa.
+    if len(existing_images) >= 9:
+        raise HTTPException(status_code=400, detail="Maximum 10 images per product (1 main + 9 extra)")
 
     ext = Path(image.filename or "product.png").suffix or ".png"
     img_id = str(uuid.uuid4())[:8]
@@ -1468,14 +1471,98 @@ def delete_clothing(brand_id: str, item_id: str):
     item = next((c for c in brand.get("clothing", []) if c["id"] == item_id), None)
     if not item:
         raise HTTPException(status_code=404, detail="Clothing item not found")
+    # Borrar la imagen principal
     filename = item.get("filename", "")
     if filename:
         img_path = brands.get_clothing_dir() / filename
         if img_path.exists() and img_path.is_file():
             img_path.unlink()
+    # Borrar las imágenes extras (front+back+detail multi-photo)
+    for extra in (item.get("images") or []):
+        extra_fn = extra.get("filename", "")
+        if extra_fn:
+            extra_path = brands.get_clothing_dir() / extra_fn
+            if extra_path.exists() and extra_path.is_file():
+                extra_path.unlink()
     brand["clothing"] = [c for c in brand["clothing"] if c["id"] != item_id]
     brands.save_brands(all_brands)
     return {"ok": True}
+
+
+# ── Multi-photo per clothing item ──────────────────────────────
+# Las prendas pueden tener hasta 3 fotos (1 principal + 2 extras) para que el
+# modelo entienda mejor el producto: típicamente front + back + detail. Las extras
+# se priorizan en Ecommerce Pack según el tipo de shot que se está generando.
+
+@app.post("/api/brands/{brand_id}/clothing/{item_id}/images")
+async def add_clothing_image(
+    brand_id: str,
+    item_id: str,
+    label: str = Form(""),
+    image: UploadFile = File(...),
+):
+    """Suma una foto extra a una prenda existente (hasta 2 extras además de la principal)."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((c for c in brand.get("clothing", []) if c["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Clothing item not found")
+
+    existing_images = item.get("images", [])
+    # Mismo criterio que productos: para prendas complejas (chaquetas con interior,
+    # detalles, varios ángulos) 3 es poco. Subido a 10.
+    if len(existing_images) >= 9:
+        raise HTTPException(status_code=400, detail="Maximum 10 images per clothing item (1 main + 9 extra)")
+
+    if not image.content_type or not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    ext = Path(image.filename or "clothing.png").suffix or ".png"
+    img_id = str(uuid.uuid4())[:8]
+    filename = f"{brand_id}_cloth_{item_id}_{img_id}{ext}"
+    filepath = brands.get_clothing_dir() / filename
+
+    content = await image.read()
+    with open(filepath, "wb") as f:
+        f.write(content)
+
+    img_entry = {
+        "filename": filename,
+        "imageUrl": f"/static/clothing/{filename}",
+        "label": label or f"Photo {len(existing_images) + 2}",
+    }
+    if "images" not in item:
+        item["images"] = []
+    item["images"].append(img_entry)
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.delete("/api/brands/{brand_id}/clothing/{item_id}/images/{image_idx}")
+def delete_clothing_image(brand_id: str, item_id: str, image_idx: int):
+    """Borra una imagen extra (por index dentro de item.images[]). La principal no se toca acá."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((c for c in brand.get("clothing", []) if c["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Clothing item not found")
+    images = item.get("images") or []
+    if image_idx < 0 or image_idx >= len(images):
+        raise HTTPException(status_code=404, detail="Image index out of range")
+    removed = images.pop(image_idx)
+    # Eliminar el archivo del disco
+    fn = removed.get("filename", "")
+    if fn:
+        path = brands.get_clothing_dir() / fn
+        if path.exists() and path.is_file():
+            path.unlink()
+    item["images"] = images
+    brands.save_brands(all_brands)
+    return item
 
 
 # ══════════════════════════════════════════════════════════════
@@ -2441,6 +2528,70 @@ async def analyze_video(
             "source_url": source_url,
             "video_size_mb": round(len(video_bytes) / 1024 / 1024, 1),
         }
+
+    finally:
+        if work_dir:
+            import shutil
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+
+class CurateMotionRequest(BaseModel):
+    text: str
+    sceneContext: str = ""
+
+
+@app.post("/api/curate/motion")
+async def curate_motion(req: CurateMotionRequest):
+    """Toma texto libre del usuario y devuelve motion prompt curado en inglés."""
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    if not req.text.strip():
+        return {"motion": ""}
+    motion = await image_analysis.curate_motion_prompt(req.text.strip(), req.sceneContext)
+    return {"motion": motion}
+
+
+@app.post("/api/analyze/motion")
+async def analyze_motion(
+    url: str = Form(""),
+    video: UploadFile = File(None),
+    image_context: str = Form(""),
+):
+    """Versión liviana de /api/analyze/video — devuelve solo motion suggestions
+    listas para inyectar al prompt de Kling. Usado por el step Animate para
+    "inspirar" el motion de un clip desde un video de referencia (URL o upload).
+    """
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+
+    video_bytes = None
+    mime_type = "video/mp4"
+    work_dir = None
+
+    try:
+        if video and video.filename:
+            video_bytes = await video.read()
+            mime_type = video.content_type or "video/mp4"
+        elif url.strip():
+            clean_url = url.strip()
+            is_tiktok = "tiktok.com" in clean_url or "vm.tiktok.com" in clean_url
+            if is_tiktok:
+                dl = await video_download.download_tiktok_tikwm(clean_url)
+            else:
+                dl = await video_download.download_video(clean_url)
+            work_dir = dl.get("work_dir")
+            video_path = Path(dl["path"])
+            video_bytes = video_path.read_bytes()
+            ext = video_path.suffix.lower()
+            mime_map = {".mp4": "video/mp4", ".webm": "video/webm", ".mkv": "video/x-matroska"}
+            mime_type = mime_map.get(ext, "video/mp4")
+        else:
+            raise HTTPException(status_code=400, detail="Provide a video URL or upload a video file")
+
+        result = await image_analysis.analyze_motion_from_video(
+            video_bytes, mime_type, image_context
+        )
+        return result
 
     finally:
         if work_dir:

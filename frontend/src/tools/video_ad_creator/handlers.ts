@@ -306,7 +306,7 @@ export const handleVoice: StepHandler = async (ctx) => {
 
 export const handleAnimate: StepHandler = async (ctx) => {
   const { config, getStepResult } = ctx;
-  const scriptData = getStepResult("script") as { frames: Array<{ transition: string; prompt: string }> } | undefined;
+  const scriptData = getStepResult("script") as { frames: Array<{ transition: string; prompt: string; animationHint?: string }> } | undefined;
   const imageData = getStepResult("images") as { images: Array<{ frame: number; url: string }> } | undefined;
 
   if (!imageData?.images || !scriptData?.frames) throw new Error("No images or script found.");
@@ -322,7 +322,14 @@ export const handleAnimate: StepHandler = async (ctx) => {
     // Use the selected style for animation prompt
     const adStyle = config.adStyle || "photorealistic";
     const styleLabel = AD_STYLES.find((s) => s.id === adStyle)?.label || adStyle;
-    const animPrompt = `Create a seamless ${styleLabel} animated transition between the first shot and the second shot in a ${styleLabel} animation style with sound effects (no talking)`;
+    // USER DIRECTION del usuario tipeada/inspirada en el step images. Si está,
+    // se inyecta con marca de prioridad para que Kling la respete sobre la
+    // descripción genérica del style.
+    const startFrameData = scriptData.frames.find((f, idx) => idx === i);
+    const userDirection = startFrameData?.animationHint?.trim()
+      ? ` USER DIRECTION (priority): ${startFrameData.animationHint.trim()}.`
+      : "";
+    const animPrompt = `Create a seamless ${styleLabel} animated transition between the first shot and the second shot in a ${styleLabel} animation style with sound effects (no talking).${userDirection}`;
 
     try {
       const requestId = await createKlingFrameToFrame(

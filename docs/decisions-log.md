@@ -193,6 +193,115 @@ Estimado: ~1-2 días. Riesgo alto (cambio de paradigma).
 
 ---
 
+## 2026-06 — Lab v2 reemplaza a Lab v1 (kill switch)
+
+**Contexto.** Después de iterar v2 durante varios días (sidebar split + galería derecha + SessionDrawer + Consistencia + dictation + drawer derecho overlay), v2 ya cubre el 80% de v1 con UX mejor. v1 quedó como ruido en el TopNav.
+
+**Decisión.** `/dashboard/lab` ahora renderiza `ManualLabV2`. `/dashboard/lab-v2` queda como alias. El pill "v2" del TopNav se eliminó. El link "Volver a v1" del header del Lab se eliminó. El archivo `ManualLab.tsx` **queda en disco** pero no se importa — restore es 3 minutos si hace falta.
+
+**Lo que v2 perdió respecto a v1** (pendiente de portar bajo demanda):
+- Copiloto deslizable
+- Audio refs para Seedance rtv (lipsync con voz)
+- Anchor mode con sticky chip "Editando esta imagen"
+- Pipeline suggestion banner
+- Batch mode "a cada imagen"
+
+**Lo que v2 ganó respecto a v1**:
+- Sidebar control + galería derecha (split layout estilo Freepik)
+- Bloques de generación con variantes lado a lado
+- Variantes con sus propias acciones en hover (sin ambigüedad)
+- Lightbox con navegación entre variantes (teclado ← / → + flechas en pantalla + descarga)
+- Dictation (Web Speech API → es-AR → appendea al prompt)
+- Refs con replace-in-place (mantiene el `[imgN]`, no perdés menciones del prompt)
+- Look & Feel con 3 caminos (saved / upload / receta a mano)
+- **Consistencia** — anchor de identidad o producto (ver entrada propia)
+- Drawer derecho overlay con thumbs de la sesión
+- @-mention popover en el prompt
+- Animar con prompt default + recomendador Gemini Vision
+
+---
+
+## 2026-06 — Consistencia (anchor por tipo: avatar o producto)
+
+**Contexto.** El usuario pidió un equivalente de Look & Feel pero para identidad: "tengo una foto de un modelo pero le quiero pasar una foto buena de la cara para que ajuste consistencia". Mi primera versión declaró "esta imagen es la ground truth de identidad" sin diferenciar el TIPO de cosa anclada.
+
+**Decisión.** Distinguir el tipo (`avatar` vs `product`) y construir prompts distintos. Modelo mental:
+
+> Output = `[img1]` tal cual, **excepto** el aspecto declarado (cara o producto) que se reemplaza para matchear la ref de consistencia.
+
+Tres caminos en el panel:
+1. Avatares guardados → tipo `avatar` (reemplaza cara/identidad)
+2. Productos guardados → tipo `product` (reemplaza producto)
+3. Subir ad-hoc → DOS botones (Cara / Producto) para que el usuario declare el tipo
+
+Solo una ref de consistencia activa a la vez (la nueva reemplaza la anterior). Marcada con badge "ID" burgundy + border doble en la card.
+
+**Limitación honesta.** Nano Banana 2 no tiene face/subject conditioning real. Es prompt engineering agresivo. Para identity preservation 100% hay que migrar a Flux Kontext, Higgsfield, etc. (cambio de provider, no de prompt).
+
+---
+
+## 2026-06 — Multi-foto por prenda (ClothingItem)
+
+**Contexto.** `ClothingItem` solo tenía `imageUrl`. Para Ecommerce Pack significaba que el modelo veía la prenda solo desde un ángulo → cuando renderizaba la espalda o un detalle, se la inventaba. `Product` ya tenía `images[]` (multi-foto).
+
+**Decisión.** Extender `ClothingItem` con `images?: Array<{filename, imageUrl, label?}>` (front + 2 extras). Endpoint nuevo `POST /api/brands/:id/clothing/:cid/images`. UI en Brand Settings replica el patrón de Products.
+
+**Ecommerce Pack lo consume con priorización smart por tipo de shot**: front siempre va; back/detail van solo cuando el shot lo pide. Cap de 8 refs respeta el límite de Fal.
+
+---
+
+## 2026-06 — Fashion Reel Looks mode con shots seleccionables (multi-shot por outfit)
+
+**Contexto.** Looks mode generaba **una escena por outfit** con un cycle rotativo de framings (close-up / medium / full-body / medium-close). Para video catálogo profesional ("modelo con fondo estudio, plano general + plano detalle por cada outfit") faltaba poder elegir QUÉ planos generar por look.
+
+**Decisión.** `VIDEO_SHOT_CATALOG` con 4 shots (`general`, `medium`, `detail`, `back`). Cada outfit × cada shot tildado = una escena. Defaults: `general + detail`. Cada shot tiene su propio `motion` que `handleAnimate` inyecta (ej. `detail` = dolly-in lento, no sway de modelo).
+
+**Pipeline reusado**: `handleBaseImage` / `handleMultishot` ahora hacen lookup del outfit por `scene.garmentId` (no más `slice(i, i+1)` que asumía 1 escena = 1 outfit). El render concatena en el orden del array.
+
+**No incluido** (deliberado): shots de lifestyle (caminando, sentado, etc.). El usuario los pidió fuera por ahora — se introducen junto con pose-ref por shot cuando llegue ese sprint.
+
+---
+
+## 2026-06 — Surfaces dark con más contraste + paleta brand burgundy + light mode menos blanco
+
+**Contexto.** El cambio anterior a "off-white minimal" había aplastado toda jerarquía. Las cards se confundían con el bg. El usuario reportó "todo muy liso". En light mode, el blanco puro cansaba la vista.
+
+**Decisión.** Tres cambios en `index.css`:
+1. **Surfaces dark mode**: más separación entre niveles (`canvas #060608 → surface-3 #3c3c45`). Cards "flotan" sobre bg.
+2. **Brand burgundy** (`#C45830`): acento secundario para hover de pills, border de variante activa, badges, focus rings. **No** se usa como fill en CTA primario (Generar sigue blanco).
+3. **Light mode**: canvas y surfaces en grises finos (`#e5e5e8 → #d4d4d7`). Las cards distinguen por contraste, no por blancura.
+
+**Burgundy se eligió** porque está en los docs de marca de Coevo. La alternativa era naranja vivo `#E07B3C` — descartada por menos editorial.
+
+---
+
+## 2026-06 — Anti-OOM: limpieza de 649 MB de data URLs + saneamiento al persistir
+
+**Contexto.** Lab v2 reventaba con "Aw, Snap! Error 5" al cargar. Diagnóstico: `backend/data/generations.json` tenía **649.8 MB** de data URLs base64 acumuladas en `metadata.refs[].url`. Cada vez que el browser hacía fetch del histórico, OOM instantáneo.
+
+**Decisión y ejecución.**
+1. **Script de limpieza** ejecutado: 171 data URLs reemplazadas por strings vacíos. Archivo pasó de ~650 MB → 4.3 MB. Backup en `generations.json.before_oom_cleanup`.
+2. **`sanitizeRefsForPersist` en client**: al guardar nueva generación, descarta `data:` URLs antes de mandar al backend. Solo persiste URLs `http(s)://`.
+3. **Load del Lab v2**: descarta `refs` (no las trae a memoria) + cap a 20 generaciones + filtro por `toolId === "manual_lab"` (antes traía generaciones de TODAS las tools, contaminando + cargando todo).
+
+**Lo que se perdió**: si tocás "Regenerar" en una generación antigua del histórico, las refs vienen vacías y tenés que volver a subirlas. Tradeoff razonable — la galería no se rompe con la deuda histórica.
+
+---
+
+## 2026-06 — ToolRunPage gigante (DEUDA UX abierta)
+
+**Contexto.** Las páginas de tools (`/dashboard/generate/<tool>`) acumularon mucho durante 2025-2026: brief box, Coevo Agent, mode toggle, visual style, references, allow faces, tabs de assets, ajustes técnicos en desplegable, motor de video, duración, direction, setting, style ref. Para configurar Fashion Reel hay que scrollear 3 veces. Cada sección es su propia card. Ajustes técnicos están detrás de un desplegable que casi nadie abre.
+
+**Diagnóstico**: arquitectura visual heredada de v1 del Lab (cards apiladas verticales). El Lab v2 demostró que el patrón **sidebar control 420px + área principal** funciona mejor para flujos densos.
+
+**Decisión.** Replicar el layout split de Lab v2 en `ToolRunPage`. Sidebar izquierdo con TODA la config compacta; área principal con steps del pipeline + resultado.
+
+**Pendiente** — el diseño concreto se discute en un sprint dedicado. Las dimensiones son grandes (ToolRunPage tiene 6000+ líneas, lógica de 10+ tools). Approach progresivo: arrancar por Fashion Reel y Ecommerce Pack (las más usadas) y migrar las otras tools una por una.
+
+**No aplicar a todas las tools indiscriminadamente** — Content Analyzer, Avatar Sheet, Product Sheet tienen flujos lineales que el layout actual cubre bien. El split solo gana en tools con muchos parámetros (Fashion Reel, Ecommerce Pack, Video Ad Creator).
+
+---
+
 ## Cómo usar este archivo
 
 - **Agregar entrada cuando.** Tomamos una decisión que: (a) descarta otra opción razonable, (b) no es obvia leyendo el código, (c) podría confundir a otro dev futuro o re-discutir en 3 meses.
