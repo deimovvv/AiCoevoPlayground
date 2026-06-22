@@ -26,6 +26,7 @@ import {
   Wand2,
   UploadCloud,
   Sun,
+  ChevronDown,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
@@ -143,6 +144,7 @@ export function BrandSettings() {
         <BackgroundsCard />
         <VoicesCard />
         <ClothingCard />
+        <ClothingCard accessoryMode />
       </div>
 
       {/* ④ EXTRAS — opcionales, colapsados */}
@@ -566,8 +568,11 @@ function AvatarsCard() {
   return (
     <Card
       icon={<ImageIcon size={16} />}
-      title={`Avatars (${avatars.length})`}
+      title="Avatars"
+      count={avatars.length}
       description="Personas/modelos usados en generación de contenido"
+      collapsible
+      defaultCollapsed
       action={
         <button
           onClick={() => setShowUpload(!showUpload)}
@@ -841,8 +846,11 @@ function ProductsCard() {
   return (
     <Card
       icon={<Package size={16} />}
-      title={`Productos (${products.length})`}
+      title="Productos"
+      count={products.length}
       description="Imágenes de productos disponibles para generación"
+      collapsible
+      defaultCollapsed
       action={
         <button
           onClick={() => setShowUpload(!showUpload)}
@@ -1119,7 +1127,13 @@ function ProductTile({
 
 // ── Clothing Card ───────────────────────────────────────────
 
-function ClothingCard() {
+function ClothingCard({ accessoryMode = false }: { accessoryMode?: boolean }) {
+  // Card reusada para Prendas y Accesorios. Ambos se guardan en el mismo storage
+  // (activeBrand.clothing) — el tag "accessory" en cada item los distingue.
+  // Pragmático: evita una entidad nueva en backend, mantiene la UX clara (dos
+  // Cards distintas en BrandSettings, dos counts independientes).
+  // - accessoryMode=false: muestra los SIN tag accessory, sube con tag libre
+  // - accessoryMode=true: muestra solo los CON tag accessory, sube auto-taggeado
   const { activeBrand, refreshBrands } = useBrand();
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -1134,14 +1148,24 @@ function ClothingCard() {
 
   if (!activeBrand) return null;
 
-  const clothing = activeBrand.clothing || [];
+  // Filtrado por tag — la fuente de verdad es activeBrand.clothing.
+  // Items con tag "accessory" (en cualquier parte del array tags) son accesorios.
+  const isAccessoryItem = (c: { tags?: string[] }) => (c.tags || []).some((t) => t === "accessory");
+  const allClothing = activeBrand.clothing || [];
+  const clothing = accessoryMode
+    ? allClothing.filter(isAccessoryItem)
+    : allClothing.filter((c) => !isAccessoryItem(c));
 
   const handleUpload = async () => {
     if (!file || !name.trim()) return;
     setUploading(true);
     setError(null);
     try {
-      await uploadClothing(activeBrand.id, name.trim(), file, description.trim(), tags.trim());
+      // En accessoryMode, forzamos el tag "accessory" además de los que ponga el usuario.
+      const tagString = accessoryMode
+        ? [tags.trim(), "accessory"].filter(Boolean).join(",")
+        : tags.trim();
+      await uploadClothing(activeBrand.id, name.trim(), file, description.trim(), tagString);
       await refreshBrands();
       setShowUpload(false);
       setName("");
@@ -1181,9 +1205,14 @@ function ClothingCard() {
 
   return (
     <Card
-      icon={<Shirt size={16} />}
-      title={`Prendas (${clothing.length})`}
-      description="Prendas disponibles para outfits de avatars"
+      icon={accessoryMode ? <Sparkles size={16} /> : <Shirt size={16} />}
+      title={accessoryMode ? "Accesorios" : "Prendas"}
+      count={clothing.length}
+      description={accessoryMode
+        ? "Zapatos, joyas, gorras, cinturones — usados en on-model pero NO generan flats propios"
+        : "Prendas disponibles para outfits de avatars"}
+      collapsible
+      defaultCollapsed
       action={
         <button
           onClick={() => setShowUpload(!showUpload)}
@@ -1485,8 +1514,11 @@ function VoicesCard() {
   return (
     <Card
       icon={<Mic size={16} />}
-      title={`Voces (${voices.length})`}
+      title="Voces"
+      count={voices.length}
       description="IDs de voces de ElevenLabs para generación TTS"
+      collapsible
+      defaultCollapsed
     >
       <div className="space-y-3">
         {voices.length === 0 && !showAdd && (
@@ -2070,8 +2102,11 @@ function BackgroundsCard() {
   return (
     <Card
       icon={<Mountain size={16} />}
-      title={`Fondos (${backgrounds.length})`}
+      title="Fondos"
+      count={backgrounds.length}
       description="Escenas y fondos para UGC y generación de contenido"
+      collapsible
+      defaultCollapsed
       action={
         <button
           onClick={() => setShowUpload(!showUpload)}
@@ -2254,8 +2289,11 @@ function MoodboardsCard() {
   return (
     <Card
       icon={<Palette size={16} />}
-      title={`Moodboard (${moodboards.length}/5)`}
+      title="Moodboard"
+      count={`${moodboards.length}/5`}
       description="Referencias de estilo visual — uno activo por tool"
+      collapsible
+      defaultCollapsed
       action={
         !atLimit ? (
           <button
@@ -2427,8 +2465,11 @@ function LookAndFeelCard() {
   return (
     <Card
       icon={<Sun size={16} />}
-      title={`Look & Feel (${items.length})`}
+      title="Look & Feel"
+      count={items.length}
       description="Referencias de iluminación / color — se aplican a una imagen en Lab"
+      collapsible
+      defaultCollapsed
       action={
         !atLimit ? (
           <button
@@ -2598,26 +2639,82 @@ function Card({
   description,
   action,
   children,
+  collapsible,
+  defaultCollapsed = true,
+  count,
 }: {
   icon: React.ReactNode;
   title: string;
   description: string;
   action?: React.ReactNode;
   children: React.ReactNode;
+  /** Si true, el header se vuelve un toggle (chevron) y el body se renderiza
+   *  solo cuando está expandido. Pensado para los 8 Cards de Assets que en
+   *  conjunto rompen el scroll vertical de la página BrandSettings. */
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
+  /** Conteo o chip a mostrar al lado del título (ej. "12 productos").
+   *  Solo visible cuando collapsible está activo y sirve para que entiendas
+   *  cuánto hay sin tener que expandir. */
+  count?: string | number;
 }) {
+  const [open, setOpen] = useState(!collapsible || !defaultCollapsed);
+
+  // No-collapsible: render igual que antes para no romper otros usos.
+  if (!collapsible) {
+    return (
+      <div className="bg-surface-1 border border-edge rounded-[var(--radius-lg)] overflow-hidden">
+        <div className="px-5 py-4 border-b border-edge-subtle flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 text-fg-muted">{icon}</div>
+            <div>
+              <h3 className="text-[14px] font-semibold text-fg">{title}</h3>
+              <p className="text-[12px] text-fg-faint mt-0.5">{description}</p>
+            </div>
+          </div>
+          {action}
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    );
+  }
+
+  // Collapsible: el header entero (excepto la zona de `action`) actúa como toggle.
   return (
     <div className="bg-surface-1 border border-edge rounded-[var(--radius-lg)] overflow-hidden">
-      <div className="px-5 py-4 border-b border-edge-subtle flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
+      <div className={cn("px-5 py-4 flex items-start justify-between gap-3", open && "border-b border-edge-subtle")}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-start gap-3 text-left flex-1 min-w-0 cursor-pointer group"
+          aria-expanded={open}
+        >
+          <ChevronDown
+            size={15}
+            className={cn(
+              "mt-1 text-fg-faint group-hover:text-fg-muted shrink-0 transition-transform",
+              !open && "-rotate-90"
+            )}
+          />
           <div className="mt-0.5 text-fg-muted">{icon}</div>
-          <div>
-            <h3 className="text-[14px] font-semibold text-fg">{title}</h3>
-            <p className="text-[12px] text-fg-faint mt-0.5">{description}</p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <h3 className="text-[14px] font-semibold text-fg">{title}</h3>
+              {count !== undefined && count !== "" && (
+                <span className="text-[11px] font-medium text-fg-faint bg-surface-2 border border-edge-subtle px-1.5 py-0.5 rounded-full">
+                  {count}
+                </span>
+              )}
+            </div>
+            {/* La descripción solo aparece expandida — comprimida queda más limpio. */}
+            {open && (
+              <p className="text-[12px] text-fg-faint mt-0.5">{description}</p>
+            )}
           </div>
-        </div>
-        {action}
+        </button>
+        {action && <div onClick={(e) => e.stopPropagation()}>{action}</div>}
       </div>
-      <div className="p-5">{children}</div>
+      {open && <div className="p-5">{children}</div>}
     </div>
   );
 }
@@ -3182,8 +3279,11 @@ function LogoCard() {
   return (
     <Card
       icon={<ImageIcon size={16} />}
-      title={`Logos (${total})`}
+      title="Logos"
+      count={total}
       description="Isotipo, logotipo y variantes — disponibles en Lab como assets"
+      collapsible
+      defaultCollapsed
       action={
         !atLimit ? (
           <button

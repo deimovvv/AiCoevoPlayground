@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { useBrand } from "../lib/BrandContext";
 import { fetchGenerations, deleteGeneration, createReview, getGenerationReview, listReviews, ensureBrandPortal, setGenerationPublished } from "../lib/api";
 import type { Generation, ReviewData } from "../lib/api";
-import { cn } from "../lib/utils";
+import { cn, downloadUrl } from "../lib/utils";
 import { downloadFile } from "../lib/download";
 
 const API_BASE = "http://127.0.0.1:8000";
@@ -712,14 +712,14 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                     {/* Actions */}
                     <div className="flex gap-3 pt-2 border-t border-edge">
                         {fullVideoUrl && (
-                            <a
-                                href={fullVideoUrl}
-                                download={`${gen.title.replace(/[^a-zA-Z0-9]/g, "_")}.mp4`}
+                            <button
+                                type="button"
+                                onClick={() => downloadUrl(fullVideoUrl, `${gen.title.replace(/[^a-zA-Z0-9]/g, "_")}.mp4`)}
                                 className="flex-1 flex items-center justify-center gap-2 py-2.5 text-[13px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
                             >
                                 <Download size={14} />
                                 Download
-                            </a>
+                            </button>
                         )}
                         {gen.pipelineState && (
                             <Link

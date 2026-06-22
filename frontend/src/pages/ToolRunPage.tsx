@@ -34,6 +34,7 @@ import {
   X,
   Mountain,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
@@ -55,14 +56,16 @@ import {
   type TikTokVideo,
   type ActionCategory,
 } from "../lib/api";
-import { cn } from "../lib/utils";
-import { downloadFile } from "../lib/download";
+import { cn, downloadUrl } from "../lib/utils";
+import { downloadFile, downloadZip } from "../lib/download";
 import { ImageEditPanel } from "../components/ImageEditPanel";
-import { SHOT_CATALOG, STUDIO_STYLES } from "../tools/ecommerce_pack";
+import { SHOT_CATALOG, STUDIO_STYLES, POSE_PRESETS } from "../tools/ecommerce_pack";
+import { AVATAR_VIEWS } from "../tools/avatar_creator";
 import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "../tools/fashion_reel";
 import { PRODUCT_VIEW_CATALOG, DEFAULT_PRODUCT_VIEWS } from "../tools/product_sheet";
 import { EDITORIAL_FRAMINGS, EDITORIAL_LIGHTING, EDITORIAL_VIBES } from "../tools/fashion_editorial";
 import { Collapsible } from "../components/ui/section";
+import { ModelDropdown } from "../components/ui/ModelDropdown";
 import { ComposeOverlay } from "../components/ComposeOverlay";
 import { UGCPlayer } from "../remotion/UGCPlayer";
 import { TOOL_DEFINITIONS } from "../tools/registry";
@@ -252,6 +255,21 @@ interface StepState {
   error?: string;
 }
 
+// ── Batches acumulativas para tools multi-shot ──────────────────
+// Cada Generar exitoso en ecommerce_pack (y futuras tools batchables) pushea
+// uno de estos. El renderer muestra todos apilados, más reciente arriba.
+interface BatchEntry {
+  id: string;             // único: timestamp+random
+  createdAt: number;      // ms epoch — para etiquetar "hace 5 min"
+  label: string;          // derivado de la config (ej. "Flats · 6 imágenes")
+  shotIds: string[];      // qué shots se eligieron en esa tanda
+  images: Array<{ id: string; url: string; label: string; prompt?: string; status?: string }>;
+}
+
+// Tools donde activamos el comportamiento de tandas acumulativas.
+// Si una tool NO está acá, el render del result sigue siendo lineal (1 sola tanda).
+const BATCHABLE_TOOLS = new Set<string>(["ecommerce_pack"]);
+
 // ── Tool config state ──────────────────────────────────────
 
 interface ToolConfig {
@@ -303,6 +321,16 @@ interface ToolConfig {
   // cada shot tildado y el handler la pasa como ref al generar ESE shot.
   // Da dinámica (poses dinámicas en lugar de modelo duro). One-off, no Brand Kit.
   ecomShotPoses: Record<string, string>;
+  /** Preset textual de pose para Ecommerce Pack. "auto" = rota entre 8 poses
+   *  preset (una por shot). Una pose preset específica = todos los shots con
+   *  esa pose. "upload" = el usuario sube imagen ref (pose transfer 2-step).
+   *  Por default "auto" para que el catálogo tenga variedad. */
+  ecomPosePreset: string;
+  // Clothing items marcados como "solo styling" — accesorios (zapatillas, collar,
+  // gorra) que aparecen como ref en on-model shots pero NO generan flats propios.
+  // Subset de selectedClothingIds. Reportado: "me pasan también las zapatillas o
+  // un collar, no necesito foto de producto de eso".
+  ecomAccessoryIds: string[];
   // Fashion Reel — Looks mode: shots seleccionados por outfit (general / detail / etc.)
   // Cantidad por shot: un shot puede repetirse N veces para generar varias escenas
   // del mismo plano (ej. 2 planos generales del mismo outfit). El array contiene
@@ -388,6 +416,8 @@ const DEFAULT_CONFIG: ToolConfig = {
   studioStyle: "white",
   ecomShots: ["model_front", "model_back", "model_detail", "flat_front"],
   ecomShotPoses: {},
+  ecomPosePreset: "auto",
+  ecomAccessoryIds: [],
   looksShots: ["general", "detail"],
   locationPreset: "brand",
   clipDuration: "5",
@@ -534,6 +564,18 @@ export function ToolRunPage() {
   const [pendingAutoRun, setPendingAutoRun] = useState(false);
   const [config, setConfig] = useState<ToolConfig>(DEFAULT_CONFIG);
   const [agentInfo, setAgentInfo] = useState<{ reasoning?: string; warnings?: string[] } | null>(null);
+  // ── Batches acumulativas (tools multi-shot) ───────────────────────────────
+  // Cada vez que termina una corrida exitosa del step generate_all en una tool
+  // batchable (ecommerce_pack por ahora; sumar fashion_reel/product_sheet después),
+  // pusheamos una entry acá. El renderer detecta batches.length > 1 y muestra la
+  // vista stacked en lugar de la lineal. Permite "generé flats, ahora on-model
+  // sin perder lo de antes". Scope: sesión (se pierde al recargar — OK por ahora,
+  // si el usuario quiere persistencia lo migramos a /content).
+  const [batches, setBatches] = useState<BatchEntry[]>([]);
+  // Flag para que el próximo Generar del usuario SUME una tanda en vez de pisar
+  // la sesión actual. Se enciende cuando clickeás "Nueva tanda" desde el panel
+  // de resultados.
+  const [newBatchPending, setNewBatchPending] = useState(false);
   const [mockRunning, setMockRunning] = useState(false);
   const [curationSelections, setCurationSelections] = useState<Record<string, string>>({}); // sceneId → variationId
   const [audioCache, setAudioCache] = useState<Record<string, { url: string; blob: Blob }>>({}); // sceneId → {url, blob}
@@ -543,6 +585,10 @@ export function ToolRunPage() {
   // Keep refs in sync so async callbacks always read latest
   useEffect(() => { stepsRef.current = steps; }, [steps]);
   useEffect(() => { audioCacheRef.current = audioCache; }, [audioCache]);
+  // Reset de tandas al cambiar de tool — evita que entres a otra tool y veas
+  // tandas viejas con outputs de la anterior. Scope sigue siendo "una sesión
+  // por tool".
+  useEffect(() => { setBatches([]); setNewBatchPending(false); }, [toolId]);
 
   useEffect(() => {
     if (!toolId) return;
@@ -687,6 +733,11 @@ export function ToolRunPage() {
       config,
       steps,
       curationSelections,
+      // Persisto las tandas para que al abrir un run viejo desde /content veas
+      // TODAS las imágenes generadas, no solo la última tanda.
+      batches: BATCHABLE_TOOLS.has(tool.id) && batches.length > 0
+        ? batches.map((b) => ({ ...b })) as Array<Record<string, unknown>>
+        : undefined,
       payload: {
         title: `${tool.name} — ${new Date().toLocaleDateString()}`,
         type: isVideoTool ? "video" : "image",
@@ -697,7 +748,7 @@ export function ToolRunPage() {
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       },
     }).catch(() => { /* handled inside */ });
-  }, [steps, tool, activeBrand, started, config, curationSelections]);
+  }, [steps, tool, activeBrand, started, config, curationSelections, batches]);
 
   // Load saved generation pipeline state if ?gen= param present
   useEffect(() => {
@@ -706,7 +757,12 @@ export function ToolRunPage() {
       .then((r) => { if (!r.ok) throw new Error("Not found"); return r.json(); })
       .then((gen) => {
         if (!gen.pipelineState) return;
-        const { steps: savedSteps, config: savedConfig, curationSelections: savedCurations } = gen.pipelineState;
+        const { steps: savedSteps, config: savedConfig, curationSelections: savedCurations, batches: savedBatches } = gen.pipelineState;
+        // Restaurar tandas — sin esto, abrir un run viejo de ecommerce_pack solo
+        // mostraba la última tanda generada.
+        if (Array.isArray(savedBatches) && savedBatches.length > 0) {
+          setBatches(savedBatches as BatchEntry[]);
+        }
         // Restore steps — mark all as "done" so user can navigate and re-run from any
         if (Array.isArray(savedSteps) && savedSteps.length > 0) {
           // Multishot/curation need "review" status so the interactive CurationPanel renders.
@@ -1432,6 +1488,29 @@ export function ToolRunPage() {
           return;
         }
 
+        // ── Tandas acumulativas ────────────────────────────────────────────
+        // Si la tool soporta batches y el step generate_all devolvió un set de
+        // imágenes exitosas, pusheamos a la pila. La pila persiste entre
+        // generaciones aunque cambies la config; "Nueva tanda" desde el panel
+        // de resultados es lo que dispara este push.
+        if (BATCHABLE_TOOLS.has(tool.id) && step.id === "generate_all" && result && typeof result === "object") {
+          const r = result as { images?: Array<{ id: string; url: string; label: string; prompt?: string; status?: string }> };
+          const successful = (r.images || []).filter((im) => im.url);
+          if (successful.length > 0) {
+            const shotIds = (config as unknown as Record<string, unknown>).ecomShots as string[] || [];
+            const label = describeBatch(tool.id, shotIds, successful.length);
+            const entry: BatchEntry = {
+              id: `batch_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+              createdAt: Date.now(),
+              label,
+              shotIds: [...shotIds],
+              images: successful,
+            };
+            setBatches((prev) => [entry, ...prev]);
+            setNewBatchPending(false);
+          }
+        }
+
         advanceStep(stepIndex, result, { needsApproval });
 
         // Auto-run next step if configured — run immediately
@@ -2133,12 +2212,17 @@ export function ToolRunPage() {
               config no surte efecto en los steps ya generados — para volver a usar
               el form, Reset en el header → empezar de cero. También aplica cuando
               se carga una generación histórica desde Contenido (started ya es true).
-              Reportado: "el form sigue activo aunque ya se ejecutó". */}
+              Reportado: "el form sigue activo aunque ya se ejecutó".
+
+              EXCEPCIÓN — tools batchables (ecommerce_pack, etc.): el form queda
+              SIEMPRE editable. Cada Generar SUMA una tanda en lugar de pisar la
+              corrida anterior. El banner cambia para explicarlo. */}
           {(() => {
-            const disabled = mockRunning || started;
+            const isBatchable = !!tool && BATCHABLE_TOOLS.has(tool.id);
+            const disabled = mockRunning || (started && !isBatchable);
             const bannerText = mockRunning
               ? "Pipeline corriendo — esperá a que termine para modificar config."
-              : started
+              : started && !isBatchable
                 ? "Pipeline ya ejecutado — para cambiar la config, tocá Reset arriba."
                 : "";
             return (
@@ -2168,28 +2252,41 @@ export function ToolRunPage() {
                 <span className="leading-snug">{validationError}</span>
               </div>
             )}
-            {!started ? (
-              <button
-                onClick={handleStart}
-                disabled={!activeBrand}
-                className={cn(
-                  "w-full flex items-center justify-center gap-2 px-4 py-3 text-[13px] font-bold uppercase tracking-wide rounded-[var(--radius-md)] transition-all cursor-pointer",
-                  activeBrand
-                    // Glow burgundy debajo del CTA — el fill queda blanco (no rompe la
-                    // jerarquía de "acción primaria neutra") pero el halo da personalidad.
-                    // En hover el halo se intensifica.
-                    ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:brightness-105 shadow-[0_4px_24px_-6px_var(--color-brand-muted)] hover:shadow-[0_6px_32px_-4px_var(--color-brand)]"
-                    : "text-fg-faint bg-surface-2 cursor-not-allowed"
-                )}
-              >
-                <Play size={14} fill="currentColor" />
-                Generar
-              </button>
-            ) : (
-              <div className="text-[10px] text-fg-faint text-center">
-                Pipeline corriendo — ajustá la config arriba y usá "Reset" en el header si necesitás re-empezar.
-              </div>
-            )}
+            {(() => {
+              // Footer del sidebar:
+              // - Tool batchable + ya started → seguimos mostrando "Generar" pero con label
+              //   "Generar tanda" porque cada Run SUMA en lugar de pisar.
+              // - Tool no-batchable + ya started → mensaje "Pipeline corriendo…" como antes.
+              // - !started → botón Generar inicial.
+              const isBatchable = !!tool && BATCHABLE_TOOLS.has(tool.id);
+              const batchCount = batches.length;
+              if (!started || isBatchable) {
+                const label = (started && isBatchable && batchCount > 0)
+                  ? `Generar tanda ${batchCount + 1}`
+                  : "Generar";
+                return (
+                  <button
+                    onClick={handleStart}
+                    disabled={!activeBrand || mockRunning}
+                    className={cn(
+                      "w-full flex items-center justify-center gap-2 px-4 py-3 text-[13px] font-bold uppercase tracking-wide rounded-[var(--radius-md)] transition-all cursor-pointer",
+                      activeBrand && !mockRunning
+                        ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:brightness-105 shadow-[0_4px_24px_-6px_var(--color-brand-muted)] hover:shadow-[0_6px_32px_-4px_var(--color-brand)]"
+                        : "text-fg-faint bg-surface-2 cursor-not-allowed"
+                    )}
+                    title={isBatchable && batchCount > 0 ? "Suma una nueva tanda al stack — no pisa las anteriores" : undefined}
+                  >
+                    <Play size={14} fill="currentColor" />
+                    {label}
+                  </button>
+                );
+              }
+              return (
+                <div className="text-[10px] text-fg-faint text-center">
+                  Pipeline corriendo — ajustá la config arriba y usá "Reset" en el header si necesitás re-empezar.
+                </div>
+              );
+            })()}
           </div>
         </aside>
 
@@ -2307,6 +2404,25 @@ export function ToolRunPage() {
                   if (idx < 0) return prev;
                   return prev.map((s, i) => (i > idx && s.result ? { ...s, status: "stale" as StepStatus } : s));
                 })}
+                batches={tool && BATCHABLE_TOOLS.has(tool.id) ? batches : undefined}
+                onNewBatch={tool && BATCHABLE_TOOLS.has(tool.id) ? (() => {
+                  // "Nueva tanda": re-activamos el step generate_all para que el
+                  // usuario edite config (desde el sidebar) y dale Generar de nuevo.
+                  // El próximo result se SUMA al stack en lugar de pisar.
+                  setNewBatchPending(true);
+                  setSteps((prev) => prev.map((s) => s.id === "generate_all" ? { ...s, status: "active" as StepStatus, result: undefined } : s));
+                  const idx = steps.findIndex((s) => s.id === "generate_all");
+                  if (idx >= 0) setActiveStep(idx);
+                }) : undefined}
+                onDeleteBatch={tool && BATCHABLE_TOOLS.has(tool.id) ? ((batchId: string) => {
+                  setBatches((prev) => prev.filter((b) => b.id !== batchId));
+                }) : undefined}
+                onUpdateBatchImage={tool && BATCHABLE_TOOLS.has(tool.id) ? ((batchId, imageId, newUrl) => {
+                  setBatches((prev) => prev.map((b) => b.id === batchId
+                    ? { ...b, images: b.images.map((im) => im.id === imageId ? { ...im, url: newUrl, status: "done" } : im) }
+                    : b
+                  ));
+                }) : undefined}
               />
             )}
           </div>
@@ -2693,6 +2809,13 @@ function ConfigPanel({
     ? { ...baseSchema, showAvatar: true, avatarRequired: true }
     : baseSchema;
   const [systemVoices, setSystemVoices] = useState<Array<{ id: string; name: string; language: string }>>([]);
+  // Upload state para la sección Accesorios (ecommerce_pack). Cuando el usuario
+  // sube un archivo, va directo via uploadClothing con tag "accessory" y queda
+  // auto-marcado en ecomAccessoryIds + selectedClothingIds para que el handler
+  // lo levante en la próxima corrida. Sin esto, había que ir a BrandSettings,
+  // subir, volver, tildar como accesorio — 3 pasos.
+  const [accessoryUploading, setAccessoryUploading] = useState(false);
+  const accessoryInputRef = useRef<HTMLInputElement>(null);
   const [actionCategories, setActionCategories] = useState<ActionCategory[]>([]);
   const [actionPickerScene, setActionPickerScene] = useState<number | null>(null);
   const [actionPickerTab, setActionPickerTab] = useState<string>("");
@@ -2703,6 +2826,9 @@ function ConfigPanel({
     suggested_slot: string;
   } | null>(null);
   const [classifyingRef, setClassifyingRef] = useState(false);
+  // Lightbox local del ConfigPanel — usado para zoom de pose refs por shot en
+  // Ecommerce Pack y cualquier thumb del sidebar que quiera abrir en grande.
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSystemVoices().then(setSystemVoices).catch(() => {});
@@ -2796,111 +2922,110 @@ function ConfigPanel({
         <ContentAnalyzerInput config={config} setConfig={setConfig} />
       )}
 
-      {/* Avatar tool mode toggle + style selector */}
-      {tool.id === "avatar_creator" && (
-        <>
-          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
-            <label className="text-[12px] font-semibold text-fg-secondary">¿Qué querés hacer?</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setConfig((p) => ({ ...p, avatarToolMode: "create" }))}
-                className={cn(
-                  "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
-                  config.avatarToolMode !== "poses"
-                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
-                    : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
-                )}
-              >
-                <div className="font-semibold">Crear nuevo avatar</div>
-                <div className="text-[9px] text-fg-faint mt-0.5">Gemini arma un perfil desde el brand context y genera la pose sheet</div>
-              </button>
-              <button
-                onClick={() => setConfig((p) => ({ ...p, avatarToolMode: "poses" }))}
-                className={cn(
-                  "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
-                  config.avatarToolMode === "poses"
-                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
-                    : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
-                )}
-              >
-                <div className="font-semibold">Poses de un avatar existente</div>
-                <div className="text-[9px] text-fg-faint mt-0.5">Tomás un avatar del Brand Kit y generás la pose sheet en fondo blanco</div>
-              </button>
-            </div>
-          </div>
+      {/* Avatar tool — modo + style + save destination con ModelDropdown.
+          Antes eran grids de cards grandes (2 cards arriba + 7 cards 3×3 abajo)
+          que comían ~300px de altura. Con dropdowns finos ~80px total. */}
+      {tool.id === "avatar_creator" && (() => {
+        const cfgStyle = (config as Record<string, unknown>).avatarStyle as string | undefined;
+        const defaultStyle = config.avatarToolMode === "poses" ? "inherit" : "realistic";
+        const currentStyle = cfgStyle || defaultStyle;
+        return (
+          <>
+            <ModelDropdown
+              label="¿Qué querés hacer?"
+              value={config.avatarToolMode === "poses" ? "poses" : "create"}
+              onChange={(next) => setConfig((p) => ({ ...p, avatarToolMode: next as "create" | "poses" }))}
+              options={[
+                { id: "create", label: "Crear nuevo avatar", sub: "Gemini arma un perfil desde el brand context y genera la pose sheet" },
+                { id: "poses", label: "Poses de un avatar existente", sub: "Tomás un avatar del Brand Kit y generás la pose sheet en fondo blanco" },
+              ]}
+            />
 
-          {config.avatarToolMode === "poses" && (
-            <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
-              <label className="text-[12px] font-semibold text-fg-secondary">Guardar como</label>
-              <div className="inline-flex bg-surface-2 rounded-[var(--radius-sm)] p-0.5 gap-0.5">
-                <button
-                  onClick={() => setConfig((p) => ({ ...p, avatarPosesSave: "new" }))}
-                  className={cn(
-                    "px-3 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                    config.avatarPosesSave !== "replace" ? "bg-fg text-[var(--color-canvas)]" : "text-fg-faint hover:text-fg"
-                  )}
-                >
-                  Avatar nuevo
-                </button>
-                <button
-                  onClick={() => setConfig((p) => ({ ...p, avatarPosesSave: "replace" }))}
-                  className={cn(
-                    "px-3 py-1.5 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                    config.avatarPosesSave === "replace" ? "bg-fg text-[var(--color-canvas)]" : "text-fg-faint hover:text-fg"
-                  )}
-                >
-                  Reemplazar imagen del original
-                </button>
-              </div>
-            </div>
-          )}
+            {config.avatarToolMode === "poses" && (
+              <ModelDropdown
+                label="Guardar como"
+                value={config.avatarPosesSave === "replace" ? "replace" : "new"}
+                onChange={(next) => setConfig((p) => ({ ...p, avatarPosesSave: next as "new" | "replace" }))}
+                options={[
+                  { id: "new", label: "Avatar nuevo", sub: "Se crea un nuevo avatar en el Brand Kit" },
+                  { id: "replace", label: "Reemplazar imagen del original", sub: "Sobrescribe la imagen del avatar seleccionado" },
+                ]}
+              />
+            )}
 
-          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
-            <label className="text-[12px] font-semibold text-fg-secondary">Estilo de avatar</label>
-            <p className="text-[10px] text-fg-faint">
+            <ModelDropdown
+              label="Estilo de avatar"
+              value={currentStyle}
+              onChange={(next) => setConfig((p) => ({ ...(p as Record<string, unknown>), avatarStyle: next } as typeof p))}
+              options={[
+                { id: "inherit", label: "Heredar referencia", sub: "Sin override — copia el estilo del avatar/foto que pasaste" },
+                { id: "realistic", label: "Realistic", sub: "Photorealistic" },
+                { id: "editorial", label: "Editorial", sub: "High-fashion" },
+                { id: "3d", label: "3D Render", sub: "CGI character" },
+                { id: "illustrated", label: "Illustrated", sub: "2D illustration" },
+                { id: "anime", label: "Anime", sub: "Japanese style" },
+                { id: "cinematic", label: "Cinematic", sub: "Film quality" },
+              ]}
+            />
+            <p className="text-[10px] text-fg-faint -mt-1">
               Si estás usando un avatar de referencia (modo poses, o subida manual),
-              elegí <strong>&ldquo;Heredar referencia&rdquo;</strong> para que el resultado
-              respete la estética del original — no forces un estilo encima.
+              elegí <strong>&ldquo;Heredar referencia&rdquo;</strong> para respetar la estética del original.
             </p>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { id: "inherit", label: "Heredar referencia", desc: "Sin override — copia el estilo del avatar/foto que pasaste" },
-                { id: "realistic", label: "Realistic", desc: "Photorealistic" },
-                { id: "editorial", label: "Editorial", desc: "High-fashion" },
-                { id: "3d", label: "3D Render", desc: "CGI character" },
-                { id: "illustrated", label: "Illustrated", desc: "2D illustration" },
-                { id: "anime", label: "Anime", desc: "Japanese style" },
-                { id: "cinematic", label: "Cinematic", desc: "Film quality" },
-              ].map((style) => {
-                // Default to "inherit" when in poses mode (using existing avatar as anchor),
-                // otherwise default to "realistic" for create-from-scratch flows.
-                const cfgStyle = (config as Record<string, unknown>).avatarStyle as string | undefined;
-                const defaultStyle = config.avatarToolMode === "poses" ? "inherit" : "realistic";
-                const currentStyle = cfgStyle || defaultStyle;
-                const selected = currentStyle === style.id;
-                const isInherit = style.id === "inherit";
-                return (
-                  <button
-                    key={style.id}
-                    onClick={() => setConfig((p) => ({ ...(p as Record<string, unknown>), avatarStyle: style.id } as typeof p))}
-                    className={cn(
-                      "px-3 py-2 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
-                      selected
-                        ? (isInherit
-                            ? "border-blue-400 bg-blue-500/10 text-blue-200"
-                            : "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg")
-                        : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted",
-                    )}
-                  >
-                    <div className="font-semibold">{style.label}</div>
-                    <div className="text-[9px] text-fg-faint mt-0.5">{style.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      )}
+
+            {/* Selector de vistas — solo aplica en modo poses. Catálogo tildable
+                agrupado por tipo (cuerpo / cara / extras). El usuario puede elegir
+                solo cara para detalles, solo cuerpo para look, o combinar. */}
+            {config.avatarToolMode === "poses" && (
+              <div className="space-y-1.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Vistas a generar</span>
+                  <span className="text-[9px] text-fg-faint italic">{config.avatarViews.length} tildada{config.avatarViews.length === 1 ? "" : "s"}</span>
+                </div>
+                {(["body", "face", "extra"] as const).map((group) => {
+                  const groupLabel = group === "body" ? "Cuerpo" : group === "face" ? "Cara" : "Extras";
+                  const groupViews = Object.entries(AVATAR_VIEWS).filter(([, v]) => v.group === group);
+                  return (
+                    <div key={group} className="space-y-1">
+                      <p className="text-[9px] text-fg-faint uppercase tracking-wider">{groupLabel}</p>
+                      <div className="grid grid-cols-2 gap-1">
+                        {groupViews.map(([key, v]) => {
+                          const on = config.avatarViews.includes(key);
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => setConfig((p) => ({
+                                ...p,
+                                avatarViews: on
+                                  ? p.avatarViews.filter((x) => x !== key)
+                                  : [...p.avatarViews, key],
+                              }))}
+                              className={cn(
+                                "px-2 py-1.5 text-[10px] rounded-[var(--radius-sm)] border text-left transition-all cursor-pointer",
+                                on
+                                  ? "border-[var(--color-action)] bg-[var(--color-action-subtle)] text-fg"
+                                  : "border-edge bg-surface-1 text-fg-muted hover:border-edge-strong hover:text-fg",
+                              )}
+                            >
+                              {v.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="text-[10px] text-fg-faint">
+                  {config.avatarViews.length === 0
+                    ? "Elegí al menos una vista."
+                    : config.avatarViews.length === 1
+                      ? "1 vista única — sale como foto singular, no como sheet."
+                      : `${config.avatarViews.length} vistas — composite side-by-side en fondo blanco.`}
+                </p>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Product Sheet: mode (multi-view vs detail close-ups) + save destination */}
       {tool.id === "product_sheet" && (
@@ -2923,35 +3048,15 @@ function ConfigPanel({
             </div>
           </div>
 
-          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
-            <label className="text-[12px] font-semibold text-fg-secondary">¿Qué querés generar?</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setConfig((p) => ({ ...p, productSheetMode: "sheet" }))}
-                className={cn(
-                  "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
-                  config.productSheetMode !== "details"
-                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
-                    : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
-                )}
-              >
-                <div className="font-semibold">Vistas estudio</div>
-                <div className="text-[9px] text-fg-faint mt-0.5">Una imagen por vista (hero 3/4, perfil, frente, trasera, top) sobre fondo blanco. Elegís cuáles abajo.</div>
-              </button>
-              <button
-                onClick={() => setConfig((p) => ({ ...p, productSheetMode: "details" }))}
-                className={cn(
-                  "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
-                  config.productSheetMode === "details"
-                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
-                    : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
-                )}
-              >
-                <div className="font-semibold">Planos y detalles</div>
-                <div className="text-[9px] text-fg-faint mt-0.5">Close-ups de textura, logo, etiqueta, hardware y stitching del mismo producto (1 imagen composite)</div>
-              </button>
-            </div>
-          </div>
+          <ModelDropdown
+            label="¿Qué querés generar?"
+            value={config.productSheetMode === "details" ? "details" : "sheet"}
+            onChange={(next) => setConfig((p) => ({ ...p, productSheetMode: next as "sheet" | "details" }))}
+            options={[
+              { id: "sheet", label: "Sheet integral", sub: "Composite con todas las vistas tildadas en una sola imagen sobre fondo blanco — contexto para otras tools" },
+              { id: "details", label: "Planos y detalles", sub: "Close-ups de textura, logo, etiqueta, hardware y stitching del mismo producto" },
+            ]}
+          />
 
           {/* Selector de vistas — solo en modo "sheet" (vistas estudio). Cada vista
               tildada genera una imagen aparte con su composition + aspect ratio
@@ -2995,7 +3100,7 @@ function ConfigPanel({
                 })}
               </div>
               <p className="text-[10px] text-fg-faint">
-                Cada vista = 1 imagen aparte (con su aspect ratio óptimo). Si no marcás nada, usa los defaults ({DEFAULT_PRODUCT_VIEWS.map((k) => PRODUCT_VIEW_CATALOG[k].label).join(" + ")}).
+                Todas las vistas tildadas se renderizan en UNA imagen composite (estilo product spec sheet). Layout adaptativo según la cantidad. Si no marcás nada, usa los defaults ({DEFAULT_PRODUCT_VIEWS.map((k) => PRODUCT_VIEW_CATALOG[k].label).join(" + ")}).
               </p>
             </div>
           )}
@@ -3037,42 +3142,31 @@ function ConfigPanel({
 
       {/* Style selector (Video Ad Creator) */}
       {tool.id === "video_ad_creator" && (
-        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
-          <label className="text-[12px] font-semibold text-fg-secondary">Estilo visual</label>
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              { id: "photorealistic", label: "Photorealistic" },
-              { id: "claymation", label: "Claymation" },
-              { id: "2d_cartoon", label: "2D Cartoon" },
-              { id: "3d_render", label: "3D Render" },
-              { id: "cinematic", label: "Cinematic" },
-              { id: "minimal", label: "Minimal" },
-              { id: "retro", label: "Retro" },
-              { id: "custom", label: "Custom" },
-            ].map((style) => (
-              <button
-                key={style.id}
-                onClick={() => setConfig((p) => ({ ...p, adStyle: style.id }))}
-                className={cn(
-                  "px-3 py-2 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer text-center",
-                  config.adStyle === style.id
-                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
-                    : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
-                )}
-              >
-                {style.label}
-              </button>
-            ))}
-          </div>
+        <>
+          <ModelDropdown
+            label="Estilo visual"
+            value={config.adStyle || "photorealistic"}
+            onChange={(next) => setConfig((p) => ({ ...p, adStyle: next }))}
+            options={[
+              { id: "photorealistic", label: "Photorealistic", sub: "Foto realista, look profesional" },
+              { id: "claymation", label: "Claymation", sub: "Stop-motion arcilla" },
+              { id: "2d_cartoon", label: "2D Cartoon", sub: "Animación 2D plana" },
+              { id: "3d_render", label: "3D Render", sub: "CGI estilo Pixar" },
+              { id: "cinematic", label: "Cinematic", sub: "Look fílmico con grano + grading" },
+              { id: "minimal", label: "Minimal", sub: "Limpio, mucho aire negativo" },
+              { id: "retro", label: "Retro", sub: "Estética vintage / 80s-90s" },
+              { id: "custom", label: "Custom", sub: "Describí tu estilo abajo" },
+            ]}
+          />
           {config.adStyle === "custom" && (
             <input
               value={config.notes}
               onChange={(e) => setConfig((p) => ({ ...p, notes: e.target.value }))}
               placeholder="Describí tu estilo custom. Ej: 'ilustración en acuarela, tonos pastel, texturas dibujadas a mano'..."
-              className="w-full h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
+              className="w-full h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] -mt-1"
             />
           )}
-        </div>
+        </>
       )}
 
       {/* Fashion Reel — mode + visual style */}
@@ -3122,33 +3216,20 @@ function ConfigPanel({
 
       {tool.id === "ecommerce_pack" && (
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-4">
-          {/* Studio style */}
-          <div className="space-y-1.5">
-            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Estilo de estudio</span>
-            <div className="flex flex-wrap gap-1.5">
-              {Object.entries(STUDIO_STYLES).map(([id, s]) => (
-                <button
-                  key={id}
-                  onClick={() => setConfig((p) => ({ ...p, studioStyle: id }))}
-                  title={s.clause || "Describí el fondo/luz en el campo de abajo"}
-                  className={cn(
-                    "px-3 py-1 text-[11px] font-medium rounded-full cursor-pointer transition-colors border",
-                    config.studioStyle === id
-                      ? "bg-[var(--color-action-subtle)] border-[var(--color-action-muted)] text-fg"
-                      : "bg-surface-0 border-edge text-fg-muted hover:text-fg",
-                  )}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-fg-faint">
-              {config.studioStyle === "custom"
-                ? "Describí el fondo/luz que querés en el campo 'Estilo de estudio (custom)' de arriba."
-                : (STUDIO_STYLES[config.studioStyle]?.clause || "")}
-            </p>
-            <p className="text-[10px] text-fg-faint">Afiná con <strong>Look &amp; Feel</strong> (iluminación/estética) y/o <strong>moodboard</strong>. Para la postura de la modelo, usá <strong>Referencia de POSE</strong> (abajo).</p>
-          </div>
+          {/* Studio style — ModelDropdown unificado con el resto de las tools. */}
+          <ModelDropdown
+            label="Estilo de estudio"
+            value={config.studioStyle || "white"}
+            onChange={(next) => setConfig((p) => ({ ...p, studioStyle: next }))}
+            options={Object.entries(STUDIO_STYLES).map(([id, s]) => ({
+              id,
+              label: s.label,
+              sub: id === "custom" ? "Describí el fondo/luz en el campo de abajo" : s.clause,
+            }))}
+          />
+          <p className="text-[10px] text-fg-faint -mt-1">
+            Afiná con <strong>Look &amp; Feel</strong> (iluminación/estética) y/o <strong>moodboard</strong>. Para la postura de la modelo, usá <strong>Referencia de POSE</strong> (abajo).
+          </p>
 
           {/* Shot selection — para cada shot on-model tildado se puede sumar una
               pose ref one-off. El handler la usa como ref específica de ese shot. */}
@@ -3187,11 +3268,19 @@ function ConfigPanel({
                         </span>
                         {shot.label}
                       </button>
-                      {/* Pose ref por shot — solo para on-model shots tildados. */}
+                      {/* Pose ref por shot — solo para on-model shots tildados.
+                          Thumbnail más grande (40×40 en vez de 24) y click → lightbox. */}
                       {on && shot.onModel && (
                         poseUrl ? (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <img src={poseUrl} alt="pose" className="w-6 h-6 rounded object-cover border border-[var(--color-brand-muted)]" />
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setLightboxUrl(poseUrl)}
+                              title="Ver pose en grande"
+                              className="cursor-zoom-in"
+                            >
+                              <img src={poseUrl} alt="pose" className="w-10 h-10 rounded object-cover border-2 border-[var(--color-brand)] shadow-[0_0_8px_-2px_var(--color-brand-muted)]" />
+                            </button>
                             <button
                               onClick={() => setConfig((p) => {
                                 const { [id]: _drop, ...rest } = p.ecomShotPoses;
@@ -3200,7 +3289,7 @@ function ConfigPanel({
                               })}
                               title="Quitar pose"
                               className="text-fg-faint hover:text-fg cursor-pointer"
-                            ><X size={11} /></button>
+                            ><X size={12} /></button>
                           </div>
                         ) : (
                           <label className="flex items-center gap-1 px-1.5 h-6 rounded-[var(--radius-sm)] border border-dashed border-edge-strong bg-surface-1 text-[9px] text-fg-muted hover:text-fg cursor-pointer shrink-0" title="Subir imagen de pose específica para este shot">
@@ -3232,9 +3321,205 @@ function ConfigPanel({
             <p className="text-[10px] text-fg-faint">
               {config.ecomShots.length === 0
                 ? "Elegí al menos una toma."
-                : `${config.ecomShots.length} toma${config.ecomShots.length === 1 ? "" : "s"} · agregá una pose ref a cualquier on-model para que el modelo no quede duro.`}
+                : `${config.ecomShots.length} toma${config.ecomShots.length === 1 ? "" : "s"} · subí una pose ref por shot si querés una pose específica.`}
             </p>
           </div>
+
+          {/* ── Pose preset (texto) ─────────────────────────────────────
+              Reemplaza al "modelo de pie estático" default — el handler usa
+              la descripción textual de la pose elegida cuando NO hay pose ref
+              imagen subida. "auto" rota entre 8 poses para darle variedad a
+              la galería; el resto fija una pose para todos los shots. */}
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">✨ Pose</span>
+              <span className="text-[9px] text-fg-faint italic">{config.ecomPosePreset === "auto" ? "rota entre 8" : "fija"}</span>
+            </div>
+            <select
+              value={config.ecomPosePreset}
+              onChange={(e) => setConfig((p) => ({ ...p, ecomPosePreset: e.target.value }))}
+              className="w-full px-2 py-1.5 text-[11px] bg-surface-0 border border-edge focus:border-[var(--color-brand)] rounded-[var(--radius-sm)] outline-none cursor-pointer"
+            >
+              <option value="auto">Auto · rota entre 8 poses por outfit</option>
+              <optgroup label="Pose fija (todos los shots iguales)">
+                {Object.entries(POSE_PRESETS).map(([key, p]) => (
+                  <option key={key} value={key}>{p.label}</option>
+                ))}
+              </optgroup>
+            </select>
+            <p className="text-[10px] text-fg-faint">
+              Si subís una pose ref imagen a un shot, esa pose gana sobre el preset.
+            </p>
+          </div>
+
+          {/* Accesorios — sección dedicada para items que aparecen en on-model PERO
+              NO generan flats propios (zapatos, collar, cinturón, gorra, gafas).
+              Empieza vacía por default — antes mostraba TODAS las prendas no
+              seleccionadas como "candidatas a accesorio" lo cual era confuso
+              (¿una campera es accesorio?). Ahora: subís un accesorio directo
+              y queda auto-marcado. Si necesitás reusar uno que ya está cargado
+              como prenda, lo marcás desde el listado. */}
+          {activeBrand && (
+            <div className="space-y-1.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">
+                  ✨ Accesorios {config.ecomAccessoryIds.length > 0 && `(${config.ecomAccessoryIds.length})`}
+                </span>
+                <span className="text-[9px] text-fg-faint italic">solo on-model, sin flats</span>
+              </div>
+
+              {/* Hidden file input + botón visible que lo dispara. Acepta múltiples
+                  archivos — bajo el patrón "subí los 3 zapatos juntos" — los sube
+                  en serie. */}
+              <input
+                ref={accessoryInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={async (e) => {
+                  const files = Array.from(e.target.files || []);
+                  e.target.value = "";
+                  if (files.length === 0 || !activeBrand) return;
+                  setAccessoryUploading(true);
+                  try {
+                    const newIds: string[] = [];
+                    for (const file of files) {
+                      // Nombre por filename (sin extensión). El backend ya tiene auto-describe
+                      // por Gemini Vision, así que la description sale de ahí.
+                      const baseName = file.name.replace(/\.[^.]+$/, "").slice(0, 60) || "Accesorio";
+                      const item = await uploadClothing(activeBrand.id, baseName, file, "", "accessory");
+                      newIds.push(item.id);
+                    }
+                    await refreshBrands();
+                    // Auto-marcar los nuevos como accesorios + sumarlos a selected
+                    // para que el handler los pase como STYLING ACCESSORY en on-model.
+                    setConfig((p) => ({
+                      ...p,
+                      ecomAccessoryIds: [...p.ecomAccessoryIds, ...newIds],
+                      selectedClothingIds: [...p.selectedClothingIds, ...newIds.filter((id) => !p.selectedClothingIds.includes(id))],
+                    }));
+                  } catch (err) {
+                    console.error("[ecommerce_pack] accessory upload failed:", err);
+                    alert(err instanceof Error ? err.message : "No se pudo subir el accesorio.");
+                  } finally {
+                    setAccessoryUploading(false);
+                  }
+                }}
+              />
+
+              {/* Items del brand kit con tag "accessory" — accesorios cargados desde
+                  BrandSettings → Accesorios. Acá los mostramos como tildables. Si no
+                  hay ninguno cargado en el kit todavía, mostramos solo el botón de
+                  subir directo. */}
+              {(() => {
+                const kitAccessories = (activeBrand?.clothing || []).filter(
+                  (c) => (c.tags || []).some((t) => t === "accessory")
+                );
+                const showKitGrid = config.ecomAccessoryIds.length === 0 && kitAccessories.length > 0;
+                return showKitGrid;
+              })() && (
+                <div className="space-y-1.5">
+                  <p className="text-[9px] text-fg-faint uppercase tracking-wider">Del brand kit — click para tildar</p>
+                  <div className="grid grid-cols-3 gap-1">
+                    {(activeBrand?.clothing || [])
+                      .filter((c) => (c.tags || []).some((t) => t === "accessory"))
+                      .map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => setConfig((p) => ({
+                            ...p,
+                            ecomAccessoryIds: [...p.ecomAccessoryIds, item.id],
+                            selectedClothingIds: p.selectedClothingIds.includes(item.id)
+                              ? p.selectedClothingIds
+                              : [...p.selectedClothingIds, item.id],
+                          }))}
+                          title={`Usar ${item.name}`}
+                          className="border border-edge hover:border-[var(--color-brand)] rounded-[var(--radius-sm)] p-1 transition-all cursor-pointer text-left"
+                        >
+                          <div className="aspect-square bg-surface-2 rounded-[2px] overflow-hidden mb-1">
+                            {item.imageUrl && (
+                              <img src={clothingImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
+                            )}
+                          </div>
+                          <span className="text-[9px] text-fg-muted truncate block font-medium leading-tight">{item.name}</span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {config.ecomAccessoryIds.length === 0 ? (
+                <button
+                  onClick={() => accessoryInputRef.current?.click()}
+                  disabled={accessoryUploading}
+                  className={cn(
+                    "w-full py-4 border border-dashed rounded-[var(--radius-sm)] text-[11px] flex flex-col items-center justify-center gap-1 transition-colors",
+                    accessoryUploading
+                      ? "border-edge text-fg-faint cursor-not-allowed"
+                      : "border-edge hover:border-[var(--color-brand)] hover:bg-[var(--color-brand-subtle)] text-fg-muted hover:text-fg cursor-pointer",
+                  )}
+                  title="Zapatos, collar, gorra, cinturón, gafas, etc."
+                >
+                  {accessoryUploading ? (
+                    <><Loader2 size={13} className="animate-spin" /> Subiendo…</>
+                  ) : (
+                    <>
+                      <Plus size={13} />
+                      <span>Subir accesorio nuevo</span>
+                      <span className="text-[9px] text-fg-faint">zapatos, collar, gorra, cinturón…</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-1">
+                    {(activeBrand.clothing || [])
+                      .filter((c) => config.ecomAccessoryIds.includes(c.id))
+                      .map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => setConfig((p) => ({
+                            ...p,
+                            ecomAccessoryIds: p.ecomAccessoryIds.filter((x) => x !== item.id),
+                            selectedClothingIds: p.selectedClothingIds.filter((x) => x !== item.id),
+                          }))}
+                          title={`Quitar ${item.name}`}
+                          className="relative border border-[var(--color-brand)] bg-[var(--color-brand-subtle)] shadow-[0_0_14px_-4px_var(--color-brand-muted)] rounded-[var(--radius-sm)] p-1 transition-all cursor-pointer text-left"
+                        >
+                          <div className="aspect-square bg-surface-2 rounded-[2px] overflow-hidden mb-1">
+                            {item.imageUrl && (
+                              <img src={clothingImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
+                            )}
+                          </div>
+                          <span className="text-[9px] text-fg-muted truncate block font-medium leading-tight">{item.name}</span>
+                          <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-brand)] flex items-center justify-center z-10 shadow-sm">
+                            <Check size={8} className="text-[var(--color-brand-fg)]" />
+                          </div>
+                        </button>
+                      ))}
+                    {/* "+ Sumar más" como tile extra al final del grid. */}
+                    <button
+                      onClick={() => accessoryInputRef.current?.click()}
+                      disabled={accessoryUploading}
+                      className={cn(
+                        "aspect-square border border-dashed rounded-[var(--radius-sm)] flex items-center justify-center transition-colors",
+                        accessoryUploading
+                          ? "border-edge text-fg-faint cursor-not-allowed"
+                          : "border-edge hover:border-[var(--color-brand)] hover:bg-[var(--color-brand-subtle)] text-fg-muted hover:text-fg cursor-pointer",
+                      )}
+                      title="Subir otro accesorio"
+                    >
+                      {accessoryUploading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-fg-faint">
+                    Click en un tile para sacarlo. Se usan como ref en on-model y se preservan exactos. <strong>No generan flats</strong>.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -3661,40 +3946,22 @@ function ConfigPanel({
 
       {/* Carousel — Quick / Compose mode toggle */}
       {tool.id === "carousel_creator" && (
-        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
-          <label className="text-[12px] font-semibold text-fg-secondary">Modo de salida</label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setConfig((p) => ({ ...p, composeMode: "quick" }))}
-              className={cn(
-                "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
-                config.composeMode !== "compose"
-                  ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
-                  : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
-              )}
-            >
-              <div className="font-semibold">Quick — texto en imagen</div>
-              <div className="text-[9px] text-fg-faint mt-0.5">Rápido. La IA mete el texto en pixel. Tipografía aproximada.</div>
-            </button>
-            <button
-              onClick={() => setConfig((p) => ({ ...p, composeMode: "compose" }))}
-              className={cn(
-                "px-3 py-2.5 rounded-[var(--radius-sm)] text-left text-[11px] font-medium border transition-all cursor-pointer",
-                config.composeMode === "compose"
-                  ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
-                  : "border-edge bg-surface-2 text-fg-muted hover:text-fg"
-              )}
-            >
-              <div className="font-semibold">Compose — overlay con brand fonts</div>
-              <div className="text-[9px] text-fg-faint mt-0.5">Imagen limpia + texto editable con tipografía REAL de la marca.</div>
-            </button>
-          </div>
+        <>
+          <ModelDropdown
+            label="Modo de salida"
+            value={config.composeMode === "compose" ? "compose" : "quick"}
+            onChange={(next) => setConfig((p) => ({ ...p, composeMode: next as "quick" | "compose" }))}
+            options={[
+              { id: "quick", label: "Quick — texto en imagen", sub: "Rápido. La IA mete el texto en pixel. Tipografía aproximada." },
+              { id: "compose", label: "Compose — overlay con brand fonts", sub: "Imagen limpia + texto editable con tipografía REAL de la marca." },
+            ]}
+          />
           {config.composeMode === "compose" && (
-            <p className="text-[10px] text-fg-faint italic mt-1">
+            <p className="text-[10px] text-fg-faint italic -mt-1">
               Después de generar las imágenes vas a poder editar el copy live, cambiar el template y exportar PNG con Awesome Serif / Montserrat / la tipografía de la marca.
             </p>
           )}
-        </div>
+        </>
       )}
 
       {/* Carousel — slide count picker (sin tipos predefinidos: el contenido sale del Creative Direction) */}
@@ -3725,35 +3992,15 @@ function ConfigPanel({
 
       {/* Animation mode selector (Product Clip, Video Ad Creator) */}
       {(tool.id === "product_clip" || tool.id === "video_ad_creator") && (
-        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
-          <label className="text-[12px] font-semibold text-fg-secondary">Modo de animación</label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setConfig((p) => ({ ...p, animationMode: "frame-to-frame" }))}
-              className={cn(
-                "px-3 py-2 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer text-center",
-                config.animationMode === "frame-to-frame"
-                  ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
-                  : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
-              )}
-            >
-              <div className="font-semibold">Frame-to-Frame</div>
-              <div className="text-[9px] text-fg-faint mt-0.5">Transiciones suaves entre escenas</div>
-            </button>
-            <button
-              onClick={() => setConfig((p) => ({ ...p, animationMode: "image-to-video" }))}
-              className={cn(
-                "px-3 py-2 rounded-[var(--radius-sm)] text-[11px] font-medium border transition-all cursor-pointer text-center",
-                config.animationMode === "image-to-video"
-                  ? "border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg"
-                  : "border-edge bg-surface-2 text-fg-muted hover:text-fg hover:border-fg-muted"
-              )}
-            >
-              <div className="font-semibold">Image-to-Video</div>
-              <div className="text-[9px] text-fg-faint mt-0.5">Cada frame animado independientemente</div>
-            </button>
-          </div>
-        </div>
+        <ModelDropdown
+          label="Modo de animación"
+          value={config.animationMode || "frame-to-frame"}
+          onChange={(next) => setConfig((p) => ({ ...p, animationMode: next as ToolConfig["animationMode"] }))}
+          options={[
+            { id: "frame-to-frame", label: "Frame-to-Frame", sub: "Transiciones suaves entre escenas" },
+            { id: "image-to-video", label: "Image-to-Video", sub: "Una sola imagen base se anima" },
+          ]}
+        />
       )}
 
       {/* Reference image(s) + Graphics uploaders */}
@@ -3780,22 +4027,18 @@ function ConfigPanel({
         </div>
       )}
 
-      {/* Ecommerce Pack: Look & Feel + Pose, compact and side-by-side (not full-width). */}
+      {/* Ecommerce Pack: SOLO Look & Feel. La Referencia de POSE global fue
+          eliminada porque las pose refs por shot (en el bloque "Tomas a generar")
+          ya cubren ese caso de uso, mejor: una pose distinta por shot en lugar
+          de una sola global. */}
       {tool.id === "ecommerce_pack" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
           <CompactRefCard
             title="Referencia Look & Feel"
             hint="Imagen de iluminación/estética — Nano Banana copia el look, no el contenido."
             files={config.referenceImages}
             onAdd={(f) => setConfig((p) => ({ ...p, referenceImages: [f] }))}
             onRemove={(i) => setConfig((p) => ({ ...p, referenceImages: p.referenceImages.filter((_, j) => j !== i) }))}
-          />
-          <CompactRefCard
-            title="Referencia de POSE"
-            hint="Solo postura y encuadre — no toma luz, escena ni estilo."
-            files={config.poseReference}
-            onAdd={(f) => setConfig((p) => ({ ...p, poseReference: [f] }))}
-            onRemove={(i) => setConfig((p) => ({ ...p, poseReference: p.poseReference.filter((_, j) => j !== i) }))}
           />
         </div>
       )}
@@ -3817,6 +4060,7 @@ function ConfigPanel({
                   : tool.id === "carousel_creator" ? "Template del Carousel"
                   : tool.id === "ecommerce_pack" ? "Referencia Look & Feel"
                   : tool.id === "fashion_editorial" ? "Referencia Look & Feel"
+                  : tool.id === "product_sheet" ? "Fotos del producto"
                   : (tool.id === "static_ad" || tool.id === "product_clip") ? "Reference Image"
                   : "Reference Images"}
                 <span className="text-fg-faint font-normal ml-1">
@@ -3826,6 +4070,7 @@ function ConfigPanel({
                     : tool.id === "carousel_creator" ? "(layout / tipografía / estilo que respetan TODOS los slides)"
                     : tool.id === "ecommerce_pack" ? "(imagen de iluminación/estética — Nano Banana copia el look, no el contenido)"
                     : tool.id === "fashion_editorial" ? "(iluminación/color — se analiza en receta de texto, sin filtrar la escena)"
+                    : tool.id === "product_sheet" ? "(subí acá front / back / detail / packaging si no usás un producto del Brand Kit)"
                     : (tool.id === "static_ad" || tool.id === "product_clip") ? "(style/mood reference)"
                     : "(campaign style references)"}
                 </span>
@@ -3855,6 +4100,7 @@ function ConfigPanel({
             )}>
               <Plus size={11} /> {tool.id === "content_analyzer" ? "Upload video"
                 : tool.id === "carousel_creator" ? "Subir template"
+                : tool.id === "product_sheet" ? "Subir fotos del producto"
                 : (tool.id === "static_ad" || tool.id === "product_clip") ? "Upload reference"
                 : "Add references"}
               <input
@@ -4163,8 +4409,11 @@ function ConfigPanel({
         </div>
       )}
 
-      {/* Inputs summary — only shown when at least one asset is used */}
-      {(schema.showAvatar || schema.showProduct || schema.showClothing || schema.showBackground || schema.showVoice || schema.showLanguage) && (
+      {/* Inputs summary chips — eliminado en Product Sheet porque duplica los labels
+          de los AssetSelectors que vienen abajo. En sidebar 440px este "índice"
+          ya no aporta valor y confunde (el usuario veía "Producto base (opcional)"
+          dos veces). En el resto de las tools se mantiene por ahora. */}
+      {tool.id !== "product_sheet" && (schema.showAvatar || schema.showProduct || schema.showClothing || schema.showBackground || schema.showVoice || schema.showLanguage) && (
         <div className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] px-4 py-2 flex gap-3 flex-wrap">
           {[
             schema.showAvatar && (schema.avatarLabel || "Avatar"),
@@ -4497,32 +4746,19 @@ function ConfigPanel({
           </div>
         )}
 
-        {/* Image model selector — only for image-generation tools (shows when tool uses images) */}
+        {/* Image model selector — solo para tools de generación de imagen.
+            ModelDropdown unificado con Lab: una línea fina con popover en vez del
+            segmented control + hint. El sub-texto ahora vive DENTRO de la opción. */}
         {["static_ad", "carousel_creator", "ad_creative_lab", "product_spotlight"].includes(tool.id) && (
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-fg-faint">Modelo de imagen</label>
-            <div className="inline-flex bg-surface-1 rounded-[var(--radius-sm)] p-0.5 gap-0.5">
-              <button
-                onClick={() => setConfig((p) => ({ ...p, imageModel: "nano-banana-2" }))}
-                className={cn(
-                  "px-3 py-1 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                  config.imageModel !== "gpt-image-2" ? "bg-fg text-[var(--color-canvas)] shadow-sm" : "text-fg-faint hover:text-fg"
-                )}
-              >Nano Banana 2</button>
-              <button
-                onClick={() => setConfig((p) => ({ ...p, imageModel: "gpt-image-2" }))}
-                className={cn(
-                  "px-3 py-1 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
-                  config.imageModel === "gpt-image-2" ? "bg-fg text-[var(--color-canvas)] shadow-sm" : "text-fg-faint hover:text-fg"
-                )}
-              >GPT Image 2</button>
-            </div>
-            <p className="text-[10px] text-fg-faint leading-relaxed">
-              {config.imageModel === "gpt-image-2"
-                ? "OpenAI GPT Image 2 — mejor para editar sobre una imagen base o hacer ajustes precisos."
-                : "Nano Banana 2 (default) — mejor para combinar múltiples referencias (avatar + producto + fondo)."}
-            </p>
-          </div>
+          <ModelDropdown
+            label="Modelo de imagen"
+            value={config.imageModel === "gpt-image-2" ? "gpt-image-2" : "nano-banana-2"}
+            onChange={(next) => setConfig((p) => ({ ...p, imageModel: next as "nano-banana-2" | "gpt-image-2" }))}
+            options={[
+              { id: "nano-banana-2", label: "Nano Banana 2", sub: "Multi-ref · mejor para combinar avatar + producto + fondo" },
+              { id: "gpt-image-2", label: "GPT Image 2", sub: "Base + edit · mejor para editar sobre una imagen base" },
+            ]}
+          />
         )}
 
         {/* Technical settings — siempre visibles (no Collapsible). El usuario los
@@ -4585,23 +4821,17 @@ function ConfigPanel({
               Motor de video
             </div>
 
-            {/* Animación */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-medium text-fg-faint">Animación</label>
-              <select
-                value={config.animationEngine}
-                onChange={(e) => setConfig((p) => ({ ...p, animationEngine: e.target.value as ToolConfig["animationEngine"] }))}
-                className="w-full h-7 px-1.5 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[11px] text-fg outline-none focus:border-[var(--color-edge-focus)]"
-              >
-                <option value="kling">Kling V3 Pro</option>
-                <option value="seedance">Seedance 2.0</option>
-              </select>
-              <p className="text-[9px] text-fg-faint leading-snug">
-                {config.animationEngine === "seedance"
-                  ? "Visual + lipsync en un solo modelo. Sin HeyGen."
-                  : "Kling anima; las talking pasan por HeyGen Avatar 4."}
-              </p>
-            </div>
+            {/* Animación — ModelDropdown unificado con Lab/imagen. El hint vive
+                dentro de cada opción en lugar de abajo como párrafo separado. */}
+            <ModelDropdown
+              label="Animación"
+              value={config.animationEngine}
+              onChange={(next) => setConfig((p) => ({ ...p, animationEngine: next as ToolConfig["animationEngine"] }))}
+              options={[
+                { id: "kling", label: "Kling V3 Pro", sub: "Anima; las talking pasan por HeyGen Avatar 4" },
+                { id: "seedance", label: "Seedance 2.0", sub: "Visual + lipsync en un solo modelo, sin HeyGen" },
+              ]}
+            />
 
             {/* Modo de clip (single-frame / frame-to-frame) ahora vive en el bloque
                 principal de Fashion Reel ("Movimiento de cada clip") cuando Looks
@@ -4934,6 +5164,30 @@ function ConfigPanel({
       {/* "Listo para generar" + botón Generar legacy eliminados — eran del layout viejo
           en columna; en el split layout actual el CTA Generar vive en el footer sticky
           del sidebar. Se duplicaban y confundían. */}
+
+      {/* Lightbox del ConfigPanel — abre cuando se clickea un thumbnail del sidebar
+          (pose ref por shot en Ecommerce Pack, etc.). ESC o click fuera para cerrar. */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-8 cursor-pointer"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); }}
+            title="Cerrar (ESC)"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur flex items-center justify-center text-white cursor-pointer transition-colors"
+          >
+            <X size={18} />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="preview"
+            className="max-w-full max-h-full object-contain rounded-[var(--radius-md)]"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -4957,6 +5211,10 @@ function StepPanel({
   onReRunFromHere,
   onUpdateStepResult,
   onInvalidateDownstream,
+  batches,
+  onNewBatch,
+  onDeleteBatch,
+  onUpdateBatchImage,
 }: {
   tool: ToolEntry;
   step: StepState;
@@ -4974,6 +5232,11 @@ function StepPanel({
   onReRunFromHere: () => void;
   onUpdateStepResult?: (stepId: string, result: unknown) => void;
   onInvalidateDownstream?: (stepId: string) => void;
+  /** Tandas acumulativas — solo se usan en tools batchables. Forwarded a DoneStep. */
+  batches?: BatchEntry[];
+  onNewBatch?: () => void;
+  onDeleteBatch?: (batchId: string) => void;
+  onUpdateBatchImage?: (batchId: string, imageId: string, newUrl: string) => void;
 }) {
   const meta = STEP_META[step.id] || {
     label: step.id,
@@ -5073,6 +5336,10 @@ function StepPanel({
             onUpdateStepResult={onUpdateStepResult}
             onInvalidateDownstream={onInvalidateDownstream}
             toolId={tool.id}
+            batches={batches}
+            onNewBatch={onNewBatch}
+            onDeleteBatch={onDeleteBatch}
+            onUpdateBatchImage={onUpdateBatchImage}
             getScriptScenes={() => {
               const sr = allSteps.find((s: StepState) => s.id === "script")?.result as Record<string, unknown> | undefined;
               if (!sr?.scenes) return [];
@@ -5091,6 +5358,9 @@ function StepPanel({
               onUpdateStepResult={onUpdateStepResult}
               onInvalidateDownstream={onInvalidateDownstream}
               toolId={tool.id}
+              batches={batches}
+              onNewBatch={onNewBatch}
+              onDeleteBatch={onDeleteBatch}
               getScriptScenes={() => {
                 const sr = allSteps.find((s: StepState) => s.id === "script")?.result as Record<string, unknown> | undefined;
                 if (!sr?.scenes) return [];
@@ -5627,7 +5897,7 @@ function ActiveStep({
 
 // ── Done step ──────────────────────────────────────────────
 
-function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes, config, allSteps = [], onUpdateStepResult, onInvalidateDownstream, toolId }: {
+function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes, config, allSteps = [], onUpdateStepResult, onInvalidateDownstream, toolId, batches, onNewBatch, onDeleteBatch }: {
   stepId: string;
   result?: unknown;
   audioCache?: Record<string, { url: string; blob: Blob }>;
@@ -5639,6 +5909,17 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   /** Tool id — para condicionar UI específica (ej. ocultar toggles de talking/voz en
    *  Fashion Reel donde no aplica). */
   toolId?: string;
+  /** Pila de tandas acumuladas (tools multi-shot). Si está vacío o undefined,
+   *  el renderer cae al flow lineal de siempre. */
+  batches?: BatchEntry[];
+  /** Disparado al clickear "Nueva tanda" — el padre re-activa el step para que
+   *  el usuario edite config y vuelva a Generar; el resultado se SUMA. */
+  onNewBatch?: () => void;
+  /** Borrar una tanda específica del stack. */
+  onDeleteBatch?: (batchId: string) => void;
+  /** Reemplaza la URL de una imagen específica dentro de una tanda. Lo dispara
+   *  el ImageEditPanel cuando el usuario edita una toma generada. */
+  onUpdateBatchImage?: (batchId: string, imageId: string, newUrl: string) => void;
 }) {
   const meta = STEP_META[stepId];
   const { activeBrand } = useBrand();
@@ -5686,6 +5967,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       materials: string[]; colors: string[]; scale: string; packaging: string;
       distinctive_details: string[]; visible_views: string[]; missing_views: string[];
       image_prompt: string; mode?: "sheet" | "details";
+      photo_views?: Array<{ index: number; view: string; confidence?: number; notes?: string }>;
     };
     // Single-line fields (name, category, scale, packaging) — short, editable inline.
     const textFields: Array<{ label: string; key: "name" | "category" | "shape" | "scale" | "packaging"; rows?: number }> = [
@@ -5708,9 +5990,43 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         <div className="flex items-center gap-2 mb-2">
           <Check size={14} className="text-[var(--color-success)]" />
           <span className="text-[13px] font-medium text-fg">
-            Brief del producto — modo: {brief.mode === "details" ? "Planos y detalles" : "Sheet completa"}
+            Brief del producto — modo: {brief.mode === "details" ? "Planos y detalles" : "Sheet integral"}
           </span>
         </div>
+        {/* Clasificación de cada foto por Gemini Vision. Esto es lo que asegura
+            que el handler use la foto correcta para cada vista del composite —
+            sin esto, Nano Banana mezcla todas las refs sin saber cuál corresponde
+            a qué ángulo. Reportado: "cómo aseguramos que use la foto de espalda
+            si en el resultado muestra la espalda". */}
+        {brief.photo_views && brief.photo_views.length > 0 && (
+          <div className="bg-[var(--color-brand-subtle)] border border-[var(--color-brand-muted)] rounded-[var(--radius-sm)] p-2.5 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--color-brand)]">
+              <Sparkles size={11} />
+              Gemini clasificó cada foto que subiste
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              {brief.photo_views.map((pv) => {
+                const confPct = pv.confidence !== undefined ? Math.round(pv.confidence * 100) : null;
+                const confColor = confPct === null ? "text-fg-faint"
+                  : confPct >= 80 ? "text-[var(--color-success)]"
+                  : confPct >= 50 ? "text-[var(--color-warning)]"
+                  : "text-[var(--color-error)]";
+                return (
+                  <div key={pv.index} className="flex items-baseline justify-between gap-2 text-[10px] bg-surface-1/50 px-2 py-1 rounded">
+                    <span className="text-fg-muted shrink-0">Foto {pv.index + 1}</span>
+                    <span className="font-mono font-semibold text-fg truncate">{pv.view}</span>
+                    {confPct !== null && (
+                      <span className={cn("text-[9px] shrink-0", confColor)}>{confPct}%</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[9px] text-fg-faint italic leading-snug">
+              El handler usa estas clasificaciones para decirle a Nano Banana <strong>"para la vista X, usá EXACTAMENTE Foto N"</strong> — sin inventar. Si una clasificación está mal, no podés corregirla acá todavía (próxima iteración: dropdown editable por foto).
+            </p>
+          </div>
+        )}
         <div className="space-y-1">
           <div className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider">Resumen</div>
           <textarea
@@ -5848,13 +6164,27 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             <span className="text-[13px] font-medium text-fg">Reference sheet generated — {gen.styleLabel} style</span>
           </div>
           {gen.url && (
-            <button
-              onClick={() => setEditingImageId(isEditing ? null : "avatar_gen")}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-sm)] bg-surface-2 hover:bg-surface-3 text-fg-muted hover:text-fg cursor-pointer transition-colors"
-            >
-              <Pencil size={11} />
-              {isEditing ? "Cerrar editor" : "Editar imagen"}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Descargar — usa downloadUrl helper que fuerza el descargado vía
+                  fetch+blob (las URLs de Fal son cross-origin y `<a download>`
+                  abre pestaña en lugar de descargar). */}
+              <button
+                type="button"
+                onClick={() => downloadUrl(gen.url, `avatar_${(gen.brief?.name || "sheet").toLowerCase().replace(/[^a-z0-9]+/g, "_")}.png`)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-sm)] bg-surface-2 hover:bg-surface-3 text-fg-muted hover:text-fg cursor-pointer transition-colors"
+                title="Descargar imagen"
+              >
+                <Download size={11} />
+                Descargar
+              </button>
+              <button
+                onClick={() => setEditingImageId(isEditing ? null : "avatar_gen")}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-[var(--radius-sm)] bg-surface-2 hover:bg-surface-3 text-fg-muted hover:text-fg cursor-pointer transition-colors"
+              >
+                <Pencil size={11} />
+                {isEditing ? "Cerrar editor" : "Editar imagen"}
+              </button>
+            </div>
           )}
         </div>
         {gen.url && (
@@ -6759,14 +7089,14 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                       >
                         <Play size={10} /> Play
                       </button>
-                      <a
-                        href={seg.audioUrl}
-                        download={`${seg.title || seg.sceneId || "audio"}.mp3`}
+                      <button
+                        type="button"
+                        onClick={() => downloadUrl(seg.audioUrl!, `${seg.title || seg.sceneId || "audio"}.mp3`)}
                         className="flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 cursor-pointer"
                         title="Download audio"
                       >
                         <Download size={10} />
-                      </a>
+                      </button>
                     </>
                   )}
                   <button
@@ -7030,38 +7360,47 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                     <span className="text-[9px] text-fg-faint">Edit + Regen sin tocar las otras</span>
                   </div>
 
-                  {/* Base frame preview row — clickable. Shows the image used for lipsync
-                      and opens the editor inline. If no frame is found upstream, disable
-                      the click with an informative tooltip. */}
-                  <button
-                    type="button"
-                    onClick={() => baseFrameUrl && setEditingFrameSceneId(isEditingFrame ? null : seg.sceneId)}
-                    disabled={!baseFrameUrl}
-                    title={baseFrameUrl ? "Cambiar el frame base de esta escena" : "Frame base no disponible en esta generación"}
-                    className={cn(
-                      "w-full flex items-center gap-2 p-1.5 rounded-[var(--radius-sm)] border transition-colors text-left",
-                      baseFrameUrl
-                        ? (isEditingFrame
-                            ? "border-[var(--color-action)] bg-[var(--color-action)]/10 cursor-pointer"
-                            : "border-edge hover:border-edge-strong hover:bg-surface-1 cursor-pointer")
-                        : "border-edge bg-surface-1 opacity-50 cursor-not-allowed",
-                    )}
-                  >
+                  {/* Base frame preview row — la miniatura abre lightbox (ver en grande)
+                      y un botón aparte abre el editor inline. Antes click → editor, sin
+                      forma de ver la imagen grande. Reportado: "deberíamos poder ver la
+                      imagen del frame base en grande, o al tocarla aunque sea". */}
+                  <div className={cn(
+                    "w-full flex items-center gap-2 p-1.5 rounded-[var(--radius-sm)] border transition-colors",
+                    baseFrameUrl
+                      ? (isEditingFrame ? "border-[var(--color-action)] bg-[var(--color-action)]/10" : "border-edge hover:border-edge-strong hover:bg-surface-1")
+                      : "border-edge bg-surface-1 opacity-50",
+                  )}>
                     {baseFrameUrl ? (
-                      <img src={baseFrameUrl} alt="Frame base" className="w-10 h-10 object-cover rounded-[var(--radius-sm)]" />
+                      <button
+                        type="button"
+                        onClick={() => setLightboxUrl(baseFrameUrl)}
+                        title="Ver frame base en grande"
+                        className="shrink-0 cursor-zoom-in"
+                      >
+                        <img src={baseFrameUrl} alt="Frame base" className="w-10 h-10 object-cover rounded-[var(--radius-sm)]" />
+                      </button>
                     ) : (
-                      <div className="w-10 h-10 bg-surface-2 rounded-[var(--radius-sm)] flex items-center justify-center">
+                      <div className="w-10 h-10 bg-surface-2 rounded-[var(--radius-sm)] flex items-center justify-center shrink-0">
                         <ImageIcon size={12} className="text-fg-faint" />
                       </div>
                     )}
-                    <div className="flex-1 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => baseFrameUrl && setEditingFrameSceneId(isEditingFrame ? null : seg.sceneId)}
+                      disabled={!baseFrameUrl}
+                      title={baseFrameUrl ? "Editar el frame base de esta escena" : "Frame base no disponible"}
+                      className={cn(
+                        "flex-1 min-w-0 text-left",
+                        baseFrameUrl ? "cursor-pointer" : "cursor-not-allowed",
+                      )}
+                    >
                       <p className="text-[10px] font-medium text-fg">{isEditingFrame ? "Cerrar editor" : "Frame base"}</p>
                       <p className="text-[9px] text-fg-faint truncate">
-                        {baseFrameUrl ? "Click para editar" : "No disponible en esta gen"}
+                        {baseFrameUrl ? "Tocá thumb para zoom · texto para editar" : "No disponible en esta gen"}
                       </p>
-                    </div>
-                    <ImageIcon size={12} className={cn(baseFrameUrl ? "text-fg-muted" : "text-fg-faint")} />
-                  </button>
+                    </button>
+                    <Pencil size={12} className={cn(baseFrameUrl ? "text-fg-muted" : "text-fg-faint")} />
+                  </div>
 
                   {/* Pending frame preview — big new image so the user can ACTUALLY
                       see what was generated, with a small "actual" thumbnail to compare.
@@ -7466,6 +7805,213 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
     const brandSlug = slugify(activeBrand?.name || "coevo");
     const fileFor = (img: { label?: string }, idx: number) => `${brandSlug}_${slugify(img.label || "") || `toma-${idx + 1}`}.png`;
 
+    // ── Vista alternativa: tandas acumulativas (ecommerce_pack, etc.) ──
+    // Si la tool batchable y ya hay >=1 tanda en el stack, renderizamos la pila
+    // en lugar de la vista lineal. Cada tanda es independiente, con su propio
+    // header + acciones. La última tanda generada queda arriba.
+    if (toolId && BATCHABLE_TOOLS.has(toolId) && batches && batches.length > 0) {
+      const allImages = batches.flatMap((b) => b.images);
+      const totalCount = allImages.length;
+      return (
+        <div className="space-y-4">
+          {/* Header global de tandas */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Check size={14} className="text-[var(--color-success)]" />
+              <span className="text-[13px] font-medium text-fg">
+                {batches.length} tanda{batches.length === 1 ? "" : "s"} · {totalCount} imagen{totalCount === 1 ? "" : "es"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {totalCount > 1 && (
+                <button
+                  onClick={async () => {
+                    const items = allImages
+                      .filter((img) => img.url)
+                      .map((img, idx) => ({ url: img.url, filename: `${brandSlug}_${slugify(img.label || "") || `toma-${idx + 1}`}.png` }));
+                    try { await downloadZip(items, `${brandSlug}_pack`); }
+                    catch (e) {
+                      console.error("[ecommerce-pack] zip download failed:", e);
+                      alert("No se pudo descargar el ZIP. Probá descargar de a una.");
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 rounded-[var(--radius-sm)] cursor-pointer"
+                  title="Todas las tandas en un solo ZIP"
+                >
+                  <Download size={12} />
+                  Descargar todas ({totalCount}) · ZIP
+                </button>
+              )}
+              {onNewBatch && (
+                <button
+                  onClick={onNewBatch}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+                  title="Cambiá la config y dale Generar — se suma como nueva tanda"
+                >
+                  <Sparkles size={12} />
+                  Nueva tanda
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Pila de tandas — más reciente arriba */}
+          <div className="space-y-5">
+            {batches.map((batch, batchIdx) => {
+              const batchImages = batch.images.filter((im) => im.url);
+              const isNewest = batchIdx === 0;
+              return (
+                <div key={batch.id} className="bg-surface-1 border border-edge rounded-[var(--radius-md)] overflow-hidden">
+                  {/* Header de tanda */}
+                  <div className="px-4 py-2.5 border-b border-edge flex items-center justify-between bg-surface-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider shrink-0">
+                        Tanda {batches.length - batchIdx}
+                      </span>
+                      <span className="text-[12px] font-medium text-fg truncate">{batch.label}</span>
+                      <span className="text-[10px] text-fg-faint shrink-0">· {timeAgo(batch.createdAt)}</span>
+                      {isNewest && (
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--color-action)] bg-[var(--color-action-muted)] px-1.5 py-0.5 rounded shrink-0">
+                          nueva
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {batchImages.length > 1 && (
+                        <button
+                          onClick={async () => {
+                            const items = batchImages.map((img, idx) => ({ url: img.url, filename: `${brandSlug}_${slugify(img.label || "") || `toma-${idx + 1}`}.png` }));
+                            try { await downloadZip(items, `${brandSlug}_${slugify(batch.label).slice(0, 30)}`); }
+                            catch (e) { console.error(e); alert("No se pudo descargar el ZIP."); }
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 text-[10px] text-fg-muted hover:text-fg hover:bg-surface-2 rounded transition-colors cursor-pointer"
+                          title="Descargar solo esta tanda"
+                        >
+                          <Download size={11} />
+                          ZIP
+                        </button>
+                      )}
+                      {onDeleteBatch && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`Borrar "${batch.label}"? No se puede deshacer.`)) onDeleteBatch(batch.id);
+                          }}
+                          className="flex items-center justify-center w-7 h-7 text-fg-faint hover:text-red-400 hover:bg-surface-2 rounded transition-colors cursor-pointer"
+                          title="Borrar esta tanda"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Grid de thumbs de la tanda */}
+                  <div className="p-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                      {batch.images.map((img, idx) => {
+                        const editKey = `${batch.id}__${img.id}`;
+                        const isEditing = editingImageId === editKey;
+                        return (
+                          <div key={img.id} className={cn("space-y-1", isEditing && "col-span-2 sm:col-span-3 md:col-span-4 lg:col-span-5")}>
+                            <div className={cn(
+                              "rounded-[var(--radius-sm)] overflow-hidden border bg-surface-2 relative group transition-colors",
+                              isEditing
+                                ? "border-[var(--color-action)] aspect-auto"
+                                : "border-edge hover:border-[var(--color-action)] cursor-pointer aspect-square",
+                            )}>
+                              {img.url ? (
+                                <button
+                                  onClick={() => !isEditing && setLightboxUrl(img.url)}
+                                  className={cn("block w-full", isEditing ? "cursor-default" : "cursor-zoom-in")}
+                                  title={isEditing ? "" : "Click para zoom"}
+                                >
+                                  <img src={img.url} alt={img.label} className={cn("w-full", isEditing ? "max-h-[400px] object-contain" : "h-full object-cover")} />
+                                </button>
+                              ) : (
+                                <div className="w-full aspect-square flex items-center justify-center text-fg-faint text-[10px]">Failed</div>
+                              )}
+                              {img.url && !isEditing && (
+                                <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setEditingImageId(editKey); }}
+                                    className="w-6 h-6 flex items-center justify-center bg-black/60 hover:bg-[var(--color-action)] text-white rounded cursor-pointer"
+                                    title="Editar esta toma — agregá refs y describí qué cambiar"
+                                  >
+                                    <Wand2 size={11} />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      downloadMediaAs(img.url, `${brandSlug}_${slugify(img.label || "") || `toma-${idx + 1}`}.png`);
+                                    }}
+                                    className="w-6 h-6 flex items-center justify-center bg-black/60 hover:bg-black/80 text-white rounded cursor-pointer"
+                                    title="Descargar esta imagen"
+                                  >
+                                    <Download size={11} />
+                                  </button>
+                                </div>
+                              )}
+                              {isEditing && (
+                                <button
+                                  onClick={() => setEditingImageId(null)}
+                                  className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center bg-black/70 hover:bg-black/90 text-white rounded-full cursor-pointer"
+                                  title="Cerrar editor"
+                                >
+                                  <X size={13} />
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-fg-faint truncate px-0.5">{img.label}</p>
+                            {isEditing && img.url && (
+                              <div className="pt-1 border-t border-edge">
+                                <ImageEditPanel
+                                  imageUrl={img.url}
+                                  aspectRatio={config?.aspectRatio || "4:5"}
+                                  resolution={config?.resolution || "2K"}
+                                  selectedProductId={config?.selectedProductId}
+                                  selectedClothingIds={config?.selectedClothingIds}
+                                  onImageUpdated={(newUrl) => {
+                                    onUpdateBatchImage?.(batch.id, img.id, newUrl);
+                                    setEditingImageId(null);
+                                  }}
+                                  onClose={() => setEditingImageId(null)}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* CTA al final también, para que no haya que scrollear arriba */}
+          {onNewBatch && (
+            <div className="pt-2">
+              <button
+                onClick={onNewBatch}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-[12px] font-medium text-fg-muted hover:text-fg bg-surface-1 hover:bg-surface-2 border border-dashed border-edge hover:border-[var(--color-action)] rounded-[var(--radius-md)] transition-colors cursor-pointer"
+                title="Editá la config arriba (o desde el sidebar) y dale Generar — se suma como nueva tanda"
+              >
+                <Sparkles size={13} />
+                + Nueva tanda (editá shots/outfits y volvé a generar)
+              </button>
+            </div>
+          )}
+
+          {/* Lightbox compartido */}
+          {lightboxUrl && (
+            <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8 cursor-pointer" onClick={() => setLightboxUrl(null)}>
+              <img src={lightboxUrl} alt="Full size" className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]" onClick={(e) => e.stopPropagation()} />
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-4">
         {data.interpretation && (
@@ -7492,16 +8038,24 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             {images.length > 1 && (
               <button
                 onClick={async () => {
-                  for (let idx = 0; idx < images.length; idx++) {
-                    const img = images[idx];
-                    if (!img.url) continue;
-                    await downloadMediaAs(img.url, fileFor(img, idx));
+                  // Backend arma UN solo ZIP — soluciona el bloqueo de Chrome
+                  // que ignora downloads consecutivos. Reportado: "no me deja
+                  // descargar todas juntas, solo me baja una".
+                  const items = images
+                    .filter((img) => img.url)
+                    .map((img, idx) => ({ url: img.url, filename: fileFor(img, idx) }));
+                  try {
+                    await downloadZip(items, `${brandSlug}_pack`);
+                  } catch (e) {
+                    console.error("[ecommerce-pack] zip download failed:", e);
+                    alert("No se pudo descargar el ZIP. Probá descargar de a una.");
                   }
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 rounded-[var(--radius-sm)] cursor-pointer"
+                title="Descarga todas las imágenes empaquetadas en un ZIP"
               >
                 <Download size={12} />
-                Descargar todas ({images.length})
+                Descargar todas ({images.length}) · ZIP
               </button>
             )}
           </div>
@@ -7584,13 +8138,13 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 >
                   {editingImageId === activeImg.id ? "Cancelar" : "Editar imagen"}
                 </button>
-                <a
-                  href={activeImg.url}
-                  download={`static_ad_${activeImg.id}.png`}
+                <button
+                  type="button"
+                  onClick={() => downloadUrl(activeImg.url, `static_ad_${activeImg.id}.png`)}
                   className="block w-full py-2 text-center text-[12px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 rounded-[var(--radius-sm)] cursor-pointer"
                 >
                   Descargar
-                </a>
+                </button>
               </div>
             )}
           </div>
@@ -7668,24 +8222,22 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   <span className="text-[9px] text-fg-faint">{v.aspectRatio}</span>
                 </div>
                 {v.url && (
-                  <a
-                    href={v.url}
-                    download={`${v.key}_${v.label.replace(/\s+/g, "_")}.png`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg transition-colors w-full"
+                  <button
+                    type="button"
+                    onClick={() => downloadUrl(v.url, `${v.key}_${v.label.replace(/\s+/g, "_")}.png`)}
+                    className="flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg transition-colors w-full cursor-pointer"
                     title="Descargar esta vista"
                   >
                     <Download size={10} />
                     Descargar
-                  </a>
+                  </button>
                 )}
               </div>
             ))}
           </div>
         ) : (
           data.url && (
-            <div className="flex justify-center">
+            <div className="flex flex-col items-center gap-2">
               <div
                 className="max-w-sm rounded-[var(--radius-md)] overflow-hidden border border-edge cursor-pointer hover:border-[var(--color-action)] transition-colors relative group"
                 onClick={() => setLightboxUrl(data.url!)}
@@ -7695,6 +8247,17 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   <Eye size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </div>
+              {/* Botón Descargar — usa downloadUrl helper (fetch+blob) que fuerza
+                  el descargado incluso con URLs cross-origin como Fal. */}
+              <button
+                type="button"
+                onClick={() => downloadUrl(data.url!, `${(data.title || "generated").toLowerCase().replace(/[^a-z0-9]+/g, "_")}.png`)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-sm)] text-[11px] bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg transition-colors cursor-pointer"
+                title="Descargar imagen"
+              >
+                <Download size={11} />
+                Descargar
+              </button>
             </div>
           )
         )}
@@ -10252,17 +10815,15 @@ function CurationPanel({
                       )}
                     </button>
                     {isScene1 && (
-                      <a
-                        href={v.url}
-                        download={`scene1_base.jpg`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg transition-colors w-full"
+                      <button
+                        type="button"
+                        onClick={() => downloadUrl(v.url, "scene1_base.jpg")}
+                        className="flex items-center justify-center gap-1 py-1 rounded-[var(--radius-sm)] text-[10px] bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg transition-colors w-full cursor-pointer"
                         title="Download image"
                       >
                         <Download size={10} />
                         Download
-                      </a>
+                      </button>
                     )}
                     {!isScene1 && (
                       <div className="flex gap-1">
@@ -10291,16 +10852,14 @@ function CurationPanel({
                           <Pencil size={10} />
                           {isEditing ? "Cancel" : "Edit"}
                         </button>
-                        <a
-                          href={v.url}
-                          download={`scene${sceneIndex + 1}_${v.label.replace(/\s+/g, "_")}.jpg`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center px-2 py-1 rounded-[var(--radius-sm)] text-[10px] bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg transition-colors"
+                        <button
+                          type="button"
+                          onClick={() => downloadUrl(v.url, `scene${sceneIndex + 1}_${v.label.replace(/\s+/g, "_")}.jpg`)}
+                          className="flex items-center justify-center px-2 py-1 rounded-[var(--radius-sm)] text-[10px] bg-surface-2 text-fg-muted hover:bg-surface-3 hover:text-fg transition-colors cursor-pointer"
                           title="Download image"
                         >
                           <Download size={10} />
-                        </a>
+                        </button>
                       </div>
                     )}
                     {!isScene1 && (v as { prompt?: string }).prompt && (
@@ -10344,14 +10903,26 @@ function CurationPanel({
                 <div className="flex items-center gap-2 flex-wrap">
                   {productRefUrl && (
                     <button
-                      onClick={() => setEditIncludeProduct(!editIncludeProduct)}
+                      onClick={() => {
+                        const next = !editIncludeProduct;
+                        setEditIncludeProduct(next);
+                        // Auto-carga prompt de reemplazo cuando el usuario activa la
+                        // ref si el input está vacío. Mensaje claro: "reemplazá el
+                        // producto/prenda de la imagen actual por el de la ref".
+                        // No pisa lo que el usuario haya escrito. Reportado: "al
+                        // seleccionar una prenda debería ponerse un prompt que diga
+                        // que reemplaza esa prenda por la de la imagen ref".
+                        if (next && !editPrompt.trim()) {
+                          setEditPrompt("Replace the product/garment in image 1 with the one shown in the product reference. Keep the model, pose, framing, lighting and background identical to image 1.");
+                        }
+                      }}
                       className={cn(
                         "flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium transition-colors cursor-pointer border",
                         editIncludeProduct
                           ? "bg-[var(--color-brand-subtle)] text-[var(--color-brand)] border-[var(--color-brand)]"
                           : "bg-surface-1 text-fg-faint border-edge hover:text-fg"
                       )}
-                      title={editIncludeProduct ? "Producto del Brand Kit incluido como ref" : "Sumar el producto del Brand Kit como ref"}
+                      title={editIncludeProduct ? "Producto del Brand Kit incluido como ref — el prompt se autocompletó si estaba vacío" : "Sumar el producto del Brand Kit como ref (auto-prompt de reemplazo)"}
                     >
                       <img src={productRefUrl} alt="" className="w-4 h-4 rounded object-cover" />
                       {editIncludeProduct ? "Producto ref ✓" : "+ Producto del Kit"}
@@ -10383,7 +10954,17 @@ function CurationPanel({
                           const f = e.target.files?.[0];
                           if (!f) return;
                           const r = new FileReader();
-                          r.onload = () => setEditAdHocRefUrl(r.result as string);
+                          r.onload = () => {
+                            setEditAdHocRefUrl(r.result as string);
+                            // Auto-prompt de reemplazo si el input está vacío.
+                            // El nombre del archivo da pista (ej. "pose-front.jpg",
+                            // "blue-jacket.png") para que Nano Banana sepa qué
+                            // elemento reemplazar. No pisa lo que el usuario escribió.
+                            if (!editPrompt.trim()) {
+                              const fname = f.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ");
+                              setEditPrompt(`Replace the relevant element (garment / pose / detail — context: "${fname}") in image 1 with the one shown in the LAST reference image. Keep the model identity, framing, lighting and background of image 1 identical.`);
+                            }
+                          };
                           r.readAsDataURL(f);
                           e.target.value = "";
                         }}
@@ -11157,43 +11738,23 @@ function UGCConfigPanel({
 
   return (
     <div className="space-y-5">
-      {/* ── Presets bar ──────────────────────────────────────── */}
-      <div>
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Presets</span>
-          {activePreset && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-action-muted)] text-[var(--color-action-strong)] font-medium">
-              {activePreset.name} activo
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {UGC_PRESETS.map((p) => {
-            const isActive = activePreset?.id === p.id;
-            return (
-              <button
-                key={p.id}
-                onClick={() => applyPreset(p)}
-                className={cn(
-                  "group relative text-left p-3 rounded-[var(--radius-md)] border transition-all cursor-pointer",
-                  isActive
-                    ? "border-[var(--color-action)] bg-[var(--color-action-muted)]"
-                    : "border-edge bg-surface-1 hover:border-edge-strong hover:bg-surface-2"
-                )}
-              >
-                <div className="flex items-start gap-2 mb-1.5">
-                  <span className="text-[16px] leading-none">{p.emoji}</span>
-                  <span className={cn(
-                    "text-[12px] font-semibold leading-tight",
-                    isActive ? "text-fg" : "text-fg"
-                  )}>{p.name}</span>
-                </div>
-                <p className="text-[10px] text-fg-faint leading-snug">{p.description}</p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* ── Presets bar ──────────────────────────────────────────
+          ModelDropdown unificado con el resto. Antes era un grid 2×2/4-col de
+          cards grandes que comía ~150px de altura. */}
+      <ModelDropdown
+        label="Preset"
+        value={activePreset?.id || ""}
+        onChange={(nextId) => {
+          const next = UGC_PRESETS.find((p) => p.id === nextId);
+          if (next) applyPreset(next);
+        }}
+        options={UGC_PRESETS.map((p) => ({
+          id: p.id,
+          label: `${p.emoji} ${p.name}`,
+          sub: p.description,
+        }))}
+        placeholder="Custom — ajustá los campos abajo"
+      />
 
       {/* ── Section: Narrativa ───────────────────────────────── */}
       <UGCSection title="Narrativa" subtitle="Estructura del video">
@@ -11987,6 +12548,33 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
+}
+
+/** Etiqueta corta para una tanda — categoriza los shots elegidos (on-model vs flat)
+ *  y trae la cuenta de outputs exitosos. Pensado para que un usuario que ve la pila
+ *  de tandas entienda de un vistazo qué es cada una sin tener que abrirla. */
+function describeBatch(toolId: string, shotIds: string[], count: number): string {
+  if (toolId === "ecommerce_pack") {
+    const onModelShots = shotIds.filter((s) => SHOT_CATALOG[s]?.onModel);
+    const flatShots = shotIds.filter((s) => SHOT_CATALOG[s] && !SHOT_CATALOG[s].onModel);
+    const parts: string[] = [];
+    if (onModelShots.length) parts.push(`On-model ${onModelShots.map((s) => SHOT_CATALOG[s].label.split(" ").slice(-1)[0]).join("/")}`);
+    if (flatShots.length) parts.push(`Flats ${flatShots.map((s) => SHOT_CATALOG[s].label.split(" ").slice(-1)[0]).join("/")}`);
+    const head = parts.join(" + ") || "Tanda";
+    return `${head} · ${count} imagen${count === 1 ? "" : "es"}`;
+  }
+  return `Tanda · ${count} imagen${count === 1 ? "" : "es"}`;
+}
+
+/** Tiempo relativo en español ("ahora", "hace 3 min", "hace 1 h"). Más liviano
+ *  que sumar dayjs/date-fns para un solo lugar de uso. */
+function timeAgo(ts: number): string {
+  const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (s < 30) return "ahora";
+  if (s < 90) return "hace 1 min";
+  if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
+  if (s < 7200) return "hace 1 h";
+  return `hace ${Math.floor(s / 3600)} h`;
 }
 
 /** Download a media URL with the given filename, via the backend proxy so it always

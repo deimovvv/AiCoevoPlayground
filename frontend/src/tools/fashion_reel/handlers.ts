@@ -271,7 +271,10 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   const selectedBackground = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
 
   // Looks mode: first scene = first scene's clothing (lookup por garmentId si existe,
-  // sino al primer outfit para compat con scenes viejas). Story mode: all clothing.
+  // sino al primer outfit). Story mode: SOLO la primera clothing — pasarle todas
+  // confunde a Nano Banana (mezcla detalles entre prendas e inventa una fantasma).
+  // Reportado: "elegí Story con 3 outfits, me hizo la primera inventada y todos
+  // los shots iguales". Si querés mostrar varios outfits → usar Looks mode.
   const allClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
   const lookupClothing = (garmentId?: string) => garmentId
     ? allClothing.find((c) => c.id === garmentId)
@@ -279,7 +282,7 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   const firstSceneClothing = lookupClothing(firstScene.garmentId);
   const sceneClothing = reelMode === "looks"
     ? (firstSceneClothing ? [firstSceneClothing] : allClothing.slice(0, 1))
-    : allClothing;
+    : allClothing.slice(0, 1); // Story: 1 sola prenda como wardrobe principal
 
   const stylePrompt = getVisualStyle(cfg);
 
@@ -537,7 +540,7 @@ export const handleMultishot: StepHandler = async (ctx) => {
       : undefined;
     let sceneClothing = reelMode === "looks"
       ? (sceneGarment ? [sceneGarment] : allClothing.slice(i, i + 1))
-      : allClothing;
+      : allClothing.slice(0, 1); // Story: 1 sola prenda (igual que base_image)
     if (reelMode === "looks" && sceneClothing.length === 0 && allClothing.length > 0) {
       sceneClothing = allClothing.slice(-1); // reuse the last garment rather than none
     }

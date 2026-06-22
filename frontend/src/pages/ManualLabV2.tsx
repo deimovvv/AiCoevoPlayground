@@ -32,6 +32,7 @@ import {
     Wand2, Plus, X, Loader2, Image as ImageIcon, RefreshCw, Sun,
     Download, RotateCcw, Sparkles, FlaskConical, AlertTriangle,
     Mic, MicOff, Video, Eye, ChevronLeft, ChevronRight, Target,
+    AudioLines, Upload, Link2, Play,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useDictation } from "../lib/useDictation";
@@ -45,10 +46,14 @@ import {
     createSeedanceReferenceToVideo, pollSeedanceVideo,
     ensureHostedRefUrl,
     analyzeMotionFromVideo,
+    createSyncLipsync, pollSyncLipsync,
+    generateTTSAndUpload,
+    fetchSystemVoices, type SystemVoice,
     type Generation, type ImageModel, type LookFeelItem, type KlingModel,
 } from "../lib/api";
 import { cn } from "../lib/utils";
 import { downloadFile } from "../lib/download";
+import { ModelDropdown } from "../components/ui/ModelDropdown";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -211,6 +216,16 @@ export function ManualLabV2() {
     const [turns, setTurns] = useState<GenTurn[]>([]);
     const [busy, setBusy] = useState(false);
     const [busyLabel, setBusyLabel] = useState("Generando…");
+    // Trigger one-shot para auto-disparar submit() después de mutar prompt/refs.
+    // Lo usa "Regenerar" del GenCard — necesita que primero React aplique
+    // setPrompt/setRefs y RECIÉN ahí llame submit() con el closure actualizado.
+    // Incrementar este contador es la única forma de auto-disparar el submit.
+    const [pendingSubmit, setPendingSubmit] = useState(0);
+    // ── Lip-sync drawer ─────────────────────────────────────────────────
+    // Cuando es non-null, está visible el drawer con el turn de origen (el video
+    // sobre el que aplicamos lipsync). El audio se elige adentro del drawer:
+    // subir archivo, pegar URL, o generar con ElevenLabs inline.
+    const [lipsyncTurn, setLipsyncTurn] = useState<GenTurn | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     // Look & Feel panel — mismo set de modos que v1.
@@ -293,6 +308,42 @@ export function ManualLabV2() {
         return refs.filter((r) => r.tag.toLowerCase().includes(q) || r.label.toLowerCase().includes(q));
     }, [mention.open, mention.query, refs]);
 
+    // ── Brand assets in @-mention popover ─────────────────────────────────
+    // Cuando hay brand activo (no sandbox), sus assets aparecen como un grupo
+    // dentro del popover del @-mention. Reemplaza al checkbox "Usar assets de
+    // Geely" que antes vivía como toggle global en el sidebar.
+    type BrandAssetItem = {
+        id: string;
+        kind: "avatar" | "product" | "clothing" | "background" | "moodboard" | "lookfeel" | "logo";
+        name: string;
+        imageUrl: string;
+        displayUrl: string;
+    };
+    const brandAssets = useMemo<BrandAssetItem[]>(() => {
+        if (!activeBrand || isSandbox) return [];
+        const out: BrandAssetItem[] = [];
+        const push = (kind: BrandAssetItem["kind"], items: Array<{ id: string; name: string; imageUrl?: string }>, resolver: (u: string) => string) => {
+            for (const it of items) {
+                if (!it.imageUrl) continue;
+                const display = it.imageUrl.startsWith("data:") ? it.imageUrl : resolver(it.imageUrl);
+                out.push({ id: it.id, kind, name: it.name, imageUrl: it.imageUrl, displayUrl: display });
+            }
+        };
+        push("avatar", activeBrand.avatars || [], avatarImageUrl);
+        push("product", (activeBrand.products || []).map((p) => ({ id: p.id, name: p.name, imageUrl: p.imageUrl })), productImageUrl);
+        push("clothing", activeBrand.clothing || [], clothingImageUrl);
+        push("background", activeBrand.backgrounds || [], backgroundImageUrl);
+        push("moodboard", activeBrand.moodboards || [], moodboardImageUrl);
+        return out;
+    }, [activeBrand, isSandbox]);
+
+    const filteredBrandAssets = useMemo(() => {
+        if (!mention.open) return [];
+        const q = mention.query.toLowerCase();
+        if (!q) return brandAssets;
+        return brandAssets.filter((a) => a.kind.includes(q) || a.name.toLowerCase().includes(q));
+    }, [mention.open, mention.query, brandAssets]);
+
     // Detect "@..." right before the cursor and open popover with filtered refs.
     const handleMentionTrigger = useCallback((value: string, ta: HTMLTextAreaElement) => {
         const caret = ta.selectionStart ?? value.length;
@@ -301,7 +352,12 @@ export function ManualLabV2() {
         while (i >= 0 && !/\s/.test(value[i])) {
             if (value[i] === "@") {
                 const query = value.slice(i + 1, caret);
-                if (refs.length === 0) { setMention((m) => ({ ...m, open: false })); return; }
+                // Abrimos el popover si hay algo para ofrecer — refs ya agregadas O
+                // assets del brand activo. Antes solo abría con refs > 0.
+                if (refs.length === 0 && brandAssets.length === 0) {
+                    setMention((m) => ({ ...m, open: false }));
+                    return;
+                }
                 const rect = ta.getBoundingClientRect();
                 const parentRect = ta.offsetParent instanceof HTMLElement
                     ? ta.offsetParent.getBoundingClientRect()
@@ -318,7 +374,7 @@ export function ManualLabV2() {
             i--;
         }
         setMention((m) => ({ ...m, open: false }));
-    }, [refs.length]);
+    }, [refs.length, brandAssets.length]);
 
     // Replace the current "@query" segment with `[imgN]`.
     const commitMention = useCallback((ref_: RefImage) => {
@@ -338,6 +394,10 @@ export function ManualLabV2() {
             ta.setSelectionRange(pos, pos);
         });
     }, [prompt]);
+
+    // commitBrandAsset se declara más abajo, después de addAssetRef (depende de él
+    // y antes daba TDZ "Cannot access 'addAssetRef' before initialization" porque
+    // los const useCallback se inicializan en orden de declaración).
 
     // ── Load past generations on mount / brand change ────────────────
     // Las generaciones con el mismo `metadata.batchId` se reagrupan en un solo turn
@@ -400,9 +460,10 @@ export function ManualLabV2() {
                 });
                 // Newest first.
                 loaded.sort((a, b) => b.createdAt - a.createdAt);
-                // Cap a 20 generaciones para tener margen extra de seguridad. El resto
-                // siempre podés verlo desde Contenido por marca.
-                setTurns(loaded.slice(0, 20));
+                // Cap a 50 turns — un turn puede tener varias variantes, así que
+                // el grid del SessionDrawer ve cerca de 50-60 thumbs típicamente.
+                // El resto siempre podés verlo desde Contenido por marca.
+                setTurns(loaded.slice(0, 50));
             })
             .catch((e) => console.error("[lab-v2] load failed:", e));
         return () => { cancelled = true; };
@@ -453,6 +514,31 @@ export function ManualLabV2() {
             }];
         });
     }, []);
+
+    /** Como commitMention pero para un brand asset: agrega la ref + reemplaza
+     *  el "@query" por el `[imgN]` que le tocaría al nuevo ref. El nuevo tag
+     *  se calcula leyendo refs.length antes del addAssetRef async.
+     *  Tiene que vivir DESPUÉS de addAssetRef — sino se rompe en runtime con
+     *  TDZ "Cannot access 'addAssetRef' before initialization". */
+    const commitBrandAsset = useCallback((a: BrandAssetItem) => {
+        const ta = promptRef.current;
+        if (!ta) return;
+        const caret = ta.selectionStart ?? prompt.length;
+        let start = caret - 1;
+        while (start >= 0 && prompt[start] !== "@") start--;
+        if (start < 0) return;
+        const nextTag = `img${refs.length + 1}`;
+        addAssetRef(a.kind, { id: a.id, name: a.name, imageUrl: a.imageUrl });
+        const token = `[${nextTag}]`;
+        const next = prompt.slice(0, start) + token + prompt.slice(caret);
+        setPrompt(next);
+        setMention((m) => ({ ...m, open: false }));
+        requestAnimationFrame(() => {
+            ta.focus();
+            const pos = start + token.length;
+            ta.setSelectionRange(pos, pos);
+        });
+    }, [prompt, refs.length, addAssetRef]);
 
     const removeRef = useCallback((tag: string) => {
         setRefs((prev) => {
@@ -679,6 +765,16 @@ export function ManualLabV2() {
     );
 
     const canGenerate = hasContent && !busy;
+
+    // Cuando pendingSubmit incrementa, React ya aplicó los setPrompt/setRefs
+    // anteriores → submit() lee del closure actualizado y dispara la corrida.
+    // El guard `pendingSubmit > 0` evita disparar al montar.
+    useEffect(() => {
+        if (pendingSubmit > 0 && canGenerate) {
+            void submit();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pendingSubmit]);
 
     const submit = async () => {
         if (!canGenerate) return;
@@ -944,61 +1040,29 @@ export function ManualLabV2() {
                             })}
                         </div>
 
-                        {/* Modelo — switch entre image y video según el modo activo. */}
+                        {/* Modelo — switch entre image y video según el modo activo.
+                            ModelDropdown: una línea fina con popover en lugar del grid
+                            de 2 cards grandes — gana ~70px de altura vertical en el sidebar. */}
                         {mode === "image" ? (
-                            <div className="space-y-1.5">
-                                <span className="text-[10px] font-bold text-fg-faint uppercase tracking-widest">Modelo</span>
-                                <div className="grid grid-cols-2 gap-1.5">
-                                    {([
-                                        { id: "nano-banana-2" as const, label: "Nano Banana 2", sub: "Multi-ref · Gemini" },
-                                        { id: "gpt-image-2" as const, label: "GPT Image 2", sub: "Base + edit · OpenAI" },
-                                    ]).map((m) => {
-                                        const active = model === m.id;
-                                        return (
-                                            <button
-                                                key={m.id}
-                                                onClick={() => setModel(m.id)}
-                                                className={cn(
-                                                    "px-2.5 py-2 rounded-[var(--radius-sm)] border text-left transition-colors cursor-pointer",
-                                                    active
-                                                        ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]"
-                                                        : "border-edge bg-surface-1 hover:bg-surface-2 hover:border-edge-strong"
-                                                )}
-                                            >
-                                                <div className={cn("text-[11px] font-semibold", active ? "text-fg" : "text-fg-secondary")}>
-                                                    {m.label}
-                                                </div>
-                                                <div className="text-[9px] text-fg-faint mt-0.5">{m.sub}</div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                            <div>
+                                <ModelDropdown
+                                    label="Modelo"
+                                    value={model}
+                                    onChange={(next) => setModel(next as ImageModel)}
+                                    options={[
+                                        { id: "nano-banana-2", label: "Nano Banana 2", sub: "Multi-ref · Gemini" },
+                                        { id: "gpt-image-2", label: "GPT Image 2", sub: "Base + edit · OpenAI" },
+                                    ]}
+                                />
                             </div>
                         ) : (
                             <div className="space-y-1.5">
-                                <span className="text-[10px] font-bold text-fg-faint uppercase tracking-widest">Modelo de video</span>
-                                <div className="grid grid-cols-1 gap-1.5">
-                                    {VIDEO_MODELS.map((m) => {
-                                        const active = videoModelId === m.id;
-                                        return (
-                                            <button
-                                                key={m.id}
-                                                onClick={() => setVideoModelId(m.id)}
-                                                className={cn(
-                                                    "px-2.5 py-2 rounded-[var(--radius-sm)] border text-left transition-colors cursor-pointer",
-                                                    active
-                                                        ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]"
-                                                        : "border-edge bg-surface-1 hover:bg-surface-2 hover:border-edge-strong"
-                                                )}
-                                            >
-                                                <div className={cn("text-[11px] font-semibold", active ? "text-fg" : "text-fg-secondary")}>
-                                                    {m.label}
-                                                </div>
-                                                <div className="text-[9px] text-fg-faint mt-0.5">{m.sub}</div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                                <ModelDropdown
+                                    label="Modelo de video"
+                                    value={videoModelId}
+                                    onChange={(next) => setVideoModelId(next as VideoModelId)}
+                                    options={VIDEO_MODELS.map((m) => ({ id: m.id, label: m.label, sub: m.sub }))}
+                                />
                                 {/* Sub-modo (solo cuando el modelo soporta más de uno — Kling tiene i2v + f2f) */}
                                 {currentVideoModel.modes.length > 1 && (
                                     <div className="grid grid-cols-2 gap-1.5 mt-2">
@@ -1488,35 +1552,74 @@ export function ManualLabV2() {
                                 {dictation.error && (
                                     <p className="text-[10px] text-[var(--color-error)] mt-1">{dictation.error}</p>
                                 )}
-                                {/* @-mention popover — anchor abajo del textarea para no tapar lo que escribís */}
-                                {mention.open && filteredRefs.length > 0 && (
-                                    <div className="absolute z-30 mt-1 left-0 right-0 max-h-52 overflow-y-auto bg-surface-1 border border-edge rounded-[var(--radius-md)] shadow-2xl p-1">
+                                {/* @-mention popover — anchor abajo del textarea para no tapar lo que escribís.
+                                    Dos grupos: (1) refs ya agregadas — insertar [imgN] inline, navegables con
+                                    ↑/↓+Enter; (2) assets del brand activo — agregar al refs + insertar token nuevo.
+                                    Los brand assets se eligen con mouse (no entran al cursor de teclado para
+                                    no romper el patrón que ya conoce el usuario). */}
+                                {mention.open && (filteredRefs.length > 0 || filteredBrandAssets.length > 0) && (
+                                    <div className="absolute z-30 mt-1 left-0 right-0 max-h-72 overflow-y-auto bg-surface-1 border border-edge rounded-[var(--radius-md)] shadow-2xl p-1">
                                         <p className="text-[9px] uppercase tracking-widest text-fg-faint px-2 py-1">
                                             ↑/↓ navegar · Enter insertar · Esc cerrar
                                         </p>
-                                        {filteredRefs.map((r, i) => (
-                                            <button
-                                                key={r.tag}
-                                                onMouseDown={(e) => { e.preventDefault(); commitMention(r); }}
-                                                className={cn(
-                                                    "w-full flex items-center gap-2 p-1.5 rounded cursor-pointer text-left transition-colors",
-                                                    i === mention.activeIdx
-                                                        ? "bg-[var(--color-action-subtle)]"
-                                                        : "hover:bg-surface-2"
-                                                )}
-                                            >
-                                                <img src={r.url} alt={r.label} className="w-8 h-8 rounded object-cover shrink-0" />
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <code className="text-[10px] font-bold text-[var(--color-action)]">[{r.tag}]</code>
-                                                        <span className="text-[11px] text-fg truncate">{r.label}</span>
-                                                    </div>
-                                                </div>
-                                            </button>
-                                        ))}
+                                        {filteredRefs.length > 0 && (
+                                            <>
+                                                <p className="text-[9px] uppercase tracking-widest text-fg-faint px-2 pt-1 pb-0.5">Refs actuales</p>
+                                                {filteredRefs.map((r, i) => (
+                                                    <button
+                                                        key={r.tag}
+                                                        onMouseDown={(e) => { e.preventDefault(); commitMention(r); }}
+                                                        className={cn(
+                                                            "w-full flex items-center gap-2 p-1.5 rounded cursor-pointer text-left transition-colors",
+                                                            i === mention.activeIdx
+                                                                ? "bg-[var(--color-action-subtle)]"
+                                                                : "hover:bg-surface-2"
+                                                        )}
+                                                    >
+                                                        <img src={r.url} alt={r.label} className="w-8 h-8 rounded object-cover shrink-0" />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <code className="text-[10px] font-bold text-[var(--color-action)]">[{r.tag}]</code>
+                                                                <span className="text-[11px] text-fg truncate">{r.label}</span>
+                                                            </div>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
+                                        {filteredBrandAssets.length > 0 && (
+                                            <>
+                                                {filteredRefs.length > 0 && <div className="my-1 border-t border-edge-subtle" />}
+                                                <p className="text-[9px] uppercase tracking-widest text-fg-faint px-2 pt-1 pb-0.5">
+                                                    Assets de {activeBrand?.name}
+                                                </p>
+                                                {filteredBrandAssets.map((a) => (
+                                                    <button
+                                                        key={`${a.kind}_${a.id}`}
+                                                        onMouseDown={(e) => { e.preventDefault(); commitBrandAsset(a); }}
+                                                        className="w-full flex items-center gap-2 p-1.5 rounded cursor-pointer text-left transition-colors hover:bg-surface-2"
+                                                    >
+                                                        <img src={a.displayUrl} alt={a.name} className="w-8 h-8 rounded object-cover shrink-0" />
+                                                        <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                                                            <span className="text-[9px] uppercase tracking-wider text-fg-faint shrink-0">{a.kind}</span>
+                                                            <span className="text-[11px] text-fg truncate">{a.name}</span>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </>
+                                        )}
                                     </div>
                                 )}
                             </div>
+                            {/* Hint del @-mention — sutil, solo cuando hay algo para ofrecer
+                                (refs ya cargadas o brand activo con assets). Reemplaza al
+                                checkbox "Usar assets de [Brand]" que vivía como toggle global. */}
+                            {(refs.length > 0 || brandAssets.length > 0) && (
+                                <p className="text-[10px] text-fg-faint mt-1.5 leading-snug">
+                                    Tip: tipeá <code className="text-[var(--color-action)] font-mono">@</code> en el prompt para insertar refs
+                                    {brandAssets.length > 0 && activeBrand?.name ? ` o assets de ${activeBrand.name}` : ""}.
+                                </p>
+                            )}
                             <div className="flex items-center justify-between gap-2 mt-2 flex-wrap">
                                 <div className="flex items-center gap-1">
                                     <SegBtn label="Tal cual" active={passThrough} onClick={() => setPassThrough(true)} />
@@ -1851,8 +1954,12 @@ export function ManualLabV2() {
                                         });
                                     }}
                                     onRegenerate={() => {
-                                        // "Regenerar": cargá prompt + refs del turn como composer y dejá que
-                                        // el usuario toque Generar (no auto-disparamos para no gastar créditos).
+                                        // "Regenerar": cargá prompt + refs del turn al composer y
+                                        // auto-dispará submit en el próximo render (cuando React ya
+                                        // aplicó los setPrompt/setRefs). Antes solo cargaba al
+                                        // composer y el usuario tenía que apretar Generar — confuso
+                                        // dado el label "Regenerar". Para EDITAR el prompt está la
+                                        // acción separada "Editar".
                                         setPrompt(t.prompt);
                                         setEnhancedPrompt(t.sentPrompt && t.sentPrompt !== t.prompt ? t.sentPrompt : null);
                                         setRefs(t.refs.map((r, i) => ({
@@ -1862,8 +1969,7 @@ export function ManualLabV2() {
                                             source: "result",
                                             baseName: t.baseName,
                                         })));
-                                        // Scroll al top del sidebar (donde está el prompt + Generar).
-                                        requestAnimationFrame(() => promptRef.current?.focus());
+                                        setPendingSubmit((n) => n + 1);
                                     }}
                                     onDownload={(url, i) => {
                                         const base = downloadBaseName(t);
@@ -1871,6 +1977,7 @@ export function ManualLabV2() {
                                         const name = i !== undefined ? `${base}_v${i + 1}.${ext}` : `${base}.${ext}`;
                                         downloadFile(url, name);
                                     }}
+                                    onLipsync={() => setLipsyncTurn(t)}
                                 />
                             ))}
                         </div>
@@ -1890,7 +1997,66 @@ export function ManualLabV2() {
                     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
                     setDrawerOpen(false);
                 }}
+                onUseAsRef={(url, baseName) => {
+                    appendResultAsRef(url, baseName, "previous result");
+                    setDrawerOpen(false);
+                }}
             />
+
+            {/* Lip-sync drawer (modal) — abre cuando hay lipsyncTurn. El resultado
+                se suma como TURN NUEVO en la galería (no pisa el video original). */}
+            {lipsyncTurn && (
+                <LipsyncDrawer
+                    sourceTurn={lipsyncTurn}
+                    onClose={() => setLipsyncTurn(null)}
+                    onResult={(videoUrl, audioMeta) => {
+                        // Arma el turn nuevo apuntando al video sincronizado. Conserva el
+                        // prompt original como referencia para que en la galería se entienda
+                        // de qué video viene. Las refs incluyen el video source para que
+                        // "Regenerar" sepa de dónde viene si el usuario lo aprieta.
+                        const newTurn: GenTurn = {
+                            id: `t_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                            prompt: audioMeta.text
+                                ? `Lip-sync: "${audioMeta.text.slice(0, 80)}${audioMeta.text.length > 80 ? "…" : ""}"`
+                                : `Lip-sync de: ${lipsyncTurn.prompt || "video"}`,
+                            refs: [
+                                { tag: "img1", label: "video source", url: lipsyncTurn.outputUrl || "" },
+                            ],
+                            status: "completed",
+                            outputUrl: videoUrl,
+                            outputType: "video",
+                            params: {
+                                videoModel: "sync-lipsync-v3",
+                                ...(audioMeta.voiceName ? { voice: audioMeta.voiceName } : {}),
+                                audioSource: audioMeta.source,
+                            },
+                            baseName: lipsyncTurn.baseName ? `${lipsyncTurn.baseName}_lipsync` : "lipsync",
+                            createdAt: Date.now(),
+                        };
+                        setTurns((prev) => [newTurn, ...prev]);
+                        setLipsyncTurn(null);
+                        // Persistir en backend para que sobreviva refresh — mismo patrón que
+                        // los otros turns del Lab.
+                        try {
+                            void saveGeneration({
+                                brandId: activeBrand?.id === "__sandbox__" ? null : (activeBrand?.id || null),
+                                toolId: "manual_lab",
+                                title: newTurn.prompt.slice(0, 120),
+                                type: "video",
+                                outputUrl: videoUrl,
+                                metadata: {
+                                    prompt: newTurn.prompt,
+                                    refs: sanitizeRefsForPersist(newTurn.refs),
+                                    params: newTurn.params,
+                                    baseName: newTurn.baseName,
+                                },
+                            });
+                        } catch (e) {
+                            console.warn("[lipsync] saveGeneration failed:", e);
+                        }
+                    }}
+                />
+            )}
 
             {/* Lightbox — soporta navegación entre variantes (flechas en pantalla + teclado).
                 El render usa lightbox.urls[lightbox.activeIdx] para la imagen activa. */}
@@ -2157,6 +2323,7 @@ function GenCard({
     onAnimate,
     onRegenerate,
     onDownload,
+    onLipsync,
 }: {
     turn: GenTurn;
     /** Abre el lightbox con la lista completa de URLs y el índice clickeado.
@@ -2167,6 +2334,9 @@ function GenCard({
     onAnimate: (url: string) => void;
     onRegenerate: () => void;
     onDownload: (url: string, variantIdx?: number) => void;
+    /** Abre el drawer de lipsync. Solo disponible para turns con outputType === "video".
+     *  El padre captura el `turn` en su closure y lo guarda en state. */
+    onLipsync?: () => void;
 }) {
     // Local state — mostrar/ocultar el "prompt usado" (el sentPrompt que se envió al modelo,
     // distinto del prompt del usuario cuando se curó con Gemini). Mismo patrón que v1.
@@ -2283,6 +2453,14 @@ function GenCard({
                     </>
                 )}
                 <ActionPill onClick={onRegenerate} icon={<RotateCcw size={11} />} label="Regenerar" title="Volver a generar con el mismo prompt y refs" />
+                {isVideo && urls[0] && onLipsync && (
+                    <ActionPill
+                        onClick={onLipsync}
+                        icon={<AudioLines size={11} />}
+                        label="Lip-sync"
+                        title="Sumar audio (upload / URL / ElevenLabs) y sincronizar labios sobre este video — sale como tanda nueva"
+                    />
+                )}
                 {turn.refs.length > 0 && (
                     <span className="ml-1 text-[10px] text-fg-faint">· {turn.refs.length} ref{turn.refs.length === 1 ? "" : "s"}</span>
                 )}
@@ -2334,11 +2512,16 @@ function SessionDrawer({
     open,
     onToggle,
     onJumpTo,
+    onUseAsRef,
 }: {
     turns: GenTurn[];
     open: boolean;
     onToggle: () => void;
     onJumpTo: (turnId: string) => void;
+    /** Reutilizá una imagen generada como referencia para el próximo prompt.
+     *  Aparece como botón `+` en hover sobre el thumb. Solo disponible para imágenes
+     *  (no para videos — el flow ahí es Animar/Lip-sync desde el card). */
+    onUseAsRef?: (url: string, baseName?: string) => void;
 }) {
     // Newest first. Cada variante = su propia thumbnail. Cap a 60 (sino Chrome OOM).
     const items = turns
@@ -2352,6 +2535,7 @@ function SessionDrawer({
                 outputType: t.outputType,
                 variantIdx: urls.length > 1 ? i + 1 : null,
                 prompt: t.prompt,
+                baseName: t.baseName,
             }));
         })
         .slice(0, 60);
@@ -2390,36 +2574,56 @@ function SessionDrawer({
                                 </p>
                             ) : (
                                 items.map((it) => (
-                                    <button
+                                    // Wrapper relativo — no es <button> anidado porque adentro hay
+                                    // OTRO botón (Usar como ref). Click en cualquier parte del wrapper
+                                    // que NO sea el botón overlay → onJumpTo. Reuso el patrón hover
+                                    // del GenCard (group/variant) acá también.
+                                    <div
                                         key={it.key}
-                                        onClick={() => { onJumpTo(it.turnId); }}
-                                        title={it.prompt || "Saltar a esta generación"}
-                                        className="relative w-full aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge-subtle hover:border-[var(--color-brand)] cursor-pointer bg-surface-2 transition-colors"
+                                        className="group/thumb relative w-full aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge-subtle hover:border-[var(--color-brand)] bg-surface-2 transition-colors"
                                     >
-                                        {it.outputType === "video" ? (
-                                            <div className="w-full h-full bg-surface-1 flex items-center justify-center text-fg-faint">
-                                                <Video size={20} />
-                                            </div>
-                                        ) : (
-                                            <img
-                                                src={it.url}
-                                                alt={it.prompt}
-                                                loading="lazy"
-                                                decoding="async"
-                                                className="w-full h-full object-cover"
-                                            />
-                                        )}
+                                        <button
+                                            onClick={() => onJumpTo(it.turnId)}
+                                            title={it.prompt || "Saltar a esta generación"}
+                                            className="absolute inset-0 w-full h-full cursor-pointer"
+                                        >
+                                            {it.outputType === "video" ? (
+                                                <div className="w-full h-full bg-surface-1 flex items-center justify-center text-fg-faint">
+                                                    <Video size={20} />
+                                                </div>
+                                            ) : (
+                                                <img
+                                                    src={it.url}
+                                                    alt={it.prompt}
+                                                    loading="lazy"
+                                                    decoding="async"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            )}
+                                        </button>
                                         {it.variantIdx !== null && (
-                                            <span className="absolute top-1 left-1 text-[9px] font-bold bg-black/60 text-white px-1.5 py-0.5 rounded backdrop-blur">
+                                            <span className="absolute top-1 left-1 text-[9px] font-bold bg-black/60 text-white px-1.5 py-0.5 rounded backdrop-blur pointer-events-none">
                                                 v{it.variantIdx}
                                             </span>
                                         )}
                                         {it.outputType === "video" && (
-                                            <span className="absolute bottom-1 right-1 text-[9px] bg-black/60 text-white px-1 rounded backdrop-blur">
+                                            <span className="absolute bottom-1 right-1 text-[9px] bg-black/60 text-white px-1 rounded backdrop-blur pointer-events-none">
                                                 ▶
                                             </span>
                                         )}
-                                    </button>
+                                        {/* Hover overlay — "Usar como ref". Solo para imágenes (en
+                                            videos la acción equivalente es Animar/Lip-sync desde el
+                                            card de origen). Click no propaga al wrapper. */}
+                                        {onUseAsRef && it.outputType !== "video" && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onUseAsRef(it.url, it.baseName); }}
+                                                title="Usar como ref en el próximo prompt"
+                                                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 hover:bg-[var(--color-brand)] text-white flex items-center justify-center cursor-pointer backdrop-blur opacity-0 group-hover/thumb:opacity-100 transition-opacity"
+                                            >
+                                                <Plus size={11} />
+                                            </button>
+                                        )}
+                                    </div>
                                 ))
                             )}
                         </div>
@@ -2457,6 +2661,382 @@ function ActionPill({
             onClick={onClick}
             title={title}
             className="flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-full text-fg-muted hover:text-[var(--color-brand-strong)] hover:bg-[var(--color-brand-subtle)] cursor-pointer transition-colors"
+        >
+            {icon} {label}
+        </button>
+    );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+//  Lip-sync drawer
+// ──────────────────────────────────────────────────────────────────────
+// Modal centrado (no drawer lateral porque conflictúa con SessionDrawer y
+// lightbox). Tres fuentes de audio: subir archivo / pegar URL / generar con
+// ElevenLabs inline. Cuando termina, llama onResult con el video.mp4 final;
+// el padre arma un turn nuevo para sumarlo a la galería sin pisar el original.
+//
+// El audio para ElevenLabs lo subimos via generateTTSAndUpload que ya devuelve
+// un Fal CDN URL — listo para pasarle a createSyncLipsync sin pasos extra.
+// Para upload de archivo local, usamos data URI; el backend lo reconoce y lo
+// sube a Fal storage (ver /api/synclipsync/create).
+
+type AudioSource = "upload" | "url" | "elevenlabs";
+
+function LipsyncDrawer({
+    sourceTurn,
+    onClose,
+    onResult,
+}: {
+    sourceTurn: GenTurn;
+    onClose: () => void;
+    onResult: (videoUrl: string, audioMeta: { source: AudioSource; text?: string; voiceId?: string; voiceName?: string }) => void;
+}) {
+    const [audioSource, setAudioSource] = useState<AudioSource>("elevenlabs");
+
+    // Upload state
+    const [uploadFile, setUploadFile] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // URL state
+    const [audioUrlInput, setAudioUrlInput] = useState("");
+
+    // ElevenLabs state — empezamos con system voices (las del brand requieren mapeo
+    // de VoicePreset.id → ElevenLabs voice_id que no está implementado todavía; lo
+    // sumamos en v2 de esta feature).
+    const [ttsText, setTtsText] = useState("");
+    const [voiceId, setVoiceId] = useState<string>("");
+    const [voiceName, setVoiceName] = useState<string>("");
+    const [systemVoices, setSystemVoices] = useState<SystemVoice[]>([]);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [previewFalUrl, setPreviewFalUrl] = useState<string | null>(null);
+    const [ttsBusy, setTtsBusy] = useState(false);
+
+    // Sync state
+    const [busy, setBusy] = useState(false);
+    const [busyLabel, setBusyLabel] = useState("");
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const sv = await fetchSystemVoices();
+                if (!cancelled) setSystemVoices(sv);
+            } catch (e) {
+                console.warn("[lipsync] failed to load system voices:", e);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, []);
+
+    // Default voice: la primera system.
+    useEffect(() => {
+        if (voiceId) return;
+        if (systemVoices.length > 0) {
+            setVoiceId(systemVoices[0].voice_id);
+            setVoiceName(systemVoices[0].name);
+        }
+    }, [systemVoices, voiceId]);
+
+    // Estimación de costo: $8/min de OUTPUT. Como el output dura lo mismo que el
+    // input (sync_mode cut_off), usamos la duración del video source si la tenemos.
+    // Si no, mostramos solo el ratio.
+    const sourceDurStr = sourceTurn.params.duration || "";
+    const sourceDurSec = parseInt(sourceDurStr) || 0;
+    const estCost = sourceDurSec > 0 ? `~$${((sourceDurSec / 60) * 8).toFixed(2)}` : "~$8/min";
+
+    const fileToDataUrl = (file: File): Promise<string> =>
+        new Promise((res, rej) => {
+            const reader = new FileReader();
+            reader.onload = () => res(reader.result as string);
+            reader.onerror = rej;
+            reader.readAsDataURL(file);
+        });
+
+    const runTTSPreview = async () => {
+        if (!ttsText.trim() || !voiceId) return;
+        setTtsBusy(true);
+        setError(null);
+        try {
+            // generateTTSAndUpload: ElevenLabs → audio bytes → sube a Fal storage → devuelve fal_url.
+            // Hacemos eso en lugar de generateTTS local porque después necesitamos el
+            // fal_url para pasarle a createSyncLipsync directo (no podemos pasar un blob URL).
+            const { fal_url } = await generateTTSAndUpload({ text: ttsText, voice_id: voiceId });
+            setPreviewFalUrl(fal_url);
+            setPreviewUrl(fal_url);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "TTS falló");
+        } finally {
+            setTtsBusy(false);
+        }
+    };
+
+    const submitLipsync = async () => {
+        setError(null);
+        // Resolver audio_url según la source elegida.
+        let audioUrl = "";
+        if (audioSource === "upload") {
+            if (!uploadFile) { setError("Subí un archivo de audio."); return; }
+            audioUrl = await fileToDataUrl(uploadFile);
+        } else if (audioSource === "url") {
+            if (!audioUrlInput.trim()) { setError("Pegá la URL del audio."); return; }
+            audioUrl = audioUrlInput.trim();
+        } else {
+            // ElevenLabs: si no generaste preview todavía, lo generamos al vuelo.
+            if (!previewFalUrl) {
+                if (!ttsText.trim()) { setError("Escribí el texto que va a decir."); return; }
+                await runTTSPreview();
+                // El setState es async — leemos el state actualizado del previewFalUrl en el next call.
+                // Pero como runTTSPreview ya lo seteó, el render que viene va a tenerlo. Mejor leerlo
+                // del result directamente.
+            }
+            // Pequeño hack para evitar la condición de carrera: re-fetch si previewFalUrl sigue null.
+            if (!previewFalUrl && ttsText.trim()) {
+                try {
+                    const { fal_url } = await generateTTSAndUpload({ text: ttsText, voice_id: voiceId });
+                    audioUrl = fal_url;
+                    setPreviewFalUrl(fal_url);
+                    setPreviewUrl(fal_url);
+                } catch (e) {
+                    setError(e instanceof Error ? e.message : "TTS falló");
+                    return;
+                }
+            } else {
+                audioUrl = previewFalUrl!;
+            }
+        }
+        if (!sourceTurn.outputUrl) { setError("El video source no tiene URL."); return; }
+        setBusy(true);
+        try {
+            setBusyLabel("Subiendo audio + lanzando job…");
+            const { request_id } = await createSyncLipsync({
+                video_url: sourceTurn.outputUrl,
+                audio_url: audioUrl,
+                sync_mode: "cut_off",
+            });
+            setBusyLabel("Sincronizando labios (puede tardar varios minutos)…");
+            const result = await pollSyncLipsync(request_id);
+            if (result.status !== "completed" || !result.video_url) {
+                throw new Error(result.error || "Lipsync falló");
+            }
+            onResult(result.video_url, {
+                source: audioSource,
+                text: audioSource === "elevenlabs" ? ttsText : undefined,
+                voiceId: audioSource === "elevenlabs" ? voiceId : undefined,
+                voiceName: audioSource === "elevenlabs" ? voiceName : undefined,
+            });
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Lipsync falló");
+        } finally {
+            setBusy(false);
+            setBusyLabel("");
+        }
+    };
+
+    const sourceUrl = sourceTurn.outputUrl || (sourceTurn.variants?.[0] ?? "");
+
+    return (
+        <div
+            onClick={busy ? undefined : onClose}
+            className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-6 cursor-default"
+        >
+            <div
+                onClick={(e) => e.stopPropagation()}
+                className="bg-surface-1 border border-edge rounded-[var(--radius-lg)] w-full max-w-[720px] max-h-[90vh] overflow-y-auto shadow-2xl"
+            >
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-3 border-b border-edge sticky top-0 bg-surface-1 z-10">
+                    <div className="flex items-center gap-2">
+                        <AudioLines size={16} className="text-[var(--color-brand)]" />
+                        <h3 className="text-[14px] font-semibold text-fg">Lip-sync con audio</h3>
+                        <span className="text-[10px] font-medium text-fg-faint bg-surface-2 border border-edge-subtle px-2 py-0.5 rounded-full" title="Costo aproximado del modelo">
+                            {estCost} · sync-lipsync v3
+                        </span>
+                    </div>
+                    <button
+                        onClick={busy ? undefined : onClose}
+                        className={cn("w-7 h-7 rounded-full flex items-center justify-center transition-colors", busy ? "opacity-40 cursor-not-allowed" : "hover:bg-surface-2 cursor-pointer")}
+                        title="Cerrar"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-4">
+                    {/* Video source preview */}
+                    <div className="flex items-start gap-3">
+                        {sourceUrl && (
+                            <video
+                                src={sourceUrl}
+                                muted
+                                playsInline
+                                preload="metadata"
+                                className="w-32 h-32 object-cover rounded-[var(--radius-sm)] border border-edge bg-black shrink-0"
+                            />
+                        )}
+                        <div className="text-[11px] text-fg-muted leading-relaxed flex-1 min-w-0">
+                            <p className="font-semibold text-fg mb-1">Video source</p>
+                            <p className="line-clamp-2" title={sourceTurn.prompt}>{sourceTurn.prompt || <span className="italic text-fg-faint">sin prompt</span>}</p>
+                            <p className="text-fg-faint mt-1">
+                                {sourceDurSec > 0 ? `${sourceDurSec}s · ` : ""}
+                                El resultado sale como tanda nueva — el video original queda intacto.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Audio source tabs */}
+                    <div>
+                        <p className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-2">Fuente de audio</p>
+                        <div className="flex items-center gap-1 mb-3">
+                            <SourceTab active={audioSource === "elevenlabs"} onClick={() => setAudioSource("elevenlabs")} icon={<Sparkles size={11} />} label="ElevenLabs (TTS)" />
+                            <SourceTab active={audioSource === "upload"} onClick={() => setAudioSource("upload")} icon={<Upload size={11} />} label="Subir archivo" />
+                            <SourceTab active={audioSource === "url"} onClick={() => setAudioSource("url")} icon={<Link2 size={11} />} label="URL" />
+                        </div>
+
+                        {/* ElevenLabs pane */}
+                        {audioSource === "elevenlabs" && (
+                            <div className="space-y-3">
+                                <div>
+                                    <label className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1.5 block">Texto a decir</label>
+                                    <textarea
+                                        value={ttsText}
+                                        onChange={(e) => setTtsText(e.target.value)}
+                                        placeholder="Escribí lo que va a decir el sujeto del video…"
+                                        rows={3}
+                                        className="w-full px-3 py-2 text-[12px] bg-surface-0 border border-edge focus:border-[var(--color-brand)] rounded-[var(--radius-sm)] outline-none resize-y leading-relaxed"
+                                        disabled={busy}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-semibold text-fg-faint uppercase tracking-wider mb-1.5 block">Voz</label>
+                                    <select
+                                        value={voiceId}
+                                        onChange={(e) => {
+                                            const opt = e.target.options[e.target.selectedIndex];
+                                            setVoiceId(e.target.value);
+                                            setVoiceName(opt.text);
+                                            // Si cambiás de voz, invalidá el preview anterior
+                                            setPreviewUrl(null);
+                                            setPreviewFalUrl(null);
+                                        }}
+                                        className="w-full px-3 py-2 text-[12px] bg-surface-0 border border-edge focus:border-[var(--color-brand)] rounded-[var(--radius-sm)] outline-none cursor-pointer"
+                                        disabled={busy}
+                                    >
+                                        {systemVoices.map((v) => (<option key={v.voice_id} value={v.voice_id}>{v.name}</option>))}
+                                    </select>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={runTTSPreview}
+                                        disabled={!ttsText.trim() || !voiceId || ttsBusy || busy}
+                                        className={cn(
+                                            "flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-[var(--radius-sm)] transition-colors",
+                                            (!ttsText.trim() || !voiceId || ttsBusy || busy)
+                                                ? "text-fg-faint bg-surface-2 cursor-not-allowed"
+                                                : "text-fg-muted hover:text-fg bg-surface-2 hover:bg-surface-3 cursor-pointer"
+                                        )}
+                                        title="Generar preview del audio sin sincronizar todavía"
+                                    >
+                                        {ttsBusy ? <Loader2 size={11} className="animate-spin" /> : <Play size={11} />}
+                                        {previewUrl ? "Regenerar preview" : "Generar preview"}
+                                    </button>
+                                    {previewUrl && (
+                                        <audio src={previewUrl} controls className="flex-1 h-7" />
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Upload pane */}
+                        {audioSource === "upload" && (
+                            <div className="space-y-2">
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="audio/mp3,audio/mpeg,audio/wav,audio/x-wav,audio/m4a,audio/aac,audio/ogg"
+                                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                                    className="hidden"
+                                />
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={busy}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-6 text-[12px] border-2 border-dashed border-edge hover:border-[var(--color-brand)] rounded-[var(--radius-md)] transition-colors cursor-pointer text-fg-muted hover:text-fg"
+                                >
+                                    <Upload size={14} />
+                                    {uploadFile ? uploadFile.name : "Click para subir audio (mp3 / wav / m4a / aac / ogg)"}
+                                </button>
+                                {uploadFile && (
+                                    <p className="text-[10px] text-fg-faint">
+                                        {(uploadFile.size / 1024 / 1024).toFixed(2)} MB · se sube a Fal storage al sincronizar
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* URL pane */}
+                        {audioSource === "url" && (
+                            <div>
+                                <input
+                                    type="url"
+                                    value={audioUrlInput}
+                                    onChange={(e) => setAudioUrlInput(e.target.value)}
+                                    placeholder="https://… (mp3 / wav / m4a / aac / ogg)"
+                                    className="w-full px-3 py-2 text-[12px] bg-surface-0 border border-edge focus:border-[var(--color-brand)] rounded-[var(--radius-sm)] outline-none"
+                                    disabled={busy}
+                                />
+                                <p className="text-[10px] text-fg-faint mt-1.5">
+                                    La URL tiene que ser pública (accesible sin auth desde Fal).
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {error && (
+                        <div className="flex items-start gap-2 text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-[var(--radius-sm)] px-3 py-2">
+                            <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                            <span className="leading-snug">{error}</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 py-3 border-t border-edge sticky bottom-0 bg-surface-1 flex items-center justify-end gap-2">
+                    <button
+                        onClick={busy ? undefined : onClose}
+                        disabled={busy}
+                        className={cn("text-[12px] px-3 py-2 rounded-[var(--radius-sm)] transition-colors", busy ? "text-fg-faint cursor-not-allowed" : "text-fg-muted hover:text-fg hover:bg-surface-2 cursor-pointer")}
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={submitLipsync}
+                        disabled={busy}
+                        className={cn(
+                            "flex items-center gap-2 text-[12px] font-bold uppercase tracking-wide px-4 py-2 rounded-[var(--radius-sm)] transition-all",
+                            busy
+                                ? "text-fg-faint bg-surface-2 cursor-not-allowed"
+                                : "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:brightness-105 cursor-pointer shadow-[0_4px_18px_-6px_var(--color-brand-muted)]"
+                        )}
+                    >
+                        {busy ? <Loader2 size={12} className="animate-spin" /> : <AudioLines size={12} />}
+                        {busy ? (busyLabel || "Sincronizando…") : "Sincronizar"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function SourceTab({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+    return (
+        <button
+            onClick={onClick}
+            className={cn(
+                "flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-full transition-colors cursor-pointer",
+                active
+                    ? "text-[var(--color-action-fg)] bg-[var(--color-action)]"
+                    : "text-fg-muted hover:text-fg hover:bg-surface-2"
+            )}
         >
             {icon} {label}
         </button>

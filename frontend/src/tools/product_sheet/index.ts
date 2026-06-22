@@ -22,12 +22,32 @@ import { handleBrief, handleGenerate, handleSave } from "./handlers";
 
 /** Base prompt común a TODAS las vistas — fija identidad del producto, estudio
  *  cyclorama, iluminación, cámara y estilo. Cada vista suma su `composition`. */
-export const PRODUCT_BASE_PROMPT = `Reference images show the EXACT product to render. Preserve EXACTLY the shape, stance, proportions, color, finish, materials, hardware, badging, logos, branding, and overall identity from the references. Do NOT alter any of these elements. Pure white seamless cyclorama studio background, no environment, no props, no plants, no people, no text, no horizon line. Soft even diffused studio lighting from above and the sides, no harsh shadows, no harsh contrast, with a subtle soft contact shadow directly beneath the product to anchor it to the ground. Camera locked-off, medium telephoto lens, no distortion, sharp focus throughout, deep depth of field. Clean catalog product photography style, photorealistic, hyperrealistic detail. Do NOT add lens flares, motion blur, chrome highlights, decorative reflections, dramatic shadows, or any background elements beyond pure white.`;
+export const PRODUCT_BASE_PROMPT = `THIS IS A TECHNICAL DOCUMENTATION TASK, NOT CREATIVE REINTERPRETATION. The reference images show the EXACT product to reproduce. Your ONLY job is to redraw THIS SAME PRODUCT under different lighting — do NOT redesign it.
+
+NON-NEGOTIABLE IDENTITY PRESERVATION: copy LITERALLY from the references — same exact body shape and silhouette, same exact headlight design and shape, same exact grille/front face, same exact wheel design (same spoke pattern, same rim), same exact taillight design, same exact badge and logo positions, same exact proportions, same exact color (the TRUE color as defined in the brief, NOT the apparent color under colored studio lighting in the photos). Do NOT "improve" the design, do NOT add chrome trim that isn't there, do NOT change the headlight signature, do NOT alter the wheel design.
+
+LIGHTING TRANSFORMATION: the reference photos may have dramatic colored studio lighting (warm yellow gels, orange floors, harsh side light, deep shadows). IGNORE the lighting and background of the references — only extract the product itself and re-render it under NEUTRAL even softbox lighting at 5000K daylight on pure white cyclorama. The product's color must read as its TRUE color (the one declared in the brief, not the tinted apparent color from the source photos).
+
+BACKGROUND AND CAMERA: pure white seamless cyclorama studio background (#FFFFFF), no environment, no props, no plants, no people, no text, no horizon line, no colored floors. Soft even diffused softbox lighting from above and both sides, no harsh shadows, no harsh contrast, with a subtle soft contact shadow directly beneath the product to anchor it to the ground. Camera locked-off, medium telephoto lens, no distortion, sharp focus throughout, deep depth of field. Clean catalog product photography style, photorealistic, hyperrealistic detail.
+
+PROHIBITED: lens flares, motion blur, dramatic chrome highlights, decorative reflections, dramatic shadows, colored gels, orange/yellow/red tints, any background elements beyond pure white, any creative reinterpretation of the product's form.`;
 
 /** Fidelidad anti-invención — se concatena al base prompt cuando el usuario
  *  pide una vista que NO está cubierta por las refs (ej. back con solo frente).
  *  Le pide a Nano Banana inferir MÍNIMAMENTE, no embellecer. */
-export const PRODUCT_FIDELITY_RULES = `FIDELITY RULES: (1) The output MUST show the EXACT product from the references — same color, materials, finish, hardware, logo, proportions. NEVER generate a similar-but-different product. (2) ONLY use angles and details actually visible across the references. (3) When inferring an angle not directly photographed (e.g. inferring back from front + side), keep the inference MINIMAL and grounded: same color, same material, same proportions, no embellishment, no invented details. (4) If a view cannot be safely inferred, prefer a less ambitious framing over inventing.`;
+export const PRODUCT_FIDELITY_RULES = `FIDELITY RULES (NON-NEGOTIABLE — these override all other instructions):
+
+(1) The output MUST show the EXACT product from the references. Same body shape, same headlights, same grille, same wheels (same spoke pattern), same taillights, same badging, same proportions. NEVER generate a similar-but-different product. Do NOT redesign or "improve" any element.
+
+(2) COLOR FIDELITY: use the TRUE color of the product as defined in the brief (e.g. "silver", "white"), NOT the apparent color under the source photos' studio lighting. If the references show a silver car under warm yellow stage light (making it appear champagne), the output must still be SILVER — the white cyclorama lighting will reveal the true silver. Never copy a colored tint from the source lighting.
+
+(3) ONLY use angles and details actually visible across the references. NEVER invent.
+
+(4) When inferring an angle not directly photographed (e.g. inferring back from front + side), keep the inference MINIMAL and grounded: same color, same material, same proportions, no embellishment, no invented details.
+
+(5) If a view cannot be safely inferred, prefer a less ambitious framing over inventing.
+
+(6) IF THERE IS ANY CONFLICT between "preserve product identity" and "create a pretty studio shot" — IDENTITY WINS. This is a technical reference sheet, not a marketing render.`;
 
 export interface ProductView {
   /** Display label (Spanish) shown in the UI checkbox. */
@@ -95,7 +115,11 @@ export const productSheet: ToolDefinition = {
     productSublabel: "Si elegís uno del Brand Kit, usa sus fotos como referencia. Podés sumar más fotos arriba.",
     showClothing: false,
     showBackground: false,
-    showMoodboard: true,
+    // Moodboard NO va en Product Sheet — el objetivo es fidelidad al producto real,
+    // no estilo libre. Inyectar moodboard como "ART DIRECTION reference" hace que
+    // Nano Banana se desvíe de la verdad del producto. Si el usuario quiere matizar
+    // estética (lighting / palette / mood), tiene el campo "Dirección" abajo en texto.
+    showMoodboard: false,
     showReference: true,
     showVoice: false,
     showTone: false,
@@ -112,6 +136,9 @@ export const productSheet: ToolDefinition = {
     generate: handleGenerate,
     save: handleSave,
   },
+  // Brief y Generate requieren approval (revisás análisis de Gemini + composite
+  // antes de guardar). PERO el step Generate arranca SOLO cuando aprobás el brief
+  // — no hay que apretar "Run" otra vez. autoRunSteps incluye generate y save.
   approvalSteps: ["brief", "generate"],
-  autoRunSteps: ["save"],
+  autoRunSteps: ["generate", "save"],
 };

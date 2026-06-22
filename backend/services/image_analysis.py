@@ -123,10 +123,25 @@ async def describe_product_sheet(
 
 {prompt_instructions}
 
+CRITICAL — COLOR EXTRACTION:
+The reference photos may be shot under DRAMATIC studio lighting (colored gels, warm/cool tints, harsh directional light, colored backgrounds like yellow/orange/red floors). DO NOT report colored highlights from the set lighting as the product's actual color. Infer the product's TRUE BASE COLOR as it would appear under neutral 5000K daylight on a pure white background. For example: a silver car shot under warm yellow studio light looks champagne/gold in the photo — but its true color is silver. Report the TRUE color, not the apparent color. When unsure, mark the color with "neutral lighting inferred: <color>" and add a note.
+
+CRITICAL — classify each photo by view: for EACH photo (0-indexed), identify which view of the product it shows. Use ONE of these labels:
+  - "front"    : straight front view, 0° (or close to it)
+  - "back"     : straight back view, 180°
+  - "side"     : strict side profile, 90° perpendicular
+  - "3-4"      : three-quarter angle (between front and side)
+  - "top"      : top-down / cenital view
+  - "rear-3-4" : three-quarter angle from behind
+  - "interior" : inside the product (dashboard, seats, cockpit, cavity)
+  - "detail"   : macro close-up of texture/logo/hardware/component
+  - "hero"     : composite/styled hero shot (multiple angles or non-standard)
+  - "other"    : doesn't fit cleanly — packaging, lifestyle, etc.
+
 Return ONLY a JSON object (no markdown, no preamble) with this exact shape:
 {{
   "name": "≤6 words, no adjectives like 'beautiful'",
-  "category": "footwear | garment | bottle | bag | accessory | electronics | beauty | food | other",
+  "category": "footwear | garment | bottle | bag | accessory | electronics | beauty | food | vehicle | furniture | other",
   "summary": "1-2 factual sentences",
   "shape": "form / silhouette in one phrase",
   "materials": ["..."],
@@ -134,10 +149,16 @@ Return ONLY a JSON object (no markdown, no preamble) with this exact shape:
   "scale": "real-world size hint or empty string",
   "packaging": "packaging description or empty string",
   "distinctive_details": ["concrete features visible in the photos"],
-  "visible_views": ["angles SEEN in the input photos: front, 3/4, back, side, top, detail, etc"],
-  "missing_views": ["angles NOT seen but useful for the sheet"],
+  "photo_views": [
+    {{"index": 0, "view": "front", "confidence": 0.95, "notes": "straight front view, headlights centered"}},
+    {{"index": 1, "view": "side", "confidence": 0.90, "notes": "..."}}
+  ],
+  "visible_views": ["DERIVED from photo_views — list of unique view labels covered"],
+  "missing_views": ["canonical views NOT covered by photos that the user might want for the sheet"],
   "image_prompt": "polished English prompt for Nano Banana 2 to render the {'sheet' if mode == 'sheet' else 'detail close-ups'}. Describe layout, lighting, what each view shows. Strictly factual about the product (use the materials/colors/details above). White background. No text overlays."
 }}
+
+The `photo_views` array MUST have exactly {len(images)} entries (one per input photo, in the same order they were sent). The `confidence` is 0.0-1.0 — be honest, set lower when the view is ambiguous.
 
 Describe ONLY what you SEE across the photos — never invent features not visible.{direction_block}
 
@@ -155,8 +176,49 @@ Respond with the JSON only."""
     import json as _json
     try:
         return _json.loads(text)
-    except _json.JSONDecodeError as e:
-        raise RuntimeError(f"Failed to parse product-sheet brief JSON: {e}; raw={raw[:400]}")
+    except _json.JSONDecodeError as first_err:
+        # Recuperación de JSON truncado — si Gemini cortó la respuesta a mitad de
+        # un array/string, intentamos rescatar lo más posible cerrando brackets
+        # abiertos. Mejor un brief parcial editable que un error fatal.
+        try:
+            recovered = _try_recover_truncated_json(text)
+            return _json.loads(recovered)
+        except Exception:
+            pass
+        raise RuntimeError(f"Failed to parse product-sheet brief JSON: {first_err}; raw={raw[:400]}")
+
+
+def _try_recover_truncated_json(text: str) -> str:
+    """Cierra brackets/strings abiertos para recuperar un JSON truncado. Best-effort."""
+    # Si el último char es una coma, sacarla.
+    s = text.rstrip().rstrip(",")
+    # Contar brackets abiertos.
+    in_string = False
+    escape = False
+    stack: list[str] = []
+    for ch in s:
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_string:
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in "{[":
+            stack.append(ch)
+        elif ch in "}]" and stack:
+            stack.pop()
+    # Si quedamos a media string, cerrarla
+    if in_string:
+        s += '"'
+    # Cerrar brackets en orden inverso
+    for opener in reversed(stack):
+        s += "}" if opener == "{" else "]"
+    return s
 
 
 async def describe_avatar(image_bytes: bytes, mime_type: str = "image/jpeg", avatar_name: str = "") -> str:
@@ -753,12 +815,15 @@ async def _call_vision(prompt: str, images: list[tuple[bytes, str]], model: str 
         parts.append(_image_to_part(img_bytes, mime))
 
     # 3.x Pro models reserve tokens for internal "thinking" — bump budgets when using one.
+    # Cap del flash subido de 4000 → 8000 porque el brief de product_sheet con 8 fotos
+    # + classifications + materials/colors/distinctive_details arrays superaba el
+    # límite y devolvía JSON truncado. Reportado: "Expecting value: line 14".
     is_pro = "pro" in model.lower()
     payload = {
         "contents": [{"role": "user", "parts": parts}],
         "generationConfig": {
             "temperature": 0.4,
-            "maxOutputTokens": 16000 if is_pro else 4000,
+            "maxOutputTokens": 16000 if is_pro else 8000,
         },
     }
     timeout = 180 if is_pro else 60

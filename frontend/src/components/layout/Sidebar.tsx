@@ -1,211 +1,241 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
 import {
-    MessageSquare,
-    Settings,
-    Wand2,
-    ChevronDown,
-    Palette,
-    FolderOpen,
-    Plug,
-    BarChart3,
-    TrendingUp,
-    Target,
-    Zap,
-    LayoutGrid,
-    FlaskConical,
+    LayoutGrid, Wand2, FolderOpen, Settings,
+    FlaskConical, Loader2, Moon, Sun,
 } from "lucide-react";
-import { Link, useLocation } from "react-router";
+import { useBrand } from "../../lib/BrandContext";
+import { useTheme } from "../../lib/theme";
 import { cn } from "../../lib/utils";
-import { BrandSwitcher } from "./BrandSwitcher";
 
-interface MenuItem {
+const API_BASE = "http://127.0.0.1:8000";
+
+// ── Sidebar (Left Rail) ──────────────────────────────────────────
+// 60px-wide vertical rail con icon-only nav. Reemplaza al TopNav horizontal
+// para liberar altura vertical y componer mejor con las tools (que tienen su
+// propio sidebar de config de 440px). Mantiene la jerarquía: brand flow arriba,
+// Lab separado por divider, brand chip + theme + settings al fondo.
+//
+// El archivo TopNav.tsx queda en disco por si querés revertir. AppLayout es
+// quien decide quién se renderiza.
+
+interface NavItem {
     label: string;
     href: string;
     exact?: boolean;
     icon: React.ReactNode;
+    title?: string;
 }
 
-interface MenuSection {
-    title?: string;
-    items: MenuItem[];
-    collapsible?: {
-        label: string;
-        icon: React.ReactNode;
-        items: MenuItem[];
-    };
-}
+const PRIMARY_NAV: NavItem[] = [
+    { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={18} />, title: "Marcas — gestioná tus marcas y su brand kit" },
+    { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} />, title: "Generar — tools de generación de contenido" },
+    { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} />, title: "Contenido — biblioteca de generaciones" },
+];
+
+const LAB_NAV: NavItem = {
+    label: "Lab",
+    href: "/dashboard/lab",
+    exact: true,
+    icon: <FlaskConical size={18} />,
+    title: "Lab — sandbox SIN marca (Nano Banana + Kling/Seedance directo)",
+};
+
+const SETTINGS_NAV: NavItem[] = [
+    { label: "Ajustes", href: "/dashboard/settings", exact: true, icon: <Settings size={15} /> },
+];
 
 export function Sidebar() {
     const location = useLocation();
-    const [perfOpen, setPerfOpen] = useState(
-        location.pathname.startsWith("/dashboard/performance")
-    );
+    const navigate = useNavigate();
+    const { activeBrand, loading } = useBrand();
+    const { theme, toggle: toggleTheme } = useTheme();
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const settingsRef = useRef<HTMLDivElement>(null);
 
-    const sections: MenuSection[] = [
-        {
-            items: [
-                { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={18} /> },
-                { label: "Brand Kit", href: "/dashboard/brand", exact: true, icon: <Palette size={18} /> },
-                { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} /> },
-                { label: "Manual Lab", href: "/dashboard/lab", exact: true, icon: <FlaskConical size={18} /> },
-                { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} /> },
-            ],
-        },
-        // Hidden for now (still reachable by direct URL, routes remain in App.tsx):
-        // - AJUSTES: Integraciones, Automatizaciones — mock, not needed yet.
-        // - MARKETING: Performance (Orgánico / Ads) — mock, not needed yet.
-        // Re-add the sections here to bring them back.
-    ];
+    useEffect(() => {
+        function onClick(e: MouseEvent) {
+            if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+                setSettingsOpen(false);
+            }
+        }
+        if (settingsOpen) document.addEventListener("mousedown", onClick);
+        return () => document.removeEventListener("mousedown", onClick);
+    }, [settingsOpen]);
 
-    const isActive = (item: MenuItem) =>
+    const isActive = (item: NavItem) =>
         item.exact
             ? location.pathname === item.href
             : location.pathname === item.href || location.pathname.startsWith(item.href + "/");
 
-    const isPerfActive = location.pathname.startsWith("/dashboard/performance");
+    const isSettingsActive = SETTINGS_NAV.some((i) => location.pathname === i.href);
 
     return (
-        <div className="w-56 border-r border-edge h-full bg-surface-0 flex flex-col hidden md:flex">
-            {/* Brand Switcher */}
-            <BrandSwitcher />
+        <aside className="w-[60px] h-full border-r border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-xl flex flex-col items-center py-3 shrink-0 z-30">
+            {/* Home affordance — dot terracota minimal en lugar del isotipo.
+                Mantiene el link a /dashboard/brands pero sin peso visual: el rail
+                arranca con los nav items, no con un logo grande. */}
+            <Link
+                to="/dashboard/brands"
+                className="w-9 h-9 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-[var(--color-surface-1)] transition-colors group mb-3"
+                title="Coevo Studio"
+            >
+                <span className="w-2 h-2 rounded-full bg-[var(--color-action)] opacity-70 group-hover:opacity-100 transition-opacity" />
+            </Link>
 
-            {/* Navigation */}
-            <nav className="flex-1 overflow-y-auto p-3 space-y-4">
-                {sections.map((section, sIdx) => (
-                    <div key={sIdx} className="space-y-1">
-                        {section.title && (
-                            <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-fg-faint tracking-widest uppercase">
-                                {section.title}
-                            </div>
-                        )}
-
-                        {/* Regular items */}
-                        {section.items.map((item) => (
-                            <NavLink key={item.label} item={item} active={isActive(item)} />
-                        ))}
-
-                        {/* Collapsible (Performance) */}
-                        {section.collapsible && (
-                            <CollapsibleNav
-                                label={section.collapsible.label}
-                                icon={section.collapsible.icon}
-                                items={section.collapsible.items}
-                                open={perfOpen}
-                                onToggle={() => setPerfOpen(!perfOpen)}
-                                parentActive={isPerfActive}
-                                pathname={location.pathname}
-                            />
-                        )}
-                    </div>
-                ))}
+            {/* Primary nav (brand flow) */}
+            <nav className="flex flex-col items-center gap-1">
+                {PRIMARY_NAV.map((item) => {
+                    const active = isActive(item);
+                    return (
+                        <Link
+                            key={item.label}
+                            to={item.href}
+                            title={item.title}
+                            className={cn(
+                                "w-10 h-10 flex items-center justify-center rounded-[var(--radius-md)] transition-colors",
+                                active
+                                    ? "text-fg bg-[var(--color-surface-2)]"
+                                    : "text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)]"
+                            )}
+                        >
+                            {item.icon}
+                        </Link>
+                    );
+                })}
             </nav>
 
-            {/* Footer */}
-            <div className="border-t border-edge">
-                <div className="p-3">
-                    <NavLink
-                        item={{ label: "Ajustes", href: "/dashboard/settings", icon: <Settings size={18} /> }}
-                        active={location.pathname === "/dashboard/settings"}
-                    />
-                </div>
-                <div className="px-4 py-2 border-t border-edge-subtle">
-                    <div className="text-[10px] text-fg-faint font-mono">Coevo Studio v1.0</div>
-                </div>
-            </div>
-        </div>
-    );
-}
+            {/* Divider — Lab está fuera del brand flow */}
+            <div className="w-6 h-px bg-edge my-3" />
 
-function NavLink({ item, active }: { item: MenuItem; active: boolean }) {
-    return (
-        <Link
-            to={item.href}
-            className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-[13px] font-medium transition-all duration-150",
-                active
-                    ? "bg-[var(--color-action-subtle)] text-fg border border-[var(--color-action-muted)]"
-                    : "text-fg-muted hover:text-fg hover:bg-surface-1 border border-transparent"
-            )}
-        >
-            <div className={cn(
-                "transition-colors duration-150",
-                active ? "text-[var(--color-action)]" : "text-fg-muted"
-            )}>
-                {item.icon}
-            </div>
-            {item.label}
-        </Link>
-    );
-}
+            {/* Lab — sandbox brand-agnostic. Dot terracota cuando NO está activo
+                para indicar que es algo distinto (reemplaza al badge "sandbox"). */}
+            {(() => {
+                const labActive = isActive(LAB_NAV);
+                return (
+                    <Link
+                        to={LAB_NAV.href}
+                        title={LAB_NAV.title}
+                        className={cn(
+                            "relative w-10 h-10 flex items-center justify-center rounded-[var(--radius-md)] transition-colors",
+                            labActive
+                                ? "text-[var(--color-action-fg)] bg-[var(--color-action)]"
+                                : "text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)]"
+                        )}
+                    >
+                        {LAB_NAV.icon}
+                        {!labActive && (
+                            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[var(--color-action)]" />
+                        )}
+                    </Link>
+                );
+            })()}
 
-function CollapsibleNav({
-    label,
-    icon,
-    items,
-    open,
-    onToggle,
-    parentActive,
-    pathname,
-}: {
-    label: string;
-    icon: React.ReactNode;
-    items: MenuItem[];
-    open: boolean;
-    onToggle: () => void;
-    parentActive: boolean;
-    pathname: string;
-}) {
-    return (
-        <div>
-            <button
-                onClick={onToggle}
-                className={cn(
-                    "cursor-pointer w-full flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-[13px] font-medium transition-all duration-150 border border-transparent",
-                    parentActive
-                        ? "bg-[var(--color-action-subtle)] text-fg border-[var(--color-action-muted)]"
-                        : "text-fg-muted hover:text-fg hover:bg-surface-1"
+            {/* Spacer — empuja brand+theme+settings al fondo */}
+            <div className="flex-1" />
+
+            {/* Active brand chip — avatar circular, click abre el listado de marcas */}
+            <div className="mb-2">
+                {loading ? (
+                    <div className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-1 text-fg-muted">
+                        <Loader2 size={12} className="animate-spin" />
+                    </div>
+                ) : (
+                    <BrandAvatar brand={activeBrand} onClick={() => navigate("/dashboard/brands")} />
                 )}
+            </div>
+
+            {/* Theme toggle */}
+            <button
+                onClick={toggleTheme}
+                className="w-9 h-9 flex items-center justify-center rounded-[var(--radius-md)] text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)] transition-colors cursor-pointer mb-1"
+                title={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
             >
-                <div className={cn(parentActive ? "text-[var(--color-action)]" : "text-fg-muted")}>{icon}</div>
-                <span className="flex-1 text-left">{label}</span>
-                <ChevronDown
-                    size={12}
-                    className={cn(
-                        "text-fg-faint transition-transform duration-200",
-                        open && "rotate-180"
-                    )}
-                />
+                {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
             </button>
 
-            <div
-                className={cn(
-                    "overflow-hidden transition-all duration-200",
-                    open ? "max-h-40 mt-0.5" : "max-h-0"
+            {/* Settings — popover abre hacia la derecha */}
+            <div ref={settingsRef} className="relative">
+                <button
+                    onClick={() => setSettingsOpen(!settingsOpen)}
+                    className={cn(
+                        "w-9 h-9 flex items-center justify-center rounded-[var(--radius-md)] transition-colors cursor-pointer",
+                        settingsOpen || isSettingsActive
+                            ? "text-fg bg-[var(--color-surface-2)]"
+                            : "text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)]"
+                    )}
+                    title="Ajustes"
+                >
+                    <Settings size={16} />
+                </button>
+
+                {settingsOpen && (
+                    <div className="absolute bottom-0 left-full ml-2 w-56 bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--glass-border)] rounded-[var(--radius-md)] shadow-2xl overflow-hidden z-40">
+                        <div className="py-1">
+                            {SETTINGS_NAV.map((item) => {
+                                const active = location.pathname === item.href;
+                                return (
+                                    <Link
+                                        key={item.label}
+                                        to={item.href}
+                                        onClick={() => setSettingsOpen(false)}
+                                        className={cn(
+                                            "flex items-center gap-2 px-3 py-2 text-[13px] transition-colors",
+                                            active
+                                                ? "text-fg bg-[var(--color-surface-2)]"
+                                                : "text-fg-secondary hover:text-fg hover:bg-[var(--color-surface-1)]"
+                                        )}
+                                    >
+                                        {item.icon}
+                                        {item.label}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
                 )}
-            >
-                <div className="ml-4 pl-3 border-l border-edge space-y-0.5">
-                    {items.map((sub) => {
-                        const isSubActive = pathname === sub.href;
-                        return (
-                            <Link
-                                key={sub.label}
-                                to={sub.href}
-                                className={cn(
-                                    "flex items-center gap-2.5 px-2.5 py-1.5 rounded-[var(--radius-sm)] text-[12px] font-medium transition-colors duration-150",
-                                    isSubActive
-                                        ? "text-fg bg-surface-1"
-                                        : "text-fg-muted hover:text-fg hover:bg-surface-1"
-                                )}
-                            >
-                                <div className={cn(isSubActive ? "text-fg" : "text-fg-faint")}>
-                                    {sub.icon}
-                                </div>
-                                {sub.label}
-                            </Link>
-                        );
-                    })}
-                </div>
             </div>
-        </div>
+        </aside>
+    );
+}
+
+// ── Brand Avatar ─────────────────────────────────────────────────
+// Versión circular del BrandChip de TopNav: solo el avatar (sin nombre ni
+// chevron) porque en vertical no entra. Click navega a /dashboard/brands
+// que es donde está el listado completo + crear nueva. Tooltip muestra el
+// nombre activo para que no quede ambiguo.
+
+function BrandAvatar({ brand, onClick }: { brand: ReturnType<typeof useBrand>["activeBrand"]; onClick: () => void }) {
+    const isSandbox = brand?.id === "__sandbox__";
+    const hasLogo = !!brand?.logo?.imageUrl;
+    const initials = brand?.name
+        ? brand.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
+        : "?";
+    const primaryColor = brand?.dna?.colors?.[0]?.hex;
+
+    return (
+        <button
+            onClick={onClick}
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden border border-[var(--glass-border)] hover:border-[var(--glass-border-hover)] transition-colors cursor-pointer"
+            title={brand?.name ? `Marca activa: ${brand.name} — click para ver todas` : "Ver todas las marcas"}
+            style={{ backgroundColor: !isSandbox && !hasLogo ? (primaryColor || "var(--color-action-muted)") : undefined }}
+        >
+            {hasLogo && brand ? (
+                <img
+                    src={`${API_BASE}${brand.logo!.imageUrl}`}
+                    alt={brand.name}
+                    className="w-full h-full object-contain bg-white p-0.5"
+                />
+            ) : isSandbox ? (
+                <FlaskConical size={13} className="text-fg-faint" />
+            ) : (
+                <span
+                    className="text-[11px] font-bold leading-none"
+                    style={{ color: primaryColor ? "#fff" : "var(--color-action)" }}
+                >
+                    {initials}
+                </span>
+            )}
+        </button>
     );
 }

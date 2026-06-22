@@ -35,6 +35,11 @@ export interface ProductSheetBrief {
   visible_views: string[];
   missing_views: string[];
   image_prompt: string;
+  /** Gemini auto-classification de cada foto input. Array en el ORDEN en que se
+   *  enviaron al backend (product photos del Brand Kit primero, luego uploads).
+   *  Lo usamos en handleGenerate para etiquetar cada ref con su vista específica:
+   *  "Image 3 is the BACK view — use this for the back panel of the composite". */
+  photo_views?: Array<{ index: number; view: string; confidence?: number; notes?: string }>;
   /** Mode the brief was generated for — needed so `generate` matches what was approved. */
   mode?: "sheet" | "details";
   /** Tag the source product (if any) so `save` can offer "replace primary photo". */
@@ -94,29 +99,71 @@ export const handleGenerate: StepHandler = async (ctx) => {
   // dentro de los límites de la API; los 8 viajan como image_edit refs.
   const MAX_REFS = 8;
 
+  // Gemini classifies each input photo via brief.photo_views (mapping foto → view).
+  // El index en photo_views matchea el ORDEN en que las fotos viajaron al backend:
+  // primero las del Brand Kit (main + extras), después las uploaded.
+  const photoViews = brief.photo_views || [];
+  const viewForPhoto = (idx: number): { view?: string; confidence?: number } => {
+    const pv = photoViews.find((p) => p.index === idx);
+    return pv ? { view: pv.view, confidence: pv.confidence } : {};
+  };
+  // Convierte el label de view de Gemini a un texto descriptivo human-readable que
+  // Nano Banana entienda como "esta foto es la fuente canónica de ESTA vista".
+  const viewToHumanReadable = (view?: string): string => {
+    if (!view) return "";
+    const map: Record<string, string> = {
+      front: "FRONT view (0°)",
+      back: "BACK view (180°)",
+      side: "SIDE profile (90°)",
+      "3-4": "THREE-QUARTER front angle",
+      "rear-3-4": "THREE-QUARTER rear angle",
+      top: "TOP-DOWN view (cenital)",
+      interior: "INTERIOR view",
+      detail: "macro DETAIL close-up",
+      hero: "composite hero shot",
+      other: "additional view",
+    };
+    return map[view] || view.toUpperCase();
+  };
+
+  // Track de qué view ya tenemos cubierta por foto canonical — usado para decir a
+  // Nano Banana "para la vista X, usá EXACTAMENTE Image N como source".
+  const photoIndexByView: Record<string, number> = {}; // view → imgIdx (1-based)
+  let photoCounter = 0; // 0-based input index para matching con photo_views
+
   // 1) Source product photos (if a Brand Kit product was selected) — these are the
-  //    strongest identity anchors. Use the primary `imageUrl` first, then any extras
-  //    con sus labels para que el prompt diga EXACTAMENTE qué ángulo es cada uno.
+  //    strongest identity anchors.
   const product = (activeBrand.products || []).find((p) => p.id === brief.sourceProductId);
   if (product) {
-    type LabeledPhoto = { url: string; label?: string };
-    const photos: LabeledPhoto[] = [];
-    if (product.imageUrl) photos.push({ url: product.imageUrl, label: "main view" });
+    type Photo = { url: string };
+    const photos: Photo[] = [];
+    if (product.imageUrl) photos.push({ url: product.imageUrl });
     for (const extra of product.images || []) {
-      if (extra.imageUrl) photos.push({ url: extra.imageUrl, label: extra.label });
+      if (extra.imageUrl) photos.push({ url: extra.imageUrl });
     }
     for (const p of photos.slice(0, MAX_REFS)) {
       const full = p.url.startsWith("http") ? p.url : productImageUrl(p.url);
       refUrls.push(full);
-      const labelPart = p.label ? ` (this photo shows: ${p.label})` : "";
-      refDescriptions.push(
-        `Image ${imgIdx}: photo of the EXACT product to render${labelPart}. Reproduce identical color, materials, finish, hardware and proportions. This is the source of truth — never invent angles or details not visible across the reference photos.`,
-      );
+      const cls = viewForPhoto(photoCounter);
+      const viewHR = viewToHumanReadable(cls.view);
+      const confTag = cls.confidence !== undefined ? ` (Gemini confidence: ${Math.round(cls.confidence * 100)}%)` : "";
+      if (cls.view && cls.view !== "other") {
+        // Etiquetado por Gemini → instrucción explícita de uso canónico
+        if (!photoIndexByView[cls.view]) photoIndexByView[cls.view] = imgIdx;
+        refDescriptions.push(
+          `Image ${imgIdx}: CANONICAL ${viewHR} of the product${confTag}. USE THIS EXACT image as the source for the ${cls.view} panel in the output composite. Do NOT alter or invent the ${cls.view}. Reproduce identical color, materials, finish, hardware and proportions.`,
+        );
+      } else {
+        refDescriptions.push(
+          `Image ${imgIdx}: photo of the EXACT product to render. Reproduce identical color, materials, finish, hardware and proportions. Source of truth — never invent angles or details not visible across the reference photos.`,
+        );
+      }
       imgIdx++;
+      photoCounter++;
     }
   }
 
-  // 2) Uploaded reference photos — same role as the product photos when no product is selected.
+  // 2) Uploaded reference photos — Gemini también las clasificó por orden.
   const refFiles = (cfg.referenceImages as File[]) || [];
   for (let i = 0; i < refFiles.length && refUrls.length < MAX_REFS; i++) {
     const file = refFiles[i];
@@ -127,10 +174,21 @@ export const handleGenerate: StepHandler = async (ctx) => {
       reader.readAsDataURL(file);
     });
     refUrls.push(dataUrl);
-    refDescriptions.push(
-      `Image ${imgIdx}: additional photo of the SAME product (different angle / detail). Identity must match Image 1 exactly — same color, materials, finish.`,
-    );
+    const cls = viewForPhoto(photoCounter);
+    const viewHR = viewToHumanReadable(cls.view);
+    const confTag = cls.confidence !== undefined ? ` (Gemini confidence: ${Math.round(cls.confidence * 100)}%)` : "";
+    if (cls.view && cls.view !== "other") {
+      if (!photoIndexByView[cls.view]) photoIndexByView[cls.view] = imgIdx;
+      refDescriptions.push(
+        `Image ${imgIdx}: CANONICAL ${viewHR} of the product${confTag}. USE THIS EXACT image as the source for the ${cls.view} panel in the output composite. Do NOT alter or invent the ${cls.view}.`,
+      );
+    } else {
+      refDescriptions.push(
+        `Image ${imgIdx}: additional photo of the SAME product (different angle / detail). Identity must match Image 1 exactly — same color, materials, finish.`,
+      );
+    }
     imgIdx++;
+    photoCounter++;
   }
 
   // 3) Optional moodboard — purely aesthetic guidance (lighting / palette / mood),
@@ -191,58 +249,114 @@ export const handleGenerate: StepHandler = async (ctx) => {
     };
   }
 
-  // ── SHEET MODE: generate ONE image per selected view ────────────────────
+  // ── SHEET MODE: COMPOSITE de TODAS las vistas en UNA imagen ──────────────
   //
-  // Filosofía (inspirada en el recipe del usuario): cada vista = base_prompt común
-  // + composition específico + aspect ratio óptimo. Nano Banana se enfoca en una
-  // sola vista por imagen, sale más fiel y limpia que un composite con 6 vistas.
+  // Filosofía corregida: Product Sheet es CONTEXTO de marca para otras tools,
+  // no output final. Necesita UNA imagen integral con múltiples vistas (estilo
+  // ortographic projection sheet de fabricantes de autos) para que el usuario
+  // pueda alimentarla como ref en Fashion Reel, Ecommerce Pack, etc.
+  //
+  // El usuario reportó: "me generó solamente una vista y debería verse algo
+  // más integral... tiene que ser una foto con múltiples vistas como composite".
+  //
+  // Internamente seguimos usando el catálogo de vistas tildables (hero_34, side,
+  // front, back, top) — el usuario elige cuáles entran al composite. Layout
+  // adaptativo según la cantidad.
   const requestedViews = (cfg.productSheetViews as string[]) || DEFAULT_PRODUCT_VIEWS;
   const validViews = requestedViews.filter((k) => PRODUCT_VIEW_CATALOG[k]);
-  const selectedViews = validViews.length > 0 ? validViews : DEFAULT_PRODUCT_VIEWS;
+  const selectedViewKeys = validViews.length > 0 ? validViews : DEFAULT_PRODUCT_VIEWS;
+  const selectedViews = selectedViewKeys.map((k) => ({ key: k, ...PRODUCT_VIEW_CATALOG[k] }));
 
-  type ViewResult = { key: string; label: string; url: string; aspectRatio: string; prompt: string; error?: string };
-  const views: ViewResult[] = [];
+  // Aspect ratio: RESPETAR el del usuario (config.aspectRatio del select de
+  // Ajustes técnicos). Si no eligió uno, fallback al adaptativo según cantidad.
+  // El usuario reportó: "le pedí 16:9 pero me hizo 1:1" — mi código lo pisaba.
+  const userAR = (config.aspectRatio as "16:9" | "1:1" | "4:3" | "9:16") || "";
+  const n = selectedViews.length;
+  let canvasAR: "16:9" | "1:1" | "4:3" | "9:16" = userAR
+    || (n === 4 ? "1:1" : "16:9");
 
-  for (const viewKey of selectedViews) {
-    const viewMeta = PRODUCT_VIEW_CATALOG[viewKey];
-    const viewPrompt = [
-      PRODUCT_BASE_PROMPT,
-      "",
-      `VIEW SPECIFIC: ${viewMeta.composition}`,
-      "",
-      productFacts,
-      directionExtra,
-    ].join(" ").trim();
-    const finalPrompt = `${refBlock}\n\n${PRODUCT_FIDELITY_RULES}\n\n${viewPrompt}`;
+  // Layout del grid se adapta a (cantidad de vistas, AR elegido). Para 9:16
+  // vertical apilamos en columna; para horizontal usamos filas según count.
+  const viewList = selectedViews.map((v, i) => `(${i + 1}) ${v.label}: ${v.composition}`).join("\n  ");
+  let gridDesc = "";
+  if (canvasAR === "9:16") {
+    gridDesc = `${n}×1 VERTICAL STACK (views from top to bottom)`;
+  } else if (n === 1) {
+    gridDesc = "single view filling the frame";
+  } else if (n === 2) {
+    gridDesc = "1×2 grid (views side by side)";
+  } else if (n === 3) {
+    gridDesc = "1×3 grid (views in a single row, left-to-right)";
+  } else if (n === 4) {
+    gridDesc = canvasAR === "1:1" ? "2×2 grid (top row two views, bottom row two views)" : "1×4 grid (all in single row)";
+  } else {
+    gridDesc = "2×3 grid (top row first 3 views, bottom row remaining views)";
+  }
 
-    try {
-      const job = await createImageEdit(refUrls, finalPrompt, viewMeta.aspectRatio, "2K");
-      const result = await pollImageGen(job.request_id);
-      if (result.status === "failed" || !result.image_url) {
-        views.push({ key: viewKey, label: viewMeta.label, url: "", aspectRatio: viewMeta.aspectRatio, prompt: viewPrompt, error: result.error || "generation failed" });
-      } else {
-        views.push({ key: viewKey, label: viewMeta.label, url: result.image_url, aspectRatio: viewMeta.aspectRatio, prompt: viewPrompt });
-      }
-    } catch (e) {
-      views.push({ key: viewKey, label: viewMeta.label, url: "", aspectRatio: viewMeta.aspectRatio, prompt: viewPrompt, error: e instanceof Error ? e.message : "failed" });
+  // Mapping explícito vista del catálogo → Image canónica. El catálogo usa keys
+  // como hero_34/side/front/back/top. Las photo_views de Gemini usan front/side/
+  // back/top/3-4/etc. Hacemos un mapeo permisivo: hero_34 acepta "3-4", "front" o
+  // "rear-3-4"; side acepta "side"; front acepta "front"; back acepta "back";
+  // top acepta "top". Si la vista NO tiene foto, se le dice a Nano Banana que
+  // infiera MÍNIMAMENTE desde las que sí están.
+  const viewKeyToPhotoCanonical = (catKey: string): string[] => {
+    const map: Record<string, string[]> = {
+      hero_34: ["3-4", "rear-3-4", "front"],
+      side: ["side"],
+      front: ["front"],
+      back: ["back"],
+      top: ["top"],
+    };
+    return map[catKey] || [];
+  };
+
+  const viewToImageMapping: string[] = [];
+  const missingViews: string[] = [];
+  for (const v of selectedViews) {
+    const acceptedPhotoLabels = viewKeyToPhotoCanonical(v.key);
+    const matchedPhotoIdx = acceptedPhotoLabels
+      .map((label) => photoIndexByView[label])
+      .find((idx) => idx !== undefined);
+    if (matchedPhotoIdx !== undefined) {
+      viewToImageMapping.push(`  • For the "${v.label}" panel → USE Image ${matchedPhotoIdx} as the canonical source. Reproduce it faithfully without altering color, body shape, lights, badging, or proportions.`);
+    } else {
+      missingViews.push(v.label);
+      viewToImageMapping.push(`  • For the "${v.label}" panel → NO canonical photo provided. Infer MINIMALLY from the available reference images (especially Images of the same product). Keep color, materials, proportions identical to the references. Do NOT invent decorative details, badges, or features that aren't visible somewhere in the references.`);
     }
   }
 
-  const firstOk = views.find((v) => v.url);
-  if (!firstOk) {
-    throw new Error("Todas las vistas fallaron al generar. Revisá las imágenes de referencia y el brief.");
+  const missingWarning = missingViews.length > 0
+    ? `\n\nNOTE: ${missingViews.length} view(s) without canonical photos: ${missingViews.join(", ")}. For these, infer minimally — never invent features.`
+    : "";
+
+  let layoutDesc = `Layout: a single composite image with ${n} view(s) of the SAME product arranged in a ${gridDesc} on a pure white (#FFFFFF) seamless cyclorama background, evenly spaced. Views in order:\n  ${viewList}\n\nVIEW-TO-IMAGE MAPPING (CRITICAL):\n${viewToImageMapping.join("\n")}${missingWarning}\n\nALL views in the composite must show identical product features (same color, materials, finish, hardware, logo, proportions) — they are different angles of ONE product, never variants. No borders, no grid lines, no text, no labels between views — only clean white space separates them.`;
+
+  const compositePrompt = [
+    layoutDesc,
+    "",
+    productFacts,
+    "",
+    PRODUCT_BASE_PROMPT,
+    directionExtra,
+  ].join(" ").trim();
+  const finalPrompt = `${refBlock}\n\n${PRODUCT_FIDELITY_RULES}\n\n${compositePrompt}`;
+
+  const job = await createImageEdit(refUrls, finalPrompt, canvasAR, "2K");
+  const result = await pollImageGen(job.request_id);
+  if (result.status === "failed" || !result.image_url) {
+    throw new Error(result.error || "Image generation failed");
   }
 
   return {
     result: {
-      // Backwards compat: `url` apunta a la primera vista exitosa para que el UI
-      // legacy (que solo lee `url`) muestre algo. Multi-view UI lee `views[]`.
-      url: firstOk.url,
-      views,
+      url: result.image_url,
+      // Compat con UI multi-view: 1 sola entrada con el composite. La galería
+      // muestra una sola tile grande con la composite — sigue funcionando.
+      views: [{ key: "composite", label: `Sheet integral (${n} vistas)`, url: result.image_url, aspectRatio: canvasAR, prompt: compositePrompt }],
       brief,
       mode: "sheet" as const,
       sourceProductId: brief.sourceProductId,
-      prompt: views[0]?.prompt || "",
+      prompt: compositePrompt,
     },
     needsApproval: true,
   };

@@ -38,6 +38,62 @@ export const STUDIO_STYLES: Record<string, { label: string; clause: string }> = 
 const PIXEL_FIDELITY = "Reproduce the EXACT color, shade, fabric, print, stitching and proportions from the garment reference pixels. Do NOT lighten, darken, restyle or invent details — the garment image is authoritative.";
 const NO_TEXT = " Single clean photograph. No text, no watermark, no logo overlay, no graphics, no collage, no split panels.";
 
+// ── Catálogo de poses preset ─────────────────────────────────────────
+// 8 poses descritas en texto detallado — alternativa al pose transfer
+// con imagen (que en Nano Banana no llega a pixel-perfect). El texto va
+// al prompt del step 1 (vestir) y la pose se genera directamente, sin
+// step 2. Resultado: 1 sola generación por shot, sin contaminación visual,
+// pose natural y editorial. "auto" rota entre las 8 — una por shot.
+export const POSE_PRESETS: Record<string, { label: string; description: string }> = {
+  natural_front: {
+    label: "Natural Front",
+    description: "Standing in slight contrapposto, weight on left leg, right hip pushed out subtly. Right hand resting lightly on right hip pocket, left arm hanging naturally at side. Shoulders back and relaxed, chest open. Head facing camera with relaxed, confident expression. Full body in frame.",
+  },
+  walking: {
+    label: "Walking",
+    description: "Mid-step walking pose, left leg forward with knee slightly bent, right foot pushing off the ground behind. Arms swinging naturally — left arm slightly back, right arm slightly forward. Subtle forward lean of the torso, head turned slightly toward camera, candid energetic expression. Full body in frame.",
+  },
+  hand_in_pocket: {
+    label: "Hand in Pocket",
+    description: "Standing relaxed, right hand inserted in trouser pocket up to the wrist, left arm hanging naturally at the side with hand relaxed. Weight slightly on right leg, left foot a bit forward. Head turned 10-15° to the left, gaze just off-camera, soft engaged expression. Full body in frame.",
+  },
+  arms_crossed: {
+    label: "Arms Crossed",
+    description: "Standing front-facing, arms crossed at chest level — loose and natural, not tight. Weight on right leg, left foot slightly forward and turned out. Chin slightly up, direct gaze to camera, confident grounded expression. Full body in frame.",
+  },
+  profile_34: {
+    label: "Profile 3/4",
+    description: "Body angled 30-40° to the camera's right (left shoulder forward), head turned back fully toward the camera. Both arms relaxed at sides, hands open. Weight slightly forward on right leg, posture elongated, neck long. Direct camera gaze, refined editorial energy. Full body in frame.",
+  },
+  looking_down: {
+    label: "Looking Down",
+    description: "Standing centered and grounded, both hands resting in front (one hand lightly holding the other wrist OR fingers loosely interlaced). Head tilted down about 20°, gaze toward floor or hands, soft contemplative expression. Weight evenly distributed, posture tall. Full body in frame.",
+  },
+  back_over_shoulder: {
+    label: "Back · Over Shoulder",
+    description: "Body facing away from the camera, showing the back of the garment in full. Head turned back over the right shoulder, gaze toward the camera, hair flowing naturally. Both arms relaxed at sides, weight on left leg. Editorial back view with personality. Full body in frame.",
+  },
+  hands_in_back_pockets: {
+    label: "Hands in Back Pockets",
+    description: "Standing front-facing, both hands tucked into back trouser pockets, elbows pointed slightly back exposing the silhouette of the top. Weight on left leg, shoulders relaxed. Chin slightly up, soft confident gaze to camera. Full body in frame.",
+  },
+};
+
+export const DEFAULT_POSE_PRESET = "auto";
+const POSE_KEYS = Object.keys(POSE_PRESETS);
+
+/** Devuelve la descripción de la pose para un shot dado.
+ *  - "auto" → rota: shot 0 = natural_front, shot 1 = walking, etc.
+ *  - clave específica → devuelve esa pose.
+ *  - "upload" / "" / undefined → null (caller usa la pose ref imagen si la hay). */
+function getPoseDescription(presetKey: string | undefined, shotIndex: number): string | null {
+  if (!presetKey || presetKey === "upload" || presetKey === "") return null;
+  if (presetKey === "auto") {
+    return POSE_PRESETS[POSE_KEYS[shotIndex % POSE_KEYS.length]].description;
+  }
+  return POSE_PRESETS[presetKey]?.description || null;
+}
+
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -92,13 +148,21 @@ const handleGenerate: StepHandler = async (ctx) => {
   const { activeBrand, config } = ctx;
   const cfg = config as unknown as Record<string, unknown>;
 
-  const garments = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
+  // Separación productos vs accesorios — el usuario marca cuáles son "Solo styling"
+  // (zapatillas, collar, gorra) en la UI. Esos NO generan flats propios pero SÍ
+  // se usan como ref visual en on-model para que el outfit quede completo.
+  const accessoryIds = (cfg.ecomAccessoryIds as string[]) || [];
+  const allSelectedClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
+  const garments = allSelectedClothing.filter((c) => !accessoryIds.includes(c.id));
+  const accessories = allSelectedClothing.filter((c) => accessoryIds.includes(c.id));
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
-  // Para el on-model, usamos SOLO la foto principal de cada prenda — la espalda y el detalle
-  // se generan en flat shots separados. La foto principal define el "look" del outfit completo.
+  // Para el on-model: usamos TODAS las prendas (productos + accesorios) — el modelo
+  // tiene que verse vestido con el outfit completo, no solo el producto principal.
   const garmentUrls = garments.map((g) => g.imageUrl).filter(Boolean);
-  if (selectedProduct?.imageUrl && garmentUrls.length === 0) garmentUrls.push(selectedProduct.imageUrl);
-  if (garmentUrls.length === 0) throw new Error("Elegí al menos una prenda (o un producto) para generar la ficha.");
+  const accessoryUrls = accessories.map((a) => a.imageUrl).filter(Boolean);
+  const allOnModelUrls = [...garmentUrls, ...accessoryUrls];
+  if (selectedProduct?.imageUrl && allOnModelUrls.length === 0) allOnModelUrls.push(selectedProduct.imageUrl);
+  if (allOnModelUrls.length === 0) throw new Error("Elegí al menos una prenda (o un producto) para generar la ficha.");
 
   const avatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId)
     || (config.selectedAvatarIds?.length ? (activeBrand.avatars || []).find((a) => config.selectedAvatarIds.includes(a.id)) : undefined);
@@ -139,6 +203,10 @@ const handleGenerate: StepHandler = async (ctx) => {
   // Mapeo shotId → dataUrl. Tiene PRIORIDAD sobre la pose global (poseUrl).
   const ecomShotPoses = ((cfg.ecomShotPoses as Record<string, string>) || {});
 
+  // Pose preset elegido (texto descriptivo de Gemini Vision-style). Si el
+  // usuario subió pose ref imagen, esa gana. Default "auto" = rota entre las 8.
+  const posePreset = (cfg.ecomPosePreset as string) || DEFAULT_POSE_PRESET;
+
   // ── On-model shots — sequential, anchored to the first for consistency ──
   let anchorUrl: string | undefined;
   for (let i = 0; i < onModelShots.length; i++) {
@@ -146,30 +214,185 @@ const handleGenerate: StepHandler = async (ctx) => {
     const shot = SHOT_CATALOG[sid];
     // Pose ref específica de este shot — si existe, gana sobre la global.
     const shotPoseUrl = ecomShotPoses[sid] || poseUrl;
+
+    // ── 2-step approach cuando hay pose ref + es el shot inicial ──────────
+    // Inversión clave (después de probar al revés y fallar):
+    //   Step 1 → VESTIR primero (composición tradicional: avatar + ropa + accs).
+    //            Sin pose específica — el modelo genera un outfit en cualquier
+    //            pose. Lo importante: que la cara + ropa + accs queden bien.
+    //   Step 2 → POSE TRANSFER puro con SOLO 2 imágenes (outfit del step 1 +
+    //            pose ref). Es el patrón clásico que funciona en Nano Banana:
+    //            "agarrá esta modelo + ponele esta pose". Solo 2 refs = el modelo
+    //            no se confunde.
+    // Trade-off: 2× costo + 2× tiempo por shot inicial. Vale la pena para que
+    // la pose se respete.
+    if (i === 0 && shotPoseUrl) {
+      const garmentNamesAnchor = garments.map((g) => g.name).filter(Boolean).join(" + ") || selectedProduct?.name || "";
+      const onModelLabelAnchor = garmentNamesAnchor ? `${shot.label} · ${garmentNamesAnchor}` : shot.label;
+      try {
+        // ── Step 1: VESTIR — composición tradicional, sin pose específica ─
+        // Avatar + todos los garments + accessories. Estudio neutro, framing libre.
+        // El modelo resuelve "mostrá esta persona vestida con esta ropa" — fácil.
+        const step1Urls: string[] = [];
+        const step1Desc: string[] = [];
+        let idx1 = 1;
+        if (avatar?.imageUrl) {
+          step1Urls.push(avatar.imageUrl);
+          step1Desc.push(`Image ${idx1}: IDENTITY (HIGHEST PRIORITY — the person in the output MUST be this exact individual) — same face, eyes, eye color, eyebrows, nose, mouth, jawline, skin tone, age, freckles/marks, hair color and hair style. The output face must be photographically RECOGNIZABLE as the same individual across all shots. Do NOT generalize, idealize or stylize. IGNORE only their clothing/background/pose.`);
+          idx1++;
+        }
+        garmentUrls.forEach((u) => {
+          step1Urls.push(u);
+          step1Desc.push(`Image ${idx1}: GARMENT — the person WEARS this exact item. Same design, color, fabric, fit, details. IGNORE any other person/pose in this photo. ${PIXEL_FIDELITY}`);
+          idx1++;
+        });
+        accessoryUrls.forEach((u) => {
+          step1Urls.push(u);
+          step1Desc.push(`Image ${idx1}: ACCESSORY — the person also wears/has this exact item integrated into the outfit (shoes on feet, scarf around neck, belt on waist, etc.). IGNORE any other person/pose in this photo. ${PIXEL_FIDELITY}`);
+          idx1++;
+        });
+        // Style refs (look&feel + moodboard) opcionales — afinan estética.
+        const sr1 = styleRefs(idx1); step1Urls.push(...sr1.urls); step1Desc.push(...sr1.desc);
+        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${PIXEL_FIDELITY}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
+        const job1 = await createImageEdit(step1Urls, step1Prompt, config.aspectRatio, config.resolution);
+        const res1 = await pollImageGen(job1.request_id);
+        const dressedAvatar = res1.image_url || "";
+        if (!dressedAvatar) throw new Error("Step 1 (dressing) returned no image");
+
+        // ── Step 2: POSE TRANSFER — SOLO 2 imágenes ──────────────────────
+        // Patrón clásico de Nano Banana: 1 modelo + 1 pose ref → mismo modelo
+        // en la nueva pose. Prompt MUY explícito separando qué viene de cada
+        // imagen — el modelo tiende a "agarrar todo" de la pose ref (incluyendo
+        // ropa y fondo), por eso enumeramos exhaustivamente qué tomar de cada una.
+        const step2Urls = [dressedAvatar, shotPoseUrl];
+        const step2Prompt = `This is a POSE TRANSFER. Two images:
+
+IMAGE 1 — the source. It contains the person, their identity, their outfit and the studio.
+IMAGE 2 — the pose reference. ONLY a body posture reference. EVERYTHING ELSE in image 2 (clothing, accessories, jewelry, tattoos, piercings, makeup, skin marks, hair, identity, background, lighting, styling) is completely IRRELEVANT and must be IGNORED.
+
+TAKE FROM IMAGE 1 (do NOT change any of this):
+- Face, hair, skin tone, head shape, age
+- Skin condition (smooth/clean) — same exact skin as image 1, NO new tattoos, NO new birthmarks, NO new piercings, NO new jewelry that isn't already in image 1
+- Every single garment the person is wearing (top, bottom, layers) — colors, patterns, fabric, fit, cut, length
+- Every accessory that exists in image 1 (scarves, necklaces, bags, belts, hats, shoes, jewelry) — exactly as they appear
+- Background and studio lighting
+
+TAKE FROM IMAGE 2 (ONLY these, ignore everything else):
+- Body posture: stance, weight distribution, leg position
+- Arm position and hand placement
+- Torso angle and shoulder position
+- Head tilt, head rotation, gaze direction
+- Overall camera framing, crop and perspective
+
+CRITICAL — do NOT contaminate the output with anything from image 2 that is not pose-related:
+- Tattoos visible on the model in image 2 → DO NOT add them to the output (the person in image 1 may have clean skin without tattoos)
+- Jewelry, rings, bracelets, watches, earrings, necklaces shown on the model in image 2 → DO NOT add them
+- Clothing of the model in image 2 (vest, scarf, sandals, etc) → DO NOT add it
+- Makeup, lipstick, eye makeup of the model in image 2 → DO NOT apply
+- Piercings, body marks, scars of the model in image 2 → DO NOT add
+- Hair style/color of image 2 → DO NOT change image 1's hair
+
+The output person's skin, accessories, jewelry, tattoos, piercings, and clothing must match IMAGE 1 ONLY. If image 1 has no tattoos, the output has no tattoos. If image 1 has no jewelry, the output has no jewelry.
+
+Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, same jewelry, same clothing, same accessories, same face), re-posed to match the body geometry of image 2. ${PIXEL_FIDELITY}${NO_TEXT}`;
+        const job2 = await createImageEdit(step2Urls, step2Prompt, config.aspectRatio, config.resolution);
+        const res2 = await pollImageGen(job2.request_id);
+        const url2 = res2.image_url || "";
+        if (url2) anchorUrl = url2;
+        generated[sid] = { id: sid, url: url2, label: onModelLabelAnchor, prompt: step2Prompt, status: res2.status === "failed" ? "failed" : "done" };
+      } catch (e) {
+        generated[sid] = { id: sid, url: "", label: onModelLabelAnchor, prompt: "", status: "failed" };
+        console.error(`[ecommerce_pack] ${sid} (2-step) failed:`, e);
+      }
+      continue; // saltea el flow 1-step
+    }
+
     const urls: string[] = []; const desc: string[] = []; let idx = 1;
     if (i === 0 || !anchorUrl) {
-      if (avatar?.imageUrl) { urls.push(avatar.imageUrl); desc.push(`Image ${idx}: IDENTITY — use this exact person's face, hair and body. Take ONLY the identity — IGNORE their clothing, background and pose.`); idx++; }
-      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT — the model WEARS this exact item. ${PIXEL_FIDELITY}`); idx++; });
-      if (shotPoseUrl) { urls.push(shotPoseUrl); desc.push(`Image ${idx}: POSE REFERENCE for this shot — copy ONLY the body position, stance and camera framing from this image. Do NOT copy its clothing, lighting, background or the identity of anyone in it.`); idx++; }
+      // Sin pose ref — flow original de composición (todas las refs en una sola call).
+      // IDENTITY va PRIMERO con instrucciones explícitas de fidelidad — Nano Banana
+      // tiende a "promediar" caras cuando el avatar es una ref más entre muchas.
+      if (avatar?.imageUrl) { urls.push(avatar.imageUrl); desc.push(`Image ${idx}: IDENTITY (HIGHEST PRIORITY — the person in the output MUST be this exact person) — use this exact face, eyes, eye color, eyebrows, nose, mouth, jawline, skin tone, age, freckles/marks, hair color, hair style, and body proportions. The output face must be photographically RECOGNIZABLE as the same individual. Do NOT generalize, idealize, beautify, age, de-age or stylize the face. IGNORE only their clothing, background and pose.`); idx++; }
+      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT (hero product) — the model WEARS this exact item. ${PIXEL_FIDELITY}`); idx++; });
+      accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: STYLING ACCESSORY — the model also wears/has this exact item as part of the complete outfit. ${PIXEL_FIDELITY}`); idx++; });
+    } else if (ecomShotPoses[sid]) {
+      // Shot 2+ CON pose ref específica: pose ref como base + anchor de shot 1
+      // + avatar ORIGINAL como segunda fuente de identidad (doble anclaje de cara).
+      urls.push(ecomShotPoses[sid]);
+      desc.push(`Image ${idx}: BASE IMAGE (edit this) — start from this exact image. KEEP pixel-perfect: body position, stance, arm/hand placement, head tilt, gaze direction, camera framing, crop and perspective. REPLACE only the clothing and face as specified below.`);
+      idx++;
+      urls.push(anchorUrl);
+      desc.push(`Image ${idx}: WARDROBE + STUDIO SOURCE — the clothing, accessories, studio look and lighting must match THIS image exactly. Apply them to the person in the BASE IMAGE.`);
+      idx++;
+      // Avatar como SEGUNDA fuente de identidad (refuerzo) — sin esto, la cara
+      // empieza a derivar después de 2-3 shots.
+      if (avatar?.imageUrl) {
+        urls.push(avatar.imageUrl);
+        desc.push(`Image ${idx}: IDENTITY ANCHOR (HIGHEST PRIORITY for face/hair) — the output face must be photographically RECOGNIZABLE as THIS exact person: same eyes, eye color, eyebrows, nose, mouth, jawline, skin tone, age, freckles/marks, hair color and hair style. Do NOT generalize or stylize.`);
+        idx++;
+      }
+      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT REFERENCE — same exact item. Pixel-perfect. ${PIXEL_FIDELITY}`); idx++; });
+      accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: ACCESSORY REFERENCE — same exact complement. ${PIXEL_FIDELITY}`); idx++; });
     } else {
-      urls.push(anchorUrl); desc.push(`Image ${idx}: ANCHOR — keep the SAME model, SAME garment, SAME studio and lighting as this frame. Change ONLY the camera angle / pose as described.`); idx++;
-      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT — same exact item. ${PIXEL_FIDELITY}`); idx++; });
-      // Para shots 2+, si el usuario subió una pose ESPECÍFICA para este shot,
-      // la sumamos junto al anchor (el anchor mantiene identidad y wardrobe;
-      // la pose redefine el body position).
-      if (ecomShotPoses[sid]) { urls.push(ecomShotPoses[sid]); desc.push(`Image ${idx}: POSE REFERENCE for this shot — copy ONLY the body position, stance and camera framing. Do NOT copy clothing, lighting, background or identity.`); idx++; }
+      // Shot 2+ SIN pose ref: anchor del shot 1 + avatar ORIGINAL como refuerzo
+      // de identidad (mismo problema de drift de cara).
+      urls.push(anchorUrl); desc.push(`Image ${idx}: ANCHOR — keep the SAME garment, SAME accessories, SAME studio and lighting as this frame. Change ONLY the camera angle / pose as described.`); idx++;
+      if (avatar?.imageUrl) {
+        urls.push(avatar.imageUrl);
+        desc.push(`Image ${idx}: IDENTITY ANCHOR (HIGHEST PRIORITY for face/hair) — the output face must be photographically RECOGNIZABLE as THIS exact person: same eyes, eye color, eyebrows, nose, mouth, jawline, skin tone, age, freckles/marks, hair color and hair style. Do NOT generalize or stylize between shots.`);
+        idx++;
+      }
+      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT (hero product) — same exact item. ${PIXEL_FIDELITY}`); idx++; });
+      accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: STYLING ACCESSORY — same exact complement, identical to anchor. ${PIXEL_FIDELITY}`); idx++; });
     }
     const sr = styleRefs(idx); urls.push(...sr.urls); desc.push(...sr.desc);
-    const wardrobe = avatar?.imageUrl ? "WARDROBE OVERRIDE: the model must be RE-DRESSED in the GARMENT reference; completely ignore any clothing in the identity photo. " : "";
-    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${shot.framing} ${wardrobe}${PIXEL_FIDELITY}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    // En pose-anchor mode las instrucciones de wardrobe ya viven en el cierre del
+    // prompt (poseOverride) de forma mucho más estructurada. Solo dejamos el
+    // override para el caso sin pose-anchor donde el avatar puede tener ropa propia.
+    const wardrobe = (!shotPoseUrl && avatar?.imageUrl)
+      ? "WARDROBE OVERRIDE: the model must be RE-DRESSED in the GARMENT reference; completely ignore any clothing in the identity photo. "
+      : "";
+    // Pose override final — si hay pose ref, repetimos la instrucción al final del
+    // prompt para que Nano Banana le dé prioridad. Sin esto, el modelo a veces ignora
+    // la pose ref enterrada en medio de los REFERENCE IMAGES y usa una pose default.
+    // Reportado: "le pasé una pose y no me la respetó".
+    // Cierre del prompt — dos paradigmas distintos según haya pose-anchor o no.
+    // Con pose-anchor: el modelo está EDITANDO la BASE IMAGE, no componiendo.
+    // Sin pose-anchor: composición tradicional con refs.
+    const poseOverride = shotPoseUrl
+      ? `
+
+EDIT INSTRUCTIONS (this is an image edit, not a composition):
+- The output MUST be the BASE IMAGE with only these changes:
+  1) The clothing of the person is REPLACED by the WARDROBE REPLACEMENT garment(s).
+  2) The face/head is REPLACED by the FACE REPLACEMENT identity (keeping head position, tilt and gaze from the BASE IMAGE).
+  3) Any specified ACCESSORY REPLACEMENT is added/replaced in its natural body location.
+- Everything else in the BASE IMAGE is PRESERVED pixel-perfect: pose, stance, body position, framing, crop, perspective, background, lighting direction. Do NOT re-pose, do NOT re-frame, do NOT change the camera angle.
+- The garment/accessory reference photos contain models in OTHER poses — those models and poses are IRRELEVANT. They exist ONLY to define what the clothing/accessory looks like.
+- Treat this exactly like a Photoshop edit: same body, same pose, same scene — only the wardrobe and face change.`
+      : "";
+    // Si NO hay pose ref imagen, inyectamos un preset textual de pose (rota
+    // entre 8 si "auto", o usa la elegida por el user). Eso evita que la
+    // modelo quede dura/estática y le da variedad editorial a la galería.
+    const poseDesc = !shotPoseUrl ? getPoseDescription(posePreset, i) : null;
+    const presetPoseClause = poseDesc ? ` POSE: ${poseDesc}` : "";
+    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${shot.framing}${presetPoseClause} ${wardrobe}${PIXEL_FIDELITY}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution) : await createTextToImage(prompt, config.aspectRatio, config.resolution);
       const res = await pollImageGen(job.request_id);
       const url = res.image_url || "";
       if (i === 0 && url) anchorUrl = url;
-      generated[sid] = { id: sid, url, label: shot.label, prompt, status: res.status === "failed" ? "failed" : "done" };
+      // Label con nombre(s) de prenda(s) — el usuario quiere que el filename
+      // descargado preserve el nombre del archivo original que cargó (ej. si
+      // subiste "remera-roja.jpg", el output debería llamarse así, no "frente.png").
+      // El name de cada garment viene del filename original via deriveAssetName.
+      const garmentNames = garments.map((g) => g.name).filter(Boolean).join(" + ") || selectedProduct?.name || "";
+      const onModelLabel = garmentNames ? `${shot.label} · ${garmentNames}` : shot.label;
+      generated[sid] = { id: sid, url, label: onModelLabel, prompt, status: res.status === "failed" ? "failed" : "done" };
     } catch (e) {
-      generated[sid] = { id: sid, url: "", label: shot.label, prompt, status: "failed" };
+      const garmentNames = garments.map((g) => g.name).filter(Boolean).join(" + ") || selectedProduct?.name || "";
+      const onModelLabel = garmentNames ? `${shot.label} · ${garmentNames}` : shot.label;
+      generated[sid] = { id: sid, url: "", label: onModelLabel, prompt, status: "failed" };
       console.error(`[ecommerce_pack] ${sid} failed:`, e);
     }
   }
@@ -211,7 +434,9 @@ const handleGenerate: StepHandler = async (ctx) => {
         idx++;
       });
       const sr = styleRefs(idx); urls.push(...sr.urls); desc.push(...sr.desc);
-      const label = flatSubjects.length > 1 ? `${shot.label} · ${subj.name}` : shot.label;
+      // Siempre incluir nombre de la prenda (no solo cuando hay >1) para que
+      // el filename descargado preserve el nombre original del archivo cargado.
+      const label = subj.name ? `${shot.label} · ${subj.name}` : shot.label;
       const id = flatSubjects.length > 1 ? `${sid}__${subj.id}` : sid;
       const prompt = `Professional e-commerce product packshot of a single garment. ${studioClause} ${shot.framing} Show ONLY this one garment — no other clothing items. ${PIXEL_FIDELITY}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
       try {
@@ -246,9 +471,11 @@ export const ecommercePack: ToolDefinition = {
   schema: {
     showAvatar: true, avatarLabel: "Modelo (opcional)",
     showProduct: true, productLabel: "Producto (opcional)",
-    showClothing: true, clothingLabel: "Prenda", clothingSublabel: "la prenda de la ficha — multi-select para un set",
+    showClothing: true, clothingLabel: "Prendas", clothingSublabel: "productos a vender — generan flats individuales",
     showBackground: false,
-    showMoodboard: true,
+    // Moodboard sacado de Ecommerce Pack — ya existe "Referencia Look & Feel"
+    // (showReference) que cumple la misma función. Tener ambos confundía.
+    showMoodboard: false,
     showReference: true,
     showVoice: false, showTone: false, showPlatform: false, showLanguage: false,
     showVariations: false,

@@ -44,6 +44,7 @@ from services import manual_lab
 from services import asset_matcher
 from services import seedance_video
 from services import beeble_switchx
+from services.image_utils import normalize_image_bytes
 
 # ── Paths ────────────────────────────────────────────────────
 (Path(__file__).parent / "tmp").mkdir(exist_ok=True)
@@ -233,6 +234,114 @@ def health():
         "heygen_configured": heygen.is_configured(),
         "fal_configured": fal_lipsync.is_configured(),
         "openai_configured": copy_gen.is_configured(),
+    }
+
+
+@app.post("/api/maintenance/convert-heic")
+def convert_heic_legacy():
+    """
+    One-shot migration — convierte HEIC/HEIF ya guardadas en disco a JPEG.
+    Para los archivos viejos que se subieron antes del fix de normalización
+    en upload. Recorre todos los directorios de assets, convierte los .heic/.heif
+    y actualiza brands.json para que apunten al nuevo filename.
+
+    POST porque mutate, idempotente (los que ya no son HEIC se ignoran).
+    Devuelve un resumen de qué se tocó.
+    """
+    from services.image_utils import normalize_image_bytes as _norm
+    all_brands = brands.load_brands()
+
+    # Mapa de "campo en el brand" → directorio de archivos. Cada entrada apunta
+    # a una lista de items con .filename y .imageUrl que hay que reescribir si
+    # convertimos el archivo. logo (singular) se trata aparte porque no es lista.
+    asset_lists = [
+        ("avatars", brands.get_avatars_dir(), "/static/avatars/"),
+        ("products", brands.get_products_dir(), "/static/products/"),
+        ("clothing", brands.get_clothing_dir(), "/static/clothing/"),
+        ("backgrounds", brands.get_backgrounds_dir(), "/static/backgrounds/"),
+        ("moodboards", brands.get_moodboards_dir(), "/static/moodboards/"),
+        ("lookAndFeel", brands.get_lookfeel_dir(), "/static/lookfeel/"),
+        ("logos", brands.get_logos_dir(), "/static/logos/"),
+    ]
+
+    converted: list[str] = []
+    skipped: list[str] = []
+    errors: list[str] = []
+
+    def _convert_one(filename: str, directory) -> str | None:
+        """Convierte el archivo si es HEIC/HEIF. Devuelve el nuevo filename
+        (puede ser igual si no hubo conversión) o None si hubo error."""
+        if not filename:
+            return filename
+        suf = Path(filename).suffix.lower()
+        if suf not in (".heic", ".heif"):
+            return filename
+        src = directory / filename
+        if not src.exists():
+            return None
+        try:
+            with open(src, "rb") as f:
+                data = f.read()
+            new_data, new_ext = _norm(data, filename, None)
+            if new_ext.lower() == suf:
+                # La conversión falló silenciosamente — pillow-heif missing capaz.
+                return None
+            new_filename = Path(filename).with_suffix(new_ext).name
+            new_path = directory / new_filename
+            with open(new_path, "wb") as f:
+                f.write(new_data)
+            # Borramos el original solo si el nuevo se escribió bien.
+            try:
+                src.unlink()
+            except Exception:
+                pass
+            return new_filename
+        except Exception as e:
+            errors.append(f"{src}: {e}")
+            return None
+
+    for brand in all_brands:
+        bid = brand.get("id", "?")
+        # listas
+        for field, directory, prefix in asset_lists:
+            for item in brand.get(field, []):
+                old_fn = item.get("filename")
+                if not old_fn:
+                    continue
+                new_fn = _convert_one(old_fn, directory)
+                if new_fn is None:
+                    skipped.append(f"{bid}/{field}/{old_fn}")
+                elif new_fn != old_fn:
+                    item["filename"] = new_fn
+                    item["imageUrl"] = f"{prefix}{new_fn}"
+                    converted.append(f"{bid}/{field}/{old_fn} → {new_fn}")
+                # Multi-image (products.images, clothing.images)
+                for sub in item.get("images", []) or []:
+                    sub_fn = sub.get("filename")
+                    if not sub_fn:
+                        continue
+                    new_sub = _convert_one(sub_fn, directory)
+                    if new_sub is None:
+                        skipped.append(f"{bid}/{field}/{sub_fn} (extra)")
+                    elif new_sub != sub_fn:
+                        sub["filename"] = new_sub
+                        sub["imageUrl"] = f"{prefix}{new_sub}"
+                        converted.append(f"{bid}/{field}/{sub_fn} → {new_sub} (extra)")
+        # logo singular (legacy)
+        legacy_logo = brand.get("logo") or {}
+        if isinstance(legacy_logo, dict) and legacy_logo.get("filename"):
+            new_fn = _convert_one(legacy_logo["filename"], brands.get_logos_dir())
+            if new_fn and new_fn != legacy_logo["filename"]:
+                legacy_logo["filename"] = new_fn
+                legacy_logo["imageUrl"] = f"/static/logos/{new_fn}"
+                converted.append(f"{bid}/logo/{new_fn}")
+
+    brands.save_brands(all_brands)
+    return {
+        "converted": converted,
+        "skipped": skipped,
+        "errors": errors,
+        "converted_count": len(converted),
     }
 
 
@@ -1033,7 +1142,7 @@ async def upload_avatar(
     if len(image_data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
 
-    ext = Path(image.filename or "avatar.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     avatar_id = str(uuid.uuid4())[:8]
     filename = f"{brand_id}_{avatar_id}{ext}"
     filepath = brands.get_avatars_dir() / filename
@@ -1122,7 +1231,7 @@ async def replace_avatar_image(
     if len(image_data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
 
-    ext = Path(image.filename or "avatar.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     filename = f"{brand_id}_{avatar_id}{ext}"
     filepath = brands.get_avatars_dir() / filename
 
@@ -1249,12 +1358,12 @@ async def upload_product(
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    ext = Path(image.filename or "product.png").suffix or ".png"
     product_id = str(uuid.uuid4())[:8]
+    content = await image.read()
+    content, ext = normalize_image_bytes(content, image.filename, image.content_type)
     filename = f"{brand_id}_prod_{product_id}{ext}"
     filepath = brands.get_products_dir() / filename
 
-    content = await image.read()
     with open(filepath, "wb") as f:
         f.write(content)
 
@@ -1339,12 +1448,12 @@ async def add_product_image(
     if len(existing_images) >= 9:
         raise HTTPException(status_code=400, detail="Maximum 10 images per product (1 main + 9 extra)")
 
-    ext = Path(image.filename or "product.png").suffix or ".png"
     img_id = str(uuid.uuid4())[:8]
+    content = await image.read()
+    content, ext = normalize_image_bytes(content, image.filename, image.content_type)
     filename = f"{brand_id}_prod_{product_id}_{img_id}{ext}"
     filepath = brands.get_products_dir() / filename
 
-    content = await image.read()
     with open(filepath, "wb") as f:
         f.write(content)
 
@@ -1417,7 +1526,9 @@ async def upload_clothing(
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
-    ext = Path(image.filename or "clothing.png").suffix or ".png"
+    # HEIC/HEIF → JPEG. Si el archivo ya es browser-friendly, no se toca.
+    # Sin esto, los uploads desde iPhone no se renderizan en Chrome/Firefox.
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     item_id = str(uuid.uuid4())[:8]
     filename = f"{brand_id}_cloth_{item_id}{ext}"
     filepath = brands.get_clothing_dir() / filename
@@ -1519,12 +1630,12 @@ async def add_clothing_image(
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
 
-    ext = Path(image.filename or "clothing.png").suffix or ".png"
     img_id = str(uuid.uuid4())[:8]
+    content = await image.read()
+    content, ext = normalize_image_bytes(content, image.filename, image.content_type)
     filename = f"{brand_id}_cloth_{item_id}_{img_id}{ext}"
     filepath = brands.get_clothing_dir() / filename
 
-    content = await image.read()
     with open(filepath, "wb") as f:
         f.write(content)
 
@@ -1598,7 +1709,7 @@ async def upload_background(
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
-    ext = Path(image.filename or "background.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     item_id = str(uuid.uuid4())[:8]
     filename = f"{brand_id}_bg_{item_id}{ext}"
     filepath = brands.get_backgrounds_dir() / filename
@@ -1696,7 +1807,7 @@ async def upload_moodboard(
         raise HTTPException(status_code=400, detail="Maximum 5 moodboards per brand")
 
     image_data = await image.read()
-    ext = Path(image.filename or "moodboard.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     item_id = str(uuid.uuid4())[:8]
     filename = f"{brand_id}_mood_{item_id}{ext}"
     filepath = brands.get_moodboards_dir() / filename
@@ -1786,7 +1897,7 @@ async def upload_lookandfeel(
     image_data = await image.read()
     if len(image_data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
-    ext = Path(image.filename or "lookfeel.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     item_id = str(uuid.uuid4())[:8]
     filename = f"{brand_id}_lf_{item_id}{ext}"
     filepath = brands.get_lookandfeel_dir() / filename
@@ -1913,7 +2024,7 @@ async def upload_logo(brand_id: str, image: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
-    ext = Path(image.filename or "logo.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     filename = f"{brand_id}_logo{ext}"
     filepath = brands.get_logos_dir() / filename
 
@@ -1965,7 +2076,7 @@ async def upload_brand_logo(
     if len(image_data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
 
-    ext = Path(image.filename or "logo.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     item_id = str(uuid.uuid4())[:8]
     filename = f"{brand_id}_logo_{item_id}{ext}"
     filepath = brands.get_logos_dir() / filename
@@ -4449,13 +4560,16 @@ async def generate_product_sheet_brief(
             fn = extra.get("filename")
             if fn and fn not in candidates:
                 candidates.append(fn)
-        for fn in candidates[:4]:
+        # Subido de 4 → 8 para matchear el cap del Brand Kit (10 max, 8 a Gemini
+        # por límite de payload). Productos complejos (autos) necesitan muchos
+        # ángulos para que Gemini clasifique bien cada foto.
+        for fn in candidates[:8]:
             path = brands.get_products_dir() / fn
             if path.exists() and path.is_file():
                 photos.append((path.read_bytes(), "image/jpeg"))
 
-    # Append any uploaded photos (up to 4 total).
-    for f in (images or [])[: max(0, 4 - len(photos))]:
+    # Append any uploaded photos (up to 8 total).
+    for f in (images or [])[: max(0, 8 - len(photos))]:
         data = await f.read()
         if not data:
             continue
@@ -4760,6 +4874,74 @@ ALLOWED_DOWNLOAD_HOSTS = {
     "storage.googleapis.com",
     "localhost", "127.0.0.1",
 }
+
+
+class DownloadZipRequest(BaseModel):
+    items: List[Dict[str, str]]  # [{ url, filename }, ...]
+    zipName: str = "download"
+
+
+@app.post("/api/download/zip")
+async def download_zip(req: DownloadZipRequest):
+    """Descarga N archivos server-side, los empaqueta en un ZIP, y devuelve UN
+    solo archivo. Soluciona el problema de browsers que bloquean downloads
+    múltiples consecutivos (especialmente Chrome con popup blocker).
+    Reportado: "no me deja descargar todas juntas, solo me baja una".
+    """
+    import io
+    import zipfile
+    from urllib.parse import urlparse
+
+    if not req.items:
+        raise HTTPException(status_code=400, detail="items list is empty")
+    if len(req.items) > 100:
+        raise HTTPException(status_code=400, detail="too many items (max 100)")
+
+    # Validar todas las URLs antes de empezar a fetchear.
+    for item in req.items:
+        u = item.get("url", "")
+        if not u:
+            continue
+        host = (urlparse(u).hostname or "").lower()
+        if host not in ALLOWED_DOWNLOAD_HOSTS and not any(host.endswith("." + h) for h in ALLOWED_DOWNLOAD_HOSTS):
+            raise HTTPException(status_code=400, detail=f"Host not allowed: {host}")
+
+    # Fetch concurrente + armado del zip en memoria.
+    buf = io.BytesIO()
+    used_names: set[str] = set()
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for item in req.items:
+                url = item.get("url", "").strip()
+                if not url:
+                    continue
+                fname = item.get("filename", "").strip() or "file"
+                # Resolver colisiones de nombre con sufijo numérico
+                base, dot, ext = fname.rpartition(".")
+                if not base:
+                    base, ext = fname, ""
+                final = fname
+                counter = 2
+                while final in used_names:
+                    final = f"{base}_{counter}.{ext}" if ext else f"{base}_{counter}"
+                    counter += 1
+                used_names.add(final)
+
+                try:
+                    resp = await client.get(url)
+                    if resp.status_code == 200:
+                        zf.writestr(final, resp.content)
+                except Exception as e:
+                    print(f"[download_zip] failed {url}: {e}")
+                    continue
+
+    buf.seek(0)
+    zip_name = (req.zipName or "download").replace("/", "_").replace("\\", "_") + ".zip"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{zip_name}"'},
+    )
 
 
 @app.get("/api/download")

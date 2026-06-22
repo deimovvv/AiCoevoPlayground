@@ -69,6 +69,9 @@ export interface ToolConfig {
   avatarToolMode: "create" | "poses";
   // Avatar tool (poses mode): what to do after generating — "new" saves as new avatar, "replace" overwrites the source avatar
   avatarPosesSave: "new" | "replace";
+  // Avatar tool: vistas que se piden al composite (body_front, face_34, etc.).
+  // Vacío → fallback al default histórico (4 vistas mixtas). Ver AVATAR_VIEWS.
+  avatarViews: string[];
   // Product Sheet tool: "sheet" = multi-view (front/3-4/back/side/top/hero) | "details" = macro close-ups (texture/logo/label/hardware)
   productSheetMode: "sheet" | "details";
   // Product Sheet: what to do with the result on save — "new" creates a new product entry, "replace" overwrites the source product's primary photo, "asset" saves without touching the catalog
@@ -134,6 +137,7 @@ export const DEFAULT_CONFIG: ToolConfig = {
   includeCopy: true,
   avatarToolMode: "create",
   avatarPosesSave: "new",
+  avatarViews: ["body_front", "face_front", "face_34", "face_side"],
   productSheetMode: "sheet",
   productSheetSave: "new",
   composeMode: "quick",

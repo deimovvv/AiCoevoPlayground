@@ -42,6 +42,10 @@ export interface AutoSaveInput {
   config: ToolConfig;
   steps: StepState[];
   curationSelections?: Record<string, string>;
+  /** Tandas acumulativas para tools multi-shot (ecommerce_pack, etc). Sin esto,
+   *  abrir un run viejo desde /content solo muestra la última tanda — perdés
+   *  el resto del catálogo. Se persiste opaco como Record[]. */
+  batches?: Array<Record<string, unknown>>;
   payload: AutoSavePayload;
 }
 
@@ -51,14 +55,15 @@ export interface AutoSaveInput {
  */
 export async function autoSaveStep(input: AutoSaveInput): Promise<Generation | null> {
   try {
-    const { activeBrand, tool, config, steps, curationSelections, payload } = input;
+    const { activeBrand, tool, config, steps, curationSelections, batches, payload } = input;
     const genId = getActiveGenId(tool.id, activeBrand.id);
 
-    const pipelineState = {
+    const pipelineState: Record<string, unknown> = {
       steps: steps.map((s) => ({ id: s.id, status: s.status, result: s.result })),
       config: config as unknown as Record<string, unknown>,
       curationSelections,
     };
+    if (batches && batches.length > 0) pipelineState.batches = batches;
 
     const body = {
       brandId: activeBrand.id,

@@ -102,11 +102,13 @@
   --font-sans: "Inter", "Neue Haas Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Consolas", ui-monospace, monospace;
 
-  /* Radius */
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 22px;
+  /* Radius — bumped up slightly para sentirse más "Pletor-style" (cards con
+     esquinas más generosas, sin perder identidad). sm sube de 6→8 para
+     coherencia, md de 12→16, lg de 16→22, xl de 22→28. */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
 
   /* Spacing */
   --space-1: 4px;
@@ -124,24 +126,31 @@
 }
 
 /* ──────────── LIGHT theme override ──────────── */
-/* Surfaces de gris fino — el blanco puro cansaba la vista y se sentía clínico.
-   Canvas es gris medio-claro; surfaces se elevan progresivamente pero sin llegar
-   a blanco puro. Las cards "flotan" por contraste con el canvas, no por blancura. */
+/* Warm white inspirado en estética Pletor/Linear — el gris frío anterior se
+   sentía clínico y le faltaba calidez. Ahora canvas es warm white con tinte
+   beige sutil; surfaces se elevan con la misma temperatura cálida, no con gris.
+   Las cards "flotan" por contraste suave + shadow sutil, no por brusquedad. */
 [data-theme="light"] {
-  --color-canvas: #e5e5e8;
-  --color-surface-0: #ededf0;
-  --color-surface-1: #f1f1f4;
-  --color-surface-2: #e2e2e5;
-  --color-surface-3: #d4d4d7;
+  --color-canvas: #fafaf7;
+  --color-surface-0: #f4f2ec;
+  --color-surface-1: #ffffff;
+  --color-surface-2: #ede9df;
+  --color-surface-3: #e0dccf;
 
+  /* Contraste subido para legibilidad sobre warm white. Los grises anteriores
+     eran muy claros para `#fafaf7` y la jerarquía de textos perdía contraste
+     (especialmente labels uppercase, captions e hints). Mantenemos jerarquía
+     visual pero todos un escalón más oscuros. */
   --color-fg: #0a0a0a;
-  --color-fg-secondary: #333333;
-  --color-fg-muted: #6b6b6b;
-  --color-fg-faint: #9a9a9a;
+  --color-fg-secondary: #2a2a2a;
+  --color-fg-muted: #4a4a4a;
+  --color-fg-faint: #6b6b6b;
 
-  --color-edge: rgba(10, 10, 10, 0.08);
-  --color-edge-subtle: rgba(10, 10, 10, 0.04);
-  --color-edge-strong: rgba(10, 10, 10, 0.16);
+  /* Borders más sutiles (0.08 → 0.05) — alineado con la estética Pletor donde
+     los bordes son casi invisibles y las cards se separan por shadow, no por línea. */
+  --color-edge: rgba(10, 10, 10, 0.05);
+  --color-edge-subtle: rgba(10, 10, 10, 0.025);
+  --color-edge-strong: rgba(10, 10, 10, 0.10);
   /* Focus ring también en burgundy para light mode (consistencia con dark) */
   --color-edge-focus: rgba(196, 88, 48, 0.45);
 
@@ -188,9 +197,12 @@
   --bg-hotspot-2: rgba(212, 252, 241, 0.40);
   --bg-hotspot-3: rgba(188, 252, 17, 0.08);
 
-  --shadow-card: 0 1px 3px rgba(10, 10, 10, 0.06), 0 1px 2px rgba(10, 10, 10, 0.03);
-  --shadow-modal: 0 20px 60px rgba(10, 10, 10, 0.12), 0 4px 12px rgba(10, 10, 10, 0.06);
-  --shadow-dropdown: 0 8px 24px rgba(10, 10, 10, 0.10);
+  /* Shadows con tinte cálido sutil (no negro puro) para alinear con el warm
+     white background — los grays con verdadero negro chocan contra el beige.
+     Mantenemos casi imperceptible: lift, no peso. */
+  --shadow-card: 0 1px 3px rgba(60, 40, 20, 0.06), 0 1px 2px rgba(60, 40, 20, 0.03);
+  --shadow-modal: 0 20px 60px rgba(60, 40, 20, 0.12), 0 4px 12px rgba(60, 40, 20, 0.06);
+  --shadow-dropdown: 0 8px 24px rgba(60, 40, 20, 0.10);
 }
 
 /* ============================================================
@@ -486,7 +498,8 @@ input:focus-visible, textarea:focus-visible {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-/* Ambient color hotspots — pink + lime + mint aurora */
+/* Ambient gradient terracota + grain — estética inspirada en el logo de Coevo
+   sobre gradiente cálido con textura. Cristal+vidrio en cards (backdrop-blur). */
 .home-glow {
   position: absolute;
   inset: 0;
@@ -495,32 +508,78 @@ input:focus-visible, textarea:focus-visible {
   overflow: hidden;
 }
 
+/* Hotspot principal terracota desde abajo-izquierda — el "punch" del gradiente */
 .home-glow::before {
   content: "";
   position: absolute;
-  top: -380px;
-  left: 25%;
-  width: 560px;
-  height: 560px;
-  background: radial-gradient(ellipse at center,
-      rgba(250, 205, 234, 0.09) 0%,
-      rgba(250, 205, 234, 0.03) 45%,
-      transparent 72%);
-  filter: blur(60px);
+  bottom: -30%;
+  left: -20%;
+  width: 90%;
+  height: 120%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(196, 88, 48, 0.55) 0%,
+    rgba(196, 88, 48, 0.28) 25%,
+    rgba(196, 88, 48, 0.10) 50%,
+    transparent 78%
+  );
+  filter: blur(40px);
 }
 
+/* Glow secundario superior derecho — sutil para que el cuadro respire */
 .home-glow::after {
   content: "";
   position: absolute;
-  top: -240px;
-  right: 15%;
-  width: 480px;
-  height: 480px;
-  background: radial-gradient(ellipse at center,
-      rgba(212, 252, 241, 0.07) 0%,
-      rgba(188, 252, 17, 0.03) 50%,
-      transparent 75%);
-  filter: blur(70px);
+  top: -15%;
+  right: -20%;
+  width: 70%;
+  height: 80%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(196, 88, 48, 0.20) 0%,
+    rgba(196, 88, 48, 0.06) 50%,
+    transparent 80%
+  );
+  filter: blur(50px);
+}
+
+/* Dark mode (polo negativo): mismo terracota pero MUCHO más sutil sobre canvas
+   negro, sin invadir — el negro respira. Conserva la firma visual cálida sin
+   sobrecargar. */
+[data-theme="dark"] .home-glow::before {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(196, 88, 48, 0.32) 0%,
+    rgba(196, 88, 48, 0.14) 25%,
+    rgba(196, 88, 48, 0.04) 55%,
+    transparent 80%
+  );
+}
+
+[data-theme="dark"] .home-glow::after {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(196, 88, 48, 0.10) 0%,
+    rgba(196, 88, 48, 0.03) 50%,
+    transparent 80%
+  );
+}
+
+/* Grain texture — SVG inline noise filter. Da la textura granular tipo papel
+   del logo ref del usuario. Opacity baja para que sea "tactile" sin invadir. */
+.home-root::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.45 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  opacity: 0.35;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 1;
+}
+
+[data-theme="dark"] .home-root::after {
+  opacity: 0.22;
 }
 
 /* Nav */
@@ -565,8 +624,10 @@ input:focus-visible, textarea:focus-visible {
   gap: 6px;
   padding: 8px 18px;
   border-radius: 999px;
-  border: 1px solid var(--color-edge);
-  background: var(--color-surface-1);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   color: var(--color-fg);
   font-size: 13px;
   font-weight: 500;
@@ -574,9 +635,14 @@ input:focus-visible, textarea:focus-visible {
   transition: all 0.2s;
 }
 
+[data-theme="dark"] .home-nav-cta {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .home-nav-cta:hover {
-  border-color: var(--color-warm);
-  background: var(--color-warm-subtle);
+  border-color: rgba(196, 88, 48, 0.45);
+  background: rgba(196, 88, 48, 0.10);
   color: var(--color-fg);
 }
 
@@ -595,14 +661,23 @@ input:focus-visible, textarea:focus-visible {
   gap: 8px;
   padding: 6px 16px;
   border-radius: 999px;
-  border: 1px solid var(--color-edge);
-  background: var(--color-surface-1);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.50);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-fg-muted);
+  color: var(--color-brand-strong);
   margin-bottom: 40px;
+  box-shadow: 0 1px 3px rgba(60, 40, 20, 0.04);
+}
+
+[data-theme="dark"] .home-badge {
+  border: 1px solid rgba(196, 88, 48, 0.25);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-brand);
 }
 
 .home-badge-dot {
@@ -670,11 +745,13 @@ input:focus-visible, textarea:focus-visible {
   cursor: pointer;
   transition: all 0.2s;
   letter-spacing: 0.01em;
+  box-shadow: 0 6px 20px rgba(196, 88, 48, 0.18);
 }
 
 .home-btn-primary:hover {
   transform: translateY(-1px);
   filter: brightness(1.05);
+  box-shadow: 0 10px 30px rgba(196, 88, 48, 0.28);
 }
 
 .home-btn-outline {
@@ -683,8 +760,10 @@ input:focus-visible, textarea:focus-visible {
   gap: 8px;
   padding: 12px 26px;
   border-radius: 999px;
-  border: 1px solid var(--color-edge);
-  background: var(--color-surface-1);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.40);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   color: var(--color-fg-secondary);
   font-size: 14px;
   font-weight: 500;
@@ -692,23 +771,29 @@ input:focus-visible, textarea:focus-visible {
   transition: all 0.2s;
 }
 
+[data-theme="dark"] .home-btn-outline {
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .home-btn-outline:hover {
-  border-color: var(--color-warm);
-  background: var(--color-warm-subtle);
+  border-color: rgba(196, 88, 48, 0.45);
+  background: rgba(196, 88, 48, 0.10);
   color: var(--color-fg);
 }
 
-/* Features */
+/* Features — glass cards estilo Pletor: bordes muy sutiles, fondo translúcido
+   con backdrop-blur. El gradiente terracota se filtra detrás. */
 .home-features {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1px;
-  max-width: 900px;
+  gap: 12px;
+  max-width: 980px;
   width: 100%;
   padding: 0 32px;
   position: relative;
   z-index: 10;
-  margin-top: 20px;
+  margin-top: 28px;
 }
 
 @media (max-width: 768px) {
@@ -718,18 +803,34 @@ input:focus-visible, textarea:focus-visible {
 }
 
 .home-feature-card {
-  padding: 34px 24px;
+  padding: 28px 22px;
   text-align: center;
-  border-right: 1px solid var(--color-edge-subtle);
+  border: 1px solid rgba(255, 255, 255, 0.50);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
   transition: all 0.3s;
+  box-shadow: 0 1px 3px rgba(60, 40, 20, 0.04);
 }
 
-.home-feature-card:last-child {
-  border-right: none;
+[data-theme="dark"] .home-feature-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.30);
 }
 
 .home-feature-card:hover {
-  background: var(--color-surface-1);
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(196, 88, 48, 0.30);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(196, 88, 48, 0.12);
+}
+
+[data-theme="dark"] .home-feature-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(196, 88, 48, 0.40);
+  box-shadow: 0 6px 20px rgba(196, 88, 48, 0.20);
 }
 
 .home-feature-card:nth-child(1):hover .home-feature-icon {
@@ -763,11 +864,19 @@ input:focus-visible, textarea:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 11px;
-  border: 1px solid var(--color-edge);
-  background: var(--color-surface-1);
-  color: var(--color-fg-muted);
+  border-radius: 12px;
+  border: 1px solid rgba(196, 88, 48, 0.15);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--color-brand-strong);
   transition: all 0.3s;
+}
+
+[data-theme="dark"] .home-feature-icon {
+  border: 1px solid rgba(196, 88, 48, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-brand);
 }
 
 .home-feature-card h3 {

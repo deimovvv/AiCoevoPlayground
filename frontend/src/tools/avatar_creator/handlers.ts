@@ -8,6 +8,7 @@
 
 import type { StepHandler } from "../types";
 import { createTextToImage, createImageEdit, pollImageGen, uploadAvatar, replaceAvatarImage, avatarImageUrl, moodboardImageUrl } from "../../lib/api";
+import { AVATAR_VIEWS } from "./index";
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -154,26 +155,44 @@ export const handleGenerate: StepHandler = async (ctx) => {
     ? `Style: match the EXACT photographic / visual style of the reference image — same medium (photo / 3D / illustration / anime — whatever the reference is), same grain, same color treatment, same lighting language, same overall aesthetic. Do NOT impose a different style. The reference defines the look.`
     : `Style: ${styleConfig.stylePrompt}.`;
 
+  // ── Vistas seleccionadas ──────────────────────────────────────────────
+  // El usuario puede tildar qué vistas quiere en el composite. Si no hay
+  // ninguna tildada, fallback al default histórico (4 vistas mixtas).
+  const cfgAv = config as unknown as Record<string, unknown>;
+  const selectedViewKeys = (cfgAv.avatarViews as string[] | undefined)
+    && (cfgAv.avatarViews as string[]).length > 0
+      ? (cfgAv.avatarViews as string[])
+      : ["body_front", "face_front", "face_34", "face_side"];
+  const viewPrompts = selectedViewKeys
+    .map((k) => AVATAR_VIEWS[k]?.prompt)
+    .filter(Boolean);
+  const viewsLine = viewPrompts.length === 1
+    ? `${viewPrompts[0]}.`
+    : viewPrompts.length === 2
+      ? `${viewPrompts.join(", and ")}.`
+      : `${viewPrompts.slice(0, -1).join(", ")}, and ${viewPrompts[viewPrompts.length - 1]}.`;
+  // Cuando hay solo 1 vista, no es un "reference sheet" sino una imagen
+  // singular — ajustamos el header del prompt para que no confunda.
+  const sheetHeader = viewPrompts.length === 1
+    ? `Single clean photograph on pure white background. Frame:`
+    : `Character reference sheet on pure white background. Single seamless image with multiple views of the same person — arrange them side-by-side in one composition:`;
+
   const compositePrompt = [
-    `Character reference sheet on pure white background.`,
-    `Single seamless image with multiple views of the same person:`,
-    `full body front view (center, standing, natural pose),`,
-    `face close-up portrait (left side),`,
-    `three-quarter face angle (right side),`,
-    `side profile view (far right).`,
+    sheetHeader,
+    viewsLine,
     ``,
     `Character: ${characterDesc}.`,
     ``,
     styleLine,
     `Pure white (#FFFFFF) seamless background. Studio lighting, clean and professional.`,
-    `All views show the EXACT same person with consistent features.`,
+    viewPrompts.length > 1 ? `All views show the EXACT same person with consistent features.` : ``,
     `Hands are empty — no objects, no props, no products, no bags, no phones, nothing held in hands.`,
     // Clothing safeguard — sin esta línea Nano Banana suele sacar modelos en ropa interior
     // o con muy poca ropa, especialmente en modo poses cuando el brief no especifica outfit.
     // Forzamos prendas básicas neutras a menos que el brief.style mande otra cosa.
     `The person is FULLY CLOTHED in neutral everyday clothing — basic plain t-shirt or top + neutral pants or jeans, consistent across all views. NEVER in underwear, NEVER nude, NEVER in lingerie or swimwear (unless explicitly requested in the character description above).`,
     `No text, no labels, no borders, no grid lines.`,
-  ].join(" ");
+  ].filter(Boolean).join(" ");
 
   // Collect optional references — moodboard (Brand Kit) + user-uploaded files.
   const cfg = config as unknown as Record<string, unknown>;
