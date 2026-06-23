@@ -9746,14 +9746,20 @@ function AssetSelector({
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const handleFileChange = async (file: File) => {
-    if (!onUpload) return;
-    const finalName = file.name.replace(/\.[^.]+$/, "");
+  // Sube uno o varios archivos. Secuencial para evitar races en setConfig/
+  // refreshBrands (cada onUpload refresca el brand y agrega su id a la selección).
+  const handleFiles = async (files: File[]) => {
+    if (!onUpload || files.length === 0) return;
     setUploading(true);
     try {
-      await onUpload(file, finalName);
+      for (const file of files) {
+        const finalName = file.name.replace(/\.[^.]+$/, "");
+        try {
+          await onUpload(file, finalName);
+        } catch { /* seguí con los demás aunque uno falle */ }
+      }
       setShowUpload(false);
-    } catch { /* silent */ } finally {
+    } finally {
       setUploading(false);
     }
   };
@@ -9769,16 +9775,17 @@ function AssetSelector({
         {uploading ? (
           <><Loader2 size={11} className="animate-spin" /> Subiendo...</>
         ) : (
-          <><Plus size={11} /> Subir imagen</>
+          <><Plus size={11} /> Subir imágenes</>
         )}
         <input
           type="file"
           accept={IMAGE_ACCEPT}
+          multiple
           className="hidden"
           disabled={uploading}
           onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleFileChange(f);
+            const files = Array.from(e.target.files || []);
+            if (files.length) handleFiles(files);
             e.target.value = "";
           }}
         />

@@ -516,7 +516,7 @@ function AvatarsCard() {
   const [showUpload, setShowUpload] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!activeBrand) return null;
@@ -524,16 +524,22 @@ function AvatarsCard() {
   const avatars = activeBrand.avatars || [];
 
   const handleUpload = async () => {
-    if (!file || !name.trim()) return;
+    if (files.length === 0) return;
+    const multi = files.length > 1;
+    if (!multi && !name.trim()) return;
     setUploading(true);
     setError(null);
     try {
-      await uploadAvatar(activeBrand.id, name.trim(), file, false, description.trim());
+      for (const f of files) {
+        const itemName = multi ? deriveAssetName(f.name) : name.trim();
+        const desc = multi ? "" : description.trim();
+        await uploadAvatar(activeBrand.id, itemName, f, false, desc);
+      }
       await refreshBrands();
       setShowUpload(false);
       setName("");
       setDescription("");
-      setFile(null);
+      setFiles([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falló la subida");
     } finally {
@@ -604,22 +610,25 @@ function AvatarsCard() {
             onClick={() => fileRef.current?.click()}
             className={cn(
               "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
-              file ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+              files.length > 0 ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
             )}
           >
             <input
               ref={fileRef}
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }}
+              onChange={(e) => { const fs = Array.from(e.target.files || []); setFiles(fs); if (fs[0] && !name.trim()) setName(deriveAssetName(fs[0].name)); }}
             />
-            {file ? (
-              <span className="text-[12px] text-fg-secondary">{file.name}</span>
+            {files.length === 1 ? (
+              <span className="text-[12px] text-fg-secondary">{files[0].name}</span>
+            ) : files.length > 1 ? (
+              <span className="text-[12px] text-fg-secondary">{`${files.length} archivos seleccionados`}</span>
             ) : (
               <div className="space-y-1">
                 <Upload size={16} className="mx-auto text-fg-faint" />
-                <p className="text-[12px] text-fg-faint">Click para seleccionar imagen</p>
+                <p className="text-[12px] text-fg-faint">Click para seleccionar imágenes</p>
               </div>
             )}
           </div>
@@ -630,14 +639,14 @@ function AvatarsCard() {
           )}
           <div className="flex gap-2 justify-end">
             <button
-              onClick={() => { setShowUpload(false); setName(""); setDescription(""); setFile(null); setError(null); }}
+              onClick={() => { setShowUpload(false); setName(""); setDescription(""); setFiles([]); setError(null); }}
               className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               onClick={handleUpload}
-              disabled={uploading || !file || !name.trim()}
+              disabled={uploading || files.length === 0 || (files.length === 1 && !name.trim())}
               className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
@@ -806,7 +815,7 @@ function ProductsCard() {
   const [showUpload, setShowUpload] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!activeBrand) return null;
@@ -814,16 +823,22 @@ function ProductsCard() {
   const products = activeBrand.products || [];
 
   const handleUpload = async () => {
-    if (!file || !name.trim()) return;
+    if (files.length === 0) return;
+    const multi = files.length > 1;
+    if (!multi && !name.trim()) return;
     setUploading(true);
     setError(null);
     try {
-      await uploadProduct(activeBrand.id, name.trim(), file, description.trim());
+      for (const f of files) {
+        const itemName = multi ? deriveAssetName(f.name) : name.trim();
+        const desc = multi ? "" : description.trim();
+        await uploadProduct(activeBrand.id, itemName, f, desc);
+      }
       await refreshBrands();
       setShowUpload(false);
       setName("");
       setDescription("");
-      setFile(null);
+      setFiles([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falló la subida");
     } finally {
@@ -879,13 +894,13 @@ function ProductsCard() {
               rows={2}
               className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-fg outline-none resize-none focus:border-[var(--color-edge-focus)] transition-colors"
             />
-            {file && (
+            {files.length === 1 && (
               <button
                 type="button"
                 onClick={async () => {
                   try {
                     const formData = new FormData();
-                    formData.append("image", file);
+                    formData.append("image", files[0]);
                     formData.append("type", "product");
                     formData.append("name", name);
                     const res = await fetch("http://127.0.0.1:8000/api/analyze/image", { method: "POST", body: formData });
@@ -906,22 +921,25 @@ function ProductsCard() {
             onClick={() => fileRef.current?.click()}
             className={cn(
               "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
-              file ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+              files.length > 0 ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
             )}
           >
             <input
               ref={fileRef}
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }}
+              onChange={(e) => { const fs = Array.from(e.target.files || []); setFiles(fs); if (fs[0] && !name.trim()) setName(deriveAssetName(fs[0].name)); }}
             />
-            {file ? (
-              <span className="text-[12px] text-fg-secondary">{file.name}</span>
+            {files.length === 1 ? (
+              <span className="text-[12px] text-fg-secondary">{files[0].name}</span>
+            ) : files.length > 1 ? (
+              <span className="text-[12px] text-fg-secondary">{`${files.length} archivos seleccionados`}</span>
             ) : (
               <div className="space-y-1">
                 <Upload size={16} className="mx-auto text-fg-faint" />
-                <p className="text-[12px] text-fg-faint">Click para seleccionar imagen</p>
+                <p className="text-[12px] text-fg-faint">Click para seleccionar imágenes</p>
               </div>
             )}
           </div>
@@ -932,14 +950,14 @@ function ProductsCard() {
           )}
           <div className="flex gap-2 justify-end">
             <button
-              onClick={() => { setShowUpload(false); setName(""); setDescription(""); setFile(null); setError(null); }}
+              onClick={() => { setShowUpload(false); setName(""); setDescription(""); setFiles([]); setError(null); }}
               className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               onClick={handleUpload}
-              disabled={uploading || !file || !name.trim()}
+              disabled={uploading || files.length === 0 || (files.length === 1 && !name.trim())}
               className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
@@ -1143,7 +1161,7 @@ function ClothingCard({ accessoryMode = false }: { accessoryMode?: boolean }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!activeBrand) return null;
@@ -1157,21 +1175,27 @@ function ClothingCard({ accessoryMode = false }: { accessoryMode?: boolean }) {
     : allClothing.filter((c) => !isAccessoryItem(c));
 
   const handleUpload = async () => {
-    if (!file || !name.trim()) return;
+    if (files.length === 0) return;
+    const multi = files.length > 1;
+    if (!multi && !name.trim()) return;
     setUploading(true);
     setError(null);
     try {
-      // En accessoryMode, forzamos el tag "accessory" además de los que ponga el usuario.
-      const tagString = accessoryMode
-        ? [tags.trim(), "accessory"].filter(Boolean).join(",")
-        : tags.trim();
-      await uploadClothing(activeBrand.id, name.trim(), file, description.trim(), tagString);
+      for (const f of files) {
+        const itemName = multi ? deriveAssetName(f.name) : name.trim();
+        const desc = multi ? "" : description.trim();
+        // En accessoryMode, forzamos el tag "accessory" además de los que ponga el usuario.
+        const tagString = accessoryMode
+          ? [tags.trim(), "accessory"].filter(Boolean).join(",")
+          : tags.trim();
+        await uploadClothing(activeBrand.id, itemName, f, desc, tagString);
+      }
       await refreshBrands();
       setShowUpload(false);
       setName("");
       setDescription("");
       setTags("");
-      setFile(null);
+      setFiles([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falló la subida");
     } finally {
@@ -1251,22 +1275,25 @@ function ClothingCard({ accessoryMode = false }: { accessoryMode?: boolean }) {
             onClick={() => fileRef.current?.click()}
             className={cn(
               "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
-              file ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+              files.length > 0 ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
             )}
           >
             <input
               ref={fileRef}
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }}
+              onChange={(e) => { const fs = Array.from(e.target.files || []); setFiles(fs); if (fs[0] && !name.trim()) setName(deriveAssetName(fs[0].name)); }}
             />
-            {file ? (
-              <span className="text-[12px] text-fg-secondary">{file.name}</span>
+            {files.length === 1 ? (
+              <span className="text-[12px] text-fg-secondary">{files[0].name}</span>
+            ) : files.length > 1 ? (
+              <span className="text-[12px] text-fg-secondary">{`${files.length} archivos seleccionados`}</span>
             ) : (
               <div className="space-y-1">
                 <Upload size={16} className="mx-auto text-fg-faint" />
-                <p className="text-[12px] text-fg-faint">Click para seleccionar imagen</p>
+                <p className="text-[12px] text-fg-faint">Click para seleccionar imágenes</p>
               </div>
             )}
           </div>
@@ -1277,14 +1304,14 @@ function ClothingCard({ accessoryMode = false }: { accessoryMode?: boolean }) {
           )}
           <div className="flex gap-2 justify-end">
             <button
-              onClick={() => { setShowUpload(false); setName(""); setDescription(""); setTags(""); setFile(null); setError(null); }}
+              onClick={() => { setShowUpload(false); setName(""); setDescription(""); setTags(""); setFiles([]); setError(null); }}
               className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               onClick={handleUpload}
-              disabled={uploading || !file || !name.trim()}
+              disabled={uploading || files.length === 0 || (files.length === 1 && !name.trim())}
               className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
@@ -2049,7 +2076,7 @@ function BackgroundsCard() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!activeBrand) return null;
@@ -2057,17 +2084,23 @@ function BackgroundsCard() {
   const backgrounds = activeBrand.backgrounds || [];
 
   const handleUpload = async () => {
-    if (!file || !name.trim()) return;
+    if (files.length === 0) return;
+    const multi = files.length > 1;
+    if (!multi && !name.trim()) return;
     setUploading(true);
     setError(null);
     try {
-      await uploadBackground(activeBrand.id, name.trim(), file, description.trim(), tags.trim());
+      for (const f of files) {
+        const itemName = multi ? deriveAssetName(f.name) : name.trim();
+        const desc = multi ? "" : description.trim();
+        await uploadBackground(activeBrand.id, itemName, f, desc, tags.trim());
+      }
       await refreshBrands();
       setShowUpload(false);
       setName("");
       setDescription("");
       setTags("");
-      setFile(null);
+      setFiles([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falló la subida");
     } finally {
@@ -2144,22 +2177,25 @@ function BackgroundsCard() {
             onClick={() => fileRef.current?.click()}
             className={cn(
               "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
-              file ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+              files.length > 0 ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
             )}
           >
             <input
               ref={fileRef}
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }}
+              onChange={(e) => { const fs = Array.from(e.target.files || []); setFiles(fs); if (fs[0] && !name.trim()) setName(deriveAssetName(fs[0].name)); }}
             />
-            {file ? (
-              <span className="text-[12px] text-fg-secondary">{file.name}</span>
+            {files.length === 1 ? (
+              <span className="text-[12px] text-fg-secondary">{files[0].name}</span>
+            ) : files.length > 1 ? (
+              <span className="text-[12px] text-fg-secondary">{`${files.length} archivos seleccionados`}</span>
             ) : (
               <div className="space-y-1">
                 <Upload size={16} className="mx-auto text-fg-faint" />
-                <p className="text-[12px] text-fg-faint">Click para seleccionar imagen de fondo</p>
+                <p className="text-[12px] text-fg-faint">Click para seleccionar imágenes</p>
               </div>
             )}
           </div>
@@ -2170,14 +2206,14 @@ function BackgroundsCard() {
           )}
           <div className="flex gap-2 justify-end">
             <button
-              onClick={() => { setShowUpload(false); setName(""); setDescription(""); setTags(""); setFile(null); setError(null); }}
+              onClick={() => { setShowUpload(false); setName(""); setDescription(""); setTags(""); setFiles([]); setError(null); }}
               className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               onClick={handleUpload}
-              disabled={uploading || !file || !name.trim()}
+              disabled={uploading || files.length === 0 || (files.length === 1 && !name.trim())}
               className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
@@ -2248,7 +2284,7 @@ function MoodboardsCard() {
   const [showUpload, setShowUpload] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (!activeBrand) return null;
@@ -2257,16 +2293,22 @@ function MoodboardsCard() {
   const atLimit = moodboards.length >= 5;
 
   const handleUpload = async () => {
-    if (!file || !name.trim()) return;
+    if (files.length === 0) return;
+    const multi = files.length > 1;
+    if (!multi && !name.trim()) return;
     setUploading(true);
     setError(null);
     try {
-      await uploadMoodboard(activeBrand.id, name.trim(), file, description.trim());
+      for (const f of files) {
+        const itemName = multi ? deriveAssetName(f.name) : name.trim();
+        const desc = multi ? "" : description.trim();
+        await uploadMoodboard(activeBrand.id, itemName, f, desc);
+      }
       await refreshBrands();
       setShowUpload(false);
       setName("");
       setDescription("");
-      setFile(null);
+      setFiles([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falló la subida");
     } finally {
@@ -2328,12 +2370,14 @@ function MoodboardsCard() {
             onClick={() => fileRef.current?.click()}
             className={cn(
               "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
-              file ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+              files.length > 0 ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
             )}
           >
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0] || null; setFile(f); if (f && !name.trim()) setName(deriveAssetName(f.name)); }} />
-            {file ? (
-              <span className="text-[12px] text-fg-secondary">{file.name}</span>
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { const fs = Array.from(e.target.files || []); setFiles(fs); if (fs[0] && !name.trim()) setName(deriveAssetName(fs[0].name)); }} />
+            {files.length === 1 ? (
+              <span className="text-[12px] text-fg-secondary">{files[0].name}</span>
+            ) : files.length > 1 ? (
+              <span className="text-[12px] text-fg-secondary">{`${files.length} archivos seleccionados`}</span>
             ) : (
               <div className="space-y-1">
                 <Upload size={16} className="mx-auto text-fg-faint" />
@@ -2348,14 +2392,14 @@ function MoodboardsCard() {
           )}
           <div className="flex gap-2 justify-end">
             <button
-              onClick={() => { setShowUpload(false); setName(""); setDescription(""); setFile(null); setError(null); }}
+              onClick={() => { setShowUpload(false); setName(""); setDescription(""); setFiles([]); setError(null); }}
               className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               onClick={handleUpload}
-              disabled={uploading || !file || !name.trim()}
+              disabled={uploading || files.length === 0 || (files.length === 1 && !name.trim())}
               className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
             >
               {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
