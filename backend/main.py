@@ -44,7 +44,7 @@ from services import manual_lab
 from services import asset_matcher
 from services import seedance_video
 from services import beeble_switchx
-from services.image_utils import normalize_image_bytes
+from services.image_utils import normalize_image_bytes, is_image_upload
 
 # ── Paths ────────────────────────────────────────────────────
 (Path(__file__).parent / "tmp").mkdir(exist_ok=True)
@@ -1135,7 +1135,10 @@ async def upload_avatar(
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
@@ -1224,7 +1227,10 @@ async def replace_avatar_image(
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
 
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
@@ -1522,7 +1528,10 @@ async def upload_clothing(
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
@@ -1627,7 +1636,10 @@ async def add_clothing_image(
     if len(existing_images) >= 9:
         raise HTTPException(status_code=400, detail="Maximum 10 images per clothing item (1 main + 9 extra)")
 
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     img_id = str(uuid.uuid4())[:8]
@@ -1705,7 +1717,10 @@ async def upload_background(
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
@@ -1800,7 +1815,10 @@ async def upload_moodboard(
     brand = brands.find_brand(all_brands, brand_id)
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
     existing = brand.get("moodboards", [])
     if len(existing) >= 5:
@@ -1889,7 +1907,10 @@ async def upload_lookandfeel(
     brand = brands.find_brand(all_brands, brand_id)
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
     if len(brand.get("lookAndFeel", [])) >= 12:
         raise HTTPException(status_code=400, detail="Maximum 12 look & feel references per brand")
@@ -1991,7 +2012,10 @@ async def describe_lookandfeel_item(brand_id: str, item_id: str):
 async def describe_lookandfeel_upload(image: UploadFile = File(...)):
     """Analyze an ad-hoc (not saved to any brand) look & feel image into a color-grade recipe.
     Powers the 'recipe' mode when you upload a one-off reference in Manual Lab."""
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
     if not image_analysis.is_configured():
         raise HTTPException(status_code=400, detail="Gemini no está configurado para analizar la referencia")
@@ -2020,7 +2044,10 @@ async def upload_logo(brand_id: str, image: UploadFile = File(...)):
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
@@ -2070,7 +2097,10 @@ async def upload_brand_logo(
     brand = brands.find_brand(all_brands, brand_id)
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
     image_data = await image.read()
     if len(image_data) > 10 * 1024 * 1024:

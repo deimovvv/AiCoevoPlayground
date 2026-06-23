@@ -46,6 +46,7 @@ import {
   createKlingFrameToFrame, createSeedanceReferenceToVideo, pollSeedanceVideo,
   resolveAgentBrief,
   uploadAvatar, uploadClothing, uploadBackground, uploadMoodboard,
+  deleteClothing, deleteAvatar, deleteProduct, deleteBackground, deleteMoodboard,
   createHeyGenAvatar4, pollHeyGenAvatar4,
   fetchSystemVoices,
   fetchBrandActions,
@@ -56,7 +57,7 @@ import {
   type TikTokVideo,
   type ActionCategory,
 } from "../lib/api";
-import { cn, downloadUrl } from "../lib/utils";
+import { cn, downloadUrl, IMAGE_ACCEPT } from "../lib/utils";
 import { downloadFile, downloadZip } from "../lib/download";
 import { ImageEditPanel } from "../components/ImageEditPanel";
 import { SHOT_CATALOG, STUDIO_STYLES, POSE_PRESETS } from "../tools/ecommerce_pack";
@@ -3297,7 +3298,7 @@ function ConfigPanel({
                             Pose
                             <input
                               type="file"
-                              accept="image/*"
+                              accept={IMAGE_ACCEPT}
                               className="hidden"
                               onChange={(e) => {
                                 const f = e.target.files?.[0];
@@ -3374,7 +3375,7 @@ function ConfigPanel({
               <input
                 ref={accessoryInputRef}
                 type="file"
-                accept="image/*"
+                accept={IMAGE_ACCEPT}
                 multiple
                 className="hidden"
                 onChange={async (e) => {
@@ -3425,25 +3426,44 @@ function ConfigPanel({
                     {(activeBrand?.clothing || [])
                       .filter((c) => (c.tags || []).some((t) => t === "accessory"))
                       .map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => setConfig((p) => ({
-                            ...p,
-                            ecomAccessoryIds: [...p.ecomAccessoryIds, item.id],
-                            selectedClothingIds: p.selectedClothingIds.includes(item.id)
-                              ? p.selectedClothingIds
-                              : [...p.selectedClothingIds, item.id],
-                          }))}
-                          title={`Usar ${item.name}`}
-                          className="border border-edge hover:border-[var(--color-brand)] rounded-[var(--radius-sm)] p-1 transition-all cursor-pointer text-left"
-                        >
-                          <div className="aspect-square bg-surface-2 rounded-[2px] overflow-hidden mb-1">
-                            {item.imageUrl && (
-                              <img src={clothingImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
-                            )}
-                          </div>
-                          <span className="text-[9px] text-fg-muted truncate block font-medium leading-tight">{item.name}</span>
-                        </button>
+                        <div key={item.id} className="group/tile relative">
+                          <button
+                            onClick={() => setConfig((p) => ({
+                              ...p,
+                              ecomAccessoryIds: [...p.ecomAccessoryIds, item.id],
+                              selectedClothingIds: p.selectedClothingIds.includes(item.id)
+                                ? p.selectedClothingIds
+                                : [...p.selectedClothingIds, item.id],
+                            }))}
+                            title={`Usar ${item.name}`}
+                            className="w-full border border-edge hover:border-[var(--color-brand)] rounded-[var(--radius-sm)] p-1 transition-all cursor-pointer text-left"
+                          >
+                            <div className="aspect-square bg-surface-2 rounded-[2px] overflow-hidden mb-1">
+                              {item.imageUrl && (
+                                <img src={clothingImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
+                              )}
+                            </div>
+                            <span className="text-[9px] text-fg-muted truncate block font-medium leading-tight">{item.name}</span>
+                          </button>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!activeBrand) return;
+                              if (!confirm(`Borrar "${item.name}" del Brand Kit? Se quita de TODAS las tools, no se puede deshacer.`)) return;
+                              try {
+                                await deleteClothing(activeBrand.id, item.id);
+                                await refreshBrands();
+                              } catch (err) {
+                                console.error("[ecommerce_pack] delete accessory failed:", err);
+                                alert("No se pudo borrar el accesorio.");
+                              }
+                            }}
+                            title="Borrar del Brand Kit (no se puede deshacer)"
+                            className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-black/70 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/tile:opacity-100 transition-opacity cursor-pointer z-20"
+                          >
+                            <Trash2 size={9} />
+                          </button>
+                        </div>
                       ))}
                   </div>
                 </div>
@@ -3477,26 +3497,54 @@ function ConfigPanel({
                     {(activeBrand.clothing || [])
                       .filter((c) => config.ecomAccessoryIds.includes(c.id))
                       .map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => setConfig((p) => ({
-                            ...p,
-                            ecomAccessoryIds: p.ecomAccessoryIds.filter((x) => x !== item.id),
-                            selectedClothingIds: p.selectedClothingIds.filter((x) => x !== item.id),
-                          }))}
-                          title={`Quitar ${item.name}`}
-                          className="relative border border-[var(--color-brand)] bg-[var(--color-brand-subtle)] shadow-[0_0_14px_-4px_var(--color-brand-muted)] rounded-[var(--radius-sm)] p-1 transition-all cursor-pointer text-left"
-                        >
-                          <div className="aspect-square bg-surface-2 rounded-[2px] overflow-hidden mb-1">
-                            {item.imageUrl && (
-                              <img src={clothingImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
-                            )}
-                          </div>
-                          <span className="text-[9px] text-fg-muted truncate block font-medium leading-tight">{item.name}</span>
-                          <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-brand)] flex items-center justify-center z-10 shadow-sm">
-                            <Check size={8} className="text-[var(--color-brand-fg)]" />
-                          </div>
-                        </button>
+                        // Wrapper para que el botón trash pueda vivir afuera del
+                        // <button> principal (no se pueden anidar buttons).
+                        <div key={item.id} className="group/tile relative">
+                          <button
+                            onClick={() => setConfig((p) => ({
+                              ...p,
+                              ecomAccessoryIds: p.ecomAccessoryIds.filter((x) => x !== item.id),
+                              selectedClothingIds: p.selectedClothingIds.filter((x) => x !== item.id),
+                            }))}
+                            title={`Quitar de esta sesión: ${item.name}`}
+                            className="relative w-full border border-[var(--color-brand)] bg-[var(--color-brand-subtle)] shadow-[0_0_14px_-4px_var(--color-brand-muted)] rounded-[var(--radius-sm)] p-1 transition-all cursor-pointer text-left"
+                          >
+                            <div className="aspect-square bg-surface-2 rounded-[2px] overflow-hidden mb-1">
+                              {item.imageUrl && (
+                                <img src={clothingImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
+                              )}
+                            </div>
+                            <span className="text-[9px] text-fg-muted truncate block font-medium leading-tight">{item.name}</span>
+                            <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-brand)] flex items-center justify-center z-10 shadow-sm">
+                              <Check size={8} className="text-[var(--color-brand-fg)]" />
+                            </div>
+                          </button>
+                          {/* Trash icon en hover — borra el accesorio del Brand Kit
+                              entero (no solo de la sesión). Con confirm porque es
+                              destructivo y propaga a TODAS las tools. */}
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm(`Borrar "${item.name}" del Brand Kit? Se quita de TODAS las tools, no se puede deshacer.`)) return;
+                              try {
+                                await deleteClothing(activeBrand.id, item.id);
+                                await refreshBrands();
+                                setConfig((p) => ({
+                                  ...p,
+                                  ecomAccessoryIds: p.ecomAccessoryIds.filter((x) => x !== item.id),
+                                  selectedClothingIds: p.selectedClothingIds.filter((x) => x !== item.id),
+                                }));
+                              } catch (err) {
+                                console.error("[ecommerce_pack] delete accessory failed:", err);
+                                alert("No se pudo borrar el accesorio.");
+                              }
+                            }}
+                            title="Borrar del Brand Kit (no se puede deshacer)"
+                            className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-black/70 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/tile:opacity-100 transition-opacity cursor-pointer z-20"
+                          >
+                            <Trash2 size={9} />
+                          </button>
+                        </div>
                       ))}
                     {/* "+ Sumar más" como tile extra al final del grid. */}
                     <button
@@ -4105,7 +4153,7 @@ function ConfigPanel({
                 : "Add references"}
               <input
                 type="file"
-                accept={tool.id === "content_analyzer" ? "video/*" : "image/*"}
+                accept={tool.id === "content_analyzer" ? "video/*" : IMAGE_ACCEPT}
                 multiple={tool.id !== "static_ad" && tool.id !== "content_analyzer" && tool.id !== "product_clip" && tool.id !== "carousel_creator"}
                 className="hidden"
                 onChange={async (e) => {
@@ -4314,7 +4362,7 @@ function ConfigPanel({
                 "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 text-fg-muted hover:text-fg"
               )}>
                 <Plus size={11} /> Add graphics
-                <input type="file" accept="image/*" multiple className="hidden"
+                <input type="file" accept={IMAGE_ACCEPT} multiple className="hidden"
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []);
                     if (files.length > 0) setConfig((p) => ({ ...p, graphicAssets: [...p.graphicAssets, ...files] }));
@@ -4466,6 +4514,15 @@ function ConfigPanel({
                   setConfig((p) => ({ ...p, selectedAvatarId: item.id }));
                 }
               }}
+              onDelete={async (id) => {
+                await deleteAvatar(activeBrand.id, id);
+                await refreshBrands();
+                setConfig((p) => ({
+                  ...p,
+                  selectedAvatarId: p.selectedAvatarId === id ? null : p.selectedAvatarId,
+                  selectedAvatarIds: p.selectedAvatarIds.filter((x) => x !== id),
+                }));
+              }}
             />
           )}
 
@@ -4494,6 +4551,15 @@ function ConfigPanel({
                   selectedId: config.selectedProductId,
                   onSelect: (id: string) => setConfig((p) => ({ ...p, selectedProductId: p.selectedProductId === id ? null : id })),
                 })}
+                onDelete={async (id) => {
+                  await deleteProduct(activeBrand.id, id);
+                  await refreshBrands();
+                  setConfig((p) => ({
+                    ...p,
+                    selectedProductId: p.selectedProductId === id ? null : p.selectedProductId,
+                    selectedProductIds: p.selectedProductIds.filter((x) => x !== id),
+                  }));
+                }}
               />
               {config.selectedProductId && config.selectedAvatarId && (tool.id === "ugc_creator" || tool.id === "static_ad") && (
                 <label className="flex items-center gap-2 px-4 py-2 bg-surface-1 border border-edge rounded-[var(--radius-sm)] cursor-pointer">
@@ -4552,6 +4618,15 @@ function ConfigPanel({
                   selectedClothingIds: [...p.selectedClothingIds, item.id],
                 }));
               }}
+              onDelete={async (id) => {
+                await deleteClothing(activeBrand.id, id);
+                await refreshBrands();
+                setConfig((p) => ({
+                  ...p,
+                  selectedClothingIds: p.selectedClothingIds.filter((x) => x !== id),
+                  ecomAccessoryIds: p.ecomAccessoryIds.filter((x) => x !== id),
+                }));
+              }}
             />
           )}
 
@@ -4575,6 +4650,11 @@ function ConfigPanel({
                 await refreshBrands();
                 setConfig((p) => ({ ...p, selectedBackgroundId: item.id }));
               }}
+              onDelete={async (id) => {
+                await deleteBackground(activeBrand.id, id);
+                await refreshBrands();
+                setConfig((p) => ({ ...p, selectedBackgroundId: p.selectedBackgroundId === id ? null : p.selectedBackgroundId }));
+              }}
             />
           )}
 
@@ -4597,6 +4677,11 @@ function ConfigPanel({
                 const item = await uploadMoodboard(activeBrand.id, name, file);
                 await refreshBrands();
                 setConfig((p) => ({ ...p, selectedMoodboardId: item.id }));
+              }}
+              onDelete={async (id) => {
+                await deleteMoodboard(activeBrand.id, id);
+                await refreshBrands();
+                setConfig((p) => ({ ...p, selectedMoodboardId: p.selectedMoodboardId === id ? null : p.selectedMoodboardId }));
               }}
             />
           )}
@@ -8670,7 +8755,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                         Subir imagen ad-hoc (one-off, no toca el Brand Kit)
                         <input
                           type="file"
-                          accept="image/*"
+                          accept={IMAGE_ACCEPT}
                           className="hidden"
                           onChange={(e) => {
                             const f = e.target.files?.[0];
@@ -9638,6 +9723,8 @@ function AssetSelector({
   onToggle,
   multi,
   onUpload,
+  onDelete,
+  deleteConfirm,
 }: {
   label: string;
   sublabel?: string;
@@ -9649,6 +9736,11 @@ function AssetSelector({
   onToggle?: (id: string) => void;
   multi?: boolean;
   onUpload?: (file: File, name: string) => Promise<void>;
+  /** Borra el item del Brand Kit (propaga a todas las tools). Si se provee,
+   *  cada card muestra un trash en hover. */
+  onDelete?: (id: string) => Promise<void> | void;
+  /** Mensaje de confirmación. `{name}` se reemplaza por el nombre del item. */
+  deleteConfirm?: string;
 }) {
   const hasItems = items.length > 0;
   const [showUpload, setShowUpload] = useState(false);
@@ -9681,7 +9773,7 @@ function AssetSelector({
         )}
         <input
           type="file"
-          accept="image/*"
+          accept={IMAGE_ACCEPT}
           className="hidden"
           disabled={uploading}
           onChange={(e) => {
@@ -9733,39 +9825,63 @@ function AssetSelector({
               ? (selectedIds || []).includes(item.id)
               : selectedId === item.id;
 
+            // Wrapper para que el trash pueda vivir afuera del <button> principal
+            // (no se pueden anidar buttons). Mismo patrón que la sección Accesorios.
             return (
-              <button
-                key={item.id}
-                onClick={() => multi ? onToggle?.(item.id) : onSelect?.(item.id)}
-                title={item.description ? `${item.name} — ${item.description}` : item.name}
-                className={cn(
-                  "border rounded-[var(--radius-sm)] p-1 transition-all cursor-pointer group relative",
-                  isSelected
-                    // Estado activo en burgundy con glow lateral sutil. Reemplaza el
-                    // blanco genérico para que las cards seleccionadas tengan personalidad
-                    // y se diferencien claramente del hover state.
-                    ? "border-[var(--color-brand)] bg-[var(--color-brand-subtle)] shadow-[0_0_14px_-4px_var(--color-brand-muted)]"
-                    : "border-edge hover:border-[var(--color-edge-strong)]"
-                )}
-              >
-                {isSelected && (
-                  <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-brand)] flex items-center justify-center z-10 shadow-sm">
-                    <Check size={8} className="text-[var(--color-brand-fg)]" />
-                  </div>
-                )}
-                <div className="w-full aspect-square bg-surface-2 rounded-[2px] overflow-hidden">
-                  {item.imageUrl ? (
-                    <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-fg-faint">
-                      <ImageIcon size={14} />
+              <div key={item.id} className="group/tile relative">
+                <button
+                  onClick={() => multi ? onToggle?.(item.id) : onSelect?.(item.id)}
+                  title={item.description ? `${item.name} — ${item.description}` : item.name}
+                  className={cn(
+                    "w-full border rounded-[var(--radius-sm)] p-1 transition-all cursor-pointer relative text-left",
+                    isSelected
+                      // Estado activo en burgundy con glow lateral sutil. Reemplaza el
+                      // blanco genérico para que las cards seleccionadas tengan personalidad
+                      // y se diferencien claramente del hover state.
+                      ? "border-[var(--color-brand)] bg-[var(--color-brand-subtle)] shadow-[0_0_14px_-4px_var(--color-brand-muted)]"
+                      : "border-edge hover:border-[var(--color-edge-strong)]"
+                  )}
+                >
+                  {isSelected && (
+                    <div className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-brand)] flex items-center justify-center z-10 shadow-sm">
+                      <Check size={8} className="text-[var(--color-brand-fg)]" />
                     </div>
                   )}
-                </div>
-                <span className="text-[9px] text-fg-muted truncate block font-medium mt-1 leading-tight">
-                  {item.name}
-                </span>
-              </button>
+                  <div className="w-full aspect-square bg-surface-2 rounded-[2px] overflow-hidden">
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-fg-faint">
+                        <ImageIcon size={14} />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[9px] text-fg-muted truncate block font-medium mt-1 leading-tight">
+                    {item.name}
+                  </span>
+                </button>
+                {/* Trash en hover — borra el item del Brand Kit (propaga a todas
+                    las tools). Con confirm porque es destructivo. */}
+                {onDelete && (
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const msg = (deleteConfirm || `Borrar "{name}" del Brand Kit? Se quita de TODAS las tools, no se puede deshacer.`).replace("{name}", item.name);
+                      if (!confirm(msg)) return;
+                      try {
+                        await onDelete(item.id);
+                      } catch (err) {
+                        console.error("[AssetSelector] delete failed:", err);
+                        alert("No se pudo borrar.");
+                      }
+                    }}
+                    title="Borrar del Brand Kit (no se puede deshacer)"
+                    className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-black/70 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/tile:opacity-100 transition-opacity cursor-pointer z-20"
+                  >
+                    <Trash2 size={9} />
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
@@ -10948,7 +11064,7 @@ function CurationPanel({
                       Subir imagen ref (pose, prenda…)
                       <input
                         type="file"
-                        accept="image/*"
+                        accept={IMAGE_ACCEPT}
                         className="hidden"
                         onChange={(e) => {
                           const f = e.target.files?.[0];

@@ -33,6 +33,7 @@ import {
     Download, RotateCcw, Sparkles, FlaskConical, AlertTriangle,
     Mic, MicOff, Video, Eye, ChevronLeft, ChevronRight, Target,
     AudioLines, Upload, Link2, Play,
+    ChevronDown, Check,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useDictation } from "../lib/useDictation";
@@ -153,7 +154,19 @@ const downloadBaseName = (turn: GenTurn): string => {
 // ── Page ─────────────────────────────────────────────────────────────
 
 export function ManualLabV2() {
-    const { activeBrand } = useBrand();
+    const { activeBrand, brands, setActiveBrandId } = useBrand();
+    const [brandSwitcherOpen, setBrandSwitcherOpen] = useState(false);
+    const brandSwitcherRef = useRef<HTMLDivElement>(null);
+    // Close on click-outside (mismo patrón que ModelDropdown).
+    useEffect(() => {
+        function onClick(e: MouseEvent) {
+            if (brandSwitcherRef.current && !brandSwitcherRef.current.contains(e.target as Node)) {
+                setBrandSwitcherOpen(false);
+            }
+        }
+        if (brandSwitcherOpen) document.addEventListener("mousedown", onClick);
+        return () => document.removeEventListener("mousedown", onClick);
+    }, [brandSwitcherOpen]);
     const isSandbox = !activeBrand || activeBrand.id === "__sandbox__";
 
     // Composer state — what the user is building right now
@@ -974,9 +987,78 @@ export function ManualLabV2() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3 text-[11px] text-fg-muted">
-                    {!isSandbox && activeBrand && (
-                        <span>Marca: <span className="text-fg font-medium">{activeBrand.name}</span></span>
-                    )}
+                    {/* Brand switcher — chip clickeable. Siempre visible (incluye
+                        Sandbox como opción) para que sepas en qué contexto estás
+                        y puedas cambiarlo sin salir del Lab. */}
+                    <div ref={brandSwitcherRef} className="relative">
+                        <button
+                            onClick={() => setBrandSwitcherOpen((v) => !v)}
+                            className={cn(
+                                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border transition-colors cursor-pointer text-[11px]",
+                                brandSwitcherOpen
+                                    ? "border-[var(--color-brand-muted)] bg-[var(--color-brand-subtle)]"
+                                    : "border-edge bg-surface-2 hover:border-[var(--color-brand-muted)] hover:bg-[var(--color-brand-subtle)]"
+                            )}
+                            title="Cambiar de marca"
+                            aria-expanded={brandSwitcherOpen}
+                        >
+                            <span className="text-fg-muted">Marca:</span>
+                            <span className="text-fg font-medium">
+                                {isSandbox ? "Sandbox" : activeBrand?.name || "Sin marca"}
+                            </span>
+                            <ChevronDown
+                                size={11}
+                                className={cn("text-fg-faint transition-transform", brandSwitcherOpen && "rotate-180")}
+                            />
+                        </button>
+                        {brandSwitcherOpen && (
+                            <div
+                                role="listbox"
+                                className="absolute z-40 top-full right-0 mt-1 min-w-[220px] max-h-[400px] overflow-y-auto bg-[var(--glass-bg)] backdrop-blur-xl border border-edge rounded-[var(--radius-md)] shadow-2xl py-1"
+                            >
+                                {/* Sandbox primero — modo brand-agnostic para experimentar */}
+                                <button
+                                    role="option"
+                                    aria-selected={isSandbox}
+                                    onClick={() => { setActiveBrandId("__sandbox__"); setBrandSwitcherOpen(false); }}
+                                    className={cn(
+                                        "w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-[12px] transition-colors cursor-pointer",
+                                        isSandbox ? "bg-[var(--color-action-subtle)]" : "hover:bg-surface-2"
+                                    )}
+                                >
+                                    <span className="flex items-center gap-2">
+                                        <FlaskConical size={12} className="text-fg-faint" />
+                                        <span className="font-medium text-fg">Sandbox</span>
+                                        <span className="text-[10px] text-fg-faint">brand-agnóstico</span>
+                                    </span>
+                                    {isSandbox && <Check size={12} className="text-[var(--color-action)]" />}
+                                </button>
+                                {brands.filter((b) => b.id !== "__sandbox__").length > 0 && (
+                                    <div className="my-1 border-t border-edge-subtle" />
+                                )}
+                                {brands
+                                    .filter((b) => b.id !== "__sandbox__")
+                                    .map((b) => {
+                                        const isActive = !isSandbox && activeBrand?.id === b.id;
+                                        return (
+                                            <button
+                                                key={b.id}
+                                                role="option"
+                                                aria-selected={isActive}
+                                                onClick={() => { setActiveBrandId(b.id); setBrandSwitcherOpen(false); }}
+                                                className={cn(
+                                                    "w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-[12px] transition-colors cursor-pointer",
+                                                    isActive ? "bg-[var(--color-action-subtle)]" : "hover:bg-surface-2"
+                                                )}
+                                            >
+                                                <span className="font-medium text-fg truncate">{b.name}</span>
+                                                {isActive && <Check size={12} className="text-[var(--color-action)] shrink-0" />}
+                                            </button>
+                                        );
+                                    })}
+                            </div>
+                        )}
+                    </div>
                     {/* Toggle Sesión — abre el drawer derecho con todas las generaciones. */}
                     <button
                         onClick={() => setDrawerOpen((v) => !v)}

@@ -157,17 +157,73 @@ export function BrandIdentityExportCard() {
 
 // ── Reusable wrapper card ─────────────────────────────────────
 
-function CardShell({ title, description, action, children }: { title: string; description?: string; action?: React.ReactNode; children: React.ReactNode }) {
+function CardShell({
+  title,
+  description,
+  action,
+  children,
+  collapsible,
+  defaultCollapsed = true,
+  count,
+}: {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
+  count?: string | number;
+}) {
+  const [open, setOpen] = useState(!collapsible || !defaultCollapsed);
+
+  if (!collapsible) {
+    return (
+      <section className="rounded-[var(--radius-md)] border border-edge bg-surface-1">
+        <header className="flex items-start justify-between gap-3 px-5 py-3 border-b border-edge">
+          <div className="min-w-0">
+            <h2 className="text-[14px] font-semibold text-fg">{title}</h2>
+            {description && <p className="text-[12px] text-fg-faint mt-0.5">{description}</p>}
+          </div>
+          {action}
+        </header>
+        <div className="p-5 space-y-3">{children}</div>
+      </section>
+    );
+  }
+
   return (
     <section className="rounded-[var(--radius-md)] border border-edge bg-surface-1">
-      <header className="flex items-start justify-between gap-3 px-5 py-3 border-b border-edge">
-        <div className="min-w-0">
-          <h2 className="text-[14px] font-semibold text-fg">{title}</h2>
-          {description && <p className="text-[12px] text-fg-faint mt-0.5">{description}</p>}
-        </div>
-        {action}
+      <header className={cn("flex items-start justify-between gap-3 px-5 py-3", open && "border-b border-edge")}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-start gap-2.5 text-left flex-1 min-w-0 cursor-pointer group"
+          aria-expanded={open}
+        >
+          <ChevronDown
+            size={15}
+            className={cn(
+              "mt-0.5 text-fg-faint group-hover:text-fg-muted shrink-0 transition-transform",
+              !open && "-rotate-90"
+            )}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <h2 className="text-[14px] font-semibold text-fg">{title}</h2>
+              {count !== undefined && count !== "" && (
+                <span className="text-[11px] font-medium text-fg-faint bg-surface-2 border border-edge-subtle px-1.5 py-0.5 rounded-full">
+                  {count}
+                </span>
+              )}
+            </div>
+            {open && description && (
+              <p className="text-[12px] text-fg-faint mt-0.5">{description}</p>
+            )}
+          </div>
+        </button>
+        {action && <div onClick={(e) => e.stopPropagation()}>{action}</div>}
       </header>
-      <div className="p-5 space-y-3">{children}</div>
+      {open && <div className="p-5 space-y-3">{children}</div>}
     </section>
   );
 }
@@ -222,6 +278,8 @@ export function BusinessCard() {
     <CardShell
       title="Negocio"
       description="Cómo opera y qué vende la marca. Es el framing comercial que usan los pipelines."
+      collapsible
+      defaultCollapsed
       action={editing ? (
         <div className="flex gap-1.5">
           <button onClick={() => setEditing(false)} className="px-2.5 py-1 text-[11px] text-fg-muted hover:text-fg cursor-pointer">Cancelar</button>
@@ -629,6 +687,9 @@ export function BrandHealthCard() {
     <CardShell
       title="Brand Health"
       description={`${completed} de ${total} checks completados (${pct}%). Cuanto más completo, mejores los outputs.`}
+      collapsible
+      defaultCollapsed
+      count={`${completed}/${total}`}
     >
       <div className="w-full bg-surface-2 rounded-full h-1.5 overflow-hidden">
         <div className="bg-[var(--color-action)] h-full transition-all" style={{ width: `${pct}%` }} />

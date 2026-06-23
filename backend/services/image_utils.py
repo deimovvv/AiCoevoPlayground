@@ -55,6 +55,28 @@ _BROWSER_OK_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"}
 # Extensiones que sabemos que necesitan conversión.
 _NEEDS_CONVERT_EXTS = {".heic", ".heif"}
 
+# Extensiones de imagen que aceptamos (todas las que el helper puede normalizar).
+# Para Windows: el browser no asocia HEIC a image/* y manda application/octet-stream,
+# así que la validación por content-type sola rechazaría el upload. Si la extensión
+# del filename está acá, lo dejamos pasar aunque el content-type sea raro.
+_VALID_IMAGE_EXTS = _BROWSER_OK_EXTS | _NEEDS_CONVERT_EXTS | {".avif", ".bmp", ".tiff", ".tif"}
+
+
+def is_image_upload(content_type: Optional[str], filename: Optional[str]) -> bool:
+    """
+    Determina si un upload es una imagen aceptable. Acepta de dos formas:
+    1. content_type empieza con "image/" (caso típico macOS/Linux).
+    2. filename tiene una extensión de imagen conocida (rescata Windows con HEIC,
+       donde el browser manda application/octet-stream).
+    """
+    if content_type and content_type.lower().startswith("image/"):
+        return True
+    if filename:
+        ext = Path(filename).suffix.lower()
+        if ext in _VALID_IMAGE_EXTS:
+            return True
+    return False
+
 
 def _ext_from_filename(filename: Optional[str]) -> str:
     """Extrae la extensión en lowercase. '.png' por default si no hay nombre."""
