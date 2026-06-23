@@ -343,7 +343,7 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
       // Shot 2+ CON pose ref específica: pose ref como base + anchor de shot 1
       // + avatar ORIGINAL como segunda fuente de identidad (doble anclaje de cara).
       urls.push(ecomShotPoses[sid]);
-      desc.push(`Image ${idx}: BASE IMAGE (edit this) — start from this exact image and KEEP pixel-perfect ONLY its geometry: body position, stance, arm/hand placement, head tilt, gaze direction, camera framing, crop and perspective. The PERSON shown in this base image is a stand-in: their face, head, hair, skin and identity are IRRELEVANT and MUST be fully replaced by the FACE REPLACEMENT (IDENTITY) reference below. REPLACE the clothing and the face/head as specified below.`);
+      desc.push(`Image ${idx}: BASE IMAGE (edit this) — start from this exact image and KEEP pixel-perfect ONLY its geometry: body position, stance, arm/hand placement, head tilt, gaze direction, camera framing, crop and perspective. The PERSON shown in this base image is a stand-in: their face, head, hair, skin and identity are IRRELEVANT and MUST be fully replaced by the FACE REPLACEMENT (IDENTITY) reference below. The BACKGROUND / environment / room / floor / wall / lighting color of this base image are ALSO IRRELEVANT and MUST be fully discarded and replaced by the studio backdrop described in the prompt — do NOT keep the pose reference's background. REPLACE the clothing, the face/head AND the background as specified below.`);
       idx++;
       urls.push(anchorUrl);
       desc.push(`Image ${idx}: WARDROBE + STUDIO SOURCE — the clothing, accessories, studio look and lighting must match THIS image exactly. Apply them to the person in the BASE IMAGE.`);
@@ -391,11 +391,12 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
   1) The clothing of the person is REPLACED by the WARDROBE REPLACEMENT garment(s).
   2) The face/head/hair is REPLACED by the FACE REPLACEMENT (IDENTITY) reference — this is MANDATORY. Keep ONLY the head position, tilt and gaze from the BASE IMAGE; everything about WHO the face is comes from the FACE REPLACEMENT (IDENTITY) image, NOT from the base image. The base image person is a stand-in and their face must NOT survive into the output.
   3) Any specified ACCESSORY REPLACEMENT is added/replaced in its natural body location.
+  4) The BACKGROUND / setting is REPLACED by the studio backdrop described at the top of this prompt (${studioClause.trim()}). Completely DISCARD the pose reference's environment — its room, floor, wall, props, colors and ambient lighting tint must NOT appear in the output. The final background is a clean studio backdrop, never the location from the pose reference.
 - ${IDENTITY_LOCK}
 - ${FACE_REALISM}
-- Everything else in the BASE IMAGE is PRESERVED pixel-perfect: pose, stance, body position, framing, crop, perspective, background, lighting direction. Do NOT re-pose, do NOT re-frame, do NOT change the camera angle.
-- The garment/accessory reference photos contain models in OTHER poses — those models, faces and poses are IRRELEVANT. They exist ONLY to define what the clothing/accessory looks like.
-- Treat this exactly like a Photoshop edit: same body, same pose, same scene — only the wardrobe and the face/identity change, and the face becomes the FACE REPLACEMENT (IDENTITY) person.`
+- PRESERVE from the BASE IMAGE ONLY the geometry: pose, stance, body position, framing, crop, perspective. Do NOT re-pose, do NOT re-frame, do NOT change the camera angle. Do NOT preserve its background, scene or color cast.
+- The garment/accessory reference photos contain models in OTHER poses and OTHER backgrounds — those models, faces, poses and backgrounds are IRRELEVANT. They exist ONLY to define what the clothing/accessory looks like.
+- Treat this like a Photoshop edit on a model cutout: same body and same pose, but re-dressed, re-faced to the IDENTITY person, and placed on the clean studio backdrop.`
       : "";
     // Si NO hay pose ref imagen, inyectamos un preset textual de pose (rota
     // entre 8 si "auto", o usa la elegida por el user). Eso evita que la
