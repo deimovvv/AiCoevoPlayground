@@ -38,6 +38,14 @@ export const STUDIO_STYLES: Record<string, { label: string; clause: string }> = 
 const PIXEL_FIDELITY = "Reproduce the EXACT color, shade, fabric, print, stitching and proportions from the garment reference pixels. Do NOT lighten, darken, restyle or invent details — the garment image is authoritative.";
 const NO_TEXT = " Single clean photograph. No text, no watermark, no logo overlay, no graphics, no collage, no split panels.";
 
+// Identidad y realismo — NO NEGOCIABLES en todos los on-model shots.
+// La consistencia SIEMPRE tiene que ser el avatar (modelo) que el usuario eligió,
+// nunca la persona que aparezca en una pose ref / base image. Reportado: "le pasé
+// una pose para On Model Detail y no respetó la modelo principal".
+const IDENTITY_LOCK = "IDENTITY LOCK (NON-NEGOTIABLE — top priority over everything else): the person in the output MUST be the EXACT same individual as the IDENTITY reference image. Photographically RECOGNIZABLE as that person: identical face geometry, eyes, eye color, eyebrows, nose shape, mouth/lips, jawline, cheekbones, skin tone, age, freckles/marks, hair color and hairstyle. Do NOT average, idealize, beautify, age, de-age, restyle or swap to any other face. If ANY base image, pose reference, garment photo or accessory photo shows a DIFFERENT person, that person's face, hair and identity are completely IRRELEVANT and MUST be fully discarded and replaced by the IDENTITY reference. The identity must stay perfectly consistent across every shot in the pack.";
+// La cara TIENE que verse ultra realista — pedido explícito del usuario.
+const FACE_REALISM = "ULTRA-PHOTOREALISTIC face and skin (CRITICAL): real human skin with visible pores, fine natural texture, subtle realistic imperfections and true-to-life subsurface scattering. Absolutely NO smoothing, NO airbrushing, NO plastic/waxy/doll-like/CGI/3D-render/AI-generated look. Eyes razor-sharp and in focus with natural catchlights and real moisture; natural eyelashes and eyebrows. Skin tones natural and even, no over-saturation. Rendered like a real high-end editorial photograph shot on a full-frame camera with an 85mm prime lens, professional studio lighting, true photographic detail.";
+
 // ── Catálogo de poses preset ─────────────────────────────────────────
 // 8 poses descritas en texto detallado — alternativa al pose transfer
 // con imagen (que en Nano Banana no llega a pixel-perfect). El texto va
@@ -253,7 +261,7 @@ const handleGenerate: StepHandler = async (ctx) => {
         });
         // Style refs (look&feel + moodboard) opcionales — afinan estética.
         const sr1 = styleRefs(idx1); step1Urls.push(...sr1.urls); step1Desc.push(...sr1.desc);
-        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${PIXEL_FIDELITY}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
+        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${IDENTITY_LOCK} ${FACE_REALISM} ${PIXEL_FIDELITY}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
         const job1 = await createImageEdit(step1Urls, step1Prompt, config.aspectRatio, config.resolution);
         const res1 = await pollImageGen(job1.request_id);
         const dressedAvatar = res1.image_url || "";
@@ -294,7 +302,7 @@ CRITICAL — do NOT contaminate the output with anything from image 2 that is no
 
 The output person's skin, accessories, jewelry, tattoos, piercings, and clothing must match IMAGE 1 ONLY. If image 1 has no tattoos, the output has no tattoos. If image 1 has no jewelry, the output has no jewelry.
 
-Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, same jewelry, same clothing, same accessories, same face), re-posed to match the body geometry of image 2. ${PIXEL_FIDELITY}${NO_TEXT}`;
+Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, same jewelry, same clothing, same accessories, same face), re-posed to match the body geometry of image 2. The face must stay perfectly recognizable as the person in image 1 — do NOT let image 2's face leak in. ${FACE_REALISM} ${PIXEL_FIDELITY}${NO_TEXT}`;
         const job2 = await createImageEdit(step2Urls, step2Prompt, config.aspectRatio, config.resolution);
         const res2 = await pollImageGen(job2.request_id);
         const url2 = res2.image_url || "";
@@ -319,16 +327,16 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
       // Shot 2+ CON pose ref específica: pose ref como base + anchor de shot 1
       // + avatar ORIGINAL como segunda fuente de identidad (doble anclaje de cara).
       urls.push(ecomShotPoses[sid]);
-      desc.push(`Image ${idx}: BASE IMAGE (edit this) — start from this exact image. KEEP pixel-perfect: body position, stance, arm/hand placement, head tilt, gaze direction, camera framing, crop and perspective. REPLACE only the clothing and face as specified below.`);
+      desc.push(`Image ${idx}: BASE IMAGE (edit this) — start from this exact image and KEEP pixel-perfect ONLY its geometry: body position, stance, arm/hand placement, head tilt, gaze direction, camera framing, crop and perspective. The PERSON shown in this base image is a stand-in: their face, head, hair, skin and identity are IRRELEVANT and MUST be fully replaced by the FACE REPLACEMENT (IDENTITY) reference below. REPLACE the clothing and the face/head as specified below.`);
       idx++;
       urls.push(anchorUrl);
       desc.push(`Image ${idx}: WARDROBE + STUDIO SOURCE — the clothing, accessories, studio look and lighting must match THIS image exactly. Apply them to the person in the BASE IMAGE.`);
       idx++;
-      // Avatar como SEGUNDA fuente de identidad (refuerzo) — sin esto, la cara
-      // empieza a derivar después de 2-3 shots.
+      // Avatar como fuente de identidad — DEBE ganar sobre la cara de la pose ref.
+      // Sin esto, Nano Banana conserva la cara de la persona en la pose ref.
       if (avatar?.imageUrl) {
         urls.push(avatar.imageUrl);
-        desc.push(`Image ${idx}: IDENTITY ANCHOR (HIGHEST PRIORITY for face/hair) — the output face must be photographically RECOGNIZABLE as THIS exact person: same eyes, eye color, eyebrows, nose, mouth, jawline, skin tone, age, freckles/marks, hair color and hair style. Do NOT generalize or stylize.`);
+        desc.push(`Image ${idx}: FACE REPLACEMENT (IDENTITY) — ABSOLUTE HIGHEST PRIORITY. The output face/head/hair MUST be this exact person, overriding whatever face is in the BASE IMAGE. ${IDENTITY_LOCK} ${FACE_REALISM}`);
         idx++;
       }
       garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT REFERENCE — same exact item. Pixel-perfect. ${PIXEL_FIDELITY}`); idx++; });
@@ -365,18 +373,21 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
 EDIT INSTRUCTIONS (this is an image edit, not a composition):
 - The output MUST be the BASE IMAGE with only these changes:
   1) The clothing of the person is REPLACED by the WARDROBE REPLACEMENT garment(s).
-  2) The face/head is REPLACED by the FACE REPLACEMENT identity (keeping head position, tilt and gaze from the BASE IMAGE).
+  2) The face/head/hair is REPLACED by the FACE REPLACEMENT (IDENTITY) reference — this is MANDATORY. Keep ONLY the head position, tilt and gaze from the BASE IMAGE; everything about WHO the face is comes from the FACE REPLACEMENT (IDENTITY) image, NOT from the base image. The base image person is a stand-in and their face must NOT survive into the output.
   3) Any specified ACCESSORY REPLACEMENT is added/replaced in its natural body location.
+- ${IDENTITY_LOCK}
+- ${FACE_REALISM}
 - Everything else in the BASE IMAGE is PRESERVED pixel-perfect: pose, stance, body position, framing, crop, perspective, background, lighting direction. Do NOT re-pose, do NOT re-frame, do NOT change the camera angle.
-- The garment/accessory reference photos contain models in OTHER poses — those models and poses are IRRELEVANT. They exist ONLY to define what the clothing/accessory looks like.
-- Treat this exactly like a Photoshop edit: same body, same pose, same scene — only the wardrobe and face change.`
+- The garment/accessory reference photos contain models in OTHER poses — those models, faces and poses are IRRELEVANT. They exist ONLY to define what the clothing/accessory looks like.
+- Treat this exactly like a Photoshop edit: same body, same pose, same scene — only the wardrobe and the face/identity change, and the face becomes the FACE REPLACEMENT (IDENTITY) person.`
       : "";
     // Si NO hay pose ref imagen, inyectamos un preset textual de pose (rota
     // entre 8 si "auto", o usa la elegida por el user). Eso evita que la
     // modelo quede dura/estática y le da variedad editorial a la galería.
     const poseDesc = !shotPoseUrl ? getPoseDescription(posePreset, i) : null;
     const presetPoseClause = poseDesc ? ` POSE: ${poseDesc}` : "";
-    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${shot.framing}${presetPoseClause} ${wardrobe}${PIXEL_FIDELITY}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    const identityClause = avatar?.imageUrl ? `${IDENTITY_LOCK} ` : "";
+    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${shot.framing}${presetPoseClause} ${wardrobe}${identityClause}${FACE_REALISM} ${PIXEL_FIDELITY}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution) : await createTextToImage(prompt, config.aspectRatio, config.resolution);
       const res = await pollImageGen(job.request_id);
