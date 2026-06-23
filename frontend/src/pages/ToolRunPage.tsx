@@ -60,7 +60,7 @@ import {
 import { cn, downloadUrl, IMAGE_ACCEPT } from "../lib/utils";
 import { downloadFile, downloadZip } from "../lib/download";
 import { ImageEditPanel } from "../components/ImageEditPanel";
-import { SHOT_CATALOG, STUDIO_STYLES, POSE_PRESETS } from "../tools/ecommerce_pack";
+import { SHOT_CATALOG, STUDIO_STYLES, POSE_PRESETS, ENHANCE_TEXTURE_PROMPT } from "../tools/ecommerce_pack";
 import { AVATAR_VIEWS } from "../tools/avatar_creator";
 import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "../tools/fashion_reel";
 import { PRODUCT_VIEW_CATALOG, DEFAULT_PRODUCT_VIEWS } from "../tools/product_sheet";
@@ -1188,6 +1188,10 @@ export function ToolRunPage() {
     if (!tool) return;
     if (tool.id === "carousel_creator" || tool.id === "static_ad") {
       setConfig((prev) => ({ ...prev, aspectRatio: "4:5" }));
+    }
+    // Ecommerce Pack: la calidad de piel/tela es crítica → default 4K (producción).
+    if (tool.id === "ecommerce_pack") {
+      setConfig((prev) => ({ ...prev, resolution: "4K" }));
     }
     // Fashion Reel: keep whatever style the user has set (default is iphone
     // — overriding to editorial was the old default before we standardized).
@@ -4591,6 +4595,7 @@ function ConfigPanel({
           )}
           {schema.showClothing && (
             <AssetSelector
+              collapsible
               label={schema.clothingLabel || "Clothing"}
               sublabel={schema.clothingSublabel || "multi-select"}
               emptyText="Upload clothing items or add from here"
@@ -6019,6 +6024,8 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   const [editLoading, setEditLoading] = useState(false);
   const [editRefUrls, setEditRefUrls] = useState<string[]>([]);
   const [editingImageId, setEditingImageId] = useState<string | null>(null);
+  // Imagen que se está "mejorando texturas + 4K" (one-click enhance). Key = `${batchId}__${imgId}`.
+  const [enhancingId, setEnhancingId] = useState<string | null>(null);
   const [regenSceneId, setRegenSceneId] = useState<string | null>(null);
   // Tracks which scene's base-frame editor panel is open in the Lipsync step DONE view.
   // Lets the user swap the image of a single clip and auto re-run lipsync without
@@ -6038,6 +6045,29 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   const [sceneVersions, setSceneVersions] = useState<Record<string, number>>({});
   // Creative scenes: explicit "voz en off" (has script → gets audio) vs "muda" (silent b-roll).
   const [voiceoverByScene, setVoiceoverByScene] = useState<Record<string, boolean>>({});
+
+  // ── Mejorar texturas + 4K ────────────────────────────────
+  // One-click: re-pasa la imagen YA generada por Nano Banana en modo edit a 4K con un
+  // prompt de realce de textura de piel/tela. Reemplaza la imagen in-place en la tanda.
+  const handleEnhance = async (batchId: string, imageId: string, url: string) => {
+    if (!url) return;
+    const key = `${batchId}__${imageId}`;
+    setEnhancingId(key);
+    try {
+      const job = await createImageEdit([url], ENHANCE_TEXTURE_PROMPT, config?.aspectRatio || "4:5", "4K");
+      const res = await pollImageGen(job.request_id);
+      if (res.image_url) {
+        onUpdateBatchImage?.(batchId, imageId, res.image_url);
+      } else {
+        alert("La mejora no devolvió ninguna imagen. Probá de nuevo.");
+      }
+    } catch (err) {
+      console.error("[enhance] failed:", err);
+      alert(err instanceof Error ? err.message : "No se pudo mejorar la imagen.");
+    } finally {
+      setEnhancingId(null);
+    }
+  };
 
   // ── Product Sheet: Brief step ────────────────────────────
   // Distinguished from the Avatar brief by the presence of product-specific keys.
@@ -8042,6 +8072,14 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                               {img.url && !isEditing && (
                                 <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button
+                                    onClick={(e) => { e.stopPropagation(); handleEnhance(batch.id, img.id, img.url); }}
+                                    disabled={enhancingId === editKey}
+                                    className="w-6 h-6 flex items-center justify-center bg-black/60 hover:bg-[var(--color-action)] text-white rounded cursor-pointer disabled:opacity-100"
+                                    title="Mejorar texturas + pasar a 4K (re-procesa esta imagen)"
+                                  >
+                                    {enhancingId === editKey ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                                  </button>
+                                  <button
                                     onClick={(e) => { e.stopPropagation(); setEditingImageId(editKey); }}
                                     className="w-6 h-6 flex items-center justify-center bg-black/60 hover:bg-[var(--color-action)] text-white rounded cursor-pointer"
                                     title="Editar esta toma — agregá refs y describí qué cambiar"
@@ -8058,6 +8096,13 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                                   >
                                     <Download size={11} />
                                   </button>
+                                </div>
+                              )}
+                              {/* Overlay mientras mejora — feedback claro de que está trabajando. */}
+                              {enhancingId === editKey && (
+                                <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-1.5 pointer-events-none">
+                                  <Loader2 size={18} className="animate-spin text-white" />
+                                  <span className="text-[10px] text-white font-medium">Mejorando texturas · 4K…</span>
                                 </div>
                               )}
                               {isEditing && (
@@ -9749,6 +9794,8 @@ function AssetSelector({
   onUpload,
   onDelete,
   deleteConfirm,
+  collapsible,
+  defaultCollapsed,
 }: {
   label: string;
   sublabel?: string;
@@ -9765,10 +9812,16 @@ function AssetSelector({
   onDelete?: (id: string) => Promise<void> | void;
   /** Mensaje de confirmación. `{name}` se reemplaza por el nombre del item. */
   deleteConfirm?: string;
+  /** Permite plegar/desplegar el cuerpo (útil cuando la lista es larga, ej. Prendas). */
+  collapsible?: boolean;
+  /** Si es colapsable, arranca plegado. */
+  defaultCollapsed?: boolean;
 }) {
   const hasItems = items.length > 0;
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [open, setOpen] = useState(!collapsible || !defaultCollapsed);
+  const selectedCount = multi ? (selectedIds || []).length : (selectedId ? 1 : 0);
 
   // Sube uno o varios archivos. Secuencial para evitar races en setConfig/
   // refreshBrands (cada onUpload refresca el brand y agrega su id a la selección).
@@ -9824,19 +9877,37 @@ function AssetSelector({
     // que entren más cards en menos alto.
     <div className="bg-surface-1 border border-edge rounded-[var(--radius-sm)] p-2.5">
       <div className="flex items-center gap-2 mb-2 min-w-0">
-        <label className="text-[11px] font-semibold text-fg-secondary truncate">
-          {label}
-          {sublabel && (
-            <span className="text-fg-faint font-normal ml-1 text-[10px]">· {sublabel}</span>
-          )}
-        </label>
+        {collapsible ? (
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="flex items-center gap-1 min-w-0 cursor-pointer text-left"
+            title={open ? "Plegar" : "Desplegar"}
+          >
+            <ChevronDown size={12} className={cn("text-fg-faint shrink-0 transition-transform", open ? "" : "-rotate-90")} />
+            <span className="text-[11px] font-semibold text-fg-secondary truncate">
+              {label}
+              {sublabel && <span className="text-fg-faint font-normal ml-1 text-[10px]">· {sublabel}</span>}
+            </span>
+          </button>
+        ) : (
+          <label className="text-[11px] font-semibold text-fg-secondary truncate">
+            {label}
+            {sublabel && (
+              <span className="text-fg-faint font-normal ml-1 text-[10px]">· {sublabel}</span>
+            )}
+          </label>
+        )}
         <span className="ml-auto flex items-center gap-1.5 shrink-0">
+          {/* Cuando está plegado, mostramos cuántas hay seleccionadas para no perder contexto. */}
+          {collapsible && !open && selectedCount > 0 && (
+            <span className="text-[9px] font-semibold text-[var(--color-brand)]">{selectedCount} sel.</span>
+          )}
           {hasItems && (
             <span className="text-[9px] text-fg-faint">{items.length}</span>
           )}
           {onUpload && !showUpload && hasItems && (
             <button
-              onClick={() => setShowUpload(true)}
+              onClick={() => { setShowUpload(true); setOpen(true); }}
               title="Subir imagen"
               className="flex items-center justify-center w-5 h-5 rounded text-[var(--color-action)] hover:bg-[var(--color-action-subtle)] cursor-pointer"
             >
@@ -9846,10 +9917,10 @@ function AssetSelector({
         </span>
       </div>
 
-      {/* Show upload inline when toggled or when there are no items */}
-      {(showUpload || !hasItems) && uploadForm}
+      {/* Cuerpo — plegable cuando collapsible. Show upload inline when toggled or empty. */}
+      {open && (showUpload || !hasItems) && uploadForm}
 
-      {hasItems && (
+      {open && hasItems && (
         <div className="grid grid-cols-4 gap-1.5">
           {items.map((item) => {
             const isSelected = multi

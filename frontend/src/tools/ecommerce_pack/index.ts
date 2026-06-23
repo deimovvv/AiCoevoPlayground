@@ -45,6 +45,16 @@ const NO_TEXT = " Single clean photograph. No text, no watermark, no logo overla
 const IDENTITY_LOCK = "IDENTITY LOCK (NON-NEGOTIABLE — top priority over everything else): the person in the output MUST be the EXACT same individual as the IDENTITY reference image. Photographically RECOGNIZABLE as that person: identical face geometry, eyes, eye color, eyebrows, nose shape, mouth/lips, jawline, cheekbones, skin tone, age, freckles/marks, hair color and hairstyle. Do NOT average, idealize, beautify, age, de-age, restyle or swap to any other face. If ANY base image, pose reference, garment photo or accessory photo shows a DIFFERENT person, that person's face, hair and identity are completely IRRELEVANT and MUST be fully discarded and replaced by the IDENTITY reference. The identity must stay perfectly consistent across every shot in the pack.";
 // La cara TIENE que verse ultra realista — pedido explícito del usuario.
 const FACE_REALISM = "ULTRA-PHOTOREALISTIC face and skin (CRITICAL): real human skin with visible pores, fine natural texture, subtle realistic imperfections and true-to-life subsurface scattering. Absolutely NO smoothing, NO airbrushing, NO plastic/waxy/doll-like/CGI/3D-render/AI-generated look. Eyes razor-sharp and in focus with natural catchlights and real moisture; natural eyelashes and eyebrows. Skin tones natural and even, no over-saturation. Rendered like a real high-end editorial photograph shot on a full-frame camera with an 85mm prime lens, professional studio lighting, true photographic detail.";
+// La textura de la tela también tiene que verse real (pedido del usuario).
+const FABRIC_REALISM = "ULTRA-REALISTIC fabric and garment texture: render the true weave, knit, grain and material of each garment — visible threads, stitching, seams, hems, ribbing, wrinkles and natural folds where the cloth drapes and creases on the body. Cotton looks like cotton, denim like denim, knit like knit, leather like leather. Accurate sheen/matte response to the studio light, realistic micro-shadows in the folds. NO flat, painted, plastic or over-smoothed fabric; NO invented patterns. Crisp, high-resolution photographic detail across the whole garment.";
+
+// Prompt del botón "Mejorar texturas + 4K" — pasa la imagen YA generada de vuelta
+// por Nano Banana en modo edit a 4K. Mejora SOLO la nitidez/textura de piel y tela;
+// NO recompone, NO cambia identidad, ropa, pose, fondo ni encuadre.
+export const ENHANCE_TEXTURE_PROMPT = `Enhance and upscale THIS photograph to crisp 4K production quality. This is a DETAIL/TEXTURE ENHANCEMENT PASS — do NOT change the composition, identity, face, garment, pose, framing or background in any way. Keep the image pixel-identical in layout; only refine micro-detail and resolution.
+${FACE_REALISM}
+${FABRIC_REALISM}
+Add true photographic sharpness and fine detail to skin and fabric, remove any softness, blur, plastic smoothing or AI-render look. The result must look like the same photo captured by a higher-end camera at higher resolution — same scene, more real, more detailed.${NO_TEXT}`;
 
 // ── Catálogo de poses preset ─────────────────────────────────────────
 // 8 poses descritas en texto detallado — alternativa al pose transfer
@@ -277,7 +287,7 @@ const handleGenerate: StepHandler = async (ctx) => {
         });
         // Style refs (look&feel + moodboard) opcionales — afinan estética.
         const sr1 = styleRefs(idx1); step1Urls.push(...sr1.urls); step1Desc.push(...sr1.desc);
-        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${IDENTITY_LOCK} ${FACE_REALISM} ${PIXEL_FIDELITY}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
+        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${IDENTITY_LOCK} ${FACE_REALISM} ${FABRIC_REALISM} ${PIXEL_FIDELITY}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
         const job1 = await createImageEdit(step1Urls, step1Prompt, config.aspectRatio, config.resolution);
         const res1 = await pollImageGen(job1.request_id);
         const dressedAvatar = res1.image_url || "";
@@ -404,7 +414,7 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
     const poseDesc = !shotPoseUrl ? getPoseDescription(posePreset, i) : null;
     const presetPoseClause = poseDesc ? ` POSE: ${poseDesc}` : "";
     const identityClause = avatar?.imageUrl ? `${IDENTITY_LOCK} ` : "";
-    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${shot.framing}${presetPoseClause} ${wardrobe}${identityClause}${FACE_REALISM} ${PIXEL_FIDELITY}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${shot.framing}${presetPoseClause} ${wardrobe}${identityClause}${FACE_REALISM} ${FABRIC_REALISM} ${PIXEL_FIDELITY}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution) : await createTextToImage(prompt, config.aspectRatio, config.resolution);
       const res = await pollImageGen(job.request_id);
@@ -468,7 +478,7 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
       // Flat = una prenda específica → su nombre crudo es el nombre de descarga.
       const downloadName = subj.name || primaryGarmentName;
       const id = flatSubjects.length > 1 ? `${sid}__${subj.id}` : sid;
-      const prompt = `Professional e-commerce product packshot of a single garment. ${studioClause} ${shot.framing} Show ONLY this one garment — no other clothing items. ${PIXEL_FIDELITY}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+      const prompt = `Professional e-commerce product packshot of a single garment. ${studioClause} ${shot.framing} Show ONLY this one garment — no other clothing items. ${FABRIC_REALISM} ${PIXEL_FIDELITY}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
       try {
         const job = await createImageEdit(urls, prompt, config.aspectRatio, config.resolution);
         const res = await pollImageGen(job.request_id);
