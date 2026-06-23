@@ -37,6 +37,7 @@ export function ImageEditPanel({
   const { activeBrand } = useBrand();
   const [prompt, setPrompt] = useState(defaultPrompt);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const products = activeBrand?.products || [];
   const clothing = activeBrand?.clothing || [];
@@ -74,15 +75,19 @@ export function ImageEditPanel({
   const handleApply = async () => {
     if (!prompt.trim()) return;
     setLoading(true);
+    setError(null);
     try {
       const refs = [imageUrl, ...selectedRefs];
       const job = await createImageEdit(refs, prompt.trim(), aspectRatio, resolution);
       const result = await pollImageGen(job.request_id);
       if (result.image_url) {
         onImageUpdated(result.image_url);
+      } else {
+        setError("La edición no devolvió ninguna imagen. Probá de nuevo o reformulá el cambio.");
       }
     } catch (err) {
       console.error("Error al editar:", err);
+      setError(err instanceof Error ? err.message : "No se pudo aplicar la edición.");
     } finally {
       setLoading(false);
     }
@@ -90,6 +95,11 @@ export function ImageEditPanel({
 
   return (
     <div className="bg-surface-2 rounded-[var(--radius-md)] p-4 space-y-3">
+      {/* Cómo se usa — corto, para que no quede ambiguo. */}
+      <p className="text-[10px] text-fg-faint leading-snug">
+        Escribí abajo qué querés cambiar (ej. <span className="text-fg-muted">"el fondo debe ser blanco"</span>) y tocá <span className="text-fg-muted">Aplicar</span> — se regenera ESTA imagen con el cambio. Opcional: sumá refs de producto/ropa abajo para que respete un asset, o usá un atajo.
+      </p>
+
       {/* Quick actions */}
       <div className="flex gap-2 flex-wrap">
         <button
@@ -182,6 +192,11 @@ export function ImageEditPanel({
             ))}
           </div>
         </div>
+      )}
+
+      {/* Error surfacing — antes se tragaba en console y parecía "no hace nada". */}
+      {error && (
+        <p className="text-[11px] text-[var(--color-error)] leading-snug">{error}</p>
       )}
 
       {/* Prompt + apply */}
