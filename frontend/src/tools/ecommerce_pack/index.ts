@@ -172,6 +172,22 @@ const handleGenerate: StepHandler = async (ctx) => {
   if (selectedProduct?.imageUrl && allOnModelUrls.length === 0) allOnModelUrls.push(selectedProduct.imageUrl);
   if (allOnModelUrls.length === 0) throw new Error("Elegí al menos una prenda (o un producto) para generar la ficha.");
 
+  // ── Nombre de descarga ───────────────────────────────────────────────
+  // Pedido del usuario: cada imagen descargada se llama EXACTAMENTE como la
+  // prenda de input. On-model con varias prendas → la "prenda de arriba"
+  // (top). Flats → cada flat usa el nombre de su prenda. Sin shot label,
+  // sin prefijo de marca: el nombre crudo de la prenda.
+  const TOP_KEYWORDS = /\b(remera|t-?shirt|camiseta|camisa|top|sweater|hoodie|buzo|polera|tank|blusa|campera|jacket|saco|abrigo|chaqueta|crop|musculosa|chomba|polo|cardigan|chaleco)\b/i;
+  const isTopGarment = (g: { name?: string; tags?: string[] }) =>
+    TOP_KEYWORDS.test(g.name || "") || (g.tags || []).some((t) => TOP_KEYWORDS.test(t));
+  // Nombre de la prenda principal para on-model: la prenda de arriba si la hay,
+  // si no la primera seleccionada, si no el producto.
+  const primaryGarmentName =
+    (garments.find(isTopGarment)?.name)
+    || garments[0]?.name
+    || selectedProduct?.name
+    || "";
+
   const avatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId)
     || (config.selectedAvatarIds?.length ? (activeBrand.avatars || []).find((a) => config.selectedAvatarIds.includes(a.id)) : undefined);
   const moodboard = (activeBrand.moodboards || []).find((m) => m.id === config.selectedMoodboardId);
@@ -204,7 +220,7 @@ const handleGenerate: StepHandler = async (ctx) => {
 
   const onModelShots = shots.filter((s) => SHOT_CATALOG[s].onModel);
   const flatShots = shots.filter((s) => !SHOT_CATALOG[s].onModel);
-  const generated: Record<string, { id: string; url: string; label: string; prompt: string; status: string }> = {};
+  const generated: Record<string, { id: string; url: string; label: string; downloadName: string; prompt: string; status: string }> = {};
 
   // Per-shot pose refs (subidas por el usuario una por cada shot tildado). Da
   // dinámica — pose distinta por front/back/detail en lugar de modelo duro.
@@ -307,9 +323,9 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
         const res2 = await pollImageGen(job2.request_id);
         const url2 = res2.image_url || "";
         if (url2) anchorUrl = url2;
-        generated[sid] = { id: sid, url: url2, label: onModelLabelAnchor, prompt: step2Prompt, status: res2.status === "failed" ? "failed" : "done" };
+        generated[sid] = { id: sid, url: url2, label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: step2Prompt, status: res2.status === "failed" ? "failed" : "done" };
       } catch (e) {
-        generated[sid] = { id: sid, url: "", label: onModelLabelAnchor, prompt: "", status: "failed" };
+        generated[sid] = { id: sid, url: "", label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: "", status: "failed" };
         console.error(`[ecommerce_pack] ${sid} (2-step) failed:`, e);
       }
       continue; // saltea el flow 1-step
@@ -399,11 +415,11 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
       // El name de cada garment viene del filename original via deriveAssetName.
       const garmentNames = garments.map((g) => g.name).filter(Boolean).join(" + ") || selectedProduct?.name || "";
       const onModelLabel = garmentNames ? `${shot.label} · ${garmentNames}` : shot.label;
-      generated[sid] = { id: sid, url, label: onModelLabel, prompt, status: res.status === "failed" ? "failed" : "done" };
+      generated[sid] = { id: sid, url, label: onModelLabel, downloadName: primaryGarmentName, prompt, status: res.status === "failed" ? "failed" : "done" };
     } catch (e) {
       const garmentNames = garments.map((g) => g.name).filter(Boolean).join(" + ") || selectedProduct?.name || "";
       const onModelLabel = garmentNames ? `${shot.label} · ${garmentNames}` : shot.label;
-      generated[sid] = { id: sid, url: "", label: onModelLabel, prompt, status: "failed" };
+      generated[sid] = { id: sid, url: "", label: onModelLabel, downloadName: primaryGarmentName, prompt, status: "failed" };
       console.error(`[ecommerce_pack] ${sid} failed:`, e);
     }
   }
@@ -424,7 +440,7 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
     sid.includes("detail") ? "detail" :
     sid.includes("front") ? "front" : "any";
 
-  const flatImages: Array<{ sid: string; id: string; url: string; label: string; prompt: string; status: string }> = [];
+  const flatImages: Array<{ sid: string; id: string; url: string; label: string; downloadName: string; prompt: string; status: string }> = [];
   await Promise.all(flatShots.flatMap((sid) => {
     const shot = SHOT_CATALOG[sid];
     const shotType = flatShotType(sid);
@@ -448,26 +464,28 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
       // Siempre incluir nombre de la prenda (no solo cuando hay >1) para que
       // el filename descargado preserve el nombre original del archivo cargado.
       const label = subj.name ? `${shot.label} · ${subj.name}` : shot.label;
+      // Flat = una prenda específica → su nombre crudo es el nombre de descarga.
+      const downloadName = subj.name || primaryGarmentName;
       const id = flatSubjects.length > 1 ? `${sid}__${subj.id}` : sid;
       const prompt = `Professional e-commerce product packshot of a single garment. ${studioClause} ${shot.framing} Show ONLY this one garment — no other clothing items. ${PIXEL_FIDELITY}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
       try {
         const job = await createImageEdit(urls, prompt, config.aspectRatio, config.resolution);
         const res = await pollImageGen(job.request_id);
-        flatImages.push({ sid, id, url: res.image_url || "", label, prompt, status: res.status === "failed" ? "failed" : "done" });
+        flatImages.push({ sid, id, url: res.image_url || "", label, downloadName, prompt, status: res.status === "failed" ? "failed" : "done" });
       } catch (e) {
-        flatImages.push({ sid, id, url: "", label, prompt, status: "failed" });
+        flatImages.push({ sid, id, url: "", label, downloadName, prompt, status: "failed" });
         console.error(`[ecommerce_pack] flat ${id} failed:`, e);
       }
     });
   }));
 
   // Assemble in the user's shot order: on-model shots, then each flat shot's per-garment images.
-  const images: Array<{ id: string; url: string; label: string; prompt: string; status: string }> = [];
+  const images: Array<{ id: string; url: string; label: string; downloadName: string; prompt: string; status: string }> = [];
   for (const sid of shots) {
     if (SHOT_CATALOG[sid]?.onModel) {
       if (generated[sid]) images.push(generated[sid]);
     } else {
-      flatImages.filter((im) => im.sid === sid).forEach(({ id, url, label, prompt, status }) => images.push({ id, url, label, prompt, status }));
+      flatImages.filter((im) => im.sid === sid).forEach(({ id, url, label, downloadName, prompt, status }) => images.push({ id, url, label, downloadName, prompt, status }));
     }
   }
   const successful = images.filter((im) => im.url).length;

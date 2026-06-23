@@ -264,7 +264,7 @@ interface BatchEntry {
   createdAt: number;      // ms epoch — para etiquetar "hace 5 min"
   label: string;          // derivado de la config (ej. "Flats · 6 imágenes")
   shotIds: string[];      // qué shots se eligieron en esa tanda
-  images: Array<{ id: string; url: string; label: string; prompt?: string; status?: string }>;
+  images: Array<{ id: string; url: string; label: string; downloadName?: string; prompt?: string; status?: string }>;
 }
 
 // Tools donde activamos el comportamiento de tandas acumulativas.
@@ -1495,7 +1495,7 @@ export function ToolRunPage() {
         // generaciones aunque cambies la config; "Nueva tanda" desde el panel
         // de resultados es lo que dispara este push.
         if (BATCHABLE_TOOLS.has(tool.id) && step.id === "generate_all" && result && typeof result === "object") {
-          const r = result as { images?: Array<{ id: string; url: string; label: string; prompt?: string; status?: string }> };
+          const r = result as { images?: Array<{ id: string; url: string; label: string; downloadName?: string; prompt?: string; status?: string }> };
           const successful = (r.images || []).filter((im) => im.url);
           if (successful.length > 0) {
             const shotIds = (config as unknown as Record<string, unknown>).ecomShots as string[] || [];
@@ -7882,13 +7882,36 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   }
 
   if (stepId === "generate_all" && result) {
-    const data = result as { images: Array<{ id: string; url: string; label: string }>; headline?: string; subline?: string; cta?: string; colors?: string; interpretation?: string };
+    const data = result as { images: Array<{ id: string; url: string; label: string; downloadName?: string }>; headline?: string; subline?: string; cta?: string; colors?: string; interpretation?: string };
     const images = data.images || [];
     const activeImg = images.find((i) => i.id === activeHeroId) || images[0];
     const colorTokens = (data.colors || "").split(/[,;]+/).map((s) => s.trim()).filter(Boolean).slice(0, 5);
-    // Descriptive filenames: <marca>_<toma>.png  (e.g. taller-de-santa-clara_flat-frente-remera.png)
     const brandSlug = slugify(activeBrand?.name || "coevo");
-    const fileFor = (img: { label?: string }, idx: number) => `${brandSlug}_${slugify(img.label || "") || `toma-${idx + 1}`}.png`;
+    // Nombre de archivo: si la imagen trae `downloadName` (ej. ecommerce_pack lo
+    // setea = nombre EXACTO de la prenda de input, top garment si hay varias),
+    // usamos ese tal cual — sin prefijo de marca, sin shot label. Pedido explícito:
+    // "que se llame exactamente como la prenda". Para tools sin downloadName cae al
+    // esquema viejo <marca>_<toma>.png.
+    const safeFilename = (s: string) => (s || "").replace(/[/\\:*?"<>|\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const fileFor = (img: { downloadName?: string; label?: string }, idx: number) => {
+      const exact = safeFilename(img.downloadName || "");
+      if (exact) return `${exact}.png`;
+      return `${brandSlug}_${slugify(img.label || "") || `toma-${idx + 1}`}.png`;
+    };
+    // Para descargas en lote (ZIP), evitamos que dos imágenes con el mismo nombre
+    // (ej. front + back + detail de la misma remera) se pisen: sufijo " (2)", " (3)".
+    const dedupeFilenames = <T extends { filename: string }>(items: T[]): T[] => {
+      const seen = new Map<string, number>();
+      return items.map((it) => {
+        const n = (seen.get(it.filename) || 0) + 1;
+        seen.set(it.filename, n);
+        if (n === 1) return it;
+        const dot = it.filename.lastIndexOf(".");
+        const base = dot >= 0 ? it.filename.slice(0, dot) : it.filename;
+        const ext = dot >= 0 ? it.filename.slice(dot) : "";
+        return { ...it, filename: `${base} (${n})${ext}` };
+      });
+    };
 
     // ── Vista alternativa: tandas acumulativas (ecommerce_pack, etc.) ──
     // Si la tool batchable y ya hay >=1 tanda en el stack, renderizamos la pila
@@ -7911,9 +7934,9 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
               {totalCount > 1 && (
                 <button
                   onClick={async () => {
-                    const items = allImages
+                    const items = dedupeFilenames(allImages
                       .filter((img) => img.url)
-                      .map((img, idx) => ({ url: img.url, filename: `${brandSlug}_${slugify(img.label || "") || `toma-${idx + 1}`}.png` }));
+                      .map((img, idx) => ({ url: img.url, filename: fileFor(img, idx) })));
                     try { await downloadZip(items, `${brandSlug}_pack`); }
                     catch (e) {
                       console.error("[ecommerce-pack] zip download failed:", e);
@@ -7965,7 +7988,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                       {batchImages.length > 1 && (
                         <button
                           onClick={async () => {
-                            const items = batchImages.map((img, idx) => ({ url: img.url, filename: `${brandSlug}_${slugify(img.label || "") || `toma-${idx + 1}`}.png` }));
+                            const items = dedupeFilenames(batchImages.map((img, idx) => ({ url: img.url, filename: fileFor(img, idx) })));
                             try { await downloadZip(items, `${brandSlug}_${slugify(batch.label).slice(0, 30)}`); }
                             catch (e) { console.error(e); alert("No se pudo descargar el ZIP."); }
                           }}
@@ -8027,7 +8050,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      downloadMediaAs(img.url, `${brandSlug}_${slugify(img.label || "") || `toma-${idx + 1}`}.png`);
+                                      downloadMediaAs(img.url, fileFor(img, idx));
                                     }}
                                     className="w-6 h-6 flex items-center justify-center bg-black/60 hover:bg-black/80 text-white rounded cursor-pointer"
                                     title="Descargar esta imagen"
@@ -8126,9 +8149,9 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                   // Backend arma UN solo ZIP — soluciona el bloqueo de Chrome
                   // que ignora downloads consecutivos. Reportado: "no me deja
                   // descargar todas juntas, solo me baja una".
-                  const items = images
+                  const items = dedupeFilenames(images
                     .filter((img) => img.url)
-                    .map((img, idx) => ({ url: img.url, filename: fileFor(img, idx) }));
+                    .map((img, idx) => ({ url: img.url, filename: fileFor(img, idx) })));
                   try {
                     await downloadZip(items, `${brandSlug}_pack`);
                   } catch (e) {
