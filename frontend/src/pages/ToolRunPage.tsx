@@ -625,6 +625,11 @@ export function ToolRunPage() {
   const stepsRef = useRef<StepState[]>([]);
   const [activeStep, setActiveStep] = useState(0);
   const [started, setStarted] = useState(false);
+  // Marca a la que pertenece la corrida actual (id + nombre). Se captura cuando la
+  // corrida arranca; si después cambiás de marca, el banner de mismatch avisa que
+  // el contenido/config de abajo siguen siendo de ESTA marca, no de la nueva.
+  const [runBrand, setRunBrand] = useState<{ id: string; name: string } | null>(null);
+  const [mismatchDismissedFor, setMismatchDismissedFor] = useState<string | null>(null);
   // Set when an agent/URL hand-off requests auto-start. A dedicated effect picks this
   // up and runs step 0 — done in an effect (not inline) so handleRunStep executes with
   // the just-applied config instead of the stale closure from the hand-off effect.
@@ -660,6 +665,12 @@ export function ToolRunPage() {
   // tandas viejas con outputs de la anterior. Scope sigue siendo "una sesión
   // por tool".
   useEffect(() => { setBatches([]); setNewBatchPending(false); }, [toolId]);
+  // Captura la marca de la corrida al arrancar (started false→true con marca presente);
+  // la limpia al resetear. Un solo lugar cubre handleStart, mock y load de generación.
+  useEffect(() => {
+    if (started && activeBrand && !runBrand) setRunBrand({ id: activeBrand.id, name: activeBrand.name });
+    else if (!started && runBrand) setRunBrand(null);
+  }, [started, activeBrand, runBrand]);
 
   useEffect(() => {
     if (!toolId) return;
@@ -2218,6 +2229,17 @@ export function ToolRunPage() {
     setSteps((prev) => prev.map((s) => ({ ...s, status: "pending" })));
   };
 
+  // Resetea la corrida para la marca nueva: limpia steps, tandas y la config
+  // (los assets seleccionados eran de la marca anterior). El init de config
+  // repuebla avatar/producto/voz desde la marca activa nueva.
+  const resetForNewBrand = () => {
+    handleReset();
+    setBatches([]);
+    setConfig(DEFAULT_CONFIG);
+    setRunBrand(null);
+    setMismatchDismissedFor(null);
+  };
+
   return (
     // Layout split tipo Lab v2 — la página entera ocupa la altura del viewport.
     // Sidebar izquierdo: TODO el control (ConfigPanel + footer sticky con Generar).
@@ -2308,6 +2330,28 @@ export function ToolRunPage() {
           )}
         </div>
       </header>
+
+      {/* Banner de mismatch de marca — la corrida es de una marca pero cambiaste a
+          otra. Avisa (no resetea solo) y ofrece resetear para la marca nueva. */}
+      {started && runBrand && activeBrand && activeBrand.id !== runBrand.id && activeBrand.id !== mismatchDismissedFor && (
+        <div className="flex items-center gap-3 px-5 py-2 bg-[var(--color-error)]/10 border-b border-[var(--color-error)]/30 text-[12px] shrink-0">
+          <AlertCircle size={13} className="text-[var(--color-error)] shrink-0" />
+          <span className="text-fg flex-1 min-w-0">
+            Esta corrida es de <strong>{runBrand.name}</strong>, pero cambiaste a <strong>{activeBrand.name}</strong>. El contenido y la config de abajo siguen siendo de {runBrand.name}.
+          </span>
+          <button
+            onClick={resetForNewBrand}
+            className="px-2.5 py-1 rounded-[var(--radius-sm)] bg-[var(--color-action)] text-[var(--color-action-fg)] font-semibold hover:brightness-105 cursor-pointer shrink-0"
+          >
+            Resetear para {activeBrand.name}
+          </button>
+          <button
+            onClick={() => setMismatchDismissedFor(activeBrand.id)}
+            title="Seguir viendo esta corrida"
+            className="text-fg-faint hover:text-fg cursor-pointer shrink-0"
+          ><X size={14} /></button>
+        </div>
+      )}
 
       {/* Body split: sidebar 440px + main */}
       <div className="flex-1 flex overflow-hidden">
