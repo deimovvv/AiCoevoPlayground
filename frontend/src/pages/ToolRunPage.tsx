@@ -24,6 +24,7 @@ import {
   Eye,
   ListChecks,
   Plus,
+  Minus,
   RotateCcw,
   Settings2,
   AlertCircle,
@@ -322,6 +323,10 @@ interface ToolConfig {
   // cada shot tildado y el handler la pasa como ref al generar ESE shot.
   // Da dinámica (poses dinámicas en lugar de modelo duro). One-off, no Brand Kit.
   ecomShotPoses: Record<string, string>;
+  // Cantidad de variantes por toma on-model (ej. { model_american: 2 }). Default
+  // 1 si ausente. La rotación de poses diferencia las variantes; la pose ref de la
+  // toma aplica solo a la #1. Cap 1..4 en el handler.
+  ecomShotCounts: Record<string, number>;
   /** Preset textual de pose para Ecommerce Pack. "auto" = rota entre 8 poses
    *  preset (una por shot). Una pose preset específica = todos los shots con
    *  esa pose. "upload" = el usuario sube imagen ref (pose transfer 2-step).
@@ -417,6 +422,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   studioStyle: "white",
   ecomShots: ["model_front", "model_back", "model_detail", "flat_front"],
   ecomShotPoses: {},
+  ecomShotCounts: {},
   ecomPosePreset: "auto",
   ecomAccessoryIds: [],
   looksShots: ["general", "detail"],
@@ -3256,10 +3262,11 @@ function ConfigPanel({
                       <button
                         onClick={() => setConfig((p) => {
                           if (on) {
-                            // Al desmarcar el shot, también limpiamos su pose ref.
+                            // Al desmarcar el shot, también limpiamos su pose ref y su cantidad.
                             const { [id]: _drop, ...rest } = p.ecomShotPoses;
-                            void _drop;
-                            return { ...p, ecomShots: p.ecomShots.filter((s) => s !== id), ecomShotPoses: rest };
+                            const { [id]: _dropC, ...restC } = p.ecomShotCounts;
+                            void _drop; void _dropC;
+                            return { ...p, ecomShots: p.ecomShots.filter((s) => s !== id), ecomShotPoses: rest, ecomShotCounts: restC };
                           }
                           return { ...p, ecomShots: [...p.ecomShots, id] };
                         })}
@@ -3273,6 +3280,32 @@ function ConfigPanel({
                         </span>
                         {shot.label}
                       </button>
+                      {/* Cantidad de variantes — solo on-model tildado. La rotación
+                          de poses diferencia las variantes (no salen gemelas). */}
+                      {on && shot.onModel && (() => {
+                        const count = config.ecomShotCounts[id] || 1;
+                        const setCount = (next: number) => setConfig((p) => ({
+                          ...p,
+                          ecomShotCounts: { ...p.ecomShotCounts, [id]: Math.max(1, Math.min(4, next)) },
+                        }));
+                        return (
+                          <div className="flex items-center gap-0.5 shrink-0" title="Cantidad de variantes de esta toma (1-4)">
+                            <button
+                              type="button"
+                              onClick={() => setCount(count - 1)}
+                              disabled={count <= 1}
+                              className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-sm)] border border-edge text-fg-muted hover:text-fg disabled:opacity-30 disabled:cursor-default cursor-pointer"
+                            ><Minus size={10} /></button>
+                            <span className="w-4 text-center text-[11px] tabular-nums text-fg">{count}</span>
+                            <button
+                              type="button"
+                              onClick={() => setCount(count + 1)}
+                              disabled={count >= 4}
+                              className="w-5 h-5 flex items-center justify-center rounded-[var(--radius-sm)] border border-edge text-fg-muted hover:text-fg disabled:opacity-30 disabled:cursor-default cursor-pointer"
+                            ><Plus size={10} /></button>
+                          </div>
+                        );
+                      })()}
                       {/* Pose ref por shot — solo para on-model shots tildados.
                           Thumbnail más grande (40×40 en vez de 24) y click → lightbox. */}
                       {on && shot.onModel && (
@@ -3326,7 +3359,7 @@ function ConfigPanel({
             <p className="text-[10px] text-fg-faint">
               {config.ecomShots.length === 0
                 ? "Elegí al menos una toma."
-                : `${config.ecomShots.length} toma${config.ecomShots.length === 1 ? "" : "s"} · subí una pose ref por shot si querés una pose específica.`}
+                : `${config.ecomShots.length} toma${config.ecomShots.length === 1 ? "" : "s"} · usá +/− para pedir varias variantes del mismo plano · pose ref opcional por toma (aplica a la #1).`}
             </p>
           </div>
 

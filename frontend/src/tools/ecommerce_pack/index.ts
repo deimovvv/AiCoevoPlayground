@@ -17,6 +17,7 @@ import { createImageEdit, createTextToImage, pollImageGen } from "../../lib/api"
 export const SHOT_CATALOG: Record<string, { label: string; onModel: boolean; framing: string }> = {
   model_front:  { label: "On-model · Frente",  onModel: true,  framing: "Full-body or 3/4-body FRONT view: the model faces the camera straight on, standing naturally, the full garment clearly visible." },
   model_34:     { label: "On-model · 3/4",      onModel: true,  framing: "3/4 ANGLE view: the model's body turned about 45°, showing the garment's front and side." },
+  model_american: { label: "On-model · Americano", onModel: true, framing: "AMERICAN / medium shot: framed from roughly mid-thigh up (cutting around the knee or mid-thigh), the model facing the camera, the garment's upper and mid section shown clearly and in detail. This is NOT a full-body shot and NOT a tight crop — a classic catalog medium framing." },
   model_back:   { label: "On-model · Espalda",  onModel: true,  framing: "BACK view: the model faces away from the camera, clearly showing the back of the garment." },
   model_detail: { label: "On-model · Detalle",  onModel: true,  framing: "Tight CLOSE-UP on the garment as worn (fabric, texture, print, stitching, logo) — crop to the chest/torso area, no face needed." },
   flat_front:   { label: "Flat · Frente",       onModel: false, framing: "Product-only PACKSHOT: the garment presented flat/ghost-mannequin facing FRONT, centered. NO person, NO model, NO body — only the garment." },
@@ -47,6 +48,13 @@ const IDENTITY_LOCK = "IDENTITY LOCK (NON-NEGOTIABLE — top priority over every
 const FACE_REALISM = "ULTRA-PHOTOREALISTIC face and skin (CRITICAL): real human skin with visible pores, fine natural texture, subtle realistic imperfections and true-to-life subsurface scattering. Absolutely NO smoothing, NO airbrushing, NO plastic/waxy/doll-like/CGI/3D-render/AI-generated look. Eyes razor-sharp and in focus with natural catchlights and real moisture; natural eyelashes and eyebrows. Skin tones natural and even, no over-saturation. Rendered like a real high-end editorial photograph shot on a full-frame camera with an 85mm prime lens, professional studio lighting, true photographic detail.";
 // La textura de la tela también tiene que verse real (pedido del usuario).
 const FABRIC_REALISM = "ULTRA-REALISTIC fabric and garment texture: render the true weave, knit, grain and material of each garment — visible threads, stitching, seams, hems, ribbing, wrinkles and natural folds where the cloth drapes and creases on the body. Cotton looks like cotton, denim like denim, knit like knit, leather like leather. Accurate sheen/matte response to the studio light, realistic micro-shadows in the folds. NO flat, painted, plastic or over-smoothed fabric; NO invented patterns. Crisp, high-resolution photographic detail across the whole garment.";
+// Spec de cámara/luz — fija una captura fotográfica concreta (no "render"). f/8 da
+// nitidez de borde a borde para e-commerce; 5500K neutro + setup de 2 luces evita el
+// look plano/CGI. Aportado por el usuario a partir de un prompt de referencia que funcionaba.
+const CAMERA_LIGHTING = "Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Professional studio lighting: soft diffused key light from the front-right at 45°, a large fill light on the opposite side for even commercial illumination, neutral 5500K white balance. Clean editorial e-commerce lighting.";
+// Negative prompt — el mayor lever de realismo en Nano Banana. Empuja fuera el look
+// plástico/ilustración/AI y el over-retoque que delata la imagen generada.
+const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, CGI, AI-generated look, plastic or waxy finish, over-retouched airbrushed perfection, oversaturated colors, cast shadows on the background.";
 
 // Prompt del botón "Mejorar texturas + 4K" — pasa la imagen YA generada de vuelta
 // por Nano Banana en modo edit a 4K. Mejora SOLO la nitidez/textura de piel y tela;
@@ -95,19 +103,42 @@ export const POSE_PRESETS: Record<string, { label: string; description: string }
     label: "Hands in Back Pockets",
     description: "Standing front-facing, both hands tucked into back trouser pockets, elbows pointed slightly back exposing the silhouette of the top. Weight on left leg, shoulders relaxed. Chin slightly up, soft confident gaze to camera. Full body in frame.",
   },
+  back_hand_to_neck: {
+    label: "Back · Hand to Neck",
+    description: "Body facing away from the camera, showing the full back of the garment. Head turned back over the LEFT shoulder toward the camera, right hand raised to lightly touch the back of the neck/hairline, left arm relaxed at side. The face stays clearly visible in three-quarter back view. Editorial, elongated posture. Full body in frame.",
+  },
+  back_walk_away: {
+    label: "Back · Walking Away",
+    description: "Walking away from the camera mid-step, showing the back of the garment in natural motion. Head turned back over the right shoulder with a relaxed glance toward the camera so the face stays visible. Arms swinging naturally, weight shifting forward. Full body in frame.",
+  },
 };
 
 export const DEFAULT_POSE_PRESET = "auto";
 const POSE_KEYS = Object.keys(POSE_PRESETS);
 
-/** Devuelve la descripción de la pose para un shot dado.
- *  - "auto" → rota: shot 0 = natural_front, shot 1 = walking, etc.
- *  - clave específica → devuelve esa pose.
+// Pools de poses por tipo de plano — la rotación "auto" elige DENTRO del pool
+// correcto para el encuadre, no una pose al azar. Garantiza coherencia: un plano
+// de espalda nunca recibe una pose frontal, los back shots mantienen la cara
+// visible (over-shoulder), y el americano prioriza poses de manos/torso que leen
+// bien en un crop medio. Si un shot no está mapeado, cae al rol completo.
+const POSE_POOLS: Record<string, string[]> = {
+  model_front:    ["natural_front", "hand_in_pocket", "arms_crossed", "hands_in_back_pockets", "looking_down", "walking"],
+  model_34:       ["profile_34", "natural_front", "hand_in_pocket", "arms_crossed"],
+  model_american: ["hand_in_pocket", "arms_crossed", "hands_in_back_pockets", "natural_front", "looking_down"],
+  model_back:     ["back_over_shoulder", "back_hand_to_neck", "back_walk_away"],
+  model_detail:   ["natural_front", "arms_crossed", "hand_in_pocket"],
+};
+
+/** Devuelve la descripción de la pose para una instancia de shot.
+ *  - "auto" → rota DENTRO del pool del encuadre por la variante (nth): variante #1
+ *    = primera del pool, #2 = segunda, etc. → coherente con el plano y distinta por variante.
+ *  - clave específica → esa pose fija (ignora el pool).
  *  - "upload" / "" / undefined → null (caller usa la pose ref imagen si la hay). */
-function getPoseDescription(presetKey: string | undefined, shotIndex: number): string | null {
+function getPoseDescription(presetKey: string | undefined, shotId: string, nth: number): string | null {
   if (!presetKey || presetKey === "upload" || presetKey === "") return null;
   if (presetKey === "auto") {
-    return POSE_PRESETS[POSE_KEYS[shotIndex % POSE_KEYS.length]].description;
+    const pool = POSE_POOLS[shotId] || POSE_KEYS;
+    return POSE_PRESETS[pool[nth % pool.length]].description;
   }
   return POSE_PRESETS[presetKey]?.description || null;
 }
@@ -241,13 +272,31 @@ const handleGenerate: StepHandler = async (ctx) => {
   // usuario subió pose ref imagen, esa gana. Default "auto" = rota entre las 8.
   const posePreset = (cfg.ecomPosePreset as string) || DEFAULT_POSE_PRESET;
 
+  // Cantidad por toma on-model — el usuario puede pedir N variantes del mismo
+  // plano (ej. Americano ×2). Cada instancia = una generación. La rotación de
+  // poses (auto) las diferencia para que no salgan gemelas. Cap 1..4.
+  const shotCounts = (cfg.ecomShotCounts as Record<string, number>) || {};
+  const onModelInstances: Array<{ key: string; sid: string; nth: number; count: number }> = [];
+  for (const sid of onModelShots) {
+    const count = Math.max(1, Math.min(4, Math.round(shotCounts[sid] || 1)));
+    for (let n = 0; n < count; n++) {
+      onModelInstances.push({ key: n === 0 ? sid : `${sid}__v${n + 1}`, sid, nth: n, count });
+    }
+  }
+
   // ── On-model shots — sequential, anchored to the first for consistency ──
   let anchorUrl: string | undefined;
-  for (let i = 0; i < onModelShots.length; i++) {
-    const sid = onModelShots[i];
+  for (let i = 0; i < onModelInstances.length; i++) {
+    const inst = onModelInstances[i];
+    const sid = inst.sid;
     const shot = SHOT_CATALOG[sid];
+    // Sufijo para el label cuando hay cantidad >1 ("#2", "#3"…).
+    const vSuffix = inst.count > 1 ? ` #${inst.nth + 1}` : "";
+    // La pose ref del shot SOLO aplica a la 1ª instancia; las extra rotan pose
+    // (si compartieran la misma ref saldrían idénticas, anulando la cantidad).
+    const instPoseRef = inst.nth === 0 ? ecomShotPoses[sid] : undefined;
     // Pose ref específica de este shot — si existe, gana sobre la global.
-    const shotPoseUrl = ecomShotPoses[sid] || poseUrl;
+    const shotPoseUrl = instPoseRef || poseUrl;
 
     // ── 2-step approach cuando hay pose ref + es el shot inicial ──────────
     // Inversión clave (después de probar al revés y fallar):
@@ -262,7 +311,7 @@ const handleGenerate: StepHandler = async (ctx) => {
     // la pose se respete.
     if (i === 0 && shotPoseUrl) {
       const garmentNamesAnchor = garments.map((g) => g.name).filter(Boolean).join(" + ") || selectedProduct?.name || "";
-      const onModelLabelAnchor = garmentNamesAnchor ? `${shot.label} · ${garmentNamesAnchor}` : shot.label;
+      const onModelLabelAnchor = garmentNamesAnchor ? `${shot.label}${vSuffix} · ${garmentNamesAnchor}` : `${shot.label}${vSuffix}`;
       try {
         // ── Step 1: VESTIR — composición tradicional, sin pose específica ─
         // Avatar + todos los garments + accessories. Estudio neutro, framing libre.
@@ -287,7 +336,7 @@ const handleGenerate: StepHandler = async (ctx) => {
         });
         // Style refs (look&feel + moodboard) opcionales — afinan estética.
         const sr1 = styleRefs(idx1); step1Urls.push(...sr1.urls); step1Desc.push(...sr1.desc);
-        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${IDENTITY_LOCK} ${FACE_REALISM} ${FABRIC_REALISM} ${PIXEL_FIDELITY}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
+        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${CAMERA_LIGHTING} ${IDENTITY_LOCK} ${FACE_REALISM} ${FABRIC_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
         const job1 = await createImageEdit(step1Urls, step1Prompt, config.aspectRatio, config.resolution);
         const res1 = await pollImageGen(job1.request_id);
         const dressedAvatar = res1.image_url || "";
@@ -328,15 +377,15 @@ CRITICAL — do NOT contaminate the output with anything from image 2 that is no
 
 The output person's skin, accessories, jewelry, tattoos, piercings, and clothing must match IMAGE 1 ONLY. If image 1 has no tattoos, the output has no tattoos. If image 1 has no jewelry, the output has no jewelry.
 
-Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, same jewelry, same clothing, same accessories, same face), re-posed to match the body geometry of image 2. The face must stay perfectly recognizable as the person in image 1 — do NOT let image 2's face leak in. ${FACE_REALISM} ${PIXEL_FIDELITY}${NO_TEXT}`;
+Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, same jewelry, same clothing, same accessories, same face), re-posed to match the body geometry of image 2. The face must stay perfectly recognizable as the person in image 1 — do NOT let image 2's face leak in. ${FACE_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}`;
         const job2 = await createImageEdit(step2Urls, step2Prompt, config.aspectRatio, config.resolution);
         const res2 = await pollImageGen(job2.request_id);
         const url2 = res2.image_url || "";
         if (url2) anchorUrl = url2;
-        generated[sid] = { id: sid, url: url2, label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: step2Prompt, status: res2.status === "failed" ? "failed" : "done" };
+        generated[inst.key] = { id: inst.key, url: url2, label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: step2Prompt, status: res2.status === "failed" ? "failed" : "done" };
       } catch (e) {
-        generated[sid] = { id: sid, url: "", label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: "", status: "failed" };
-        console.error(`[ecommerce_pack] ${sid} (2-step) failed:`, e);
+        generated[inst.key] = { id: inst.key, url: "", label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: "", status: "failed" };
+        console.error(`[ecommerce_pack] ${inst.key} (2-step) failed:`, e);
       }
       continue; // saltea el flow 1-step
     }
@@ -349,10 +398,10 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
       if (avatar?.imageUrl) { urls.push(avatar.imageUrl); desc.push(`Image ${idx}: IDENTITY (HIGHEST PRIORITY — the person in the output MUST be this exact person) — use this exact face, eyes, eye color, eyebrows, nose, mouth, jawline, skin tone, age, freckles/marks, hair color, hair style, and body proportions. The output face must be photographically RECOGNIZABLE as the same individual. Do NOT generalize, idealize, beautify, age, de-age or stylize the face. IGNORE only their clothing, background and pose.`); idx++; }
       garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT (hero product) — the model WEARS this exact item. ${PIXEL_FIDELITY}`); idx++; });
       accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: STYLING ACCESSORY — the model also wears/has this exact item as part of the complete outfit. ${PIXEL_FIDELITY}`); idx++; });
-    } else if (ecomShotPoses[sid]) {
+    } else if (instPoseRef) {
       // Shot 2+ CON pose ref específica: pose ref como base + anchor de shot 1
       // + avatar ORIGINAL como segunda fuente de identidad (doble anclaje de cara).
-      urls.push(ecomShotPoses[sid]);
+      urls.push(instPoseRef);
       desc.push(`Image ${idx}: BASE IMAGE (edit this) — start from this exact image and KEEP pixel-perfect ONLY its geometry: body position, stance, arm/hand placement, head tilt, gaze direction, camera framing, crop and perspective. The PERSON shown in this base image is a stand-in: their face, head, hair, skin and identity are IRRELEVANT and MUST be fully replaced by the FACE REPLACEMENT (IDENTITY) reference below. The BACKGROUND / environment / room / floor / wall / lighting color of this base image are ALSO IRRELEVANT and MUST be fully discarded and replaced by the studio backdrop described in the prompt — do NOT keep the pose reference's background. REPLACE the clothing, the face/head AND the background as specified below.`);
       idx++;
       urls.push(anchorUrl);
@@ -411,10 +460,10 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
     // Si NO hay pose ref imagen, inyectamos un preset textual de pose (rota
     // entre 8 si "auto", o usa la elegida por el user). Eso evita que la
     // modelo quede dura/estática y le da variedad editorial a la galería.
-    const poseDesc = !shotPoseUrl ? getPoseDescription(posePreset, i) : null;
+    const poseDesc = !shotPoseUrl ? getPoseDescription(posePreset, sid, inst.nth) : null;
     const presetPoseClause = poseDesc ? ` POSE: ${poseDesc}` : "";
     const identityClause = avatar?.imageUrl ? `${IDENTITY_LOCK} ` : "";
-    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${shot.framing}${presetPoseClause} ${wardrobe}${identityClause}${FACE_REALISM} ${FABRIC_REALISM} ${PIXEL_FIDELITY}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${shot.framing}${presetPoseClause} ${wardrobe}${CAMERA_LIGHTING} ${identityClause}${FACE_REALISM} ${FABRIC_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution) : await createTextToImage(prompt, config.aspectRatio, config.resolution);
       const res = await pollImageGen(job.request_id);
@@ -425,13 +474,13 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
       // subiste "remera-roja.jpg", el output debería llamarse así, no "frente.png").
       // El name de cada garment viene del filename original via deriveAssetName.
       const garmentNames = garments.map((g) => g.name).filter(Boolean).join(" + ") || selectedProduct?.name || "";
-      const onModelLabel = garmentNames ? `${shot.label} · ${garmentNames}` : shot.label;
-      generated[sid] = { id: sid, url, label: onModelLabel, downloadName: primaryGarmentName, prompt, status: res.status === "failed" ? "failed" : "done" };
+      const onModelLabel = garmentNames ? `${shot.label}${vSuffix} · ${garmentNames}` : `${shot.label}${vSuffix}`;
+      generated[inst.key] = { id: inst.key, url, label: onModelLabel, downloadName: primaryGarmentName, prompt, status: res.status === "failed" ? "failed" : "done" };
     } catch (e) {
       const garmentNames = garments.map((g) => g.name).filter(Boolean).join(" + ") || selectedProduct?.name || "";
-      const onModelLabel = garmentNames ? `${shot.label} · ${garmentNames}` : shot.label;
-      generated[sid] = { id: sid, url: "", label: onModelLabel, downloadName: primaryGarmentName, prompt, status: "failed" };
-      console.error(`[ecommerce_pack] ${sid} failed:`, e);
+      const onModelLabel = garmentNames ? `${shot.label}${vSuffix} · ${garmentNames}` : `${shot.label}${vSuffix}`;
+      generated[inst.key] = { id: inst.key, url: "", label: onModelLabel, downloadName: primaryGarmentName, prompt, status: "failed" };
+      console.error(`[ecommerce_pack] ${inst.key} failed:`, e);
     }
   }
 
@@ -478,7 +527,7 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
       // Flat = una prenda específica → su nombre crudo es el nombre de descarga.
       const downloadName = subj.name || primaryGarmentName;
       const id = flatSubjects.length > 1 ? `${sid}__${subj.id}` : sid;
-      const prompt = `Professional e-commerce product packshot of a single garment. ${studioClause} ${shot.framing} Show ONLY this one garment — no other clothing items. ${FABRIC_REALISM} ${PIXEL_FIDELITY}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+      const prompt = `Professional e-commerce product packshot of a single garment. ${studioClause} ${shot.framing} Show ONLY this one garment — no other clothing items. ${CAMERA_LIGHTING} ${FABRIC_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
       try {
         const job = await createImageEdit(urls, prompt, config.aspectRatio, config.resolution);
         const res = await pollImageGen(job.request_id);
@@ -494,7 +543,10 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
   const images: Array<{ id: string; url: string; label: string; downloadName: string; prompt: string; status: string }> = [];
   for (const sid of shots) {
     if (SHOT_CATALOG[sid]?.onModel) {
-      if (generated[sid]) images.push(generated[sid]);
+      // Todas las instancias de esta toma, en orden (#1, #2, …).
+      onModelInstances.filter((inst) => inst.sid === sid).forEach((inst) => {
+        if (generated[inst.key]) images.push(generated[inst.key]);
+      });
     } else {
       flatImages.filter((im) => im.sid === sid).forEach(({ id, url, label, downloadName, prompt, status }) => images.push({ id, url, label, downloadName, prompt, status }));
     }
