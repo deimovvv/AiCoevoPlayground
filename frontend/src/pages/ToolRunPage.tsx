@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useSearchParams, Link, useNavigate } from "react-router";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
@@ -271,6 +271,66 @@ interface BatchEntry {
 // Tools donde activamos el comportamiento de tandas acumulativas.
 // Si una tool NO está acá, el render del result sigue siendo lineal (1 sola tanda).
 const BATCHABLE_TOOLS = new Set<string>(["ecommerce_pack"]);
+
+// ── Contenido generado (riel lateral) ───────────────────────────────
+// Recolecta TODAS las medias generadas por el tool actual a partir del estado que
+// YA persiste (steps[*].result + batches). No agrega persistencia nueva: los steps
+// se guardan en pipelineState, así que esto sobrevive reloads igual que el resto.
+// Cubre todos los tools de forma genérica leyendo las formas de result conocidas.
+export interface GeneratedMedia { url: string; label: string; type: "image" | "video" }
+const MEDIA_ARRAY_KEYS = ["images", "slides", "scenes", "selections", "frames", "creatives", "variants"];
+const MEDIA_URL_KEYS = ["url", "imageUrl", "image_url", "selectedUrl", "outputUrl", "videoUrl", "video_url", "renderUrl", "thumbnailUrl"];
+const isVideoMediaUrl = (u: string) => /\.(mp4|webm|mov)(\?|$)/i.test(u);
+const urlFromMediaItem = (item: unknown): string | undefined => {
+  if (typeof item === "string") return item;
+  if (item && typeof item === "object") {
+    const o = item as Record<string, unknown>;
+    for (const k of MEDIA_URL_KEYS) {
+      const v = o[k];
+      if (typeof v === "string" && v) return v;
+    }
+  }
+  return undefined;
+};
+const labelFromMediaItem = (item: unknown, fallback: string): string => {
+  if (item && typeof item === "object") {
+    const o = item as Record<string, unknown>;
+    const l = o.label || o.title || o.name;
+    if (typeof l === "string" && l) return l;
+  }
+  return fallback;
+};
+function collectGeneratedMedia(steps: StepState[], batches: BatchEntry[]): GeneratedMedia[] {
+  const out: GeneratedMedia[] = [];
+  const seen = new Set<string>();
+  const push = (url: string | undefined, label: string) => {
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    out.push({ url, label, type: isVideoMediaUrl(url) ? "video" : "image" });
+  };
+  // Tandas primero (lo más reciente para tools batchables).
+  for (const b of batches) for (const im of b.images || []) push(im.url, im.label || b.label);
+  // Steps en orden inverso → los outputs más nuevos arriba.
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const st = steps[i];
+    const stepLabel = STEP_META[st.id]?.label || st.id;
+    const r = st.result;
+    if (Array.isArray(r)) {
+      for (const it of r) push(urlFromMediaItem(it), labelFromMediaItem(it, stepLabel));
+    } else if (r && typeof r === "object") {
+      const obj = r as Record<string, unknown>;
+      for (const k of MEDIA_ARRAY_KEYS) {
+        const arr = obj[k];
+        if (Array.isArray(arr)) for (const it of arr) push(urlFromMediaItem(it), labelFromMediaItem(it, stepLabel));
+      }
+      for (const k of MEDIA_URL_KEYS) {
+        const v = obj[k];
+        if (typeof v === "string" && v) push(v, stepLabel);
+      }
+    }
+  }
+  return out;
+}
 
 // ── Tool config state ──────────────────────────────────────
 
@@ -579,6 +639,10 @@ export function ToolRunPage() {
   // sin perder lo de antes". Scope: sesión (se pierde al recargar — OK por ahora,
   // si el usuario quiere persistencia lo migramos a /content).
   const [batches, setBatches] = useState<BatchEntry[]>([]);
+  // Riel "Contenido generado" — visible al costado, como la galería del Lab. Default
+  // abierto (preferencia: todo visible). Colapsable por el ancho en pantallas chicas.
+  const [showContentRail, setShowContentRail] = useState(true);
+  const generatedMedia = useMemo(() => collectGeneratedMedia(steps, batches), [steps, batches]);
   // Flag para que el próximo Generar del usuario SUME una tanda en vez de pisar
   // la sesión actual. Se enciende cuando clickeás "Nueva tanda" desde el panel
   // de resultados.
@@ -2438,6 +2502,68 @@ export function ToolRunPage() {
             )}
           </div>
         </main>
+
+        {/* ── RIEL "Contenido generado" ───────────────────────────────
+             Galería al costado (como el Lab) con TODO lo que generó este tool.
+             Deriva de steps[*].result + batches (ya persistidos), así que sobrevive
+             reloads. Click → lightbox de página (img); los videos abren en pestaña. */}
+        {showContentRail ? (
+          <aside className="w-[300px] shrink-0 border-l border-edge flex flex-col bg-surface-0">
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-edge shrink-0">
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-fg-muted">
+                Contenido generado{generatedMedia.length > 0 ? ` (${generatedMedia.length})` : ""}
+              </span>
+              <button onClick={() => setShowContentRail(false)} title="Colapsar" className="text-fg-faint hover:text-fg cursor-pointer">
+                <X size={13} />
+              </button>
+            </div>
+            {generatedMedia.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center px-4 text-center">
+                <p className="text-[11px] text-fg-faint leading-relaxed">
+                  Lo que generes con este tool aparece acá, al costado — como en el Lab.
+                </p>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-2.5">
+                <div className="grid grid-cols-2 gap-2">
+                  {generatedMedia.map((m, i) => (
+                    <button
+                      key={`${m.url}_${i}`}
+                      onClick={() => (m.type === "video" ? window.open(m.url, "_blank") : setLightboxUrl(m.url))}
+                      title={m.label}
+                      className="group relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge hover:border-[var(--color-brand)] cursor-zoom-in bg-surface-1"
+                    >
+                      {m.type === "video" ? (
+                        <>
+                          <video src={m.url} className="w-full h-full object-cover" muted preload="metadata" />
+                          <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <Play size={18} className="text-white drop-shadow" fill="currentColor" />
+                          </span>
+                        </>
+                      ) : (
+                        <img src={m.url} alt={m.label} loading="lazy" className="w-full h-full object-cover" />
+                      )}
+                      <span className="absolute bottom-0 inset-x-0 px-1.5 py-1 bg-gradient-to-t from-black/70 to-transparent text-[8px] text-white/90 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                        {m.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </aside>
+        ) : (
+          <button
+            onClick={() => setShowContentRail(true)}
+            title="Mostrar contenido generado"
+            className="shrink-0 w-9 border-l border-edge bg-surface-0 hover:bg-surface-1 flex flex-col items-center gap-2 py-3 cursor-pointer"
+          >
+            <Eye size={14} className="text-fg-muted" />
+            <span className="text-[10px] text-fg-muted [writing-mode:vertical-rl] rotate-180 tracking-wide">
+              Contenido{generatedMedia.length > 0 ? ` (${generatedMedia.length})` : ""}
+            </span>
+          </button>
+        )}
       </div>
 
     </div>
