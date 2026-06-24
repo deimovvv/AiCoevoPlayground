@@ -109,6 +109,9 @@ OUTPUT FORMAT (exactly):
 How {model_name} reads its reference images (follow this exactly):
 {model_rules}
 
+How {model_name} responds best — apply this craft when writing the prompt:
+{model_playbook}
+
 Rules:
 - Reference images by "Image 1", "Image 2", etc. (matching the position they were attached). Replace any [imgN] or [imageN] tokens in the user's text with "Image N".
 - Start with a short "REFERENCE IMAGES:" block listing each image's role (e.g. "Image 1: the woman to feature", "Image 2: the garment to put on her") IF there are references. Skip the block if no references.
@@ -143,6 +146,40 @@ MODEL_REF_RULES = {
 
 def _model_rules_for(target_model: str) -> str:
     return MODEL_REF_RULES.get(target_model, MODEL_REF_RULES["nano-banana-2"])
+
+
+# Playbook por modelo — el "craft" que aprendimos de cada generador, MÁS ALLÁ de
+# cómo consume las referencias (eso vive en MODEL_REF_RULES). Es la única fuente de
+# verdad de cómo promptear bien cada modelo; el curador la inyecta según target_model.
+# Mantener en sync con los principios aplicados en los templates de los tools
+# (ej. CAMERA_LIGHTING / REALISM_NEGATIVES en frontend/src/tools/ecommerce_pack).
+MODEL_PLAYBOOK = {
+    "nano-banana-2": (
+        "- Use concrete PHOTOGRAPHIC language (camera body, lens, aperture, lighting direction, "
+        "color temperature in Kelvin, backdrop) — it outperforms vague adjectives like 'beautiful' or 'professional'.\n"
+        "- Strong NEGATIVES work well: when realism matters, explicitly forbid illustration, 3D/CGI render, "
+        "AI-generated look, plastic/waxy skin, over-retouched airbrushed perfection and oversaturated colors.\n"
+        "- For real skin/fabric, name the texture (visible pores, fine skin texture, fabric weave, stitching, "
+        "natural folds) and forbid smoothing/airbrushing — it defaults to a soft plastic look otherwise.\n"
+        "- For identity/faces, put the identity reference FIRST and demand photographic fidelity; it tends to "
+        "average or idealize faces when the identity is just one reference among many.\n"
+        "- Pose transfer works best with exactly TWO images (subject + pose reference) plus an explicit instruction "
+        "to take ONLY body posture and framing from the pose ref and ignore its face, clothing and background.\n"
+        "- Known weak spots — compensate, don't lean on them: it UNDER-applies a color grade asked by text alone "
+        "(be forceful and concrete if a grade is needed), and a light 'enhance/upscale' edit returns a near-identical "
+        "image (it does not synthesize new detail), so bake realism into the generation itself."
+    ),
+    "gpt-image-2": (
+        "- It follows instructions literally and in order — write clear, declarative, well-structured prompts.\n"
+        "- It renders legible TEXT/typography far better than most models — when the user wants words in the image, "
+        "spell them out exactly and describe their placement, weight and color.\n"
+        "- Be explicit about what to keep vs change; it preserves the first (base) image strongly."
+    ),
+}
+
+
+def _model_playbook_for(target_model: str) -> str:
+    return MODEL_PLAYBOOK.get(target_model, MODEL_PLAYBOOK["nano-banana-2"])
 
 
 ENHANCE_SYSTEM_PROMPT_VIDEO = """You are an expert motion-prompt engineer for Kling V3 Pro (image-to-video).
@@ -236,7 +273,11 @@ async def enhance_prompt(
     model_name = "Nano Banana 2" if target_model == "nano-banana-2" else "GPT Image 2"
     # Image enhancer is model-aware (per-model reference rules); video is Kling-only.
     if mode == "image":
-        system = ENHANCE_SYSTEM_PROMPT_IMAGE.format(model_name=model_name, model_rules=_model_rules_for(target_model))
+        system = ENHANCE_SYSTEM_PROMPT_IMAGE.format(
+            model_name=model_name,
+            model_rules=_model_rules_for(target_model),
+            model_playbook=_model_playbook_for(target_model),
+        )
     else:
         system = ENHANCE_SYSTEM_PROMPT_VIDEO
 
