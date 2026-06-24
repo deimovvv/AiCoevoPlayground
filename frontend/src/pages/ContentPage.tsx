@@ -4,10 +4,10 @@ import { Link } from "react-router";
 import { useBrand } from "../lib/BrandContext";
 import { fetchGenerations, deleteGeneration, createReview, getGenerationReview, listReviews, ensureBrandPortal, setGenerationPublished } from "../lib/api";
 import type { Generation, ReviewData } from "../lib/api";
-import { cn } from "../lib/utils";
+import { cn, downloadUrl } from "../lib/utils";
 import { downloadFile } from "../lib/download";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://127.0.0.1:8000";
 
 type ContentType = "all" | "image" | "video" | "copy";
 type StatusFilter = "all" | "draft" | "completed";
@@ -322,11 +322,12 @@ function ContentCard({ gen, review, deleting, onDelete, onClick }: { gen: Genera
                 ) : (
                     typeIcon[gen.type]
                 )}
-                {/* Client review badge */}
+                {/* Client review badge — burgundy para "tiene cambios" (era amarillo
+                    warning que rompía la estética); success verde para aprobado. */}
                 {review && (
                     <div className={cn(
                         "absolute top-2 left-2 text-[9px] font-semibold px-1.5 py-0.5 rounded-full backdrop-blur flex items-center gap-1",
-                        review.changes > 0 ? "bg-[var(--color-warning)]/90 text-black" : "bg-[var(--color-success)]/90 text-white",
+                        review.changes > 0 ? "bg-[var(--color-brand)]/90 text-[var(--color-brand-fg)]" : "bg-[var(--color-success)]/90 text-white",
                     )} title="Feedback del cliente">
                         👁 {review.approved}✓{review.changes > 0 ? ` · ${review.changes}✎` : ""}
                     </div>
@@ -415,7 +416,7 @@ function ContentRow({ gen, review, deleting, onDelete, onClick }: { gen: Generat
             {review && (
                 <span className={cn(
                     "text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
-                    review.changes > 0 ? "bg-[var(--color-warning)]/20 text-warning" : "bg-success-muted text-success",
+                    review.changes > 0 ? "bg-[var(--color-brand-muted)] text-[var(--color-brand)]" : "bg-success-muted text-success",
                 )} title="Feedback del cliente">
                     👁 {review.approved}✓{review.changes > 0 ? ` ${review.changes}✎` : ""}
                 </span>
@@ -711,14 +712,14 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                     {/* Actions */}
                     <div className="flex gap-3 pt-2 border-t border-edge">
                         {fullVideoUrl && (
-                            <a
-                                href={fullVideoUrl}
-                                download={`${gen.title.replace(/[^a-zA-Z0-9]/g, "_")}.mp4`}
+                            <button
+                                type="button"
+                                onClick={() => downloadUrl(fullVideoUrl, `${gen.title.replace(/[^a-zA-Z0-9]/g, "_")}.mp4`)}
                                 className="flex-1 flex items-center justify-center gap-2 py-2.5 text-[13px] font-medium text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer"
                             >
                                 <Download size={14} />
                                 Download
-                            </a>
+                            </button>
                         )}
                         {gen.pipelineState && (
                             <Link

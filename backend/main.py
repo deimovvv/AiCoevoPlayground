@@ -44,6 +44,7 @@ from services import manual_lab
 from services import asset_matcher
 from services import seedance_video
 from services import beeble_switchx
+from services.image_utils import normalize_image_bytes, is_image_upload
 
 # ── Paths ────────────────────────────────────────────────────
 (Path(__file__).parent / "tmp").mkdir(exist_ok=True)
@@ -187,9 +188,15 @@ class AddHeygenAvatarRequest(BaseModel):
     previewUrl: str
 
 
+class ChatImage(BaseModel):
+    data: str                     # base64 string OR full data: URL — backend accepts both
+    mime: Optional[str] = None
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
+    images: Optional[List[ChatImage]] = None   # optional vision attachments per message
 
 
 class ChatRequest(BaseModel):
@@ -227,6 +234,114 @@ def health():
         "heygen_configured": heygen.is_configured(),
         "fal_configured": fal_lipsync.is_configured(),
         "openai_configured": copy_gen.is_configured(),
+    }
+
+
+@app.post("/api/maintenance/convert-heic")
+def convert_heic_legacy():
+    """
+    One-shot migration — convierte HEIC/HEIF ya guardadas en disco a JPEG.
+    Para los archivos viejos que se subieron antes del fix de normalización
+    en upload. Recorre todos los directorios de assets, convierte los .heic/.heif
+    y actualiza brands.json para que apunten al nuevo filename.
+
+    POST porque mutate, idempotente (los que ya no son HEIC se ignoran).
+    Devuelve un resumen de qué se tocó.
+    """
+    from services.image_utils import normalize_image_bytes as _norm
+    all_brands = brands.load_brands()
+
+    # Mapa de "campo en el brand" → directorio de archivos. Cada entrada apunta
+    # a una lista de items con .filename y .imageUrl que hay que reescribir si
+    # convertimos el archivo. logo (singular) se trata aparte porque no es lista.
+    asset_lists = [
+        ("avatars", brands.get_avatars_dir(), "/static/avatars/"),
+        ("products", brands.get_products_dir(), "/static/products/"),
+        ("clothing", brands.get_clothing_dir(), "/static/clothing/"),
+        ("backgrounds", brands.get_backgrounds_dir(), "/static/backgrounds/"),
+        ("moodboards", brands.get_moodboards_dir(), "/static/moodboards/"),
+        ("lookAndFeel", brands.get_lookfeel_dir(), "/static/lookfeel/"),
+        ("logos", brands.get_logos_dir(), "/static/logos/"),
+    ]
+
+    converted: list[str] = []
+    skipped: list[str] = []
+    errors: list[str] = []
+
+    def _convert_one(filename: str, directory) -> str | None:
+        """Convierte el archivo si es HEIC/HEIF. Devuelve el nuevo filename
+        (puede ser igual si no hubo conversión) o None si hubo error."""
+        if not filename:
+            return filename
+        suf = Path(filename).suffix.lower()
+        if suf not in (".heic", ".heif"):
+            return filename
+        src = directory / filename
+        if not src.exists():
+            return None
+        try:
+            with open(src, "rb") as f:
+                data = f.read()
+            new_data, new_ext = _norm(data, filename, None)
+            if new_ext.lower() == suf:
+                # La conversión falló silenciosamente — pillow-heif missing capaz.
+                return None
+            new_filename = Path(filename).with_suffix(new_ext).name
+            new_path = directory / new_filename
+            with open(new_path, "wb") as f:
+                f.write(new_data)
+            # Borramos el original solo si el nuevo se escribió bien.
+            try:
+                src.unlink()
+            except Exception:
+                pass
+            return new_filename
+        except Exception as e:
+            errors.append(f"{src}: {e}")
+            return None
+
+    for brand in all_brands:
+        bid = brand.get("id", "?")
+        # listas
+        for field, directory, prefix in asset_lists:
+            for item in brand.get(field, []):
+                old_fn = item.get("filename")
+                if not old_fn:
+                    continue
+                new_fn = _convert_one(old_fn, directory)
+                if new_fn is None:
+                    skipped.append(f"{bid}/{field}/{old_fn}")
+                elif new_fn != old_fn:
+                    item["filename"] = new_fn
+                    item["imageUrl"] = f"{prefix}{new_fn}"
+                    converted.append(f"{bid}/{field}/{old_fn} → {new_fn}")
+                # Multi-image (products.images, clothing.images)
+                for sub in item.get("images", []) or []:
+                    sub_fn = sub.get("filename")
+                    if not sub_fn:
+                        continue
+                    new_sub = _convert_one(sub_fn, directory)
+                    if new_sub is None:
+                        skipped.append(f"{bid}/{field}/{sub_fn} (extra)")
+                    elif new_sub != sub_fn:
+                        sub["filename"] = new_sub
+                        sub["imageUrl"] = f"{prefix}{new_sub}"
+                        converted.append(f"{bid}/{field}/{sub_fn} → {new_sub} (extra)")
+        # logo singular (legacy)
+        legacy_logo = brand.get("logo") or {}
+        if isinstance(legacy_logo, dict) and legacy_logo.get("filename"):
+            new_fn = _convert_one(legacy_logo["filename"], brands.get_logos_dir())
+            if new_fn and new_fn != legacy_logo["filename"]:
+                legacy_logo["filename"] = new_fn
+                legacy_logo["imageUrl"] = f"/static/logos/{new_fn}"
+                converted.append(f"{bid}/logo/{new_fn}")
+
+    brands.save_brands(all_brands)
+    return {
+        "converted": converted,
+        "skipped": skipped,
+        "errors": errors,
+        "converted_count": len(converted),
     }
 
 
@@ -1020,14 +1135,17 @@ async def upload_avatar(
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
     if len(image_data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
 
-    ext = Path(image.filename or "avatar.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     avatar_id = str(uuid.uuid4())[:8]
     filename = f"{brand_id}_{avatar_id}{ext}"
     filepath = brands.get_avatars_dir() / filename
@@ -1109,14 +1227,17 @@ async def replace_avatar_image(
     if not avatar:
         raise HTTPException(status_code=404, detail="Avatar not found")
 
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
     if len(image_data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
 
-    ext = Path(image.filename or "avatar.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     filename = f"{brand_id}_{avatar_id}{ext}"
     filepath = brands.get_avatars_dir() / filename
 
@@ -1243,12 +1364,12 @@ async def upload_product(
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    ext = Path(image.filename or "product.png").suffix or ".png"
     product_id = str(uuid.uuid4())[:8]
+    content = await image.read()
+    content, ext = normalize_image_bytes(content, image.filename, image.content_type)
     filename = f"{brand_id}_prod_{product_id}{ext}"
     filepath = brands.get_products_dir() / filename
 
-    content = await image.read()
     with open(filepath, "wb") as f:
         f.write(content)
 
@@ -1326,16 +1447,19 @@ async def add_product_image(
         raise HTTPException(status_code=404, detail="Product not found")
 
     existing_images = product.get("images", [])
-    # Count total: main image + extras
-    if len(existing_images) >= 2:
-        raise HTTPException(status_code=400, detail="Maximum 3 images per product (1 main + 2 extra)")
+    # Count total: main image + extras. Subido de 3 → 10 para productos complejos
+    # (autos, electrodomésticos) que necesitan muchos ángulos: ext frontal, lateral,
+    # 3/4, trasera, top, interior dashboard, asientos, trunk, motor, detalles. Sin
+    # esos ángulos, Nano Banana inventa y la sheet sale fantasiosa.
+    if len(existing_images) >= 9:
+        raise HTTPException(status_code=400, detail="Maximum 10 images per product (1 main + 9 extra)")
 
-    ext = Path(image.filename or "product.png").suffix or ".png"
     img_id = str(uuid.uuid4())[:8]
+    content = await image.read()
+    content, ext = normalize_image_bytes(content, image.filename, image.content_type)
     filename = f"{brand_id}_prod_{product_id}_{img_id}{ext}"
     filepath = brands.get_products_dir() / filename
 
-    content = await image.read()
     with open(filepath, "wb") as f:
         f.write(content)
 
@@ -1404,11 +1528,16 @@ async def upload_clothing(
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
-    ext = Path(image.filename or "clothing.png").suffix or ".png"
+    # HEIC/HEIF → JPEG. Si el archivo ya es browser-friendly, no se toca.
+    # Sin esto, los uploads desde iPhone no se renderizan en Chrome/Firefox.
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     item_id = str(uuid.uuid4())[:8]
     filename = f"{brand_id}_cloth_{item_id}{ext}"
     filepath = brands.get_clothing_dir() / filename
@@ -1462,14 +1591,101 @@ def delete_clothing(brand_id: str, item_id: str):
     item = next((c for c in brand.get("clothing", []) if c["id"] == item_id), None)
     if not item:
         raise HTTPException(status_code=404, detail="Clothing item not found")
+    # Borrar la imagen principal
     filename = item.get("filename", "")
     if filename:
         img_path = brands.get_clothing_dir() / filename
         if img_path.exists() and img_path.is_file():
             img_path.unlink()
+    # Borrar las imágenes extras (front+back+detail multi-photo)
+    for extra in (item.get("images") or []):
+        extra_fn = extra.get("filename", "")
+        if extra_fn:
+            extra_path = brands.get_clothing_dir() / extra_fn
+            if extra_path.exists() and extra_path.is_file():
+                extra_path.unlink()
     brand["clothing"] = [c for c in brand["clothing"] if c["id"] != item_id]
     brands.save_brands(all_brands)
     return {"ok": True}
+
+
+# ── Multi-photo per clothing item ──────────────────────────────
+# Las prendas pueden tener hasta 3 fotos (1 principal + 2 extras) para que el
+# modelo entienda mejor el producto: típicamente front + back + detail. Las extras
+# se priorizan en Ecommerce Pack según el tipo de shot que se está generando.
+
+@app.post("/api/brands/{brand_id}/clothing/{item_id}/images")
+async def add_clothing_image(
+    brand_id: str,
+    item_id: str,
+    label: str = Form(""),
+    image: UploadFile = File(...),
+):
+    """Suma una foto extra a una prenda existente (hasta 2 extras además de la principal)."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((c for c in brand.get("clothing", []) if c["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Clothing item not found")
+
+    existing_images = item.get("images", [])
+    # Mismo criterio que productos: para prendas complejas (chaquetas con interior,
+    # detalles, varios ángulos) 3 es poco. Subido a 10.
+    if len(existing_images) >= 9:
+        raise HTTPException(status_code=400, detail="Maximum 10 images per clothing item (1 main + 9 extra)")
+
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    img_id = str(uuid.uuid4())[:8]
+    content = await image.read()
+    content, ext = normalize_image_bytes(content, image.filename, image.content_type)
+    filename = f"{brand_id}_cloth_{item_id}_{img_id}{ext}"
+    filepath = brands.get_clothing_dir() / filename
+
+    with open(filepath, "wb") as f:
+        f.write(content)
+
+    img_entry = {
+        "filename": filename,
+        "imageUrl": f"/static/clothing/{filename}",
+        "label": label or f"Photo {len(existing_images) + 2}",
+    }
+    if "images" not in item:
+        item["images"] = []
+    item["images"].append(img_entry)
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.delete("/api/brands/{brand_id}/clothing/{item_id}/images/{image_idx}")
+def delete_clothing_image(brand_id: str, item_id: str, image_idx: int):
+    """Borra una imagen extra (por index dentro de item.images[]). La principal no se toca acá."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((c for c in brand.get("clothing", []) if c["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Clothing item not found")
+    images = item.get("images") or []
+    if image_idx < 0 or image_idx >= len(images):
+        raise HTTPException(status_code=404, detail="Image index out of range")
+    removed = images.pop(image_idx)
+    # Eliminar el archivo del disco
+    fn = removed.get("filename", "")
+    if fn:
+        path = brands.get_clothing_dir() / fn
+        if path.exists() and path.is_file():
+            path.unlink()
+    item["images"] = images
+    brands.save_brands(all_brands)
+    return item
 
 
 # ══════════════════════════════════════════════════════════════
@@ -1501,11 +1717,14 @@ async def upload_background(
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
-    ext = Path(image.filename or "background.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     item_id = str(uuid.uuid4())[:8]
     filename = f"{brand_id}_bg_{item_id}{ext}"
     filepath = brands.get_backgrounds_dir() / filename
@@ -1596,14 +1815,17 @@ async def upload_moodboard(
     brand = brands.find_brand(all_brands, brand_id)
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
     existing = brand.get("moodboards", [])
     if len(existing) >= 5:
         raise HTTPException(status_code=400, detail="Maximum 5 moodboards per brand")
 
     image_data = await image.read()
-    ext = Path(image.filename or "moodboard.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     item_id = str(uuid.uuid4())[:8]
     filename = f"{brand_id}_mood_{item_id}{ext}"
     filepath = brands.get_moodboards_dir() / filename
@@ -1685,7 +1907,10 @@ async def upload_lookandfeel(
     brand = brands.find_brand(all_brands, brand_id)
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
     if len(brand.get("lookAndFeel", [])) >= 12:
         raise HTTPException(status_code=400, detail="Maximum 12 look & feel references per brand")
@@ -1693,7 +1918,7 @@ async def upload_lookandfeel(
     image_data = await image.read()
     if len(image_data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
-    ext = Path(image.filename or "lookfeel.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     item_id = str(uuid.uuid4())[:8]
     filename = f"{brand_id}_lf_{item_id}{ext}"
     filepath = brands.get_lookandfeel_dir() / filename
@@ -1787,7 +2012,10 @@ async def describe_lookandfeel_item(brand_id: str, item_id: str):
 async def describe_lookandfeel_upload(image: UploadFile = File(...)):
     """Analyze an ad-hoc (not saved to any brand) look & feel image into a color-grade recipe.
     Powers the 'recipe' mode when you upload a one-off reference in Manual Lab."""
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
     if not image_analysis.is_configured():
         raise HTTPException(status_code=400, detail="Gemini no está configurado para analizar la referencia")
@@ -1806,6 +2034,7 @@ async def describe_lookandfeel_upload(image: UploadFile = File(...)):
 # ══════════════════════════════════════════════════════════════
 
 app.mount("/static/logos", StaticFiles(directory=str(brands.get_logos_dir())), name="logos")
+app.mount("/static/voice-lab", StaticFiles(directory=str(brands.get_voice_lab_dir())), name="voice-lab")
 
 
 @app.post("/api/brands/{brand_id}/logo")
@@ -1815,11 +2044,14 @@ async def upload_logo(brand_id: str, image: UploadFile = File(...)):
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    if not image.content_type or not image.content_type.startswith("image/"):
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     image_data = await image.read()
-    ext = Path(image.filename or "logo.png").suffix or ".png"
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
     filename = f"{brand_id}_logo{ext}"
     filepath = brands.get_logos_dir() / filename
 
@@ -1846,6 +2078,90 @@ def delete_logo(brand_id: str):
         if img_path.exists():
             img_path.unlink()
     brand.pop("logo", None)
+    brands.save_brands(all_brands)
+    return {"ok": True}
+
+
+# ── Multi-logo API ─────────────────────────────────────────────
+# Brands often need more than one logo (isotipo, logotipo, dark/light, etc.).
+# `brand.logos[]` is the array form; the legacy `brand.logo` (single) is kept
+# read-only for backwards compat and shown alongside in the UI.
+
+@app.post("/api/brands/{brand_id}/logos")
+async def upload_brand_logo(
+    brand_id: str,
+    name: str = Form(...),
+    image: UploadFile = File(...),
+):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    # Aceptamos por content-type O por extensión del filename — sin esto los
+    # uploads HEIC desde Windows fallan porque el browser manda
+    # application/octet-stream en vez de image/heic. Ver image_utils.is_image_upload.
+    if not is_image_upload(image.content_type, image.filename):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    image_data = await image.read()
+    if len(image_data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
+
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
+    item_id = str(uuid.uuid4())[:8]
+    filename = f"{brand_id}_logo_{item_id}{ext}"
+    filepath = brands.get_logos_dir() / filename
+    with open(filepath, "wb") as f:
+        f.write(image_data)
+
+    item = {
+        "id": item_id,
+        "name": name.strip() or "Logo",
+        "filename": filename,
+        "imageUrl": f"/static/logos/{filename}",
+    }
+    if "logos" not in brand:
+        brand["logos"] = []
+    brand["logos"].append(item)
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.patch("/api/brands/{brand_id}/logos/{logo_id}")
+def update_brand_logo(brand_id: str, logo_id: str, req: UpdateAvatarRequest):
+    """Rename a logo (reuses UpdateAvatarRequest — name + optional description)."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((l for l in brand.get("logos", []) if l.get("id") == logo_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Logo not found")
+    if req.name is not None:
+        name = req.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+        item["name"] = name
+    if req.description is not None:
+        item["description"] = req.description.strip()
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.delete("/api/brands/{brand_id}/logos/{logo_id}")
+def delete_brand_logo(brand_id: str, logo_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((l for l in brand.get("logos", []) if l.get("id") == logo_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Logo not found")
+    filename = item.get("filename", "")
+    if filename:
+        img_path = brands.get_logos_dir() / filename
+        if img_path.exists() and img_path.is_file():
+            img_path.unlink()
+    brand["logos"] = [l for l in brand["logos"] if l["id"] != logo_id]
     brands.save_brands(all_brands)
     return {"ok": True}
 
@@ -2360,6 +2676,70 @@ async def analyze_video(
             shutil.rmtree(work_dir, ignore_errors=True)
 
 
+class CurateMotionRequest(BaseModel):
+    text: str
+    sceneContext: str = ""
+
+
+@app.post("/api/curate/motion")
+async def curate_motion(req: CurateMotionRequest):
+    """Toma texto libre del usuario y devuelve motion prompt curado en inglés."""
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    if not req.text.strip():
+        return {"motion": ""}
+    motion = await image_analysis.curate_motion_prompt(req.text.strip(), req.sceneContext)
+    return {"motion": motion}
+
+
+@app.post("/api/analyze/motion")
+async def analyze_motion(
+    url: str = Form(""),
+    video: UploadFile = File(None),
+    image_context: str = Form(""),
+):
+    """Versión liviana de /api/analyze/video — devuelve solo motion suggestions
+    listas para inyectar al prompt de Kling. Usado por el step Animate para
+    "inspirar" el motion de un clip desde un video de referencia (URL o upload).
+    """
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+
+    video_bytes = None
+    mime_type = "video/mp4"
+    work_dir = None
+
+    try:
+        if video and video.filename:
+            video_bytes = await video.read()
+            mime_type = video.content_type or "video/mp4"
+        elif url.strip():
+            clean_url = url.strip()
+            is_tiktok = "tiktok.com" in clean_url or "vm.tiktok.com" in clean_url
+            if is_tiktok:
+                dl = await video_download.download_tiktok_tikwm(clean_url)
+            else:
+                dl = await video_download.download_video(clean_url)
+            work_dir = dl.get("work_dir")
+            video_path = Path(dl["path"])
+            video_bytes = video_path.read_bytes()
+            ext = video_path.suffix.lower()
+            mime_map = {".mp4": "video/mp4", ".webm": "video/webm", ".mkv": "video/x-matroska"}
+            mime_type = mime_map.get(ext, "video/mp4")
+        else:
+            raise HTTPException(status_code=400, detail="Provide a video URL or upload a video file")
+
+        result = await image_analysis.analyze_motion_from_video(
+            video_bytes, mime_type, image_context
+        )
+        return result
+
+    finally:
+        if work_dir:
+            import shutil
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+
 # ══════════════════════════════════════════════════════════════
 #  Asset Matcher — cross-reference detected_assets vs brand kit
 # ══════════════════════════════════════════════════════════════
@@ -2412,6 +2792,56 @@ async def tiktok_video_info(url: str = Form(...)):
         return info
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Upload-to-Fal — turn a data URL / base64 / file into a public Fal URL.
+#  Used by Manual Lab before sending refs to Kling/Seedance because Fal rejects
+#  long data: URIs ("URL too long" errors on long base64 strings).
+# ══════════════════════════════════════════════════════════════
+
+class UploadDataUrlRequest(BaseModel):
+    """`data` may be a `data:image/png;base64,...` URL or a raw base64 string."""
+    data: str
+    filename: Optional[str] = None
+    mime: Optional[str] = None
+
+
+@app.post("/api/upload-to-fal")
+async def upload_to_fal(req: UploadDataUrlRequest):
+    """Decode a data URL / base64 string and re-host it on Fal Storage. Returns a public URL."""
+    import base64
+    raw = (req.data or "").strip()
+    if not raw:
+        raise HTTPException(400, "Empty data")
+
+    mime = req.mime or "image/png"
+    payload = raw
+    # Strip the data: prefix if present and recover the real mime from it.
+    if payload.startswith("data:"):
+        head, _, b64 = payload.partition(",")
+        # head looks like `data:image/png;base64`
+        try:
+            mime = head.split(";")[0].split(":", 1)[1] or mime
+        except Exception:
+            pass
+        payload = b64
+
+    try:
+        image_bytes = base64.b64decode(payload, validate=False)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid base64: {e}")
+    if not image_bytes:
+        raise HTTPException(400, "Empty image bytes")
+
+    ext = (mime.split("/", 1)[-1] or "png").split("+")[0]
+    filename = req.filename or f"lab_ref_{uuid.uuid4().hex[:10]}.{ext}"
+
+    try:
+        url = await kling_video.upload_image(image_bytes, filename, mime)
+    except Exception as e:
+        raise HTTPException(502, f"Fal upload failed: {e}")
+    return {"url": url, "size_bytes": len(image_bytes), "mime": mime}
 
 
 @app.post("/api/tts/generate-and-upload")
@@ -4123,6 +4553,74 @@ def preview_prompt(brand_id: str, tool_id: str, req: Optional[dict] = None):
 #  Chat (Gemini)
 # ══════════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════════
+#  Product Sheet — cross-analyze 1-4 photos → structured brief
+#  Sibling of avatar-brief but for objects. Used by the product_sheet tool.
+# ══════════════════════════════════════════════════════════════
+
+@app.post("/api/brands/{brand_id}/product-sheet-brief")
+async def generate_product_sheet_brief(
+    brand_id: str,
+    direction: str = Form(""),
+    mode: str = Form("sheet"),           # "sheet" | "details"
+    product_id: str = Form(""),           # if set, photos come from the saved product
+    images: List[UploadFile] = File([]),  # otherwise, 1-4 uploaded photos
+):
+    """Cross-analyze 1-4 photos of a product and return a JSON brief the user can edit."""
+    if not image_analysis.is_configured():
+        raise HTTPException(500, "GEMINI_API_KEY not configured")
+
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(404, "Brand not found")
+
+    # Resolve image bytes — either from a saved Product or from uploaded files.
+    photos: list[tuple[bytes, str]] = []
+
+    if product_id:
+        product = next((p for p in brand.get("products", []) if p.get("id") == product_id), None)
+        if not product:
+            raise HTTPException(404, f"Product {product_id} not found in brand")
+        # Read the primary image + any additional photos (front/back/detail).
+        candidates = []
+        if product.get("filename"):
+            candidates.append(product["filename"])
+        for extra in (product.get("images") or []):
+            fn = extra.get("filename")
+            if fn and fn not in candidates:
+                candidates.append(fn)
+        # Subido de 4 → 8 para matchear el cap del Brand Kit (10 max, 8 a Gemini
+        # por límite de payload). Productos complejos (autos) necesitan muchos
+        # ángulos para que Gemini clasifique bien cada foto.
+        for fn in candidates[:8]:
+            path = brands.get_products_dir() / fn
+            if path.exists() and path.is_file():
+                photos.append((path.read_bytes(), "image/jpeg"))
+
+    # Append any uploaded photos (up to 8 total).
+    for f in (images or [])[: max(0, 8 - len(photos))]:
+        data = await f.read()
+        if not data:
+            continue
+        ct = f.content_type or "image/jpeg"
+        photos.append((data, ct))
+
+    if not photos:
+        raise HTTPException(400, "Need at least one product photo (upload or product_id)")
+
+    try:
+        brief = await image_analysis.describe_product_sheet(
+            photos,
+            direction=direction or "",
+            mode=mode or "sheet",
+        )
+    except Exception as e:
+        raise HTTPException(502, f"Product sheet brief failed: {e}")
+
+    return brief
+
+
 @app.post("/api/brands/{brand_id}/avatar-brief")
 async def generate_avatar_brief(brand_id: str, req: dict = None):
     """Generate an avatar character brief using Gemini based on brand context."""
@@ -4177,9 +4675,124 @@ async def chat_endpoint(req: ChatRequest):
         raise HTTPException(status_code=404, detail="Brand not found")
 
     try:
-        messages = [{"role": m.role, "content": m.content} for m in req.messages]
+        messages = [
+            {"role": m.role, "content": m.content, "images": [i.model_dump() for i in (m.images or [])]}
+            for m in req.messages
+        ]
         reply = await chat_service.chat(brand, messages)
         return {"reply": reply}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Voice Lab — browser STT → Gemini → ElevenLabs → audio reply
+#  Experimental real-time-ish voice conversation. The browser does STT (Web
+#  Speech API) and sends finalized transcripts here; we route to Gemini for a
+#  short spoken reply and to ElevenLabs for synthesis, then return the audio
+#  URL alongside the text. Old clips are cleaned up best-effort per turn so
+#  the voice_lab/ folder doesn't accumulate forever.
+# ══════════════════════════════════════════════════════════════
+
+class VoiceTurnMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class VoiceTurnRequest(BaseModel):
+    brandId: Optional[str] = None  # null/__sandbox__ → no brand context
+    voiceId: Optional[str] = None  # ElevenLabs voice id; falls back to default
+    messages: List[VoiceTurnMessage]  # full conversation history; the last entry is the user's new utterance
+
+
+def _cleanup_voice_lab_dir(keep_recent: int = 40) -> None:
+    """Trim voice_lab/ to the N most recent clips. Best-effort, never raises."""
+    try:
+        d = brands.get_voice_lab_dir()
+        clips = sorted(d.glob("*.mp3"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for old in clips[keep_recent:]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
+@app.post("/api/voice/turn")
+async def voice_turn(req: VoiceTurnRequest):
+    """One round-trip of the voice conversation: transcript in → reply text + spoken MP3 URL out."""
+    if not chat_service.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    if not tts.is_configured():
+        raise HTTPException(status_code=500, detail="ELEVENLABS_API_KEY not configured")
+
+    # Resolve brand (optional — sandbox or null means generic assistant)
+    brand: dict = {}
+    if req.brandId and req.brandId != "__sandbox__":
+        all_brands = brands.load_brands()
+        found = brands.find_brand(all_brands, req.brandId)
+        if found:
+            brand = found
+
+    # Be tolerant of the client's history: drop empty messages (e.g. assistant placeholders
+    # that slipped in) and trailing assistant turns. We need a user message at the end so
+    # Gemini knows what to reply to, but the rest of the history is best-effort.
+    messages = [
+        {"role": m.role, "content": m.content}
+        for m in req.messages
+        if (m.content or "").strip()
+    ]
+    while messages and messages[-1].get("role") != "user":
+        messages.pop()
+    if not messages:
+        raise HTTPException(status_code=400, detail="No user message to reply to")
+
+    # 1) Gemini → short spoken reply
+    try:
+        reply = await chat_service.chat_voice(brand, messages)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Gemini error: {e}")
+
+    # 2) ElevenLabs → MP3 bytes
+    try:
+        audio_bytes = tts.generate_audio(text=reply, voice_id=req.voiceId)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"TTS error: {e}")
+
+    # 3) Persist to /static/voice-lab/ so the browser can <audio> it
+    clip_id = uuid.uuid4().hex[:12]
+    filename = f"{clip_id}.mp3"
+    out_path = brands.get_voice_lab_dir() / filename
+    out_path.write_bytes(audio_bytes)
+    _cleanup_voice_lab_dir()
+
+    return {
+        "reply": reply,
+        "audioUrl": f"/static/voice-lab/{filename}",
+    }
+
+
+class ChatPromptsRequest(BaseModel):
+    messages: List[ChatMessage]
+
+
+@app.post("/api/brands/{brand_id}/chat-prompts")
+async def chat_prompts_endpoint(brand_id: str, req: ChatPromptsRequest):
+    """Conversational prompt brainstormer: returns {reply, prompts:[{title, prompt, why?}]}
+    based on the chat history + any image attachments. Powers the Copiloto panel in the Lab."""
+    if not chat_service.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    try:
+        messages = [
+            {"role": m.role, "content": m.content, "images": [i.model_dump() for i in (m.images or [])]}
+            for m in req.messages
+        ]
+        return await chat_service.chat_prompts(brand, messages)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -4291,6 +4904,74 @@ ALLOWED_DOWNLOAD_HOSTS = {
     "storage.googleapis.com",
     "localhost", "127.0.0.1",
 }
+
+
+class DownloadZipRequest(BaseModel):
+    items: List[Dict[str, str]]  # [{ url, filename }, ...]
+    zipName: str = "download"
+
+
+@app.post("/api/download/zip")
+async def download_zip(req: DownloadZipRequest):
+    """Descarga N archivos server-side, los empaqueta en un ZIP, y devuelve UN
+    solo archivo. Soluciona el problema de browsers que bloquean downloads
+    múltiples consecutivos (especialmente Chrome con popup blocker).
+    Reportado: "no me deja descargar todas juntas, solo me baja una".
+    """
+    import io
+    import zipfile
+    from urllib.parse import urlparse
+
+    if not req.items:
+        raise HTTPException(status_code=400, detail="items list is empty")
+    if len(req.items) > 100:
+        raise HTTPException(status_code=400, detail="too many items (max 100)")
+
+    # Validar todas las URLs antes de empezar a fetchear.
+    for item in req.items:
+        u = item.get("url", "")
+        if not u:
+            continue
+        host = (urlparse(u).hostname or "").lower()
+        if host not in ALLOWED_DOWNLOAD_HOSTS and not any(host.endswith("." + h) for h in ALLOWED_DOWNLOAD_HOSTS):
+            raise HTTPException(status_code=400, detail=f"Host not allowed: {host}")
+
+    # Fetch concurrente + armado del zip en memoria.
+    buf = io.BytesIO()
+    used_names: set[str] = set()
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for item in req.items:
+                url = item.get("url", "").strip()
+                if not url:
+                    continue
+                fname = item.get("filename", "").strip() or "file"
+                # Resolver colisiones de nombre con sufijo numérico
+                base, dot, ext = fname.rpartition(".")
+                if not base:
+                    base, ext = fname, ""
+                final = fname
+                counter = 2
+                while final in used_names:
+                    final = f"{base}_{counter}.{ext}" if ext else f"{base}_{counter}"
+                    counter += 1
+                used_names.add(final)
+
+                try:
+                    resp = await client.get(url)
+                    if resp.status_code == 200:
+                        zf.writestr(final, resp.content)
+                except Exception as e:
+                    print(f"[download_zip] failed {url}: {e}")
+                    continue
+
+    buf.seek(0)
+    zip_name = (req.zipName or "download").replace("/", "_").replace("\\", "_") + ".zip"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{zip_name}"'},
+    )
 
 
 @app.get("/api/download")

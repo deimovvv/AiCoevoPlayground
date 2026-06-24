@@ -7,7 +7,7 @@
 import type { StepHandler } from "../types";
 import { generateToolPrompt, createImageEdit, pollImageGen, matchDetectedAssets, type DetectedAssets } from "../../lib/api";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://127.0.0.1:8000";
 
 // ── Analyze — download + extract frames + Gemini Vision ──
 

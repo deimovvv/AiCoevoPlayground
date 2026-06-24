@@ -376,13 +376,6 @@
     "portalToken": "pt_da26167367c2"
   },
   {
-    "id": "cocucci",
-    "name": "Cocucci",
-    "brandContext": "",
-    "avatars": [],
-    "voicePresets": []
-  },
-  {
     "id": "oxidian",
     "name": "Oxidian",
     "brandContext": "# OXIDIAN — Brand System v0.2\nÚltima actualización: Abril 2026\nCustodios: Gonzalo Cortez, Keyla Herrera\nDocumento vivo. Esqueleto inicial para alimentar progresivamente.\n\n---\n\n## 1. Qué es OXIDIAN\n\nMarca de ropa con ambición conceptual. La indumentaria es el núcleo del negocio, pero el universo se expande hacia arte, música, tecnología y audiovisual.\nNo es moda con narrativa decorativa — la narrativa y la materialidad están al mismo nivel que el producto.\nHoy opera como tienda online D2C en Buenos Aires (oxidiaan.com, @oxidian_) con ropa urbana, prints, piezas únicas recicladas y carteras. Está madurando conceptualmente y tiene como horizonte incorporar biomateriales como dirección material y filosófica.\n\n\n---\n\n## 2. Tensión central\n\n**Orgánico vs artificial.**\n\nEsa tensión organiza todas las decisiones — visuales, narrativas, materiales, tecnológicas. No se resuelve, se habita.\n\nLa dualidad ya está en el producto antes que en el discurso: piezas únicas con telas recicladas y tintes naturales conviven con producción en serie.\n\n---\n\n## 3. Audiencia\n\nCreativos urbanos, 22–40. Consumen arte conceptual, valoran narrativa de marca, buscan piezas con historia. Sensibles a sustentabilidad real (no aspiracional). No son público de fast fashion ni de hype puro.\n\n### Geografía\n- Eje principal: Buenos Aires, Ciudad de México\n- Puente europeo: Barcelona, Berlín\n\n### Comportamiento\nConsumen cine de culto, libros, plataformas visuales (IG, Pinterest). No es audiencia tradicional de moda. Buscan statement pieces — prendas que sean expresión personal y cultural, no solo ropa.\n\n---\n\n## 4. Universo de referencias\n\n- **Butoh** — el cuerpo como territorio de transformación\n- **Estructuras disipativas** — orden que emerge del caos\n- **Campos mórficos** — formas que se propagan sin contacto\n- **Ecosistemas** — interdependencia, no jerarquía\n- **Formas orgánicas** — geometría no euclidiana\n\n---\n\n## 5. Voz\n\n- Conceptual pero accesible (nunca hermético elitista)\n- Voseo argentino natural\n- Narrativa antes que producto, pero el producto siempre tangible\n- Humor sutil cuando aparece, nunca forzado\n- Sustentabilidad con datos, no aspiracional\n\n---\n\n## 6. Ritmo audiovisual\n\nFragmentado, experimental, visceral.\n\n- Montaje con cortes bruscos\n- Alterna velocidad e interrupción — momentos lentos y detallistas que se quiebran con cortes rápidos, glitches, ruidos\n- Silencios y pausas como recurso\n- Estética de archivo / backstage / error digital integrada al discurso\n\n---\n\n## 7. Qué NO somos\n\n- Estética AI genérica (degradados pastel, ojos brillantes, simetrías obvias)\n- Clichés ciberpunk/distópicos\n- Lenguaje comercial mainstream (\"¡Comprá ahora!\", urgencia falsa)\n- Greenwashing\n- Marca de hype (\"drop fire\", \"must-have\")\n- Tono profesional/aspiracional/elegante de moda tradicional\n\n---\n\n## 8. Producto\n\n### Hoy — dos lógicas distintas\n\n**Piezas únicas**\nTelas recicladas y tintes naturales. Lógica de pieza con narrativa. Statement pieces. Cada una con peso conceptual propio.\n\n**Serie**\nProducción en serie. Hoy no sustentable. Lógica de catálogo recurrente.\n\n### Categorías activas\nRemeras, tops, buzos/abrigos, pantalones, shorts, faldas, carteras.\n\n---\n\n## 9. Horizonte\n\nBiomateriales como dirección posible. Pendiente definir si es evolución de la marca o línea aparte. Decisión a tomar en chat de Strategy Partner.\n\n---\n\n## 10. Founders\n\n- **Keyla Herrera** — co-founder\n- **Gonzalo Cortez** — co-founder\n\nDivisión 50/50 con áreas distintas (a definir explícitamente en Strategy).\n\n---\n\n## 11. Stack creativo\n\n- Imagen generativa: Flux, Nano Banana\n- Modelos digitales: Morph AI (personajes recurrentes del universo)\n- Tienda: WordPress + WooCommerce\n- IG: @oxidian_\n\n---\n\n## Pendientes de definir\n*(a trabajar en chats correspondientes)*\n\n- Positioning statement preciso → Strategy Partner\n- División de roles entre Keyla y Gonzalo → Strategy Partner\n- Pricing philosophy y floors → Strategy Partner\n- Decisión sobre biomateriales: evolución vs línea aparte → Strategy Partner\n- Design System (paleta, tipografías, principios visuales) → Brand & Visual\n- Personas de Morph AI → Brand & Visual\n- Drop system / calendario editorial → Strategy + Content\n- Palabras permitidas/prohibidas específicas y curadas → Brand & Visual\n- Si la dimensión audiovisual/música crece a producción real → Strategy Partner\n\n---\n\n## Changelog\n\n**v0.1 — Abril 2026**\nVersión inicial. Esqueleto base con identidad, audiencia, voz, referencias.\n\n**v0.2 — Abril 2026**\n- Sumado framing de \"proyecto conceptual\" (vs marca de ropa con narrativa)\n- Sumada geografía precisa (BA, CDMX, Barcelona, Berlín)\n- Sumado bloque de ritmo audiovisual\n- Sumada doble lógica de producto (piezas únicas vs serie)\n- Sumadas palabras prohibidas adicionales (status, elegante, vanguardia, referente, tendencia)\n\n\n",
@@ -511,159 +504,6 @@
       "product_presentation": "El producto se presenta como una \"statement piece\" con narrativa y peso conceptual, integrado en contextos que resaltan su historia y materialidad. Se priorizan los detalles y cómo interactúa con el cuerpo y el entorno, más allá de un \"hero shot\" de catálogo.",
       "motion_rules": "Un ritmo audiovisual fragmentado, experimental y visceral, con cortes bruscos. Alterna momentos lentos y detallistas con interrupciones rápidas, glitches y ruidos. Usá silencios y pausas como recurso, integrando una estética de archivo o \"error digital\", y podés usar cámara en mano."
     }
-  },
-  {
-    "id": "personal",
-    "name": "Personal",
-    "brandContext": "[Source: https://tienda.personal.com.ar]\nTienda Personal: las Mejores Ofertas en Tecnología\nIndividuos\n|\nPymes\n|\nGrandes Empresas\n|\nInstitucional\n|\nMóvil\nFibra\nFlow\nPay\nTienda\nSmarthome\nAyuda\nTienda\nCelulares\nTelevisores\nTablets\nSmartwatches\nAuriculares\nHogar Conectado\nAccesorios para celulares\nParlantes\nSmartbands\nClimatización\nAccesorios para TV\nMonitores\nNotebooks\nPequeños Electrodomésticos\nIluminación\nHeladeras\nLavado\nPeriféricos PC\nGaming\nMicrófonos\nCocina\nIr a Market\nEl Market que necesitás\nMás productos, nuevas categorías\nAprovechá las ofertas\nde Tecno Week\n20% dto. extra Conexión Total\nEnvío gratis en seleccionados\nDesde el 01/04/26 al 12/04/26 - Más info en Legales\nElegí TCL\n10% dto. extra Conexión Total\nEnvío gratis en seleccionados\nMás opciones, más Personal\nSumamos retiro en punto de entrega.\n¡Elegí dónde y cuándo retirar tu compra!\n¡Electro en oferta!\nEnvíos a todo el país\nDesde el 19/03/26 al 30/04/26 - Más info en Legales\nPagá con Personal Pay\ny ahorrá más\nSamsung Galaxy S\nen la tienda\nPagá en cuotas y llevate\nlos Buds4 Pro de regalo\nEl Market que necesitás\nMás productos, nuevas categorías\nAprovechá las ofertas\nde Tecno Week\n20% dto. extra Conexión Total\nEnvío gratis en seleccionados\nDesde el 01/04/26 al 12/04/26 - Más info en Legales\nLos más buscados en la tienda de Personal\nEnvío gratis\nSamsung Galaxy A06 64 GB\n$331.999\n27\n% OFF\n$239.999\nConexión Total\n$215.999\n*\nHasta 9 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$178.512\nIncluye accesorios\nMotorola Moto E15 64 GB\n$268.999\n51\n% OFF\n$129.999\nConexión Total\n$116.999\n*\nPrecio exclusivo\nAbonando en 1 pago\n*\nPrecio sin impto.\n$96.694\nEnvío gratis\nSamsung Galaxy A16 128 GB\n$516.999\n32\n% OFF\n$349.999\nConexión Total\n$314.999\n*\nHasta 6 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$260.330\nEnvío gratis\nSamsung Galaxy S25 FE 256 GB\n$1.799.999\n22\n% OFF\n$1.399.999\nPrecio exclusivo\nAbonando en 1 pago\nPrecio sin impto.\n$1.157.024\nEnvío gratis\nSamsung Galaxy A26 5G 256 GB\n$799.999\n25\n% OFF\n$599.999\nConexión Total\n$539.999\n*\nHasta 6 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$446.281\nIncluye accesorio\nEnvío gratis\niPhone 14 256 GB + Cable USB-C Lightning 2mts\n$1.599.999\n31\n% OFF\n$1.099.999\nPrecio exclusivo\nAbonando en 1 pago\nPrecio sin impto.\n$909.091\nLanzamiento\nEnvío gratis\nSamsung Galaxy S26 512 GB\n$2.699.999\n18\n% OFF\n$2.189.999\nConexión Total\n$1.751.999\n*\nPrecio exclusivo\nAbonando en 1 pago\n*\nPrecio sin impto.\n$1.447.934\nLavasecarropas Samsung Bespoke AI 22 Kg\n$6.699.999\n25\n% OFF\n$4.999.999\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\nPrecio sin impto.\n$4.524.886\nIncluye accesorios\nEnvío gratis\nMotorola Edge 60 Fusion 256 GB\n$806.999\n13\n% OFF\n$699.999\nConexión Total\n$629.999\n*\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$520.661\nFreidora de Aire Midea 2 zonas 11L\n$389.999\n28\n% OFF\n$279.999\nConexión Total\n$265.999\n*\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$219.834\nGarantia extendida\nEnvío gratis\nSamsung Galaxy A56 5G 256 GB\n$1.199.999\n17\n% OFF\n$986.999\nConexión Total\n$888.299\n*\nPrecio exclusivo\nAbonando en 1 pago\n*\nPrecio sin impto.\n$734.132\nLanzamiento\nIncluye accesorios\nEnvío gratis\nMotorola Edge 70 512 GB\n$1.299.999\nConexión Total\n$1.170.000\n*\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$966.942\nEnvío gratis\nSamsung Galaxy A06 64 GB\n$331.999\n27\n% OFF\n$239.999\nConexión Total\n$215.999\n*\nHasta 9 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$178.512\nIncluye accesorios\nMotorola Moto E15 64 GB\n$268.999\n51\n% OFF\n$129.999\nConexión Total\n$116.999\n*\nPrecio exclusivo\nAbonando en 1 pago\n*\nPrecio sin impto.\n$96.694\nEnvío gratis\nSamsung Galaxy A16 128 GB\n$516.999\n32\n% OFF\n$349.999\nConexión Total\n$314.999\n*\nHasta 6 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$260.330\nEnvío gratis\nSamsung Galaxy S25 FE 256 GB\n$1.799.999\n22\n% OFF\n$1.399.999\nPrecio exclusivo\nAbonando en 1 pago\nPrecio sin impto.\n$1.157.024\nEnvío gratis\nSamsung Galaxy A26 5G 256 GB\n$799.999\n25\n% OFF\n$599.999\nConexión Total\n$539.999\n*\nHasta 6 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$446.281\nIncluye accesorio\nEnvío gratis\niPhone 14 256 GB + Cable USB-C Lightning 2mts\n$1.599.999\n31\n% OFF\n$1.099.999\nPrecio exclusivo\nAbonando en 1 pago\nPrecio sin impto.\n$909.091\nLanzamiento\nEnvío gratis\nSamsung Galaxy S26 512 GB\n$2.699.999\n18\n% OFF\n$2.189.999\nConexión Total\n$1.751.999\n*\nPrecio exclusivo\nAbonando en 1 pago\n*\nPrecio sin impto.\n$1.447.934\nLavasecarropas Samsung Bespoke AI 22 Kg\n$6.699.999\n25\n% OFF\n$4.999.999\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\nPrecio sin impto.\n$4.524.886\nIncluye accesorios\nEnvío gratis\nMotorola Edge 60 Fusion 256 GB\n$806.999\n13\n% OFF\n$699.999\nConexión Total\n$629.999\n*\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$520.661\nFreidora de Aire Midea 2 zonas 11L\n$389.999\n28\n% OFF\n$279.999\nConexión Total\n$265.999\n*\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$219.834\nGarantia extendida\nEnvío gratis\nSamsung Galaxy A56 5G 256 GB\n$1.199.999\n17\n% OFF\n$986.999\nConexión Total\n$888.299\n*\nPrecio exclusivo\nAbonando en 1 pago\n*\nPrecio sin impto.\n$734.132\nLanzamiento\nIncluye accesorios\nEnvío gratis\nMotorola Edge 70 512 GB\n$1.299.999\nConexión Total\n$1.170.000\n*\nHasta 12 cuotas s/int.\ncon tarjetas de crédito\n*\nPrecio sin impto.\n$966.942\n‌\n‌\n‌\nComprá y pagá en cuotas con tu factura de\nPersonal\nPagá con\nPersonal Pay\nen 1 pago y te reintegramos hasta $45.000\nCómo pagar tu compra: cuotas y condiciones\nProductos destacados\nSmart TV 55\" TCL QLED C655\n$1.144.999\n30\n% OFF\n$799.999\nConexión Total\n$759.999\n*\n*\nPrecio sin impto.\n$628.099\n¡Lo quiero!\nMotorola Edge 50 Fusion 256 GB\nEnvío gratis\n$962.999\n28\n% OFF\n$685.999\nConexión Total\n$617.399\n*\n*\nPrecio sin impto.\n$510.248\n¡Lo quiero!\nNubia Music 2 128 GB\n$289.999\n33\n% OFF\n$192.999\nConexión Total\n$173.699\n*\n*\nPrecio sin impto.\n$143.553\n¡Lo quiero!\nXiaomi Redmi Note 14 Pro 256 GB\nEnvío gratis\n2\ncolores\n$775.999\n11\n% OFF\n$689.999\nConexión Total\n$620.999\n*\n*\nPrecio sin impto.\n$513.223\n¡Lo quiero!\nCargador Motorola 125W + Cable Tipo C 2 mts\n$119.999\n30\n% OFF\n$83.999\nPrecio sin impto.\n$69.421\n¡Lo quiero!\nKit x2 Cámaras WiFi 360 Personal Smarthome\n$200.000\n30\n% OFF\n$139.999\nConexión Total\n$125.999\n*\n*\nPrecio sin impto.\n$104.132\n¡Lo quiero!\nTCL 605 256 GB\nEnvío gratis\n$289.999\n13\n% OFF\n$249.999\nConexión Total\n$224.999\n*\n*\nPrecio sin impto.\n$185.950\n¡Lo quiero!\nHONOR X5c Plus 256 GB\nEnvío gratis\n$366.499\n16\n% OFF\n$306.999\nConexión Total\n$276.299\n*\n*\nPrecio sin impto.\n$210.118\n¡Lo quiero!\nSmart TV 65\" Samsung UHD 4K DU7000\n$1.664.499\n21\n% OFF\n$1.299.999\nPrecio sin impto.\n$1.074.380\n¡Lo quiero!\nLavasecarropas Samsung Bespoke AI 22 Kg\n$6.699.999\n25\n% OFF\n$4.999.999\nPrecio sin impto.\n$4.524.886\n¡Lo quiero!\nSamsung Galaxy S25 FE 256 GB\nEnvío gratis\n3\ncolores\n$1.799.999\n22\n% OFF\n$1.399.999\nPrecio sin impto.\n$1.157.024\n¡Lo quiero!\nAuriculares Apple Airpods 2da Generación\n$359.999\n50\n% OFF\n$179.999\nPrecio sin impto.\n$148.760\n¡Lo quiero!\nParlante Bluetooth Foxbox Nyxia 60\n2\ncolores\n$181.999\n20\n% OFF\n$144.999\nConexión Total\n$137.749\n*\n*\nPrecio sin impto.\n$113.843\n¡Lo quiero!\nCargador Inalámbrico Hune Hoja 10W\n$32.399\n13\n% OFF\n$27.999\nConexión Total\n$26.599\n*\n*\nPrecio sin impto.\n$21.983\n¡Lo quiero!\nSmart TV 55\" TCL QLED C655\n$1.144.999\n30\n% OFF\n$799.999\nConexión Total\n$759.999\n*\n*\nPrecio sin impto.\n$628.099\n¡Lo quiero!\nMotorola Edge 50 Fusion 256 GB\nEnvío gratis\n$962.999\n28\n% OFF\n$685.999\nConexión Total\n$617.399\n*\n*\nPrecio sin impto.\n$510.248\n¡Lo quiero!\nNubia Music 2 128 GB\n$289.999\n33\n% OFF\n$192.999\nConexión Total\n$173.699\n*\n*\nPrecio sin impto.\n$143.553\n¡Lo quiero!\nXiaomi Redmi Note 14 Pro 256 GB\nEnvío gratis\n2\ncolores\n$775.999\n11\n% OFF\n$689.999\nConexión Total\n$620.999\n*\n*\nPrecio sin impto.\n$513.223\n¡Lo quiero!\nCargador Motorola 125W + Cable Tipo C 2 mts\n$119.999\n30\n% OFF\n$83.999\nPrecio sin impto.\n$69.421\n¡Lo quiero!\nKit x2 Cámaras WiFi 360 Personal Smarthome\n$200.000\n30\n% OFF\n$139.999\nConexión Total\n$125.999\n*\n*\nPrecio sin impto.\n$104.132\n¡Lo quiero!\nTCL 605",
-    "avatars": [
-      {
-        "id": "a202c7bd",
-        "name": "MODELO IA GTSS (1)",
-        "description": "This is a young adult Caucasian female with a tall, very slender build and fair skin. She has long, wavy light brown hair styled with a full, wispy fringe that frames her oval-shaped face. Her facial features include prominent cheekbones and full lips.",
-        "filename": "personal_a202c7bd.png",
-        "imageUrl": "/static/avatars/personal_a202c7bd.png",
-        "talkingPhotoId": null,
-        "heygenStatus": "failed",
-        "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
-      },
-      {
-        "id": "4cc88aa5",
-        "name": "Sofia",
-        "description": "Sofia is a female in her late 20s to early 30s, with an olive skin tone and appears to be of Latina or Mediterranean ethnicity. Her dark brown, curly hair is pulled up into a messy high bun. She has an oval-shaped face, prominent dark eyebrows, brown eyes, and a small mole on her right cheek. She has a slender build.",
-        "filename": "personal_4cc88aa5.png",
-        "imageUrl": "/static/avatars/personal_4cc88aa5.png",
-        "talkingPhotoId": null,
-        "heygenStatus": "skipped"
-      }
-    ],
-    "voicePresets": [
-      {
-        "id": "Hm2MNjeuDOMexjsviA4M",
-        "name": "Sofia"
-      },
-      {
-        "id": "o4gFIovn5dQhpIJWNFrQ",
-        "name": "Tatiana 02"
-      }
-    ],
-    "dna": {
-      "brand_name": "Tienda Personal",
-      "parent_company_ecosystem": "Personal (telecommunications and financial services)",
-      "brand_mission_purpose": "To be the essential online market ('El Market que necesitás') providing the best offers in technology and home goods, making a wide array of products accessible, convenient, and affordable for individuals and businesses within the Personal ecosystem.",
-      "target_audience": [
-        "Individuals (Individuos)",
-        "Small and Medium Enterprises (Pymes)",
-        "Large Corporations (Grandes Empresas)",
-        "Institutional Clients (Institucional)"
-      ],
-      "core_values": [
-        "Value",
-        "Accessibility",
-        "Convenience",
-        "Innovation",
-        "Completeness",
-        "Affordability"
-      ],
-      "key_differentiators": [
-        "Extensive and frequently updated offers, promotions, and exclusive discounts (e.g., 'Tecno Week', 'Conexión Total')",
-        "Flexible payment options including interest-free installments and additional savings with 'Personal Pay'",
-        "Diverse fulfillment options including nationwide shipping, free shipping on selected items, and in-store pickup points",
-        "Broad product catalog spanning various technology and home categories ('Más productos, nuevas categorías')",
-        "Integration with the broader Personal ecosystem, offering synergistic benefits for existing customers"
-      ],
-      "product_service_portfolio": {
-        "mobile_devices": [
-          "Celulares",
-          "Smartwatches",
-          "Tablets",
-          "Smartbands",
-          "Accesorios para celulares"
-        ],
-        "home_entertainment_electronics": [
-          "Televisores",
-          "Monitores",
-          "Notebooks",
-          "Auriculares",
-          "Parlantes",
-          "Micrófonos",
-          "Periféricos PC",
-          "Gaming",
-          "Accesorios para TV"
-        ],
-        "smart_home_appliances": [
-          "Hogar Conectado",
-          "Smarthome",
-          "Climatización",
-          "Iluminación",
-          "Heladeras",
-          "Lavado",
-          "Pequeños Electrodomésticos",
-          "Cocina (e.g., Freidora de Aire)",
-          "Lavasecarropas"
-        ],
-        "services": [
-          "Online shopping platform",
-          "Nationwide delivery services",
-          "Pickup points",
-          "Flexible financing options"
-        ]
-      },
-      "brand_personality": [
-        "Promotional",
-        "Value-driven",
-        "Modern",
-        "Convenient",
-        "Comprehensive",
-        "Customer-focused"
-      ],
-      "customer_benefits": [
-        "Significant savings through frequent discounts and special offers",
-        "Financial flexibility with various payment methods and interest-free installments",
-        "Convenient shopping experience with multiple delivery/pickup choices",
-        "Access to a wide and updated selection of technology and home products, including new launches",
-        "Exclusive benefits and savings for existing Personal service subscribers ('Conexión Total')",
-        "Added value through bundled accessories, extended warranties, and promotional gifts"
-      ]
-    },
-    "products": [
-      {
-        "id": "1de8f92e",
-        "name": "Samsung Galaxy A06",
-        "description": "This product image displays a modern smartphone, rectangular with rounded corners and a slim profile. The screen features a vibrant gradient wallpaper, transitioning from green at the top to yellow in the middle and blue at the bottom, overlaid with large white \"A06\" text rotated 90 degrees clockwise. A small teardrop notch is visible at the top center of the screen, and the device has a thin black bezel framing the display, with a light grey or silver-colored frame and visible side buttons. The phone is presented vertically, centered against a plain white background, showcasing its front face.",
-        "filename": "personal_prod_1de8f92e.png",
-        "imageUrl": "/static/products/personal_prod_1de8f92e.png",
-        "images": [
-          {
-            "filename": "personal_prod_1de8f92e_5553e7fa.png",
-            "imageUrl": "/static/products/personal_prod_1de8f92e_5553e7fa.png",
-            "label": "Photo 2"
-          },
-          {
-            "filename": "personal_prod_1de8f92e_b16e6327.png",
-            "imageUrl": "/static/products/personal_prod_1de8f92e_b16e6327.png",
-            "label": "Photo 3"
-          }
-        ]
-      },
-      {
-        "id": "47a9d308",
-        "name": "Iphone",
-        "description": "This product is a gold-colored smartphone, specifically an iPhone, featuring a glossy glass back and a matching metal frame. It has a rectangular shape with gently rounded corners and a slim profile. The upper left corner of the back showcases a raised square camera module containing three prominent black camera lenses and a circular flash, while a dark gray Apple logo is centered vertically below it. The device is presented as a clean, standalone product shot, viewed from the back and oriented vertically against a plain white background.",
-        "filename": "personal_prod_47a9d308.png",
-        "imageUrl": "/static/products/personal_prod_47a9d308.png"
-      }
-    ],
-    "backgrounds": [
-      {
-        "id": "54b7330b",
-        "name": "freepik_use-img1-as-lighting-and-_2728330512",
-        "description": "",
-        "tags": [],
-        "filename": "personal_bg_54b7330b.png",
-        "imageUrl": "/static/backgrounds/personal_bg_54b7330b.png"
-      }
-    ]
   },
   {
     "id": "posadas-la-manso",
@@ -827,8 +667,8 @@
       ]
     },
     "logo": {
-      "filename": "coevo_logo.png",
-      "imageUrl": "/static/logos/coevo_logo.png"
+      "filename": "coevo_logo.jpg",
+      "imageUrl": "/static/logos/coevo_logo.jpg"
     },
     "moodboards": [
       {
@@ -1365,7 +1205,8 @@
       ],
       "product_presentation": "El producto se muestra integrado en su contexto de origen o uso, con énfasis en su trazabilidad y materialidad. Se priorizan los detalles que conectan el objeto con su historia y el territorio del que proviene.",
       "motion_rules": "Ritmo pausado y sin urgencia, con planos sostenidos y movimientos de cámara lentos y deliberados (dolly, steadycam o handheld suave). La idea es permitir apreciar los detalles, los procesos y el entorno sin cortes rápidos o dinamismo excesivo."
-    }
+    },
+    "portalToken": "pt_8ddaaa8f282f"
   },
   {
     "id": "koxis",
@@ -1374,20 +1215,10 @@
     "avatars": [
       {
         "id": "5616c021",
-        "name": "WhatsApp Image 2026-05-20 at 12.52.12 (Pose Sheet)",
+        "name": "Pia",
         "description": "This is a female in her late 30s to early 40s with a medium olive skin tone. Her dark brown hair is pulled back tightly from her face, revealing a neat hairline. She has an oval-shaped face with high cheekbones, deep-set dark brown eyes, a straight nose, and naturally arched, medium-thick eyebrows. Her lips are medium full, and she appears to have a slender build based on her visible neck and shoulders.",
         "filename": "koxis_5616c021.png",
         "imageUrl": "/static/avatars/koxis_5616c021.png",
-        "talkingPhotoId": null,
-        "heygenStatus": "failed",
-        "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
-      },
-      {
-        "id": "c0275d0b",
-        "name": "A (Pose Sheet)",
-        "description": "This is a Caucasian female in her early to mid-20s with a slender build. She has long, wavy dirty blonde hair with lighter highlights, styled with a center part and wispy bangs that frame her face. Her oval-shaped face features green eyes, a straight nose, full lips, and prominent freckles scattered across her nose and cheeks. She has a fair skin tone.",
-        "filename": "koxis_c0275d0b.png",
-        "imageUrl": "/static/avatars/koxis_c0275d0b.png",
         "talkingPhotoId": null,
         "heygenStatus": "failed",
         "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
@@ -1401,39 +1232,48 @@
         "talkingPhotoId": null,
         "heygenStatus": "failed",
         "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
+      },
+      {
+        "id": "e1d7c420",
+        "name": "Sofia",
+        "description": "This is a young adult female, likely in her early to mid-20s, of Mediterranean or Middle Eastern descent, with a light to medium olive skin tone. She has long, dark brown, wavy hair styled with a center part, reaching past her shoulders. Her oval-shaped face features large, almond-shaped light green eyes, thick dark eyebrows, a prominent nose, and full lips. She has a slender build.",
+        "filename": "koxis_e1d7c420.png",
+        "imageUrl": "/static/avatars/koxis_e1d7c420.png",
+        "talkingPhotoId": null,
+        "heygenStatus": "skipped"
+      },
+      {
+        "id": "230840c8",
+        "name": "Isabella",
+        "description": "This is a Caucasian female in her late 20s to early 30s with fair, warm-toned skin. She has long, wavy light brown hair with subtle blonde highlights, styled with a natural center part. Her oval-shaped face features prominent cheekbones, large hazel eyes, a delicate nose, and full lips. She has natural, medium-thick light brown eyebrows.",
+        "filename": "koxis_230840c8.png",
+        "imageUrl": "/static/avatars/koxis_230840c8.png",
+        "talkingPhotoId": null,
+        "heygenStatus": "failed",
+        "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
+      },
+      {
+        "id": "18d6bbee",
+        "name": "magnific__a-highresolution-photorealistic-mediumcloseup-port__37582 (1)",
+        "description": "This is a young adult Caucasian female with a fair skin tone. She has long, wavy, light brown hair with subtle blonde highlights, parted down the middle. Her face is oval-shaped, featuring almond-shaped hazel eyes, naturally arched medium eyebrows, a straight nose, and medium full lips. She appears to have a slender build.",
+        "filename": "koxis_18d6bbee.png",
+        "imageUrl": "/static/avatars/koxis_18d6bbee.png",
+        "talkingPhotoId": null,
+        "heygenStatus": "failed",
+        "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
+      },
+      {
+        "id": "2337a87a",
+        "name": "Pia 2",
+        "description": "Pia 2 is a woman in her late 30s to early 40s, with a medium olive skin tone and subtle sun spots. Her dark brown hair is pulled back tightly from her face into a sleek, low bun. She has an oval face with defined cheekbones, brown eyes, and thin lips, with fine lines visible around her eyes. She has a slender, lean body type.",
+        "filename": "koxis_2337a87a.png",
+        "imageUrl": "/static/avatars/koxis_2337a87a.png",
+        "talkingPhotoId": null,
+        "heygenStatus": "skipped"
       }
     ],
     "voicePresets": [],
-    "products": [
-      {
-        "id": "9cc61a2a",
-        "name": "jean",
-        "description": "This is a pair of light blue denim jeans with a faded wash, displaying the characteristic twill texture. They feature a high-waisted, relaxed straight-leg silhouette with a full-length hem. Notable details include a button and zipper fly, belt loops, five-pocket styling with a visible coin pocket, and light brown contrast stitching. The garment is presented hanging on a black plastic hanger against a plain grey door.",
-        "filename": "koxis_prod_9cc61a2a.jpeg",
-        "imageUrl": "/static/products/koxis_prod_9cc61a2a.jpeg"
-      },
-      {
-        "id": "f3da465b",
-        "name": "remera",
-        "description": "This is a light beige or taupe short-sleeved t-shirt, likely made of cotton, exhibiting a smooth texture with subtle creasing. It features a crew neck, raglan-style cap sleeves, and a relaxed, straight-fit silhouette with a visible double-stitched hem. The front displays a black graphic print with the prominent text \"ASK THE ANGELS\" and \"1976-PS\", accompanied by smaller script text and scattered small stars. The garment is presented hanging flat on a black plastic hanger against a plain white background.",
-        "filename": "koxis_prod_f3da465b.jpeg",
-        "imageUrl": "/static/products/koxis_prod_f3da465b.jpeg"
-      },
-      {
-        "id": "8414542b",
-        "name": "JeanKoxis",
-        "description": "This product is a pair of women's denim jeans in a medium, slightly desaturated blue with a faded, vintage wash and subtle whiskering on the thighs. They feature a high-waisted, straight-leg silhouette, fitted through the hips and thighs with a very subtle bootcut flare at the hem, showcasing a visible twill weave texture. Notable details include orange-brown contrast stitching throughout, a silver-toned metal button closure, belt loops, and a classic five-pocket style. The jeans are worn by a person standing upright, paired with a white t-shirt and beige and white sneakers, against a plain white background.",
-        "filename": "koxis_prod_8414542b.png",
-        "imageUrl": "/static/products/koxis_prod_8414542b.png"
-      },
-      {
-        "id": "0e668440",
-        "name": "CRISANTEMO",
-        "description": "A female model wears a slim-fit, long-sleeved boat neck top on a white background. The top features a pattern of alternating horizontal stripes: wider bands of a warm, medium-dark reddish-brown (like burnt sienna) and thinner bands of off-white. It is made from a fine-gauge ribbed knit fabric, visible through its subtle vertical texture, and has three small, dark, round buttons on the left shoulder. The top is worn tucked into dark indigo denim jeans, styled with a light beige, medium-gauge ribbed knit sweater tied around her waist, and a small, structured cognac brown leather shoulder bag with white contrast stitching hanging from her right shoulder.",
-        "filename": "koxis_prod_0e668440.png",
-        "imageUrl": "/static/products/koxis_prod_0e668440.png"
-      }
-    ],
+    "products": [],
     "dna": {
       "colors": [
         {
@@ -1557,7 +1397,24 @@
       "product_presentation": "El producto se muestra tanto en fichas de e-commerce con planos detallados y completos, como integrado en contextos de lifestyle, enfatizando su uso real y durabilidad. Se prioriza el calce y la funcionalidad de las prendas en el día a día de la mujer KOXIS.",
       "motion_rules": "El ritmo de los videos es dinámico pero sin ser frenético, combinando planos sostenidos que capturan el mood y la atmósfera, con cortes más ágiles para formatos de redes sociales. Se busca la naturalidad de la cámara en mano para reflejar la vida real, con soundtracks de indie folk argentino."
     },
-    "backgrounds": [],
+    "backgrounds": [
+      {
+        "id": "bb0f29be",
+        "name": "A26I0118-CHOCOLATE (1)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_bg_bb0f29be.jpg",
+        "imageUrl": "/static/backgrounds/koxis_bg_bb0f29be.jpg"
+      },
+      {
+        "id": "5793fd89",
+        "name": "Shaina Mote (2)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_bg_5793fd89.jpg",
+        "imageUrl": "/static/backgrounds/koxis_bg_5793fd89.jpg"
+      }
+    ],
     "clothing": [
       {
         "id": "d84cd62a",
@@ -1598,6 +1455,252 @@
         "tags": [],
         "filename": "koxis_cloth_1be3ca23.png",
         "imageUrl": "/static/clothing/koxis_cloth_1be3ca23.png"
+      },
+      {
+        "id": "2ac4209d",
+        "name": "CAMPERA",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_2ac4209d.webp",
+        "imageUrl": "/static/clothing/koxis_cloth_2ac4209d.webp"
+      },
+      {
+        "id": "b643d59b",
+        "name": "CAMPERA 3",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_b643d59b.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_b643d59b.jpg"
+      },
+      {
+        "id": "0f3dc2c7",
+        "name": "CALZA 2",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_0f3dc2c7.webp",
+        "imageUrl": "/static/clothing/koxis_cloth_0f3dc2c7.webp"
+      },
+      {
+        "id": "7598cbc6",
+        "name": "sweter",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_7598cbc6.png",
+        "imageUrl": "/static/clothing/koxis_cloth_7598cbc6.png"
+      },
+      {
+        "id": "24e3c886",
+        "name": "SWEATER 2",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_24e3c886.webp",
+        "imageUrl": "/static/clothing/koxis_cloth_24e3c886.webp"
+      },
+      {
+        "id": "c02dda45",
+        "name": "Buzo",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_c02dda45.webp",
+        "imageUrl": "/static/clothing/koxis_cloth_c02dda45.webp"
+      },
+      {
+        "id": "5649fb32",
+        "name": "magnific__a-highresolution-photorealistic-mediumcloseup-port__37582 (1",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_5649fb32.png",
+        "imageUrl": "/static/clothing/koxis_cloth_5649fb32.png"
+      },
+      {
+        "id": "694dbbf9",
+        "name": "A26I0043_1793",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_694dbbf9.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_694dbbf9.jpg"
+      },
+      {
+        "id": "b4a8a94c",
+        "name": "A26I0052-BLANCO (3)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_b4a8a94c.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_b4a8a94c.jpg"
+      },
+      {
+        "id": "103e108d",
+        "name": "A26I0118-CHOCOLATE (1)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_103e108d.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_103e108d.jpg"
+      },
+      {
+        "id": "a77bd501",
+        "name": "A26I0310-GRIS (4)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_a77bd501.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_a77bd501.jpg"
+      },
+      {
+        "id": "ca60cb8c",
+        "name": "A26I0150_2568",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_ca60cb8c.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_ca60cb8c.jpg"
+      },
+      {
+        "id": "660c12db",
+        "name": "A26I0224-BLACK GREY (2)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_660c12db.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_660c12db.jpg"
+      },
+      {
+        "id": "26f2a878",
+        "name": "A26I0450-NATURAL (4)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_26f2a878.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_26f2a878.jpg"
+      },
+      {
+        "id": "adb90c76",
+        "name": "A26I0050_923",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_adb90c76.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_adb90c76.jpg"
+      },
+      {
+        "id": "15bb1c1c",
+        "name": "WhatsApp Image 2026-06-11 at 13.30.45 (1)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_15bb1c1c.jpeg",
+        "imageUrl": "/static/clothing/koxis_cloth_15bb1c1c.jpeg"
+      },
+      {
+        "id": "9b82f717",
+        "name": "WhatsApp Image 2026-06-11 at 13.30.45",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_9b82f717.jpeg",
+        "imageUrl": "/static/clothing/koxis_cloth_9b82f717.jpeg"
+      },
+      {
+        "id": "64cbcdcb",
+        "name": "NUEVO 3",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_64cbcdcb.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_64cbcdcb.jpg"
+      },
+      {
+        "id": "157c01c1",
+        "name": "NUEVO 1",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_157c01c1.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_157c01c1.jpg"
+      },
+      {
+        "id": "49d4bc77",
+        "name": "CAMISA A26I0603",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_49d4bc77.HEIC",
+        "imageUrl": "/static/clothing/koxis_cloth_49d4bc77.HEIC"
+      },
+      {
+        "id": "64b7a3b5",
+        "name": "REMERA A27V0001(2)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_64b7a3b5.HEIC",
+        "imageUrl": "/static/clothing/koxis_cloth_64b7a3b5.HEIC"
+      },
+      {
+        "id": "b8dc81ed",
+        "name": "JEAN A27V0257",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_b8dc81ed.HEIC",
+        "imageUrl": "/static/clothing/koxis_cloth_b8dc81ed.HEIC"
+      },
+      {
+        "id": "9d53eeba",
+        "name": "REMERA A27V0115 (1)",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_9d53eeba.HEIC",
+        "imageUrl": "/static/clothing/koxis_cloth_9d53eeba.HEIC"
+      },
+      {
+        "id": "5387fb1e",
+        "name": "REMERA A27V0124",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_5387fb1e.HEIC",
+        "imageUrl": "/static/clothing/koxis_cloth_5387fb1e.HEIC"
+      },
+      {
+        "id": "dc45673d",
+        "name": "CHALECO FDB1836",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_dc45673d.HEIC",
+        "imageUrl": "/static/clothing/koxis_cloth_dc45673d.HEIC"
+      },
+      {
+        "id": "1fbffc01",
+        "name": "PANTALÓN FDB1835",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_1fbffc01.HEIC",
+        "imageUrl": "/static/clothing/koxis_cloth_1fbffc01.HEIC"
+      },
+      {
+        "id": "fd88ae61",
+        "name": "image (7)",
+        "description": "",
+        "tags": [
+          "accessory"
+        ],
+        "filename": "koxis_cloth_fd88ae61.png",
+        "imageUrl": "/static/clothing/koxis_cloth_fd88ae61.png"
+      },
+      {
+        "id": "82553413",
+        "name": "b9b72f1907b2215897e1df313bca1f45",
+        "description": "",
+        "tags": [
+          "accessory"
+        ],
+        "filename": "koxis_cloth_82553413.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_82553413.jpg"
+      },
+      {
+        "id": "b4c1db3f",
+        "name": "b9b72f1907b2215897e1df313bca1f45",
+        "description": "",
+        "tags": [
+          "accessory"
+        ],
+        "filename": "koxis_cloth_b4c1db3f.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_b4c1db3f.jpg"
+      },
+      {
+        "id": "4f38f015",
+        "name": "SHORT A27V0712",
+        "description": "",
+        "tags": [],
+        "filename": "koxis_cloth_4f38f015.jpg",
+        "imageUrl": "/static/clothing/koxis_cloth_4f38f015.jpg"
       }
     ],
     "portalToken": "pt_09a9cdc59e7a",
@@ -1605,7 +1708,7 @@
       {
         "id": "05712209",
         "name": "Lookandfeelkoxis",
-        "description": "",
+        "description": "Color palette: Dominant bright sky blue (~#6090C0), clean white (~#F8F8F8), and deep black (~#101010), with a subtle cool cast; white balance: cool daylight, around 6000K; shadow tint: subtle cool blue; highlight tint: neutral to very slightly cool; contrast: medium-high with deep blacks and bright whites; saturation: medium-high, especially for blues; film/post characteristics: clean, no visible grain, minimal halation, no vignette, punchy and crisp, good dynamic range; overall mood: fresh, vibrant, clear, light, optimistic.",
         "filename": "koxis_lf_05712209.png",
         "imageUrl": "/static/lookandfeel/koxis_lf_05712209.png"
       },
@@ -1622,6 +1725,125 @@
         "description": "",
         "filename": "koxis_lf_ad9e29d0.png",
         "imageUrl": "/static/lookandfeel/koxis_lf_ad9e29d0.png"
+      }
+    ]
+  },
+  {
+    "id": "geely",
+    "name": "Geely",
+    "brandContext": "",
+    "avatars": [],
+    "voicePresets": [],
+    "lookAndFeel": [
+      {
+        "id": "7acc2af0",
+        "name": "LookAndFeel-Minimalismo",
+        "description": "Color palette: cool-neutral, light grays, clean whites, subtle blue/cyan cast, occasional soft pastel gradients; White balance: cool daylight (6800K feel); Shadow tint: subtle cool blue; Highlight tint: clean neutral with soft bloom; Contrast: moderate-high, crisp; Saturation: moderate-slightly desaturated; Film characteristics: clean digital, minimal grain, good dynamic range, refined punchy; Mood: modern, clean, sophisticated, serene.",
+        "filename": "geely_lf_7acc2af0.jpeg",
+        "imageUrl": "/static/lookandfeel/geely_lf_7acc2af0.jpeg"
+      }
+    ],
+    "products": [
+      {
+        "id": "f28967ff",
+        "name": "Geely EX5 Electric SUV (Sheet)",
+        "description": "A modern electric SUV with sleek lines, flush door handles, and a full-width rear LED light bar. Materials: painted metal, tinted glass, rubber, alloy, plastic, LED lighting elements. Colors: pearl white metallic; gloss black; matte black; polished silver; dark grey tint; bright red. Details: full-width rear LED light bar; split front LED headlights; flush door handles; black plastic wheel arch cladding; two-tone black and polished silver alloy wheels; roof rails; GEELY EX5 branding on front and rear; front radar sensor; rear parking sensors.",
+        "filename": "geely_prod_f28967ff.png",
+        "imageUrl": "/static/products/geely_prod_f28967ff.png"
+      },
+      {
+        "id": "f5470909",
+        "name": "Geely EX5 Compact SUV (Sheet)",
+        "description": "The Geely EX5 is a compact SUV featuring a sleek, modern design with smooth body lines and distinctive LED lighting. It includes flush door handles and two-tone alloy wheels. Materials: metal body, glass windows, rubber tires, plastic trim, polished silver metal accents. Colors: charcoal grey ~ #343A40; black; polished silver; white (headlights); red (taillights). Details: distinctive boomerang-shaped LED daytime running lights; flush door handles; two-tone alloy wheels with a star-like spoke pattern; full-width LED light bar across the rear tailgate; silver trim around windows and roof rails; small square Geely logo on front grille and rear tailgate; GEELY EX5 badging on front lower grille and rear tailgate.",
+        "filename": "geely_prod_f5470909.png",
+        "imageUrl": "/static/products/geely_prod_f5470909.png"
+      }
+    ]
+  },
+  {
+    "id": "garzon-garcia",
+    "name": "Garcon Garcia",
+    "brandContext": "",
+    "avatars": [],
+    "voicePresets": [],
+    "clothing": [
+      {
+        "id": "f7beee91",
+        "name": "WhatsApp Image 2026-06-12 at 11.24.52",
+        "description": "",
+        "tags": [],
+        "filename": "garzon-garcia_cloth_f7beee91.jpeg",
+        "imageUrl": "/static/clothing/garzon-garcia_cloth_f7beee91.jpeg"
+      }
+    ]
+  },
+  {
+    "id": "clara-ibarguren",
+    "name": "Clara Ibarguren",
+    "brandContext": "",
+    "avatars": [
+      {
+        "id": "fb08e579",
+        "name": "koxis_on-model-frente-chaleco-fdb1836-pantalon-fdb1835 (1)",
+        "description": "This is a female in her late 20s to early 40s, with a medium olive skin tone and features suggesting East Asian or Mediterranean descent. Her long, dark brown hair is pulled back into a sleek, low bun or ponytail, exposing her ears. She has an oval face with prominent cheekbones, almond-shaped dark brown eyes, a straight nose, and full lips. Her body type is slender and lean.",
+        "filename": "clara-ibarguren_fb08e579.png",
+        "imageUrl": "/static/avatars/clara-ibarguren_fb08e579.png",
+        "talkingPhotoId": null,
+        "heygenStatus": "failed",
+        "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
+      },
+      {
+        "id": "4eef4dbf",
+        "name": "Screenshot 2026-06-01 at 3.45.31 PM",
+        "description": "This is a slender, tall female in her early to mid-20s, appearing Caucasian or Mediterranean, with a medium, slightly tanned skin tone and natural freckles. She has long, wavy, dark brown hair with subtle lighter highlights, parted in the center. Her face is oval-shaped with prominent cheekbones, full lips, dark brown eyes, and natural eyebrows, featuring a small mole on her left cheek.",
+        "filename": "clara-ibarguren_4eef4dbf.png",
+        "imageUrl": "/static/avatars/clara-ibarguren_4eef4dbf.png",
+        "talkingPhotoId": null,
+        "heygenStatus": "failed",
+        "heygenError": "HeyGen asset upload failed (401): {\"code\":400112,\"message\":\"Unauthorized\"}\n"
+      }
+    ],
+    "voicePresets": [],
+    "clothing": [
+      {
+        "id": "8052b0f6",
+        "name": "IMG-20260609-WA0042",
+        "description": "",
+        "tags": [],
+        "filename": "clara-ibarguren_cloth_8052b0f6.jpg",
+        "imageUrl": "/static/clothing/clara-ibarguren_cloth_8052b0f6.jpg"
+      },
+      {
+        "id": "738d7dae",
+        "name": "CLARA 22 ABRIL32711",
+        "description": "",
+        "tags": [],
+        "filename": "clara-ibarguren_cloth_738d7dae.jpg",
+        "imageUrl": "/static/clothing/clara-ibarguren_cloth_738d7dae.jpg"
+      },
+      {
+        "id": "ad406b2c",
+        "name": "IMG-20260611-WA0007",
+        "description": "",
+        "tags": [],
+        "filename": "clara-ibarguren_cloth_ad406b2c.jpg",
+        "imageUrl": "/static/clothing/clara-ibarguren_cloth_ad406b2c.jpg"
+      },
+      {
+        "id": "cafc6cda",
+        "name": "IMG-20260611-WA0017",
+        "description": "",
+        "tags": [],
+        "filename": "clara-ibarguren_cloth_cafc6cda.jpg",
+        "imageUrl": "/static/clothing/clara-ibarguren_cloth_cafc6cda.jpg"
+      },
+      {
+        "id": "11eb9b85",
+        "name": "IMG-20260611-WA0016 (2)",
+        "description": "",
+        "tags": [],
+        "filename": "clara-ibarguren_cloth_11eb9b85.jpg",
+        "imageUrl": "/static/clothing/clara-ibarguren_cloth_11eb9b85.jpg"
       }
     ]
   }

@@ -2,8 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Loader2, Bot, User, AlertCircle, Plus, MessageSquare, Trash2, Clock, ImageIcon, Package, Mic, Wand2, ChevronDown, ChevronLeft, ChevronRight, Mountain, Shirt, Check, X, Paperclip } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useBrand } from "../lib/BrandContext";
-import { sendChatMessage, resolveAgentBrief, transcribeAudio, chatScripts } from "../lib/api";
-import type { ChatMessage, ChatScriptScene } from "../lib/api";
+import { sendChatMessage, resolveAgentBrief, transcribeAudio, chatScripts, chatPrompts } from "../lib/api";
+import type { ChatMessage, ChatScriptScene, ChatPromptCandidate, ChatImage } from "../lib/api";
 import { cn } from "../lib/utils";
 import { ConfigPreviewCard } from "./ConfigPreviewCard";
 
@@ -246,7 +246,11 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
     }
 
     setError(null);
-    const userMessage: ChatMessage = { role: "user", content: text };
+    // Attachments (Files w/ data URLs) carried into the user message as Gemini Vision input.
+    const userImages: ChatImage[] = attachments.map((a) => ({ data: a.dataUrl, mime: a.file.type || "image/jpeg" }));
+    const userMessage: ChatMessage = userImages.length
+      ? { role: "user", content: text, images: userImages }
+      : { role: "user", content: text };
 
     // Update session with user message
     setSessions((prev) =>
@@ -302,12 +306,40 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
       // Scriptwriter intent: explicit script request, OR a follow-up while already in a
       // scripting thread (last assistant message was a script → "más corto" etc. iterate it).
       const lower = text.toLowerCase();
-      const lastAssistantScript = [...(currentSession?.messages || [])].reverse()
-        .find((m) => m.role === "assistant")?.meta?.kind === "script";
-      const wantsScript =
+      const lastAssistantKind = [...(currentSession?.messages || [])].reverse()
+        .find((m) => m.role === "assistant")?.meta?.kind;
+      const lastAssistantScript = lastAssistantKind === "script";
+      const lastAssistantPrompts = lastAssistantKind === "prompts";
+
+      // Prompt brainstorm intent: explicit "armame/dame/sugerime prompts" OR refinement on a
+      // prompts thread ("más oscuro", "otro vibe"). Drives the Copiloto-in-Lab panel cards.
+      const promptVerb = /\b(arm[aá]me|sugerime|sugier|dame|gener[aá]|necesito|quiero|hace?me|haceme|opciones|alternativas|ideas)\b/.test(lower);
+      const promptNoun = /\bpro?mpt(s|eo)?\b/i.test(text);
+      const wantsPrompts = (promptVerb && promptNoun) || lastAssistantPrompts;
+
+      const wantsScript = !wantsPrompts && (
         /\b(gui[oó]n|guion|script|guiones)\b/.test(lower) ||
         (/\b(ugc|reel|video|tiktok|tik tok)\b/.test(lower) && /\b(escrib|tirame|tira|dame|generame|gener|armame|arma|hac[eé]|idea|ideas|gancho|hook)\b/.test(lower)) ||
-        lastAssistantScript;
+        lastAssistantScript
+      );
+
+      if (wantsPrompts) {
+        const { reply, prompts } = await chatPrompts(activeBrand.id, allMessages);
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id !== sessionId) return s;
+            // Snapshot the user's attached images on the assistant message so the bubble's
+            // "incluir imágenes como refs" checkbox can carry them over to the Lab.
+            const snapshot = userImages.length ? { userImages } : {};
+            return {
+              ...s,
+              messages: [...s.messages, { role: "assistant", content: reply, meta: { kind: "prompts", prompts, ...snapshot } }],
+              updatedAt: new Date().toISOString(),
+            };
+          })
+        );
+        return;
+      }
 
       if (wantsScript) {
         const { reply, scenes } = await chatScripts(activeBrand.id, allMessages);
@@ -672,7 +704,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
                       )}
                     >
                       {a.imageUrl ? (
-                        <img src={a.imageUrl.startsWith("http") ? a.imageUrl : `http://localhost:8000${a.imageUrl}`} alt={a.name} className="w-7 h-7 object-cover rounded-sm shrink-0" />
+                        <img src={a.imageUrl.startsWith("http") ? a.imageUrl : `http://127.0.0.1:8000${a.imageUrl}`} alt={a.name} className="w-7 h-7 object-cover rounded-sm shrink-0" />
                       ) : (
                         <div className="w-7 h-7 bg-surface-2 rounded-sm shrink-0" />
                       )}
@@ -767,7 +799,8 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
 
-      {/* Chat history sidebar */}
+      {/* Chat history sidebar (hidden in compact / inside the Lab side panel) */}
+      {!compact && (
       <div className="w-64 border-l border-edge bg-surface-0 flex flex-col shrink-0 hidden lg:flex">
         <div className="px-4 py-3 border-b border-edge flex items-center justify-between">
           <h2 className="text-[13px] font-semibold text-fg">Chats</h2>
@@ -819,6 +852,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -909,6 +943,7 @@ function MessageBubble({ message, selections, userQuestion, attachments, previou
   const isUser = message.role === "user";
   const isIgReplicate = message.meta?.kind === "ig_replicate";
   const isScript = message.meta?.kind === "script";
+  const isPrompts = message.meta?.kind === "prompts";
 
   return (
     <div className={cn("flex items-start gap-3 py-4", isUser && "flex-row-reverse")}>
@@ -937,7 +972,10 @@ function MessageBubble({ message, selections, userQuestion, attachments, previou
         {!isUser && isScript && message.meta?.kind === "script" && (
           <ScriptBubble scenes={message.meta.scenes} selections={selections} />
         )}
-        {!isUser && !isIgReplicate && !isScript && <CreateWithThis content={message.content} userQuestion={userQuestion} selections={selections} attachments={attachments} previousResolved={previousResolved} onResolved={onResolved} />}
+        {!isUser && isPrompts && message.meta?.kind === "prompts" && (
+          <PromptBubble prompts={message.meta.prompts} userImages={message.meta.userImages || []} />
+        )}
+        {!isUser && !isIgReplicate && !isScript && !isPrompts && <CreateWithThis content={message.content} userQuestion={userQuestion} selections={selections} attachments={attachments} previousResolved={previousResolved} onResolved={onResolved} />}
       </div>
     </div>
   );
@@ -983,7 +1021,7 @@ function IgReplicateBubble({ result }: { result: import("../lib/api").InstagramR
       for (const s of result.scraped.slides.slice(0, 10)) {
         if (!s?.url) { slideDataUrls.push(""); continue; }
         try {
-          const fullUrl = s.url.startsWith("http") ? s.url : `http://localhost:8000${s.url}`;
+          const fullUrl = s.url.startsWith("http") ? s.url : `http://127.0.0.1:8000${s.url}`;
           const r = await fetch(fullUrl);
           if (!r.ok) { slideDataUrls.push(""); continue; }
           const blob = await r.blob();
@@ -1053,7 +1091,7 @@ function IgReplicateBubble({ result }: { result: import("../lib/api").InstagramR
       {result.scraped.slides && result.scraped.slides.length > 0 && (
         <div className="grid grid-cols-5 gap-1.5">
           {result.scraped.slides.slice(0, 10).map((s, i) => {
-            const thumbUrl = s.url.startsWith("http") ? s.url : `http://localhost:8000${s.url}`;
+            const thumbUrl = s.url.startsWith("http") ? s.url : `http://127.0.0.1:8000${s.url}`;
             return (
               <div key={i} className="relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge">
                 <img src={thumbUrl} alt={`slide ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -1164,6 +1202,75 @@ function ScriptBubble({ scenes, selections }: { scenes: ChatScriptScene[]; selec
         ))}
       </div>
       <p className="px-3 py-1.5 text-[10px] text-fg-faint border-t border-edge">Pedime cambios ("más corto", "otro hook", "metele b-roll") o tocá <strong>Usar este guion</strong>.</p>
+    </div>
+  );
+}
+
+// ── Prompt bubble: 1-3 image-prompt candidates + "Usar en Lab" → Lab with handoff ──
+
+function PromptBubble({ prompts, userImages }: { prompts: ChatPromptCandidate[]; userImages: ChatImage[] }) {
+  const navigate = useNavigate();
+  const [includeRefs, setIncludeRefs] = useState<Record<number, boolean>>({});
+
+  if (!prompts || prompts.length === 0) return null;
+  const hasImages = userImages.length > 0;
+
+  const useThis = (idx: number) => {
+    const carryRefs = hasImages && !!includeRefs[idx];
+    const payload = {
+      from: "copiloto" as const,
+      kind: "prompt" as const,
+      prompt: prompts[idx].prompt,
+      title: prompts[idx].title,
+      refs: carryRefs ? userImages : [],
+    };
+    sessionStorage.setItem("coevo-lab-prompt-handoff", JSON.stringify(payload));
+    // Fire an event so the Lab (if currently mounted, e.g. when this bubble lives in the
+    // side panel) picks it up without relying on a remount.
+    window.dispatchEvent(new CustomEvent("coevo-lab-handoff"));
+    navigate("/dashboard/lab");
+  };
+
+  return (
+    <div className="mt-2 border border-edge rounded-[var(--radius-md)] bg-surface-1 overflow-hidden">
+      <div className="px-3 py-2 border-b border-edge flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-fg">
+          {prompts.length} {prompts.length === 1 ? "prompt" : "prompts"} candidato{prompts.length === 1 ? "" : "s"}
+        </span>
+        <span className="text-[10px] text-fg-faint">elegí uno y probalo en Lab</span>
+      </div>
+      <div className="divide-y divide-edge">
+        {prompts.map((p, i) => (
+          <div key={i} className="px-3 py-2.5 space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[9px] font-bold text-fg-faint tabular-nums bg-surface-2 border border-edge rounded px-1.5 py-0.5">{i + 1}</span>
+              <span className="text-[11px] font-semibold text-fg">{p.title || `Variante ${i + 1}`}</span>
+            </div>
+            <p className="text-[12px] text-fg leading-snug font-mono whitespace-pre-wrap">{p.prompt}</p>
+            {p.why && <p className="text-[10px] text-fg-faint leading-snug italic">— {p.why}</p>}
+            <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+              {hasImages ? (
+                <label className="flex items-center gap-1.5 text-[10px] text-fg-muted cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!includeRefs[i]}
+                    onChange={(e) => setIncludeRefs((s) => ({ ...s, [i]: e.target.checked }))}
+                    className="cursor-pointer"
+                  />
+                  Incluir {userImages.length} imagen{userImages.length === 1 ? "" : "es"} como refs (image-to-image)
+                </label>
+              ) : <span />}
+              <button
+                onClick={() => useThis(i)}
+                className="flex items-center gap-1.5 px-3 py-1 text-[11px] font-semibold rounded-full bg-[var(--color-action)] text-[var(--color-action-fg)] hover:opacity-90 cursor-pointer shrink-0"
+              >
+                <Wand2 size={11} /> Usar en Lab
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="px-3 py-1.5 text-[10px] text-fg-faint border-t border-edge">Pedime ajustes ("más oscuro", "otro vibe", "más editorial") para una ronda nueva.</p>
     </div>
   );
 }
@@ -1458,7 +1565,7 @@ function AssetsPanel({
             items={(brand.avatars || []).map((a) => ({
               id: a.id,
               name: a.name,
-              imageUrl: a.imageUrl ? `http://localhost:8000${a.imageUrl}` : undefined,
+              imageUrl: a.imageUrl ? `http://127.0.0.1:8000${a.imageUrl}` : undefined,
             }))}
             selected={selections.avatarIds}
             onToggle={toggleAvatar}
@@ -1476,7 +1583,7 @@ function AssetsPanel({
             items={(brand.products || []).map((p) => ({
               id: p.id,
               name: p.name,
-              imageUrl: p.imageUrl ? `http://localhost:8000${p.imageUrl}` : undefined,
+              imageUrl: p.imageUrl ? `http://127.0.0.1:8000${p.imageUrl}` : undefined,
             }))}
             selected={selections.productIds}
             onToggle={toggleProduct}
@@ -1494,7 +1601,7 @@ function AssetsPanel({
             items={(brand.clothing || []).map((c) => ({
               id: c.id,
               name: c.name,
-              imageUrl: c.imageUrl ? `http://localhost:8000${c.imageUrl}` : undefined,
+              imageUrl: c.imageUrl ? `http://127.0.0.1:8000${c.imageUrl}` : undefined,
             }))}
             selected={selections.clothingIds}
             onToggle={toggleClothing}
@@ -1512,7 +1619,7 @@ function AssetsPanel({
             items={(brand.backgrounds || []).map((b) => ({
               id: b.id,
               name: b.name,
-              imageUrl: b.imageUrl ? `http://localhost:8000${b.imageUrl}` : undefined,
+              imageUrl: b.imageUrl ? `http://127.0.0.1:8000${b.imageUrl}` : undefined,
             }))}
             selected={selections.backgroundIds}
             onToggle={toggleBackground}

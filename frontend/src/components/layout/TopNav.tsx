@@ -2,13 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
     LayoutGrid, Wand2, FolderOpen, Settings,
-    ChevronDown, FlaskConical, Loader2, MessageSquare, Moon, Sun,
+    ChevronDown, FlaskConical, Loader2, Moon, Sun,
 } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
 import { useTheme } from "../../lib/theme";
 import { cn } from "../../lib/utils";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://127.0.0.1:8000";
 
 interface NavItem {
     label: string;
@@ -21,7 +21,8 @@ interface NavItem {
 // Brand-flow nav: everything that operates WITH the active brand context.
 const PRIMARY_NAV: NavItem[] = [
     { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={15} />, title: "Gestioná tus marcas y su brand kit" },
-    { label: "Copiloto", href: "/dashboard/chat", exact: true, icon: <MessageSquare size={15} />, title: "Copiloto: charlá, ideá, escribí guiones y 'armame X' con contexto de marca" },
+    // Copiloto: el acceso es el botón flotante dentro del Lab (mismo chat, misma memoria).
+    // La ruta /dashboard/chat sigue viva por URL — solo se sacó del nav para reducir ruido.
     { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={15} />, title: "Tools de generación de contenido para tu marca" },
     { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={15} />, title: "Biblioteca de generaciones" },
     // Performance / Integraciones / Automatizaciones ocultos por ahora (mock). Rutas vivas por URL.
@@ -29,6 +30,9 @@ const PRIMARY_NAV: NavItem[] = [
 
 // Lab lives OUTSIDE the brand flow — a brand-agnostic sandbox. Visually separated.
 const LAB_NAV: NavItem = { label: "Lab", href: "/dashboard/lab", exact: true, icon: <FlaskConical size={15} />, title: "Sandbox SIN marca — Nano Banana + Kling/Seedance directo, para experimentar" };
+
+// Voice Lab está oculto del nav. La ruta /dashboard/voice-lab sigue viva por URL,
+// así se prueba directo sin sumar ruido al nav.
 
 const SETTINGS_NAV: NavItem[] = [
     // Integraciones / Automatizaciones ocultas por ahora (mock). Rutas vivas por URL.
@@ -100,26 +104,33 @@ export function TopNav() {
                 {/* Divider — Lab is outside the brand flow */}
                 <span className="mx-2 h-5 w-px bg-edge" />
 
-                {/* Lab — sandbox sin marca, trato visual distinto (acento lime experimental) */}
+                {/* Lab — el sandbox que ahora corre v2 por default. El pill chico de "v2"
+                    se eliminó porque /dashboard/lab YA es v2. Si alguien necesita el legacy,
+                    el archivo ManualLab.tsx queda en disco — alcanza con re-importarlo y
+                    sumar la ruta. */}
                 {(() => {
-                    const active = isActive(LAB_NAV);
+                    const labActive = isActive(LAB_NAV);
                     return (
                         <Link
                             to={LAB_NAV.href}
                             title={LAB_NAV.title}
                             className={cn(
                                 "flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium rounded-full transition-colors",
-                                active
+                                labActive
                                     ? "text-[var(--color-action-fg)] bg-[var(--color-action)]"
                                     : "text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)]"
                             )}
                         >
-                            <span className={cn(!active && "text-[var(--color-action)]")}>{LAB_NAV.icon}</span>
+                            <span className={cn(!labActive && "text-[var(--color-action)]")}>{LAB_NAV.icon}</span>
                             {LAB_NAV.label}
                             <span className="text-[8px] font-bold uppercase tracking-wider opacity-60">sandbox</span>
                         </Link>
                     );
                 })()}
+
+                {/* Voice Lab oculto del nav (la ruta /dashboard/voice-lab sigue viva por URL).
+                    Patrón análogo al de Performance/Integraciones/Automatizaciones —
+                    se accede directo sin chip cuando se quiere testear. */}
             </nav>
 
             {/* Right side: brand chip + settings */}

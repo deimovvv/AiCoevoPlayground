@@ -213,7 +213,7 @@ export function NewGenerationWizard({
     const handleSuggestObjective = async () => {
         setSuggestingObjective(true);
         try {
-            const res = await fetch(`http://localhost:8000/api/brands/${brandId}/suggest-objective`, {
+            const res = await fetch(`http://127.0.0.1:8000/api/brands/${brandId}/suggest-objective`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ productName: selectedProduct?.name || "", language: "es" }),

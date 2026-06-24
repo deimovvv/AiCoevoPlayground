@@ -1,9 +1,9 @@
 [
   {
     "id": "avatar_creator",
-    "name": "Avatar",
+    "name": "Avatar Sheet",
     "category": "images",
-    "description": "Generate AI avatars tailored to your brand's audience. Choose a style, get a character brief from Gemini, and generate a full reference sheet with body + face angles.",
+    "description": "Generate a multi-view avatar sheet — body, face close-up, 3/4 angle, profile — from a brief or from an existing avatar.",
     "icon": "camera",
     "status": "active",
     "pipeline": [
@@ -11,6 +11,29 @@
       "generate",
       "save"
     ]
+  },
+  {
+    "id": "product_sheet",
+    "name": "Product Sheet",
+    "category": "images",
+    "description": "Take 1-4 photos of a product and generate a clean multi-view sheet (front / 3-4 / back / side / top / hero) or a detail close-ups sheet (texture, logo, label, hardware).",
+    "icon": "package",
+    "status": "active",
+    "pipeline": [
+      "brief",
+      "generate",
+      "save"
+    ]
+  },
+  {
+    "id": "ecommerce_batch",
+    "name": "Ecommerce Batch",
+    "category": "images",
+    "description": "Drop a folder of outfits and a folder of poses, then batch-generate the full catalog: every outfit with canonical poses, plus lifestyle poses for the ones you mark as hero.",
+    "icon": "shirt",
+    "status": "active",
+    "pipeline": ["batch"],
+    "route": "/dashboard/ecommerce-batch"
   },
   {
     "id": "ugc_creator",
@@ -146,6 +169,17 @@
     "category": "images",
     "description": "Ficha de producto e-commerce: una prenda sobre modelo en estudio + vistas de la prenda (frente, espalda, detalle), todas consistentes. Elegís qué tomas generar.",
     "icon": "camera",
+    "status": "active",
+    "pipeline": [
+      "generate_all"
+    ]
+  },
+  {
+    "id": "fashion_editorial",
+    "name": "Fashion Editorial",
+    "category": "images",
+    "description": "Foto editorial de moda (no e-commerce): la modelo con la prenda, look de revista. Elegís encuadre, luz y vibe; escribís el brief en español y Gemini arma el prompt. Genera varias variantes para elegir.",
+    "icon": "sparkles",
     "status": "active",
     "pipeline": [
       "generate_all"

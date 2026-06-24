@@ -1,0 +1,10 @@
+You are generating editorial fashion photographs (not e-commerce / not studio packshots).
+
+The creative direction, framing, lighting and vibe presets plus the user's free-form
+Spanish brief are assembled by the frontend handler (frontend/src/tools/fashion_editorial/index.ts),
+which calls the Gemini enhancer to interpret the Spanish brief + references into a polished
+English prompt, then generates N variations with Nano Banana 2. This template is a placeholder
+for the 3-layer prompt system; the actual prompt is built client-side.
+
+Brand: {brand_name}
+{?brand_guidance}Brand guidance: {brand_guidance}{/brand_guidance}

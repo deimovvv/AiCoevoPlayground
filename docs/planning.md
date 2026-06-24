@@ -61,20 +61,30 @@
 |------|----------|--------|
 | UGC Creator | Video | Active (6-step pipeline) |
 | Video Ad Creator | Video | Active (6-step pipeline) |
-| Fashion Reel | Video | Active (5-step, Story + Looks modes) |
+| Fashion Reel | Video | Active (5-step, Story + Looks-with-multi-shot modes). Looks usa `VIDEO_SHOT_CATALOG` (general/medium/detail/back); cada outfit × cada shot = una escena. |
 | Product Clip | Video | Active |
 | Content Analyzer | Images → Routes | Active |
 | Carousel Creator | Images | Active |
 | Product Spotlight | Images | Active |
-| Avatar Creator | Images | Active |
-| Ecommerce Pack | Images | Active |
+| Avatar Sheet (was "Avatar Creator") | Images | Active (`create` + `poses` modes) |
+| Product Sheet | Images | Active (`sheet` + `details` modes — multi-view from 1-4 photos) |
+| Ecommerce Pack | Images | Active (con multi-foto por prenda: front + back + detail. Priorización smart de refs por tipo de shot) |
+| Fashion Editorial | Images | Active (model + clothing + look&feel recipe → variants) |
+| Ecommerce Batch | Images | **Prototype** — UI ready at `/dashboard/ecommerce-batch`, generation not wired yet |
 | Video Swap | Video | Active |
+| Voice Lab | Experimental | **Hidden from nav** — accessible by URL at `/dashboard/voice-lab` |
 | Static Ad | Images | Degraded — hidden in Generate (files/prompts kept; statics now done in Manual Lab) |
 | Ad Creative Lab | Images | Degraded — hidden in Generate (files/prompts kept; overlaps Static Ad) |
 | Reel Creator | Video | Coming Soon |
 | Background Remover | Images | Coming Soon |
 
-> **Fashion Editorial** was listed here historically but was never implemented (no code in `frontend/src/tools` or `backend/tools`). Removed. For static fashion use Manual Lab; for product-on-model use Ecommerce Pack.
+**Rename history.** `Avatar Creator` → `Avatar Sheet` (display only — id `avatar_creator` kept for backwards compat with persisted generations).
+
+**Fashion Editorial** se construyó en 2026-06 tras estar marcada como "removed" en una versión anterior de este doc. Tiene presets de framing / lighting / vibe y usa Look & Feel en modo receta.
+
+**Voice Lab** (browser STT → Gemini → ElevenLabs → autoplay) se construyó como experimento y se ocultó del nav. Ver `decisions-log.md` 2026-06 para el racional.
+
+**Manual Lab v2 reemplazó a v1** (2026-06). `/dashboard/lab` ahora renderiza `ManualLabV2`. v1 (`ManualLab.tsx`) queda en disco como fallback pero no se importa. v2 introduce: layout split sidebar+galería, refs cuadrados con replace-in-place, **Consistencia** (anchor de identidad por tipo avatar/product), dictation es-AR, drawer derecho overlay, slide horizontal de variantes con acciones por variante en hover, lightbox con navegación. Falta portar de v1: Copiloto, audio refs para Seedance, anchor mode, pipeline suggestion banner, batch "a cada imagen". Ver `decisions-log.md` 2026-06.
 
 ---
 

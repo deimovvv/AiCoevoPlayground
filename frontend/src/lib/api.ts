@@ -1,7 +1,7 @@
 // ── API Client ──────────────────────────────────────────────
 // Centralised helpers for backend communication.
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://127.0.0.1:8000";
 
 // ══════════════════════════════════════════════════════════════
 //  Brand Types & API
@@ -46,6 +46,9 @@ export interface ClothingItem {
     tags?: string[];
     filename: string;
     imageUrl: string;
+    /** Fotos adicionales (típicamente back + detail). Max 2 extras + 1 principal = 3 total.
+     *  Las usa Ecommerce Pack para entender el producto desde múltiples ángulos. */
+    images?: Array<{ filename: string; imageUrl: string; label?: string }>;
 }
 
 export interface BackgroundItem {
@@ -67,6 +70,15 @@ export interface MoodboardItem {
 
 /** Per-brand lighting / color-grade reference. Applied as a relight transfer onto an input image. */
 export interface LookFeelItem {
+    id: string;
+    name: string;
+    description?: string;
+    filename: string;
+    imageUrl: string;
+}
+
+/** A single brand logo variant — brands typically have isotipo + logotipo + dark/light versions. */
+export interface LogoItem {
     id: string;
     name: string;
     description?: string;
@@ -144,7 +156,10 @@ export interface Brand {
     backgrounds?: BackgroundItem[];
     moodboards?: MoodboardItem[];
     lookAndFeel?: LookFeelItem[];
+    /** Legacy single-logo (kept for backwards compat). New uploads go to `logos`. */
     logo?: { filename: string; imageUrl: string };
+    /** Multi-logo array — isotipo, logotipo, dark/light variants, etc. */
+    logos?: LogoItem[];
     fonts?: BrandFonts;
     dna?: BrandDNA;
     designSystem?: DesignSystem;
@@ -166,13 +181,52 @@ export interface ChatScriptsResult {
     scenes: ChatScriptScene[];
 }
 
+export interface ChatImage {
+    /** base64 string OR a full data: URL — backend accepts both. */
+    data: string;
+    mime?: string;
+}
+
+export interface ChatPromptCandidate {
+    title: string;
+    prompt: string;
+    why?: string | null;
+}
+export interface ChatPromptsResult {
+    reply: string;
+    prompts: ChatPromptCandidate[];
+}
+
 export interface ChatMessage {
     role: "user" | "assistant";
     content: string;
+    /** Optional image attachments (vision context for Gemini). */
+    images?: ChatImage[];
     /** Optional structured payload — used for special bubbles like IG replication or scripts. */
     meta?:
         | { kind: "ig_replicate"; result: InstagramReplicationResult }
-        | { kind: "script"; scenes: ChatScriptScene[] };
+        | { kind: "script"; scenes: ChatScriptScene[] }
+        | { kind: "prompts"; prompts: ChatPromptCandidate[]; userImages?: ChatImage[] };
+}
+
+/**
+ * Prompt brainstormer for the Copiloto panel inside the Lab. Returns 1-3 candidates
+ * (model-agnostic English prompts) + a Spanish reply. The Lab adapts each candidate
+ * to text-to-image or image-to-image based on the refs you carry over.
+ */
+export async function chatPrompts(brandId: string, messages: ChatMessage[]): Promise<ChatPromptsResult> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/chat-prompts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            messages: messages.map((m) => ({ role: m.role, content: m.content, images: m.images || [] })),
+        }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Chat prompts failed (${res.status})`);
+    }
+    return res.json();
 }
 
 /**
@@ -190,6 +244,52 @@ export async function chatScripts(brandId: string, messages: ChatMessage[]): Pro
         throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Chat scripts failed (${res.status})`);
     }
     return res.json();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Voice Lab — STT (browser) → Gemini → ElevenLabs → audio reply
+// ══════════════════════════════════════════════════════════════
+
+export interface VoiceTurnMessage {
+    role: "user" | "assistant";
+    content: string;
+}
+
+export interface VoiceTurnResult {
+    reply: string;
+    /** Relative URL (e.g. /static/voice-lab/abc.mp3) — prepend API_BASE to play. */
+    audioUrl: string;
+}
+
+/**
+ * One round-trip of the Voice Lab conversation. The browser transcribes audio (Web
+ * Speech API) and appends the user message; we return the assistant's short reply
+ * plus a synthesized MP3 URL for autoplay.
+ */
+export async function voiceTurn(payload: {
+    brandId: string | null;
+    voiceId?: string | null;
+    messages: VoiceTurnMessage[];
+}): Promise<VoiceTurnResult> {
+    const res = await fetch(`${API_BASE}/api/voice/turn`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            brandId: payload.brandId || null,
+            voiceId: payload.voiceId || null,
+            messages: payload.messages.map((m) => ({ role: m.role, content: m.content })),
+        }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Voice turn failed (${res.status})`);
+    }
+    return res.json();
+}
+
+export function voiceLabAudioUrl(relativeUrl: string): string {
+    if (relativeUrl.startsWith("http")) return relativeUrl;
+    return `${API_BASE}${relativeUrl}`;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -230,10 +330,12 @@ export async function sendChatMessage(
     brandId: string,
     messages: ChatMessage[],
 ): Promise<string> {
+    // Strip non-server fields (meta) before sending and include images so Gemini Vision sees them.
+    const wire = messages.map((m) => ({ role: m.role, content: m.content, images: m.images || [] }));
     const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brandId, messages }),
+        body: JSON.stringify({ brandId, messages: wire }),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Chat request failed" }));
@@ -775,6 +877,32 @@ export async function deleteClothing(brandId: string, itemId: string): Promise<v
     if (!res.ok) throw new Error("Failed to delete clothing item");
 }
 
+/** Suma una foto extra a una prenda. Max 2 extras (3 total con la principal).
+ *  El label típicamente es "Back" o "Detail" — se muestra en la UI y se le pasa al modelo. */
+export async function addClothingImage(brandId: string, itemId: string, imageFile: File, label = ""): Promise<ClothingItem> {
+    const formData = new FormData();
+    formData.append("image", imageFile);
+    formData.append("label", label);
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/clothing/${itemId}/images`, {
+        method: "POST",
+        body: formData,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || "Failed to add clothing image");
+    }
+    return res.json();
+}
+
+/** Borra una foto extra por su índice en item.images[]. La principal no se afecta. */
+export async function deleteClothingImage(brandId: string, itemId: string, imageIdx: number): Promise<ClothingItem> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/clothing/${itemId}/images/${imageIdx}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete clothing image");
+    return res.json();
+}
+
 export function clothingImageUrl(relativeUrl: string): string {
     if (relativeUrl.startsWith("http")) return relativeUrl;
     return `${API_BASE}${relativeUrl}`;
@@ -950,6 +1078,58 @@ export async function describeLookAndFeelUpload(file: File): Promise<{ descripti
 }
 
 export function lookAndFeelImageUrl(relativeUrl: string): string {
+    if (relativeUrl.startsWith("http")) return relativeUrl;
+    return `${API_BASE}${relativeUrl}`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Logos API — multi-logo per brand (isotipo, logotipo, variants)
+// ══════════════════════════════════════════════════════════════
+
+export async function uploadBrandLogo(
+    brandId: string,
+    name: string,
+    imageFile: File,
+): Promise<LogoItem> {
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("image", imageFile);
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/logos`, {
+        method: "POST",
+        body: formData,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Upload failed" }));
+        throw new Error(err.detail || "Upload failed");
+    }
+    return res.json();
+}
+
+export async function updateBrandLogo(
+    brandId: string,
+    logoId: string,
+    patch: { name?: string; description?: string },
+): Promise<LogoItem> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/logos/${logoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || "No se pudo actualizar el logo");
+    }
+    return res.json();
+}
+
+export async function deleteBrandLogo(brandId: string, logoId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/logos/${logoId}`, {
+        method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete logo");
+}
+
+export function brandLogoImageUrl(relativeUrl: string): string {
     if (relativeUrl.startsWith("http")) return relativeUrl;
     return `${API_BASE}${relativeUrl}`;
 }
@@ -1151,8 +1331,11 @@ export async function deleteGeneration(genId: string): Promise<void> {
 }
 
 /** Fetch only Manual Lab (brand-agnostic) generations. */
-export async function fetchManualGenerations(): Promise<Generation[]> {
-    const res = await fetch(`${API_BASE}/api/generations?brandId=__none__`);
+/** Lab generations for a given brand. `brandId` undefined or "__none__" returns
+ *  brand-agnostic ones (Sandbox); a real brand id filters to that brand. */
+export async function fetchManualGenerations(brandId?: string | null): Promise<Generation[]> {
+    const param = brandId || "__none__";
+    const res = await fetch(`${API_BASE}/api/generations?brandId=${encodeURIComponent(param)}`);
     if (!res.ok) throw new Error("Failed to fetch manual generations");
     const data = await res.json();
     return data.generations;
@@ -1543,6 +1726,42 @@ export async function pollSeedanceVideo(
     throw new Error("Seedance video generation timed out");
 }
 
+// ══════════════════════════════════════════════════════════════
+//  Upload-to-Fal — convert a data URL into a public Fal Storage URL.
+//  Fal/Kling rejects long `data:image/...;base64,...` strings with "URL too long",
+//  so any data URL must be re-hosted before being passed as a model input.
+// ══════════════════════════════════════════════════════════════
+
+export async function uploadDataUrlToFal(dataUrl: string, filename?: string): Promise<string> {
+    if (!dataUrl) throw new Error("uploadDataUrlToFal: empty data URL");
+    // If it's already a hosted URL, no-op.
+    if (/^https?:\/\//i.test(dataUrl)) return dataUrl;
+    const res = await fetch(`${API_BASE}/api/upload-to-fal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: dataUrl, filename }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || `Fal upload failed (${res.status})`);
+    }
+    const j = await res.json();
+    return j.url as string;
+}
+
+/**
+ * Ensure a ref URL is hosted (not a `data:` blob). If it's already an http(s) URL it
+ * returns as-is; if it's a data URL it gets re-hosted on Fal. Convenience wrapper used
+ * before sending refs to video models.
+ */
+export async function ensureHostedRefUrl(url: string, filename?: string): Promise<string> {
+    if (!url) return url;
+    if (/^https?:\/\//i.test(url)) return url;
+    if (url.startsWith("data:")) return uploadDataUrlToFal(url, filename);
+    // Anything else (relative path, blob:) — return unchanged and let the caller deal with it.
+    return url;
+}
+
 /**
  * Generate a short video from a static image using Kling.
  * Accepts image URL or can upload an image file.
@@ -1784,6 +2003,43 @@ export async function analyzePoseReference(imageFile: File): Promise<{ pose_desc
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
         throw new Error((typeof err.detail === "string" ? err.detail : "Pose analysis failed"));
+    }
+    return res.json();
+}
+
+/** Toma un texto libre del usuario (ej. en español "agarra la cartera con energía")
+ *  y devuelve un motion prompt curado en inglés, listo para Kling V3 Pro. La idea es
+ *  que el usuario pueda tipear en su idioma natural y el sistema lo traduce/ordena. */
+export async function curateMotionPrompt(text: string, sceneContext = ""): Promise<{ motion: string }> {
+    const res = await fetch(`${API_BASE}/api/curate/motion`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, sceneContext }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : "Curate failed"));
+    }
+    return res.json();
+}
+
+/** Analiza un video de referencia (URL o file) y devuelve solo motion suggestions —
+ *  versión liviana de /api/analyze/video pensada para "inspirar" la animación de
+ *  un clip estático en Fashion Reel / UGC. La respuesta queda lista para inyectar
+ *  al animationHint del clip. */
+export async function analyzeMotionFromVideo(opts: {
+    url?: string;
+    file?: File;
+    imageContext?: string;
+}): Promise<{ motion: string; pacing?: string; camera?: string; signature_beat?: string }> {
+    const formData = new FormData();
+    if (opts.url) formData.append("url", opts.url);
+    if (opts.file) formData.append("video", opts.file);
+    if (opts.imageContext) formData.append("image_context", opts.imageContext);
+    const res = await fetch(`${API_BASE}/api/analyze/motion`, { method: "POST", body: formData });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : "Motion analysis failed"));
     }
     return res.json();
 }

@@ -44,7 +44,7 @@ export default function ToolsPage() {
     const CategoryIcon = routeCategory === "video" ? Video : Image;
 
     useEffect(() => {
-        fetch("http://localhost:8000/api/tools")
+        fetch("http://127.0.0.1:8000/api/tools")
             .then((r) => r.json())
             .then((data) => {
                 setTools(data.tools || []);
@@ -151,7 +151,7 @@ function ToolDetailModal({
     const handleRun = async () => {
         setRunning(true);
         try {
-            const res = await fetch(`http://localhost:8000/api/tools/${tool.id}/run`, {
+            const res = await fetch(`http://127.0.0.1:8000/api/tools/${tool.id}/run`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(formData),

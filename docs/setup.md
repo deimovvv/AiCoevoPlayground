@@ -78,6 +78,12 @@ Starts backend (`:8000`) and frontend (`:5173`) together with prefixed logs. Ctr
 BACKEND_PORT=8001 FRONTEND_PORT=5174 ./dev.sh   # custom ports
 ```
 
+### Double-click launchers (sin terminal)
+- **macOS** → doble click en **`start-mac.command`** (corre `dev.sh`). La 1ª vez: click derecho → Abrir, para saltar el aviso de Gatekeeper.
+- **Windows** → doble click en **`start-windows.bat`** (abre backend y frontend en dos ventanas; cerralas para frenar).
+
+Ambos requieren el setup previo (venv del backend + `npm install`).
+
 Manual two-terminal flow (if `dev.sh` doesn't fit your setup):
 
 Terminal 1:

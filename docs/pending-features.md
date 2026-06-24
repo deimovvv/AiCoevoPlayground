@@ -257,6 +257,65 @@ URL de la marca (sitio, landing, Instagram, etc.)
 
 ---
 
+## 10b. Manual Lab — UX refactor (3 niveles, aprobado 2026-06-03)
+
+**Contexto.** El layout actual del Lab es denso y se pierde contexto: thumbs de refs muy chicos, prompt textarea apretada, asset picker que abre en panel separado. El usuario propuso copiar Freepik/Morph (sidebar izq + galería der), pero ese rediseño total tiene riesgo alto y descarta la narrativa conversacional del Lab. Decisión: plan progresivo.
+
+Ver `decisions-log.md` 2026-06 para el racional completo.
+
+### Nivel 1 — Ganancias rápidas (siguiente sprint, ~2h, riesgo cero)
+
+- [ ] Refs más grandes: 60px → 90-100px. Que se entienda qué tenés cargado de un vistazo.
+- [ ] Prompt textarea grande y resizable: 6 rows por default, `resize-y` nativo. Hoy desalienta escribir bien.
+- [ ] Asset picker **inline** cuando se activa "Usar assets de marca", no en panel flotante.
+
+Estos tres son ortogonales al layout. Se hacen en el Lab actual sin romper nada.
+
+### Nivel 2 — Reorganización (solo si Nivel 1 no alcanza, ~4h, riesgo medio)
+
+- [ ] Galería como drawer derecho colapsable (no fijo).
+- [ ] Zona principal horizontal con refs + prompt + controles + chat.
+- [ ] Mantiene la narrativa conversacional (encadenamiento "Use as ref").
+
+### Nivel 3 — Rediseño completo Freepik-style (solo si Nivel 2 no alcanza, ~1-2 días, riesgo alto)
+
+- [ ] Sidebar izquierda fija con TODOS los controles.
+- [ ] Galería vertical infinita a la derecha.
+- [ ] Pierde la narrativa de "chat" actual.
+
+**Por qué progresivo.** Lab tiene 2000+ líneas y el usuario genera todos los días en él. Un big-bang refactor bloquea trabajo varios días. Mejor iterar: ves el cambio en una sesión, decidís si seguís.
+
+**Quedan congelados durante este refactor:**
+- Look & Feel (estable, no tocar)
+- Manual Lab "Tal cual" / "Curar con Gemini" toggle (estable)
+- Tags `[imgN]` (estable, no cambiar a otra convención)
+
+---
+
+## 10c. Ecommerce Batch — cablear el backend de generación
+
+**Contexto.** Existe el prototipo visual en `/dashboard/ecommerce-batch`. Drop de carpetas + counter de costo + breakdown. El botón "Generar" hoy es un `alert()`. Falta el orquestador.
+
+**Decisiones de UX a confirmar antes de cablear** (ver `decisions-log.md` 2026-06):
+- [ ] Esquema canónicas + hero vs pool único.
+- [ ] Tipo de prenda: manual vs Gemini Vision auto.
+- [ ] Preset Coevo de poses canónicas (deja arrancar día 1 sin que el cliente mande poses).
+- [ ] Pose como texto vs imagen-ref.
+
+**Cuando esté decidido, el backend necesita:**
+- Endpoint `POST /api/ecommerce-batch/run` — recibe outfits + poses + config, devuelve `batch_id`.
+- Cola de jobs con concurrency limitada (3-4 paralelos, sino Fal rate-limits).
+- WebSocket o polling para progress por celda (N×K celdas).
+- Endpoint `GET /api/ecommerce-batch/:id` — estado actual + URLs de resultados.
+- Persistencia: cada celda como `Generation` separada con `parentAssetId` apuntando al outfit source.
+- Cancel: poder abortar un batch en curso (importante por costo).
+
+**Pre-cost estimate.** Mostrar el costo en USD **antes** de disparar. Sin eso vas a generar batches sin querer. Ya está en el prototipo, mantener en la versión final.
+
+**No requiere:** infraestructura nueva. Es un wrapper sobre `createImageEdit` que ya existe.
+
+---
+
 ## 11. Remotion Export
 
 - Actualmente: FFmpeg burns subtítulos simples, Remotion solo para preview
@@ -309,3 +368,24 @@ Si el equipo necesita esas capacidades, exporta de Coevo y edita en CapCut/Descr
 **Prerequisito:** Feature #1 (Generation Persistence) — necesitás que las generaciones guarden todo su estado (escenas individuales, audio, subs) para poder editarlas después.
 
 **Cuándo:** Después de Phase 5. Es polish, no funcionalidad core. Los pipelines tienen que estar sólidos antes de sumar refinement layer.
+
+---
+
+## 13. ToolRunPage rediseño — layout split (aprobado 2026-06)
+
+**Contexto.** Las páginas de tools acumularon mucho durante 2025-2026: brief box, Coevo Agent, mode toggle, visual style, references, allow faces, tabs de assets, ajustes técnicos en desplegable, motor de video, duración, direction, setting, style ref. Para Fashion Reel hay que scrollear 3 veces. Ajustes técnicos están detrás de un desplegable que casi nadie abre.
+
+El Lab v2 demostró que `sidebar control 420px + área principal` funciona mejor para flujos densos. La idea es replicar ese patrón en `ToolRunPage`.
+
+**Decisiones a confirmar antes de codear** (ver decisions-log.md 2026-06 — entrada "ToolRunPage gigante (DEUDA UX abierta)"):
+
+- ¿Migrar **todas** las tools o solo las densas (Fashion Reel + Ecommerce Pack + Video Ad Creator)? Mi voto: progresivo desde las densas.
+- ¿`Coevo Agent` / brief box queda dentro del sidebar (compacto) o queda arriba a pantalla completa como hoy? Mi voto: dentro del sidebar plegable, no full-width.
+- ¿El **pipeline de steps** queda en sidebar o en área principal? Mi voto: vivir del lado principal (es el contenido), no del control.
+- ¿Mantenemos el `Manage Prompt` / `Generar` arriba a la derecha o los movemos al footer del sidebar (como en Lab v2)? Mi voto: footer del sidebar, sticky.
+
+**Riesgo.** ToolRunPage tiene 6000+ líneas y lógica condicional por toolId (`tool.id === "ugc_creator"`, etc.). El refactor no se hace en un solo commit. Approach: ir tool por tool, manteniendo el layout viejo para las no migradas.
+
+**Por qué no aplicar a todas las tools indiscriminadamente:** Content Analyzer, Avatar Sheet, Product Sheet tienen flujos lineales que el layout actual cubre bien. El split solo gana en tools con muchos parámetros.
+
+**Cuándo:** Antes del rollout interno definitivo. Cuanto más esperemos, más se nota la inconsistencia entre Lab v2 (nuevo layout) y todas las tools (viejo layout).

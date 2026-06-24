@@ -11,7 +11,7 @@ import { useParams, Link } from "react-router";
 import { Loader2, Image as ImageIcon, Video, FileText, ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { getPortal, type PortalData, type PortalItem } from "../lib/api";
 
-const resolveUrl = (u?: string | null) => (u ? (u.startsWith("http") ? u : `http://localhost:8000${u}`) : "");
+const resolveUrl = (u?: string | null) => (u ? (u.startsWith("http") ? u : `http://127.0.0.1:8000${u}`) : "");
 
 const typeMeta: Record<string, { icon: React.ReactNode; label: string }> = {
   image: { icon: <ImageIcon size={12} />, label: "Imagen" },

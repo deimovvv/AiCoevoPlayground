@@ -69,6 +69,13 @@ export interface ToolConfig {
   avatarToolMode: "create" | "poses";
   // Avatar tool (poses mode): what to do after generating — "new" saves as new avatar, "replace" overwrites the source avatar
   avatarPosesSave: "new" | "replace";
+  // Avatar tool: vistas que se piden al composite (body_front, face_34, etc.).
+  // Vacío → fallback al default histórico (4 vistas mixtas). Ver AVATAR_VIEWS.
+  avatarViews: string[];
+  // Product Sheet tool: "sheet" = multi-view (front/3-4/back/side/top/hero) | "details" = macro close-ups (texture/logo/label/hardware)
+  productSheetMode: "sheet" | "details";
+  // Product Sheet: what to do with the result on save — "new" creates a new product entry, "replace" overwrites the source product's primary photo, "asset" saves without touching the catalog
+  productSheetSave: "new" | "replace" | "asset";
   // Compose mode (Carousel/Static Ad): "quick" = text in image (fast) | "compose" = clean image + HTML overlay with brand fonts (perfect typography)
   composeMode: "quick" | "compose";
   // Selected overlay template id when composeMode = "compose"
@@ -130,6 +137,9 @@ export const DEFAULT_CONFIG: ToolConfig = {
   includeCopy: true,
   avatarToolMode: "create",
   avatarPosesSave: "new",
+  avatarViews: ["body_front", "face_front", "face_34", "face_side"],
+  productSheetMode: "sheet",
+  productSheetSave: "new",
   composeMode: "quick",
   overlayTemplate: "editorial_bottom",
   settingOverride: "",
@@ -188,6 +198,19 @@ export interface ScriptScene {
   _showProduct?: boolean;
   /** false = skip avatar references, use text-to-image for this scene */
   _useAvatar?: boolean;
+  /** Fashion Reel Looks-mode: id del clothing item al que pertenece esta escena.
+   *  Si está presente, el pipeline lo usa para anclar la ref de garment correcta —
+   *  reemplaza el viejo `slice(i, i+1)` que asumía 1 escena = 1 outfit. */
+  garmentId?: string;
+  /** Fashion Reel Looks-mode: id del shot del VIDEO_SHOT_CATALOG (general / detail / etc.).
+   *  El handler de animate lo lee para inyectar el motion hint apropiado. */
+  shotId?: string;
+  /** Dirección de animación específica para esta escena que el usuario tipea durante
+   *  la curación (step Shots), ANTES de animar. Se inyecta al motionPrompt del clip
+   *  junto con el motion del catálogo del shot. Ej. "agarra la cartera con energía",
+   *  "gira lento mirando a cámara". Permite anticipar la intención sin tener que
+   *  animar primero y descubrir que no era lo que querías. */
+  animationHint?: string;
 }
 
 /** Normalize a raw scene object from Gemini (handles field name inconsistencies) */

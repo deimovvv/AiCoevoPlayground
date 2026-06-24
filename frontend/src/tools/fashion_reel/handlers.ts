@@ -20,6 +20,7 @@ import {
   avatarImageUrl, clothingImageUrl, productImageUrl, backgroundImageUrl,
 } from "../../lib/api";
 import type { KlingModel } from "../../lib/api";
+import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "./index";
 
 const VISUAL_STYLE_PROMPTS: Record<string, string> = {
   editorial: "FORMAT: Vertical 9:16, shot on 35mm film look. LIGHTING: soft directional natural light, fashion editorial quality. STYLE: high-fashion, minimal, sophisticated — sharp detail, clean backgrounds.",
@@ -110,19 +111,81 @@ export const handleScript: StepHandler = async (ctx) => {
     const avatarDesc = selectedAvatars[0]
       ? `${selectedAvatars[0]!.name}${selectedAvatars[0]!.description ? `: ${selectedAvatars[0]!.description}` : ""}`
       : "the model";
-    const SHOT_CYCLE = ["close-up", "medium", "full-body", "medium-close"] as const;
-    return {
-      result: {
-        scenes: selectedClothing.map((garment, i) => ({
-          id: `look_${i + 1}`,
-          title: garment.name,
+
+    // Location injection — prioridad de origen:
+    //   1) locationPreset (chip de escenario) si != "brand"  → texto fijo agresivo
+    //   2) settingOverride (textarea "Setting / Locación")    → texto del usuario
+    //   3) selectedBackground del Brand Kit                   → name + description
+    //   4) nada                                                → Nano Banana infiere
+    // Antes solo se inyectaba (2)+(3); el usuario reportó que el background del
+    // Brand Kit no funcionaba ("estudio blanco salió como casa") porque el name
+    // del background no era suficientemente explícito. Los presets fijos resuelven
+    // ese caso: tipean texto explícito que Nano Banana SÍ respeta.
+    const LOCATION_PRESETS: Record<string, string> = {
+      studio_white: "professional photo studio with seamless infinite WHITE backdrop, even softbox lighting, no shadows on the background, clean fashion catalog aesthetic. NOT a room with white walls — a true cyclorama studio with pure white seamless paper.",
+      studio_black: "professional photo studio with seamless infinite BLACK backdrop, dramatic side lighting, deep shadows on the background, editorial fashion aesthetic.",
+      street: "urban street environment, real outdoor city, golden hour natural light, candid documentary fashion feel.",
+      natural: "outdoor natural environment, soft diffused daylight, organic textures, lifestyle fashion feel.",
+    };
+    const presetKey = (cfg.locationPreset as string) || "brand";
+    const presetText = LOCATION_PRESETS[presetKey];
+
+    const selectedBackgroundForPrompt = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
+    const settingOverride = (cfg.settingOverride as string)?.trim();
+    const locationLine = presetText
+      ? `SETTING (LOCKED): ${presetText} This is the EXACT environment for every scene — do NOT invent another. Ignore any conflicting environment cues from the reference images.`
+      : settingOverride
+        ? `SETTING: ${settingOverride}. This is the EXACT environment for every scene — do NOT invent another.`
+        : selectedBackgroundForPrompt
+          ? `SETTING: ${selectedBackgroundForPrompt.name}${selectedBackgroundForPrompt.description ? ` — ${selectedBackgroundForPrompt.description}` : ""}. This is the EXACT environment for every scene — do NOT invent another. The location reference image takes priority over any other inferred setting.`
+          : "";
+
+    // Shots seleccionados por look. Si el usuario no marcó nada, defaults a general+detail.
+    // Cada outfit × cada shot = una escena. El orden en `looksShots` es el orden en el
+    // video final (todos los shots del outfit 1, después todos los del outfit 2, etc.).
+    const looksShotsRaw = (cfg.looksShots as string[]) || DEFAULT_LOOKS_SHOTS;
+    const looksShots = looksShotsRaw.filter((s) => VIDEO_SHOT_CATALOG[s]);
+    const shots = looksShots.length > 0 ? looksShots : DEFAULT_LOOKS_SHOTS;
+
+    const scenes: Array<{
+      id: string;
+      title: string;
+      script: string;
+      image_prompt: string;
+      sceneType: "creative";
+      shot: string;
+      note: string;
+      /** Link al outfit usado en esta escena — el resto del pipeline (base_image,
+       *  multishot) lo consume para saber qué garment renderizar en cada escena. */
+      garmentId?: string;
+      shotId?: string;
+    }> = [];
+
+    for (let oi = 0; oi < selectedClothing.length; oi++) {
+      const garment = selectedClothing[oi];
+      const garmentLabel = `${garment.name}${garment.description ? ` (${garment.description})` : ""}`;
+      for (let si = 0; si < shots.length; si++) {
+        const shotId = shots[si];
+        const shotMeta = VIDEO_SHOT_CATALOG[shotId];
+        scenes.push({
+          id: `look_${oi + 1}_${shotId}`,
+          title: `${garment.name} · ${shotMeta.label}`,
           script: "",
-          image_prompt: `${avatarDesc} wearing ${garment.name}${garment.description ? ` (${garment.description})` : ""}. Confident fashion pose, vertical 9:16 frame.`,
-          sceneType: "creative" as const,
-          shot: SHOT_CYCLE[i % SHOT_CYCLE.length],
-          note: `Look ${i + 1}: ${garment.name}`,
-        })),
-      },
+          // El image_prompt arranca con el framing del shot + la consigna del look +
+          // la location forzada (settingOverride o background). base_image /
+          // multishot lo expanden con la prenda real y el background como refs.
+          image_prompt: `${shotMeta.framing} ${avatarDesc} wearing ${garmentLabel}. Confident fashion presence.${locationLine ? ` ${locationLine}` : ""}`,
+          sceneType: "creative",
+          shot: shotId,
+          note: `${garment.name} — ${shotMeta.label}`,
+          garmentId: garment.id,
+          shotId,
+        });
+      }
+    }
+
+    return {
+      result: { scenes },
       needsApproval: true,
     };
   }
@@ -207,9 +270,19 @@ export const handleBaseImage: StepHandler = async (ctx) => {
     : config.selectedProductId ? [(activeBrand.products || []).find((p) => p.id === config.selectedProductId)].filter(Boolean) : [];
   const selectedBackground = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
 
-  // Looks mode: first scene = first clothing item. Story mode: all clothing
+  // Looks mode: first scene = first scene's clothing (lookup por garmentId si existe,
+  // sino al primer outfit). Story mode: SOLO la primera clothing — pasarle todas
+  // confunde a Nano Banana (mezcla detalles entre prendas e inventa una fantasma).
+  // Reportado: "elegí Story con 3 outfits, me hizo la primera inventada y todos
+  // los shots iguales". Si querés mostrar varios outfits → usar Looks mode.
   const allClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
-  const sceneClothing = reelMode === "looks" ? allClothing.slice(0, 1) : allClothing;
+  const lookupClothing = (garmentId?: string) => garmentId
+    ? allClothing.find((c) => c.id === garmentId)
+    : undefined;
+  const firstSceneClothing = lookupClothing(firstScene.garmentId);
+  const sceneClothing = reelMode === "looks"
+    ? (firstSceneClothing ? [firstSceneClothing] : allClothing.slice(0, 1))
+    : allClothing.slice(0, 1); // Story: 1 sola prenda como wardrobe principal
 
   const stylePrompt = getVisualStyle(cfg);
 
@@ -258,7 +331,17 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   selectedProducts.filter(Boolean).forEach((p) => {
     if (p?.imageUrl) candidates.push({ url: p.imageUrl, priority: 3, label: `PRODUCT — the model holds/features this. Reproduce it exactly. Take ONLY the product — ignore the background/person in this image.` });
   });
-  if (selectedBackground?.imageUrl) {
+  // Si el usuario eligió un preset de escenario (Estudio blanco, etc.), el preset
+  // gana y NO incluimos el background del Brand Kit como ref — agregaría una señal
+  // visual contradictoria. Solo incluimos el background ref cuando el preset es "brand".
+  const locationPresetKeyBase = (cfg.locationPreset as string) || "brand";
+  // Background ad-hoc (dataURL) viene del Content Analyzer Mapeo. Tiene prioridad
+  // sobre el selectedBackground del Brand Kit — el usuario lo subió específicamente
+  // para esta corrida. Reportado: "Content Analyzer no me permitió ponerle el fondo".
+  const adHocBackgroundUrl = (cfg.adHocBackgroundUrl as string) || "";
+  if (adHocBackgroundUrl && locationPresetKeyBase === "brand") {
+    candidates.push({ url: adHocBackgroundUrl, priority: 2, label: `LOCATION + LIGHTING SOURCE — place the model INSIDE this exact environment. Match walls, props, perspective, time of day, AND take the lighting direction/quality from THIS image. Take ONLY the environment — ignore any people in it.` });
+  } else if (selectedBackground?.imageUrl && locationPresetKeyBase === "brand") {
     candidates.push({ url: selectedBackground.imageUrl, priority: 2, label: `LOCATION + LIGHTING SOURCE — place the model INSIDE this exact environment. Match walls, props, perspective, time of day, AND take the lighting direction/quality from THIS image (not from the pose or identity refs). Take ONLY the environment — ignore any people in it.` });
   }
 
@@ -398,7 +481,16 @@ export const handleMultishot: StepHandler = async (ctx) => {
     type RefCandidate = { url: string; label: string; priority: number };
     const cands: RefCandidate[] = [];
     clothingItems.forEach((c) => { if (c.imageUrl) cands.push({ url: c.imageUrl, priority: 1, label: `"${c.name}" — the model WEARS this EXACT garment (color, fabric, cut, print). This is the outfit, NOT whatever clothing may appear in the anchor frame's source.` }); });
-    if (selectedBackground?.imageUrl) cands.push({ url: selectedBackground.imageUrl, priority: 2, label: `LOCATION ANCHOR — every scene MUST take place in this EXACT environment. Same walls, same props, same lighting direction, same perspective, same time of day. Only the pose and framing change between scenes.` });
+    // Mismo criterio que handleBaseImage: si hay preset de escenario distinto de
+    // "brand", no incluimos el background del Brand Kit como ref (gana el preset).
+    const locationPresetKeyScene = (cfg.locationPreset as string) || "brand";
+    // Background ad-hoc del Content Analyzer tiene prioridad sobre el del Brand Kit.
+    const adHocBgScene = (cfg.adHocBackgroundUrl as string) || "";
+    if (adHocBgScene && locationPresetKeyScene === "brand") {
+      cands.push({ url: adHocBgScene, priority: 2, label: `LOCATION ANCHOR — every scene MUST take place in this EXACT environment. Same walls, same props, same lighting direction, same perspective, same time of day. Only the pose and framing change between scenes.` });
+    } else if (selectedBackground?.imageUrl && locationPresetKeyScene === "brand") {
+      cands.push({ url: selectedBackground.imageUrl, priority: 2, label: `LOCATION ANCHOR — every scene MUST take place in this EXACT environment. Same walls, same props, same lighting direction, same perspective, same time of day. Only the pose and framing change between scenes.` });
+    }
     selectedProducts.filter(Boolean).forEach((p) => { if (p?.imageUrl) cands.push({ url: p!.imageUrl, priority: 3, label: `"${p!.name}"` }); });
 
     const budget = Math.max(1, MAX_SCENE_REFS - reserve);
@@ -439,12 +531,16 @@ export const handleMultishot: StepHandler = async (ctx) => {
 
   for (let i = 1; i < scenes.length; i++) {
     const scene = scenes[i];
-    // Looks mode: each scene gets its specific clothing item. If there are FEWER
-    // clothing items than scenes, slice(i, i+1) returns []  for the extra scenes →
-    // no garment ref → the model invents clothing → the scene comes out inconsistent.
-    // Fall back to the last available clothing item (or all of them) so every scene
-    // keeps a real reference.
-    let sceneClothing = reelMode === "looks" ? allClothing.slice(i, i + 1) : allClothing;
+    // Looks mode con shots: la escena trae su `garmentId` (set en handleScript).
+    // El lookup por id devuelve EL outfit correcto sin importar el orden — una
+    // misma prenda puede aparecer en varias escenas (general / detail / back).
+    // Fallback al viejo `slice(i, i+1)` para scripts legacy sin garmentId.
+    const sceneGarment = scene.garmentId
+      ? allClothing.find((c) => c.id === scene.garmentId)
+      : undefined;
+    let sceneClothing = reelMode === "looks"
+      ? (sceneGarment ? [sceneGarment] : allClothing.slice(i, i + 1))
+      : allClothing.slice(0, 1); // Story: 1 sola prenda (igual que base_image)
     if (reelMode === "looks" && sceneClothing.length === 0 && allClothing.length > 0) {
       sceneClothing = allClothing.slice(-1); // reuse the last garment rather than none
     }
@@ -523,12 +619,19 @@ export const handleAnimate: StepHandler = async (ctx) => {
     const selected = selectedVariationId
       ? scene.variations.find((v) => v.id === selectedVariationId)
       : scene.variations[0];
-    const scriptScene = scriptScenes.find((s) => s.id === scene.sceneId) as (typeof scriptScenes[0] & { note?: string }) | undefined;
+    const scriptScene = scriptScenes.find((s) => s.id === scene.sceneId) as (typeof scriptScenes[0] & { note?: string; animationHint?: string }) | undefined;
     return {
       sceneId: scene.sceneId,
       title: scene.title,
       imageUrl: selected?.url || scene.variations[0]?.url || "",
       note: scriptScene?.note || "",
+      // Pasado para que el motion del VIDEO_SHOT_CATALOG sustituya al genérico
+      // (ej. el shot "detail" pide un dolly-in, no un sway de modelo).
+      shotId: scriptScene?.shotId,
+      // Instrucción del usuario tipeada durante curación (step Shots). Se inyecta
+      // al motionPrompt junto con el motion del catálogo. Ej. "agarra la cartera
+      // con energía". Permite anticipar la intención sin tener que animar primero.
+      animationHint: scriptScene?.animationHint?.trim() || "",
     };
   }).filter((f) => f.imageUrl);
 
@@ -567,16 +670,27 @@ export const handleAnimate: StepHandler = async (ctx) => {
   //   - "single-frame"    → each curated image is animated in place (model moves within frame)
   //   - "frame-to-frame"  → each clip morphs from this scene's image to the NEXT scene's image
   //                         (catalog/lookbook flow — look A transitions into look B)
-  //   - "auto" (default)  → f2f when reelMode === "looks" (each scene = a different outfit, so
-  //                         transitions look great), single-frame otherwise (story mode).
-  // Seedance has no f2f path → it always runs single-frame (reference-to-video).
+  //   - "single-frame" (default) → cada plano se anima en su lugar (sway/pelo/pose).
+  //                                  Cada clip es independiente y respeta el motion del shot.
+  //   - "frame-to-frame"          → cada clip es un morph del plano N al plano N+1.
+  //                                  Útil para catálogos / lookbooks con transiciones.
+  // El modo "auto" se eliminó — antes forzaba f2f en Looks mode sin que el usuario lo
+  // viera, y la decisión quedaba escondida. Ahora es elección consciente desde el bloque
+  // "Movimiento de cada clip" en Fashion Reel (Looks + Kling).
+  // Seedance no tiene path f2f → siempre single-frame (reference-to-video).
   const reelMode = (cfg.reelMode as string) || "story";
-  const rawCreativeMode = (cfg.creativeMode as string) || "auto";
-  const useF2F = engine === "kling" && (
-    rawCreativeMode === "frame-to-frame" ||
-    (rawCreativeMode === "auto" && reelMode === "looks")
-  );
+  const rawCreativeMode = (cfg.creativeMode as string) || "single-frame";
+  const useF2F = engine === "kling" && rawCreativeMode === "frame-to-frame";
   const klingModel = ((cfg.videoModel as KlingModel) || "v3-pro") as KlingModel;
+  // Duración por clip — Kling V3 Pro acepta "5" o "10". Default 5s.
+  const clipDuration = ((cfg.clipDuration as string) === "10" ? "10" : "5") as "5" | "10";
+  // Debug log para troubleshooting del modo de clip. Si f2f no funciona, abrir la
+  // consola del browser y ver estos valores — ayuda a distinguir entre "config
+  // no se guardó" vs "lógica del handler no entra en la rama f2f".
+  console.log("[fashion_reel.animate]", {
+    engine, reelMode, rawCreativeMode, useF2F, klingModel, clipDuration,
+    frameCount: framesToAnimate.length,
+  });
 
   // Entry hook: the base_image step may have generated an empty-scene frame. When present,
   // scene 1 animates as a f2f from the EMPTY scene → the model present (model walks in).
@@ -587,9 +701,31 @@ export const handleAnimate: StepHandler = async (ctx) => {
 
   for (let i = 0; i < framesToAnimate.length; i++) {
     const frame = framesToAnimate[i];
-    const motionPrompt = frame.note
-      ? `Fashion model: ${frame.note}. Smooth, natural, confident movement. Vertical 9:16.`
-      : "Fashion model subtle natural movement — slight sway, confident pose, hair movement. Vertical 9:16.";
+    // Debug: log para cada frame qué rama va a tomar (entry hook / seedance / f2f / single).
+    const willTakeF2F = useF2F && i < framesToAnimate.length - 1 && engine === "kling";
+    console.log(`[fashion_reel.animate frame ${i}]`, {
+      sceneId: frame.sceneId,
+      title: frame.title,
+      willTakeF2F,
+      isLast: i === framesToAnimate.length - 1,
+      hasEntry: i === 0 && !!entryFrameUrl,
+    });
+    // Motion específico del shot (general/medium/detail/back) si vino del catalog;
+    // sino caemos al genérico. Cada shot tiene su propia receta de movimiento
+    // (ej. detail = dolly-in lento sobre el textil, no sway de modelo).
+    const shotMotion = frame.shotId ? VIDEO_SHOT_CATALOG[frame.shotId]?.motion : undefined;
+    // USER DIRECTION — la instrucción que el usuario tipeó en curación. Si está,
+    // se inyecta con marca clara para que Kling sepa que es la prioridad. La idea
+    // es enriquecer (no reemplazar) el motion del catálogo, así el "detail" sigue
+    // haciendo dolly-in pero también incorpora "agarra la cartera con energía".
+    const userDirection = frame.animationHint
+      ? ` USER DIRECTION (priority): ${frame.animationHint}.`
+      : "";
+    const motionPrompt = shotMotion
+      ? `${shotMotion} ${frame.note ? `Context: ${frame.note}.` : ""}${userDirection} Vertical 9:16.`
+      : frame.note
+        ? `Fashion model: ${frame.note}.${userDirection} Smooth, natural, confident movement. Vertical 9:16.`
+        : `Fashion model subtle natural movement — slight sway, confident pose, hair movement.${userDirection} Vertical 9:16.`;
 
     try {
       let videoUrl = "";
@@ -605,7 +741,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
             start_image_url: entryFrameUrl,
             end_image_url: frame.imageUrl,
             prompt: entryPrompt,
-            duration: "5",
+            duration: clipDuration,
             model: klingModel,
           });
           const r = await pollKlingVideo(job.request_id);
@@ -623,7 +759,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
         const job = await createSeedanceReferenceToVideo({
           prompt: motionPrompt,
           referenceImageUrls: refs,
-          duration: "5",
+          duration: clipDuration,
         });
         const result = job.video_url
           ? { status: "completed", video_url: job.video_url }
@@ -639,7 +775,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
           start_image_url: frame.imageUrl,
           end_image_url: next.imageUrl,
           prompt: transitionPrompt,
-          duration: "5",
+          duration: clipDuration,
           model: klingModel,
         });
         const result = await pollKlingVideo(job.request_id);
