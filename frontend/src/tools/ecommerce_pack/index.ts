@@ -19,7 +19,9 @@ export const SHOT_CATALOG: Record<string, { label: string; onModel: boolean; fra
   model_34:     { label: "On-model · 3/4",      onModel: true,  framing: "3/4 ANGLE view: the model's body turned about 45°, showing the garment's front and side." },
   model_american: { label: "On-model · Americano", onModel: true, framing: "AMERICAN / medium shot: framed from roughly mid-thigh up (cutting around the knee or mid-thigh), the model facing the camera, the garment's upper and mid section shown clearly and in detail. This is NOT a full-body shot and NOT a tight crop — a classic catalog medium framing." },
   model_back:   { label: "On-model · Espalda",  onModel: true,  framing: "BACK view: the model faces away from the camera, clearly showing the back of the garment." },
-  model_detail: { label: "On-model · Detalle",  onModel: true,  framing: "Tight CLOSE-UP on the garment as worn (fabric, texture, print, stitching, logo) — crop to the chest/torso area, no face needed." },
+  model_detail: { label: "On-model · Detalle prenda", onModel: true, framing: "Tight CLOSE-UP on the garment as worn (fabric, texture, print, stitching, logo) — crop to the chest/torso area, no face needed." },
+  model_closeup: { label: "On-model · Primer plano", onModel: true, framing: "PORTRAIT close-up showing BOTH the model's FACE and the garment together: head-and-chest crop (roughly from mid-chest up), the face clearly visible, sharp and in focus, looking toward the camera, alongside the top of the garment — neckline, collar, shoulders and the fabric at the chest — plus any worn accessories (earrings, necklace, scarf). This is NOT a face-only beauty headshot: a meaningful part of the garment MUST be in frame." },
+  model_detail_lower: { label: "On-model · Detalle inferior", onModel: true, framing: "LOWER-BODY close-up: framed from roughly the waist down to mid-calf or the shoes, showing the bottom garment (trousers, skirt, shorts) — its fabric, fit, drape, hem and length — plus footwear if it is part of the look. No face in frame." },
   flat_front:   { label: "Flat · Frente",       onModel: false, framing: "Product-only PACKSHOT: the garment presented flat/ghost-mannequin facing FRONT, centered. NO person, NO model, NO body — only the garment." },
   flat_back:    { label: "Flat · Espalda",      onModel: false, framing: "Product-only PACKSHOT of the garment's BACK, centered. NO person, NO model — only the garment." },
   flat_detail:  { label: "Flat · Detalle",      onModel: false, framing: "Product-only MACRO close-up of the garment's fabric, stitching, label or print. NO person — only the garment." },
@@ -126,16 +128,22 @@ const POSE_POOLS: Record<string, string[]> = {
   model_34:       ["profile_34", "natural_front", "hand_in_pocket", "arms_crossed"],
   model_american: ["hand_in_pocket", "arms_crossed", "hands_in_back_pockets", "natural_front", "looking_down"],
   model_back:     ["back_over_shoulder", "back_hand_to_neck", "back_walk_away"],
-  model_detail:   ["natural_front", "arms_crossed", "hand_in_pocket"],
 };
 
+// Close-ups: NO reciben pose preset. Las poses están escritas "full body in frame",
+// que contradice un crop cerrado. Para estos planos manda el encuadre (la framing
+// clause ya describe el crop y, en primer plano, la cara mirando a cámara).
+const CLOSEUP_SHOTS = new Set(["model_detail", "model_closeup", "model_detail_lower"]);
+
 /** Devuelve la descripción de la pose para una instancia de shot.
+ *  - close-up → null (el encuadre manda; las poses full-body contradicen el crop).
  *  - "auto" → rota DENTRO del pool del encuadre por la variante (nth): variante #1
  *    = primera del pool, #2 = segunda, etc. → coherente con el plano y distinta por variante.
  *  - clave específica → esa pose fija (ignora el pool).
  *  - "upload" / "" / undefined → null (caller usa la pose ref imagen si la hay). */
 function getPoseDescription(presetKey: string | undefined, shotId: string, nth: number): string | null {
   if (!presetKey || presetKey === "upload" || presetKey === "") return null;
+  if (CLOSEUP_SHOTS.has(shotId)) return null;
   if (presetKey === "auto") {
     const pool = POSE_POOLS[shotId] || POSE_KEYS;
     return POSE_PRESETS[pool[nth % pool.length]].description;
