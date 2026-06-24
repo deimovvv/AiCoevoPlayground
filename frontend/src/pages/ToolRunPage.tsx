@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
-  avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl,
+  avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl, brandLogoImageUrl,
   type Brand,
   generateCopy, regenerateScene, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen,
   createFalLipSync, pollFalLipSync, concatVideos, saveGeneration,
@@ -2240,11 +2240,49 @@ export function ToolRunPage() {
           <div className="w-7 h-7 rounded-md bg-surface-2 flex items-center justify-center text-fg-muted shrink-0">
             {TOOL_ICONS[tool.icon] || <Sparkles size={13} />}
           </div>
-          <div className="flex items-baseline gap-2 min-w-0">
-            <h1 className="text-[14px] font-semibold text-fg leading-none">{tool.name}</h1>
-            <span className="text-[11px] text-fg-faint truncate">
-              {tool.pipeline.length} steps{activeBrand && ` · ${activeBrand.name}`}
-            </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <h1 className="text-[14px] font-semibold text-fg leading-none shrink-0">{tool.name}</h1>
+            <span className="text-[11px] text-fg-faint shrink-0">{tool.pipeline.length} steps</span>
+            {/* Marca activa — este tool hereda TODO el contexto de la marca, así que
+                siempre tiene que verse de qué marca se trata. Sin marca → aviso visible
+                (el output saldría sin contexto). */}
+            {(() => {
+              const isRealBrand = !!activeBrand && activeBrand.id !== "__sandbox__";
+              if (!isRealBrand) {
+                return (
+                  <Link
+                    to="/dashboard/brands"
+                    title="Este tool usa el contexto de la marca — elegí una para generar con su identidad"
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--color-error)]/10 border border-[var(--color-error)]/30 text-[11px] font-medium text-[var(--color-error)] hover:brightness-110 transition-all shrink-0"
+                  >
+                    <AlertCircle size={11} /> Sin marca — elegí una
+                  </Link>
+                );
+              }
+              const rawLogo = activeBrand!.logos?.[0]?.imageUrl || activeBrand!.logo?.imageUrl;
+              const logoUrl = rawLogo ? brandLogoImageUrl(rawLogo) : null;
+              const brandColor = activeBrand!.dna?.colors?.[0]?.hex;
+              const brandInitials = activeBrand!.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+              return (
+                <Link
+                  to="/dashboard/brands"
+                  title={`Marca activa: ${activeBrand!.name} — tocá para cambiar`}
+                  className="flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full bg-surface-2 border border-edge hover:border-edge-strong transition-colors min-w-0 shrink"
+                >
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <span
+                      className="w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-bold text-white shrink-0"
+                      style={{ background: brandColor || "var(--color-brand)" }}
+                    >
+                      {brandInitials}
+                    </span>
+                  )}
+                  <span className="text-[11px] font-medium text-fg truncate">{activeBrand!.name}</span>
+                </Link>
+              );
+            })()}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
