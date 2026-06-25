@@ -33,10 +33,21 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# Backend data & uploads
-# KEEP brand-context assets in the repo (avatars, products, clothing, backgrounds,
-# moodboards, logos) so a clone ships with the full brand kit ready to use.
-# IGNORE only the heavy generated outputs (renders, ~GBs) and transient/runtime files.
+# Backend data & uploads — TODA la data de runtime es LOCAL, no va en git.
+# Cada persona maneja sus marcas + assets en su propia máquina; git solo lleva código.
+# (Antes se commiteaban los assets de marca; se sacaron para que `git pull` no pise
+#  los assets locales de cada uno. brands.json se re-seedea solo si falta — ver
+#  brands.load_brands(). action_presets.json y system_voices.json siguen en git como
+#  seed compartido.)
+backend/data/avatars/
+backend/data/products/
+backend/data/clothing/
+backend/data/backgrounds/
+backend/data/logos/
+backend/data/moodboards/
+backend/data/lookandfeel/
+backend/data/voice_lab/
+backend/data/brands.json
 backend/data/renders/*
 backend/data/generations.json
 backend/data/reviews.json
