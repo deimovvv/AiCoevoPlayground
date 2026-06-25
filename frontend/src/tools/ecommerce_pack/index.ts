@@ -17,7 +17,7 @@ import { createImageEdit, createTextToImage, pollImageGen } from "../../lib/api"
 export const SHOT_CATALOG: Record<string, { label: string; onModel: boolean; framing: string }> = {
   model_front:  { label: "On-model · Frente",  onModel: true,  framing: "Full-body or 3/4-body FRONT view: the model faces the camera straight on, standing naturally, the full garment clearly visible." },
   model_34:     { label: "On-model · 3/4",      onModel: true,  framing: "3/4 ANGLE view: the model's body turned about 45°, showing the garment's front and side." },
-  model_american: { label: "On-model · Americano", onModel: true, framing: "AMERICAN / medium shot: framed from roughly mid-thigh up (cutting around the knee or mid-thigh), the model facing the camera, the garment's upper and mid section shown clearly and in detail. This is NOT a full-body shot and NOT a tight crop — a classic catalog medium framing." },
+  model_american: { label: "On-model · Americano", onModel: true, framing: "AMERICAN / medium shot: the bottom edge of the frame CUTS THE BODY at the knee or mid-thigh — the feet, shoes and lower legs are OUT of frame. Framed from roughly mid-thigh up, the model facing the camera, the garment's upper and mid section shown clearly. This is a medium catalog crop — NOT a full-body shot (do not show the whole body or the feet) and NOT a tight close-up." },
   model_back:   { label: "On-model · Espalda",  onModel: true,  framing: "BACK view: the model faces away from the camera, clearly showing the back of the garment." },
   model_detail: { label: "On-model · Detalle prenda", onModel: true, framing: "Tight CLOSE-UP on the garment as worn (fabric, texture, print, stitching, logo) — crop to the chest/torso area, no face needed." },
   model_closeup: { label: "On-model · Primer plano", onModel: true, framing: "PORTRAIT close-up showing BOTH the model's FACE and the garment together: head-and-chest crop (roughly from mid-chest up), the face clearly visible, sharp and in focus, looking toward the camera, alongside the top of the garment — neckline, collar, shoulders and the fabric at the chest — plus any worn accessories (earrings, necklace, scarf). This is NOT a face-only beauty headshot: a meaningful part of the garment MUST be in frame." },
@@ -57,6 +57,9 @@ const CAMERA_LIGHTING = "Captured as a real photograph on a full-frame camera (S
 // Negative prompt — el mayor lever de realismo en Nano Banana. Empuja fuera el look
 // plástico/ilustración/AI y el over-retoque que delata la imagen generada.
 const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, CGI, AI-generated look, plastic or waxy finish, over-retouched airbrushed perfection, oversaturated colors, cast shadows on the background.";
+// Orientación de prenda — Nano Banana a veces da vuelta la remera (frente↔espalda).
+// Lock explícito: la prenda se usa como en la foto de referencia.
+const GARMENT_ORIENTATION = "Wear every garment in its CORRECT orientation, matching the garment reference exactly — prints, logos, buttons, zippers, pockets and necklines where they belong. In FRONT and 3/4 shots the front of the garment faces the camera; never reverse, mirror or show a garment's back unless this is explicitly a BACK shot.";
 
 // Prompt del botón "Mejorar texturas + 4K" — pasa la imagen YA generada de vuelta
 // por Nano Banana en modo edit a 4K. Mejora SOLO la nitidez/textura de piel y tela;
@@ -75,43 +78,43 @@ Add true photographic sharpness and fine detail to skin and fabric, remove any s
 export const POSE_PRESETS: Record<string, { label: string; description: string }> = {
   natural_front: {
     label: "Natural Front",
-    description: "Standing in slight contrapposto, weight on left leg, right hip pushed out subtly. Right hand resting lightly on right hip pocket, left arm hanging naturally at side. Shoulders back and relaxed, chest open. Head facing camera with relaxed, confident expression. Full body in frame.",
+    description: "Standing in slight contrapposto, weight on left leg, right hip pushed out subtly. Right hand resting lightly on right hip pocket, left arm hanging naturally at side. Shoulders back and relaxed, chest open. Head facing camera with relaxed, confident expression.",
   },
   walking: {
     label: "Walking",
-    description: "Mid-step walking pose, left leg forward with knee slightly bent, right foot pushing off the ground behind. Arms swinging naturally — left arm slightly back, right arm slightly forward. Subtle forward lean of the torso, head turned slightly toward camera, candid energetic expression. Full body in frame.",
+    description: "Mid-step walking pose, left leg forward with knee slightly bent, right foot pushing off the ground behind. Arms swinging naturally — left arm slightly back, right arm slightly forward. Subtle forward lean of the torso, head turned slightly toward camera, candid energetic expression.",
   },
   hand_in_pocket: {
     label: "Hand in Pocket",
-    description: "Standing relaxed, right hand inserted in trouser pocket up to the wrist, left arm hanging naturally at the side with hand relaxed. Weight slightly on right leg, left foot a bit forward. Head turned 10-15° to the left, gaze just off-camera, soft engaged expression. Full body in frame.",
+    description: "Standing relaxed, right hand inserted in trouser pocket up to the wrist, left arm hanging naturally at the side with hand relaxed. Weight slightly on right leg, left foot a bit forward. Head turned 10-15° to the left, gaze just off-camera, soft engaged expression.",
   },
   arms_crossed: {
     label: "Arms Crossed",
-    description: "Standing front-facing, arms crossed at chest level — loose and natural, not tight. Weight on right leg, left foot slightly forward and turned out. Chin slightly up, direct gaze to camera, confident grounded expression. Full body in frame.",
+    description: "Standing front-facing, arms crossed at chest level — loose and natural, not tight. Weight on right leg, left foot slightly forward and turned out. Chin slightly up, direct gaze to camera, confident grounded expression.",
   },
   profile_34: {
     label: "Profile 3/4",
-    description: "Body angled 30-40° to the camera's right (left shoulder forward), head turned back fully toward the camera. Both arms relaxed at sides, hands open. Weight slightly forward on right leg, posture elongated, neck long. Direct camera gaze, refined editorial energy. Full body in frame.",
+    description: "Body angled 30-40° to the camera's right (left shoulder forward), head turned back fully toward the camera. Both arms relaxed at sides, hands open. Weight slightly forward on right leg, posture elongated, neck long. Direct camera gaze, refined editorial energy.",
   },
   looking_down: {
     label: "Looking Down",
-    description: "Standing centered and grounded, both hands resting in front (one hand lightly holding the other wrist OR fingers loosely interlaced). Head tilted down about 20°, gaze toward floor or hands, soft contemplative expression. Weight evenly distributed, posture tall. Full body in frame.",
+    description: "Standing centered and grounded, both hands resting in front (one hand lightly holding the other wrist OR fingers loosely interlaced). Head tilted down about 20°, gaze toward floor or hands, soft contemplative expression. Weight evenly distributed, posture tall.",
   },
   back_over_shoulder: {
     label: "Back · Over Shoulder",
-    description: "Body facing away from the camera, showing the back of the garment in full. Head turned back over the right shoulder, gaze toward the camera, hair flowing naturally. Both arms relaxed at sides, weight on left leg. Editorial back view with personality. Full body in frame.",
+    description: "Body facing away from the camera, showing the back of the garment in full. Head turned back over the right shoulder, gaze toward the camera, hair flowing naturally. Both arms relaxed at sides, weight on left leg. Editorial back view with personality.",
   },
   hands_in_back_pockets: {
     label: "Hands in Back Pockets",
-    description: "Standing front-facing, both hands tucked into back trouser pockets, elbows pointed slightly back exposing the silhouette of the top. Weight on left leg, shoulders relaxed. Chin slightly up, soft confident gaze to camera. Full body in frame.",
+    description: "Standing front-facing, both hands tucked into back trouser pockets, elbows pointed slightly back exposing the silhouette of the top. Weight on left leg, shoulders relaxed. Chin slightly up, soft confident gaze to camera.",
   },
   back_hand_to_neck: {
     label: "Back · Hand to Neck",
-    description: "Body facing away from the camera, showing the full back of the garment. Head turned back over the LEFT shoulder toward the camera, right hand raised to lightly touch the back of the neck/hairline, left arm relaxed at side. The face stays clearly visible in three-quarter back view. Editorial, elongated posture. Full body in frame.",
+    description: "Body facing away from the camera, showing the full back of the garment. Head turned back over the LEFT shoulder toward the camera, right hand raised to lightly touch the back of the neck/hairline, left arm relaxed at side. The face stays clearly visible in three-quarter back view. Editorial, elongated posture.",
   },
   back_walk_away: {
     label: "Back · Walking Away",
-    description: "Walking away from the camera mid-step, showing the back of the garment in natural motion. Head turned back over the right shoulder with a relaxed glance toward the camera so the face stays visible. Arms swinging naturally, weight shifting forward. Full body in frame.",
+    description: "Walking away from the camera mid-step, showing the back of the garment in natural motion. Head turned back over the right shoulder with a relaxed glance toward the camera so the face stays visible. Arms swinging naturally, weight shifting forward.",
   },
 };
 
@@ -344,7 +347,7 @@ const handleGenerate: StepHandler = async (ctx) => {
         });
         // Style refs (look&feel + moodboard) opcionales — afinan estética.
         const sr1 = styleRefs(idx1); step1Urls.push(...sr1.urls); step1Desc.push(...sr1.desc);
-        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${CAMERA_LIGHTING} ${IDENTITY_LOCK} ${FACE_REALISM} ${FABRIC_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
+        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${CAMERA_LIGHTING} ${IDENTITY_LOCK} ${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
         const job1 = await createImageEdit(step1Urls, step1Prompt, config.aspectRatio, config.resolution);
         const res1 = await pollImageGen(job1.request_id);
         const dressedAvatar = res1.image_url || "";
@@ -368,12 +371,14 @@ TAKE FROM IMAGE 1 (do NOT change any of this):
 - Every accessory that exists in image 1 (scarves, necklaces, bags, belts, hats, shoes, jewelry) — exactly as they appear
 - Background and studio lighting
 
-TAKE FROM IMAGE 2 (ONLY these, ignore everything else):
+TAKE FROM IMAGE 2 (ONLY the body POSTURE, ignore everything else):
 - Body posture: stance, weight distribution, leg position
 - Arm position and hand placement
 - Torso angle and shoulder position
 - Head tilt, head rotation, gaze direction
-- Overall camera framing, crop and perspective
+(Posture ONLY — do NOT copy image 2's zoom, crop, framing or distance from camera.)
+
+FINAL FRAMING (MANDATORY — this defines the crop/zoom of the output, OVERRIDING image 2's framing): ${shot.framing}
 
 CRITICAL — do NOT contaminate the output with anything from image 2 that is not pose-related:
 - Tattoos visible on the model in image 2 → DO NOT add them to the output (the person in image 1 may have clean skin without tattoos)
@@ -410,7 +415,7 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
       // Shot 2+ CON pose ref específica: pose ref como base + anchor de shot 1
       // + avatar ORIGINAL como segunda fuente de identidad (doble anclaje de cara).
       urls.push(instPoseRef);
-      desc.push(`Image ${idx}: BASE IMAGE (edit this) — start from this exact image and KEEP pixel-perfect ONLY its geometry: body position, stance, arm/hand placement, head tilt, gaze direction, camera framing, crop and perspective. The PERSON shown in this base image is a stand-in: their face, head, hair, skin and identity are IRRELEVANT and MUST be fully replaced by the FACE REPLACEMENT (IDENTITY) reference below. The BACKGROUND / environment / room / floor / wall / lighting color of this base image are ALSO IRRELEVANT and MUST be fully discarded and replaced by the studio backdrop described in the prompt — do NOT keep the pose reference's background. REPLACE the clothing, the face/head AND the background as specified below.`);
+      desc.push(`Image ${idx}: BASE IMAGE (edit this) — start from this exact image and KEEP ONLY its body POSTURE: body position, stance, arm/hand placement, head tilt and gaze direction. Do NOT copy its framing, crop, zoom or distance from camera — the final framing is defined separately in the prompt. The PERSON shown in this base image is a stand-in: their face, head, hair, skin and identity are IRRELEVANT and MUST be fully replaced by the FACE REPLACEMENT (IDENTITY) reference below. The BACKGROUND / environment / room / floor / wall / lighting color of this base image are ALSO IRRELEVANT and MUST be fully discarded and replaced by the studio backdrop described in the prompt — do NOT keep the pose reference's background. REPLACE all the clothing (top AND bottom), the face/head AND the background as specified below.`);
       idx++;
       urls.push(anchorUrl);
       desc.push(`Image ${idx}: WARDROBE + STUDIO SOURCE — the clothing, accessories, studio look and lighting must match THIS image exactly. Apply them to the person in the BASE IMAGE.`);
@@ -454,16 +459,18 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
       ? `
 
 EDIT INSTRUCTIONS (this is an image edit, not a composition):
-- The output MUST be the BASE IMAGE with only these changes:
-  1) The clothing of the person is REPLACED by the WARDROBE REPLACEMENT garment(s).
+- The output MUST be the BASE IMAGE re-posed body, with these changes:
+  1) ALL the clothing of the person is REPLACED by the WARDROBE REPLACEMENT garment(s) — top AND bottom (trousers/skirt/shorts) AND layers. The trousers/pants/bottoms and top visible in the base image are IRRELEVANT and must NOT survive; every garment comes ONLY from the WARDROBE/GARMENT references.
   2) The face/head/hair is REPLACED by the FACE REPLACEMENT (IDENTITY) reference — this is MANDATORY. Keep ONLY the head position, tilt and gaze from the BASE IMAGE; everything about WHO the face is comes from the FACE REPLACEMENT (IDENTITY) image, NOT from the base image. The base image person is a stand-in and their face must NOT survive into the output.
   3) Any specified ACCESSORY REPLACEMENT is added/replaced in its natural body location.
   4) The BACKGROUND / setting is REPLACED by the studio backdrop described at the top of this prompt (${studioClause.trim()}). Completely DISCARD the pose reference's environment — its room, floor, wall, props, colors and ambient lighting tint must NOT appear in the output. The final background is a clean studio backdrop, never the location from the pose reference.
 - ${IDENTITY_LOCK}
 - ${FACE_REALISM}
-- PRESERVE from the BASE IMAGE ONLY the geometry: pose, stance, body position, framing, crop, perspective. Do NOT re-pose, do NOT re-frame, do NOT change the camera angle. Do NOT preserve its background, scene or color cast.
+- ${GARMENT_ORIENTATION}
+- FRAMING (MANDATORY — this defines the crop/zoom of the final image, regardless of how zoomed-in or zoomed-out the base image is): ${shot.framing}
+- PRESERVE from the BASE IMAGE ONLY the body POSTURE: pose, stance, limb and hand positions, torso angle, head tilt and gaze. Do NOT re-pose the body. Do NOT copy the base image's framing, crop, zoom, camera distance, background or color cast — those come from the prompt, not the base image.
 - The garment/accessory reference photos contain models in OTHER poses and OTHER backgrounds — those models, faces, poses and backgrounds are IRRELEVANT. They exist ONLY to define what the clothing/accessory looks like.
-- Treat this like a Photoshop edit on a model cutout: same body and same pose, but re-dressed, re-faced to the IDENTITY person, and placed on the clean studio backdrop.`
+- Treat this like a Photoshop edit on a model cutout: same body POSTURE, but re-dressed, re-faced to the IDENTITY person, re-cropped to the mandatory framing, and placed on the clean studio backdrop.`
       : "";
     // Si NO hay pose ref imagen, inyectamos un preset textual de pose (rota
     // entre 8 si "auto", o usa la elegida por el user). Eso evita que la
@@ -471,7 +478,7 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
     const poseDesc = !shotPoseUrl ? getPoseDescription(posePreset, sid, inst.nth) : null;
     const presetPoseClause = poseDesc ? ` POSE: ${poseDesc}` : "";
     const identityClause = avatar?.imageUrl ? `${IDENTITY_LOCK} ` : "";
-    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${shot.framing}${presetPoseClause} ${wardrobe}${CAMERA_LIGHTING} ${identityClause}${FACE_REALISM} ${FABRIC_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} FRAMING (MANDATORY — defines the crop/zoom): ${shot.framing}${presetPoseClause} ${wardrobe}${CAMERA_LIGHTING} ${identityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution) : await createTextToImage(prompt, config.aspectRatio, config.resolution);
       const res = await pollImageGen(job.request_id);
