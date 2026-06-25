@@ -8305,7 +8305,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                                   className={cn("block w-full", isEditing ? "cursor-default" : "cursor-zoom-in")}
                                   title={isEditing ? "" : "Click para zoom"}
                                 >
-                                  <img src={img.url} alt={img.label} className={cn("w-full", isEditing ? "max-h-[400px] object-contain" : "h-full object-cover")} />
+                                  <img src={img.url} alt={img.label} className={cn("w-full", isEditing ? "max-h-[30vh] object-contain" : "h-full object-cover")} />
                                 </button>
                               ) : (
                                 <div className="w-full aspect-square flex items-center justify-center text-fg-faint text-[10px]">Failed</div>
@@ -8358,7 +8358,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                             </div>
                             <p className="text-[10px] text-fg-faint truncate px-0.5">{img.label}</p>
                             {isEditing && img.url && (
-                              <div className="pt-1 border-t border-edge">
+                              <div className="pt-1 border-t border-edge max-h-[55vh] overflow-y-auto">
                                 <ImageEditPanel
                                   imageUrl={img.url}
                                   aspectRatio={config?.aspectRatio || "4:5"}
