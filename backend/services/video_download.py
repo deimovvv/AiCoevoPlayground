@@ -91,17 +91,17 @@ async def download_video(url: str, max_duration: int = 120) -> dict:
         "-o", str(output_path),
     ]
 
-    # Attempt list: for TikTok try multiple strategies; for others just one attempt.
-    attempts: list[list[str]] = []
-    if _is_tiktok(url):
-        attempts = [
-            ["yt-dlp", "--impersonate", "chrome", *base_args, url],
-            ["yt-dlp", "--cookies-from-browser", "chrome", *base_args, url],
-            ["yt-dlp", "--cookies-from-browser", "firefox", *base_args, url],
-            ["yt-dlp", *base_args, url],  # last-resort plain
-        ]
-    else:
-        attempts = [["yt-dlp", *base_args, url]]
+    # Multi-strategy para TODAS las URLs — no solo TikTok. Instagram exige login para
+    # bajar; --cookies-from-browser le pasa la sesión de IG del browser del usuario
+    # (si está logueado), que es lo que destraba la descarga. Antes IG iba solo con el
+    # intento plano (anónimo) → siempre bloqueado. Orden: impersonate → cookies chrome →
+    # cookies firefox → plano. El impersonate necesita curl_cffi (ya en requirements).
+    attempts: list[list[str]] = [
+        ["yt-dlp", "--impersonate", "chrome", *base_args, url],
+        ["yt-dlp", "--cookies-from-browser", "chrome", *base_args, url],
+        ["yt-dlp", "--cookies-from-browser", "firefox", *base_args, url],
+        ["yt-dlp", *base_args, url],  # last-resort plain (TikTok/YouTube públicos)
+    ]
 
     last_error = ""
     for cmd in attempts:
@@ -118,6 +118,13 @@ async def download_video(url: str, max_duration: int = 120) -> dict:
                 "TikTok bloqueó la descarga directa. "
                 "Descargá el video manualmente (app TikTok → Guardar, o snaptik.app) "
                 "y subilo como archivo usando el botón 'Upload Video' de abajo."
+            )
+        if "instagram.com" in url:
+            raise Exception(
+                "Instagram bloqueó la descarga. IG exige login para bajar videos: "
+                "iniciá sesión en Instagram en tu Chrome o Firefox (yt-dlp usa esa sesión), "
+                "o — más simple — descargá el reel a tu compu y subilo con el botón "
+                "'Upload Video' de abajo. URLs de TikTok y YouTube sí funcionan directo."
             )
         raise Exception(f"Download failed: {last_error}")
 
