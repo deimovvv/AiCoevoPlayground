@@ -2354,7 +2354,7 @@ export function ToolRunPage() {
       )}
 
       {/* Body split: sidebar 440px + main */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
 
         {/* ── SIDEBAR control (440px) ────────────────────────────────
              Todo lo que ConfigPanel mostraba antes en el "main content" cuando
@@ -2452,7 +2452,7 @@ export function ToolRunPage() {
              steps cuando hay started). Debajo: el StepPanel del step activo,
              o un placeholder cuando no se ha empezado. */}
         <main
-          className="flex-1 flex flex-col overflow-hidden relative"
+          className="flex-1 flex flex-col overflow-hidden relative min-h-0"
           style={{
             // Gradient ultra-sutil: usar surface-0 (no surface-1) que está apenas por
             // encima del canvas, y achicar la zona iluminada a 50%×30% para que sea casi
@@ -2502,7 +2502,7 @@ export function ToolRunPage() {
           </div>
 
           {/* Step content (scroll independent) */}
-          <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="flex-1 overflow-y-auto px-5 py-5 min-h-0">
             {/* Agent banner — solo cuando viene de "Crear automáticamente" */}
             {agentInfo && (
               <div className="mb-4 bg-[var(--color-action-muted)] border border-[var(--color-action-muted)] rounded-[var(--radius-md)] p-3 space-y-1.5">
