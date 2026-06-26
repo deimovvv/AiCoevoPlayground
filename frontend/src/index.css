@@ -130,12 +130,19 @@
    sentía clínico y le faltaba calidez. Ahora canvas es warm white con tinte
    beige sutil; surfaces se elevan con la misma temperatura cálida, no con gris.
    Las cards "flotan" por contraste suave + shadow sutil, no por brusquedad. */
+/* Oculta el scrollbar (barra de píldoras horizontal) sin perder el scroll. */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
 [data-theme="light"] {
-  --color-canvas: #fafaf7;
-  --color-surface-0: #f4f2ec;
-  --color-surface-1: #ffffff;
-  --color-surface-2: #ede9df;
-  --color-surface-3: #e0dccf;
+  /* Crema cálido marcado (no blanco casi-puro) — el #fafaf7 anterior + cards
+     #ffffff encandilaban ("muy brillante"). Ahora el canvas es un crema visible
+     y las cards son near-white cálido, separadas por sombra. Ref: Campaign Settings. */
+  --color-canvas: #f0ede7;
+  --color-surface-0: #f6f4ef;
+  --color-surface-1: #fbfaf7;
+  --color-surface-2: #ece8e0;
+  --color-surface-3: #e1dcd1;
 
   /* Contraste subido para legibilidad sobre warm white. Los grises anteriores
      eran muy claros para `#fafaf7` y la jerarquía de textos perdía contraste

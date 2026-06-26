@@ -99,8 +99,29 @@ function deriveAssetName(filename: string): string {
     .slice(0, 60);
 }
 
+// Píldoras de navegación — saltan a cada sección de assets (ref: Campaign Settings).
+const BRAND_NAV: Array<{ id: string; label: string }> = [
+  { id: "sec-brief", label: "Brief" },
+  { id: "sec-brand", label: "Marca" },
+  { id: "sec-products", label: "Productos" },
+  { id: "sec-avatars", label: "Avatares" },
+  { id: "sec-logos", label: "Logos" },
+  { id: "sec-moodboard", label: "Moodboard" },
+  { id: "sec-lookfeel", label: "Look & Feel" },
+  { id: "sec-backgrounds", label: "Fondos" },
+  { id: "sec-voices", label: "Voces" },
+  { id: "sec-clothing", label: "Prendas" },
+  { id: "sec-export", label: "Export" },
+];
+
 export function BrandSettings() {
   const { activeBrand } = useBrand();
+  const [activeSection, setActiveSection] = useState("sec-products");
+
+  const scrollToSection = (id: string) => {
+    setActiveSection(id);
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   if (!activeBrand) {
     return (
@@ -120,30 +141,54 @@ export function BrandSettings() {
         </p>
       </div>
 
+      {/* Píldoras de navegación — sticky, saltan a cada sección. */}
+      <div className="sticky top-0 z-30 -mx-1 px-1 py-2 bg-[var(--color-canvas)]/85 backdrop-blur-md border-b border-edge">
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+          {BRAND_NAV.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => scrollToSection(s.id)}
+              className={cn(
+                "shrink-0 px-3 py-1.5 text-[12px] font-medium rounded-full transition-colors cursor-pointer",
+                activeSection === s.id
+                  ? "bg-[var(--color-action)] text-[var(--color-action-fg)]"
+                  : "bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3",
+              )}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Brand Health — readiness at a glance */}
       <BrandHealthCard />
 
       {/* ① INPUT — vos cargás info de marca */}
-      <SectionHeader number="①" title="Input" subtitle="Alimentá Coevo con info de marca. Mínimo 1 doc, después extraés todo con un click." />
-      <GuidanceCard />
+      <div id="sec-brief" className="scroll-mt-20">
+        <SectionHeader number="①" title="Input" subtitle="Alimentá Coevo con info de marca. Mínimo 1 doc, después extraés todo con un click." />
+        <GuidanceCard />
+      </div>
 
       {/* ② AUTO — extraído por IA */}
-      <SectionHeader number="②" title="Auto-extraído por IA" subtitle="Brand DNA + Negocio + Design System. Salen del input de arriba con un click." />
-      <BrandDNACard />
-      <BusinessCard />
-      <DesignSystemCard />
+      <div id="sec-brand" className="scroll-mt-20">
+        <SectionHeader number="②" title="Auto-extraído por IA" subtitle="Brand DNA + Negocio + Design System. Salen del input de arriba con un click." />
+        <BrandDNACard />
+        <BusinessCard />
+        <DesignSystemCard />
+      </div>
 
       {/* ③ ASSETS — archivos que se usan en cada generación */}
       <SectionHeader number="③" title="Assets" subtitle="Archivos que las tools usan en cada corrida. Subí lo que tengas." />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ProductsCard />
-        <AvatarsCard />
-        <LogoCard />
-        <MoodboardsCard />
-        <LookAndFeelCard />
-        <BackgroundsCard />
-        <VoicesCard />
-        <ClothingCard />
+        <div id="sec-products" className="scroll-mt-20"><ProductsCard /></div>
+        <div id="sec-avatars" className="scroll-mt-20"><AvatarsCard /></div>
+        <div id="sec-logos" className="scroll-mt-20"><LogoCard /></div>
+        <div id="sec-moodboard" className="scroll-mt-20"><MoodboardsCard /></div>
+        <div id="sec-lookfeel" className="scroll-mt-20"><LookAndFeelCard /></div>
+        <div id="sec-backgrounds" className="scroll-mt-20"><BackgroundsCard /></div>
+        <div id="sec-voices" className="scroll-mt-20"><VoicesCard /></div>
+        <div id="sec-clothing" className="scroll-mt-20"><ClothingCard /></div>
         <ClothingCard accessoryMode />
       </div>
 
@@ -158,8 +203,10 @@ export function BrandSettings() {
       </SectionHeader>
 
       {/* ⑤ EXPORT — entregable para el cliente */}
-      <SectionHeader number="⑤" title="Export" subtitle="Descargá el brand identity para mandarle al cliente." />
-      <BrandIdentityExportCard />
+      <div id="sec-export" className="scroll-mt-20">
+        <SectionHeader number="⑤" title="Export" subtitle="Descargá el brand identity para mandarle al cliente." />
+        <BrandIdentityExportCard />
+      </div>
     </div>
   );
 }
