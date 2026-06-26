@@ -42,7 +42,7 @@ import {
     saveGeneration, fetchManualGenerations,
     avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl,
     moodboardImageUrl, lookAndFeelImageUrl, brandLogoImageUrl,
-    enhanceManualPrompt, describeLookAndFeel, describeLookAndFeelUpload,
+    enhanceManualPrompt, describeLookAndFeel, describeLookAndFeelUpload, describeConsistencyUpload,
     createKlingVideo, createKlingFrameToFrame, pollKlingVideo,
     createSeedanceReferenceToVideo, pollSeedanceVideo,
     ensureHostedRefUrl,
@@ -71,9 +71,19 @@ interface RefImage {
     isConsistency?: boolean;
     /** Qué aspecto reemplazar en [img1]:
      *  - "avatar" → cara/identidad del sujeto (mantiene pose, ropa, escena de [img1])
-     *  - "product" → producto físico (mantiene modelo, escena, lighting de [img1]) */
-    consistencyType?: "avatar" | "product";
+     *  - "product" → producto físico (mantiene modelo, escena, lighting de [img1])
+     *  - "smart" → Gemini Vision detectó solo qué es (cara/objeto/animal/logo…) */
+    consistencyType?: "avatar" | "product" | "smart";
+    /** Texto del chip para el modo smart (ej. "reemplaza cartera roja en [img1]"). */
+    consistencyDesc?: string;
 }
+
+// Cuánto pegar el grade de Look & Feel — el modo imagen salía muy brusco.
+const LF_INTENSITY_CLAUSE: Record<"subtle" | "medium" | "strong", string> = {
+    subtle: "Apply it SUBTLY and naturally — a gentle, restrained grade, barely there. Keep skin tones natural; do NOT over-saturate, crush the blacks or blow out the highlights.",
+    medium: "Apply it as a MODERATE, natural grade — clearly present but tasteful, never extreme. Keep skin tones natural.",
+    strong: "Apply the grade FULLY and boldly — a strong, defining color treatment.",
+};
 
 interface GenTurn {
     id: string;
@@ -249,6 +259,10 @@ export function ManualLabV2() {
     const [showLookFeel, setShowLookFeel] = useState(false);
     const [lookFeelMode, setLookFeelMode] = useState<"recipe" | "image">("recipe");
     const [lfAnalyzing, setLfAnalyzing] = useState<string | null>(null);
+    // Intensidad del grade L&F — el modo imagen salía muy brusco. Default medio.
+    const [lfIntensity, setLfIntensity] = useState<"subtle" | "medium" | "strong">("medium");
+    // Loading de la consistencia inteligente (Gemini Vision analizando la ref).
+    const [consistencyAnalyzing, setConsistencyAnalyzing] = useState(false);
 
     // Consistency panel — anchor de identidad. 3 caminos: avatar guardado, producto
     // guardado, o subir ad-hoc. Solo una activa a la vez. Solo modo imagen.
@@ -616,11 +630,12 @@ export function ManualLabV2() {
     const injectRecipePrompt = useCallback((recipeText: string, recipeName: string) => {
         const grade = (recipeText || "").trim() || `the "${recipeName}" color treatment`;
         const promptText =
-            `Apply this exact color grade / mood to [img1] as a color-treatment pass (like a film LUT): ${grade}\n` +
+            `Apply this color grade / mood to [img1] as a color-treatment pass (like a film LUT): ${grade}\n` +
+            `${LF_INTENSITY_CLAUSE[lfIntensity]}\n` +
             `Keep [img1] completely identical otherwise — same subject, face and identity, pose, light direction, shadows, highlights, exposure, framing, composition, background and product. Change ONLY color, tone and mood.`;
         setEnhancedPrompt(promptText);
         setShowLookFeel(false);
-    }, []);
+    }, [lfIntensity]);
 
     // Modo "image": pasa la imagen del L&F como ref directa con un prompt restrictivo.
     // Nano Banana es flaky con esto — el warning amarillo en la UI lo aclara.
@@ -639,12 +654,13 @@ export function ManualLabV2() {
         const newTag = `img${refs.length + 1}`;
         const promptText =
             `Output: [img1] regraded with the color treatment of [${newTag}]. The result IS [img1] with a different color/mood — nothing else.\n` +
+            `${LF_INTENSITY_CLAUSE[lfIntensity]}\n` +
             `KEEP from [img1] exactly: subject, face and identity, pose, framing, composition, background, product, light direction, shadows, highlights and exposure.\n` +
-            `TAKE from [${newTag}] ONLY: color palette, white balance / temperature, tonal contrast, saturation and overall mood. Treat [${newTag}] as a film LUT — never as scene content.\n` +
+            `TAKE from [${newTag}] ONLY: color palette, white balance / temperature, tonal contrast, saturation and overall mood — applied with the intensity above. Treat [${newTag}] as a film LUT — never as scene content.\n` +
             `NEVER copy from [${newTag}]: objects, people, sky, clouds, scenery, textures, lighting direction or composition.`;
         setEnhancedPrompt(promptText);
         setShowLookFeel(false);
-    }, [refs.length]);
+    }, [refs.length, lfIntensity]);
 
     // ── Recomendar animación — Gemini Vision mira la imagen ref y propone un
     // prompt de motion para Kling/Seedance. Si el usuario ya escribió algo (intent),
@@ -763,6 +779,69 @@ export function ManualLabV2() {
         setEnhancedPrompt(buildConsistencyPrompt(consistencyTagEstimate, opts.type));
         setShowConsistency(false);
     }, [refs, buildConsistencyPrompt]);
+
+    /** Prompt de consistencia GENÉRICO — sirve para cualquier sujeto (cara, producto,
+     *  objeto, animal, logo, prenda). El `lock` viene de Gemini Vision (qué define al
+     *  sujeto). Output = [img1] tal cual EXCEPTO ese sujeto, que se matchea a la ref. */
+    const buildConsistencyPromptSmart = useCallback((consistencyTag: string, kind: string, lock: string) => {
+        const subject = ({
+            face: "face / identity of the subject", product: "product", garment: "garment",
+            object: "object", animal: "animal", logo: "logo",
+        } as Record<string, string>)[kind] || "main subject";
+        const shows = lock ? `\nThe reference [${consistencyTag}] shows: ${lock}\n` : "";
+        return (
+            `Output: regenerate [img1] so the ${subject} in it matches the reference [${consistencyTag}] EXACTLY.\n` +
+            shows +
+            `\nREPLACE the corresponding ${subject} in [img1] to be visually identical to [${consistencyTag}] — same shape, color, materials, texture, proportions and every distinctive detail. It MUST be recognizable as the same one from [${consistencyTag}].\n\n` +
+            `KEEP everything else in [img1] EXACTLY as it is: composition, framing, pose, background, lighting, color treatment and all other elements. Change ONLY the ${subject} to match [${consistencyTag}].`
+        );
+    }, []);
+
+    /** Consistencia INTELIGENTE — subís cualquier imagen y Gemini Vision detecta solo
+     *  qué es y qué define al sujeto; arma el lock a medida. Un solo botón, sin elegir tipo. */
+    const applyConsistencySmart = useCallback(async (file: File) => {
+        if (refs.length === 0) {
+            alert("Primero subí la imagen base como [img1]. La consistencia reemplaza un aspecto de esa base — sin base no hay nada que reemplazar.");
+            return;
+        }
+        const dataUrl = await fileToDataUrl(file);
+        const baseName = sanitizeName(file.name.replace(/\.[^.]+$/, "")) || undefined;
+        const cleanName = file.name.replace(/\.[^.]+$/, "");
+        setRefs((prev) => {
+            const withoutOld = prev.filter((r) => !r.isConsistency);
+            const newRef: RefImage = {
+                tag: `img${withoutOld.length + 1}`,
+                label: `verificar: ${cleanName}`,
+                url: dataUrl,
+                source: "upload",
+                baseName,
+                isConsistency: true,
+                consistencyType: "smart",
+                consistencyDesc: "analizando…",
+            };
+            return [...withoutOld, newRef].map((r, i) => ({ ...r, tag: `img${i + 1}` }));
+        });
+        const consistencyTagEstimate = refs.some((r) => r.isConsistency)
+            ? `img${refs.length}`
+            : `img${refs.length + 1}`;
+        setShowConsistency(false);
+        setConsistencyAnalyzing(true);
+        try {
+            const res = await describeConsistencyUpload(file);
+            setEnhancedPrompt(buildConsistencyPromptSmart(consistencyTagEstimate, res.kind, res.lock));
+            setRefs((prev) => prev.map((r) => r.isConsistency ? {
+                ...r,
+                label: `verificar: ${res.label || cleanName}`,
+                consistencyDesc: `reemplaza ${res.label || "el elemento"} en [img1]`,
+            } : r));
+        } catch (e) {
+            console.error("[consistency] describe failed:", e);
+            setEnhancedPrompt(buildConsistencyPromptSmart(consistencyTagEstimate, "object", ""));
+            setRefs((prev) => prev.map((r) => r.isConsistency ? { ...r, consistencyDesc: "reemplaza el elemento en [img1]" } : r));
+        } finally {
+            setConsistencyAnalyzing(false);
+        }
+    }, [refs, buildConsistencyPromptSmart]);
 
     /** Quita la consistency activa (si la hay) y limpia el prompt template. */
     const clearConsistency = useCallback(() => {
@@ -1301,6 +1380,28 @@ export function ManualLabV2() {
                                             </button>
                                         ))}
                                     </div>
+                                    {/* Intensidad del grade — el modo imagen salía muy brusco; ahora se gradúa. */}
+                                    <div className="px-1">
+                                        <span className="block text-[9px] font-bold text-fg-faint uppercase tracking-widest mb-1">Intensidad</span>
+                                        <div className="flex gap-1">
+                                            {([
+                                                { v: "subtle" as const, label: "Sutil" },
+                                                { v: "medium" as const, label: "Medio" },
+                                                { v: "strong" as const, label: "Fuerte" },
+                                            ]).map((it) => (
+                                                <button
+                                                    key={it.v}
+                                                    onClick={() => setLfIntensity(it.v)}
+                                                    className={cn(
+                                                        "flex-1 text-[10px] py-1 rounded cursor-pointer transition-colors",
+                                                        lfIntensity === it.v ? "bg-[var(--color-action-subtle)] text-fg border border-[var(--color-action-muted)]" : "text-fg-muted hover:text-fg border border-transparent",
+                                                    )}
+                                                >
+                                                    {it.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                     {/* Honest warning para el modo "image" */}
                                     {lookFeelMode === "image" && (
                                         <p className="text-[10px] text-[var(--color-warning,#f5a623)] px-1.5 pb-1 leading-snug">
@@ -1365,7 +1466,7 @@ export function ManualLabV2() {
                                     <div className="flex items-start gap-1.5 px-1">
                                         <Target size={11} className="text-[var(--color-brand-strong)] shrink-0 mt-0.5" />
                                         <p className="text-[10px] text-fg-faint leading-snug">
-                                            El output va a ser <strong className="text-fg">[img1] tal cual</strong>, pero la <strong className="text-fg">cara</strong> (si elegís avatar) o el <strong className="text-fg">producto</strong> (si elegís producto) se reemplaza para matchear esta imagen. Una activa a la vez.
+                                            El output va a ser <strong className="text-fg">[img1] tal cual</strong>, pero <strong className="text-fg">el elemento que verifiques</strong> (cara, producto, objeto, lo que sea) se reemplaza para matchear esta imagen. Subí cualquier imagen en <strong className="text-fg">Verificar esto</strong> y Gemini detecta solo qué es. Una activa a la vez.
                                         </p>
                                     </div>
 
@@ -1388,10 +1489,15 @@ export function ManualLabV2() {
                                                 <p className="text-[10px] font-semibold text-fg truncate">
                                                     {refs.find((r) => r.isConsistency)!.label}
                                                 </p>
-                                                <p className="text-[9px] text-fg-faint">
-                                                    {refs.find((r) => r.isConsistency)?.consistencyType === "avatar"
-                                                        ? "reemplaza la cara/identidad de [img1]"
-                                                        : "reemplaza el producto de [img1]"}
+                                                <p className="text-[9px] text-fg-faint flex items-center gap-1">
+                                                    {consistencyAnalyzing && <RefreshCw size={9} className="animate-spin shrink-0" />}
+                                                    {(() => {
+                                                        const c = refs.find((r) => r.isConsistency);
+                                                        if (c?.consistencyDesc) return c.consistencyDesc;
+                                                        return c?.consistencyType === "avatar"
+                                                            ? "reemplaza la cara/identidad de [img1]"
+                                                            : "reemplaza el producto de [img1]";
+                                                    })()}
                                                 </p>
                                             </div>
                                             <button
@@ -1470,49 +1576,26 @@ export function ManualLabV2() {
                                         sabe qué prompt construir. Cada uno usa un dataset distinto
                                         del file input que está abajo, recordando el tipo elegido. */}
                                     <div className="space-y-1">
-                                        <p className="text-[9px] font-bold text-fg-faint uppercase tracking-widest px-1">Subir una imagen</p>
-                                        <div className="grid grid-cols-2 gap-1.5">
-                                            <button
-                                                onClick={() => {
-                                                    if (consistencyFileRef.current) {
-                                                        consistencyFileRef.current.dataset.type = "avatar";
-                                                        consistencyFileRef.current.click();
-                                                    }
-                                                }}
-                                                className="flex items-center gap-1.5 p-2 rounded border border-dashed border-edge hover:border-[var(--color-brand)] hover:bg-[var(--color-brand-subtle)] cursor-pointer text-left transition-colors"
-                                            >
-                                                <span className="w-7 h-7 rounded bg-surface-2 flex items-center justify-center text-fg-faint shrink-0">
-                                                    <Plus size={11} />
-                                                </span>
-                                                <span className="flex-1 min-w-0">
-                                                    <span className="block text-[10px] font-semibold text-fg">Cara</span>
-                                                    <span className="block text-[9px] text-fg-faint">avatar / persona</span>
-                                                </span>
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    if (consistencyFileRef.current) {
-                                                        consistencyFileRef.current.dataset.type = "product";
-                                                        consistencyFileRef.current.click();
-                                                    }
-                                                }}
-                                                className="flex items-center gap-1.5 p-2 rounded border border-dashed border-edge hover:border-[var(--color-brand)] hover:bg-[var(--color-brand-subtle)] cursor-pointer text-left transition-colors"
-                                            >
-                                                <span className="w-7 h-7 rounded bg-surface-2 flex items-center justify-center text-fg-faint shrink-0">
-                                                    <Plus size={11} />
-                                                </span>
-                                                <span className="flex-1 min-w-0">
-                                                    <span className="block text-[10px] font-semibold text-fg">Producto</span>
-                                                    <span className="block text-[9px] text-fg-faint">objeto físico</span>
-                                                </span>
-                                            </button>
-                                        </div>
+                                        <p className="text-[9px] font-bold text-fg-faint uppercase tracking-widest px-1">Verificar cualquier cosa</p>
+                                        <button
+                                            onClick={() => consistencyFileRef.current?.click()}
+                                            disabled={consistencyAnalyzing}
+                                            className="w-full flex items-center gap-2 p-2 rounded border border-dashed border-edge hover:border-[var(--color-brand)] hover:bg-[var(--color-brand-subtle)] cursor-pointer text-left transition-colors disabled:opacity-50"
+                                        >
+                                            <span className="w-7 h-7 rounded bg-surface-2 flex items-center justify-center text-fg-faint shrink-0">
+                                                {consistencyAnalyzing ? <RefreshCw size={11} className="animate-spin" /> : <Target size={11} />}
+                                            </span>
+                                            <span className="flex-1 min-w-0">
+                                                <span className="block text-[10px] font-semibold text-fg">Verificar esto</span>
+                                                <span className="block text-[9px] text-fg-faint">subí cara, producto, objeto, logo… — Gemini detecta solo qué es</span>
+                                            </span>
+                                        </button>
                                     </div>
 
                                     {/* Empty hint si no hay avatares ni productos guardados */}
                                     {activeBrand && (activeBrand.avatars?.length ?? 0) === 0 && (activeBrand.products?.length ?? 0) === 0 && (
                                         <p className="text-[10px] text-fg-faint px-1.5 py-1 leading-snug">
-                                            Esta marca no tiene avatares ni productos guardados. Usá los botones de subir arriba, o cargá assets en Brand Kit para reusarlos.
+                                            Esta marca no tiene avatares ni productos guardados. Usá <strong>Verificar esto</strong> para subir cualquier imagen, o cargá assets en Brand Kit para reusarlos.
                                         </p>
                                     )}
 
@@ -1524,16 +1607,7 @@ export function ManualLabV2() {
                                         onChange={async (e) => {
                                             const f = e.target.files?.[0];
                                             if (!f) return;
-                                            // El tipo viene en dataset del botón que disparó el click.
-                                            const declaredType = (e.target as HTMLInputElement).dataset.type;
-                                            const type: "avatar" | "product" = declaredType === "product" ? "product" : "avatar";
-                                            const dataUrl = await fileToDataUrl(f);
-                                            applyConsistencyRef({
-                                                url: dataUrl,
-                                                label: f.name.replace(/\.[^.]+$/, ""),
-                                                baseName: sanitizeName(f.name.replace(/\.[^.]+$/, "")) || undefined,
-                                                type,
-                                            });
+                                            await applyConsistencySmart(f);
                                             e.target.value = "";
                                         }}
                                     />

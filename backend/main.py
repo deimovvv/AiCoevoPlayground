@@ -2029,6 +2029,25 @@ async def describe_lookandfeel_upload(image: UploadFile = File(...)):
     return {"description": (recipe or "").strip()}
 
 
+@app.post("/api/consistency/describe-upload")
+async def describe_consistency_upload(image: UploadFile = File(...)):
+    """Analyze a CONSISTENCY reference in Manual Lab — Gemini decides on its own WHAT to lock
+    (face / product / object / animal / logo / garment) and which features define it. Powers the
+    'smart consistency' flow: drop any image and the lock prompt is built to match whatever it is."""
+    if not is_image_upload(image.content_type, image.filename):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=400, detail="Gemini no está configurado para analizar la referencia")
+    data = await image.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
+    try:
+        result = await image_analysis.describe_consistency_subject(data, image.content_type or "image/jpeg")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"No se pudo analizar la referencia: {str(e)[:200]}")
+    return result
+
+
 # ══════════════════════════════════════════════════════════════
 #  Brand Logo API
 # ══════════════════════════════════════════════════════════════

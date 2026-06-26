@@ -1077,6 +1077,19 @@ export async function describeLookAndFeelUpload(file: File): Promise<{ descripti
     return res.json();
 }
 
+/** Consistencia inteligente: Gemini mira la imagen y decide solo qué bloquear
+ *  (cara / producto / objeto / animal / logo / prenda) + las features que lo definen. */
+export async function describeConsistencyUpload(file: File): Promise<{ kind: string; label: string; lock: string }> {
+    const fd = new FormData();
+    fd.append("image", file);
+    const res = await fetch(`${API_BASE}/api/consistency/describe-upload`, { method: "POST", body: fd });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || "No se pudo analizar la referencia");
+    }
+    return res.json();
+}
+
 export function lookAndFeelImageUrl(relativeUrl: string): string {
     if (relativeUrl.startsWith("http")) return relativeUrl;
     return `${API_BASE}${relativeUrl}`;

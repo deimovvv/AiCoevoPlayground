@@ -298,6 +298,61 @@ Respond with ONLY the JSON, no markdown."""
         }
 
 
+async def describe_consistency_subject(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
+    """
+    Analyze a CONSISTENCY reference for Manual Lab: figure out, on its own, WHAT the user
+    wants to keep identical (a face, a product, an object, an animal, a logo, a garment…)
+    and exactly which features define it. Powers the 'smart consistency' flow — the user
+    drops any image and the lock prompt is built to match whatever it is.
+
+    Returns:
+        {
+          "kind": "face" | "product" | "garment" | "object" | "animal" | "logo" | "other",
+          "label": "<2-4 word label in Spanish for the UI badge>",
+          "lock": "<one English sentence: the identifying features to preserve exactly>"
+        }
+    """
+    prompt = """You are setting up an IDENTITY/CONSISTENCY lock for an AI image editor. Look at this
+image and decide what the SINGLE main subject is — the thing the user wants kept visually identical
+across other images.
+
+Return STRICT JSON:
+{
+  "kind": "face" | "product" | "garment" | "object" | "animal" | "logo" | "other",
+  "label": "<2-4 words in Spanish naming the subject, e.g. 'cartera roja', 'cara mujer', 'silla de madera'>",
+  "lock": "<ONE English sentence listing the concrete identifying features that MUST be preserved exactly>"
+}
+
+Rules:
+- "kind": pick the best category for the dominant subject. A human face/person -> "face". A sellable
+  item (bag, shoe, bottle, gadget) -> "product". Clothing worn or flat -> "garment". An inanimate thing
+  (furniture, prop, vehicle) -> "object". An animal/pet -> "animal". A brand mark/icon/wordmark -> "logo".
+- "lock": be concrete and specific to THIS subject — shape, color(s), materials, texture, distinctive
+  marks, proportions, and (for a face) facial features, hair, skin tone, age. This is what defines it.
+- Output ONLY the JSON, no markdown."""
+
+    raw = await _call_vision(prompt, [(image_bytes, mime_type)])
+    cleaned = raw.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned.replace("```json", "").replace("```", "").strip()
+    elif cleaned.startswith("```"):
+        cleaned = cleaned.replace("```", "").strip()
+
+    import json as _json
+    try:
+        data = _json.loads(cleaned)
+        kind = str(data.get("kind", "object")).strip().lower()
+        if kind not in {"face", "product", "garment", "object", "animal", "logo", "other"}:
+            kind = "object"
+        return {
+            "kind": kind,
+            "label": str(data.get("label", "")).strip()[:40] or "elemento",
+            "lock": str(data.get("lock", "")).strip(),
+        }
+    except _json.JSONDecodeError:
+        return {"kind": "object", "label": "elemento", "lock": cleaned[:300]}
+
+
 async def describe_moodboard(image_bytes: bytes, mime_type: str = "image/jpeg", moodboard_name: str = "") -> str:
     """
     Analyze a moodboard image and return a concise visual-style description.
