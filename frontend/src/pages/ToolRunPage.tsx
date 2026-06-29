@@ -3538,7 +3538,7 @@ function ConfigPanel({
                             ><X size={12} /></button>
                           </div>
                         ) : (
-                          <label className="flex items-center gap-1 px-1.5 h-6 rounded-[var(--radius-sm)] border border-dashed border-edge-strong bg-surface-1 text-[9px] text-fg-muted hover:text-fg cursor-pointer shrink-0" title="Subir imagen de pose específica para este shot">
+                          <label className="flex items-center gap-1 px-1.5 h-6 rounded-[var(--radius-sm)] border border-dashed border-edge-strong bg-surface-1 text-[9px] text-fg-muted hover:text-fg cursor-pointer shrink-0" title="Subir imagen de pose para este shot — define la postura Y el encuadre (cuerpo entero / medio / etc.)">
                             <Plus size={10} />
                             Pose
                             <input
@@ -3567,7 +3567,7 @@ function ConfigPanel({
             <p className="text-[10px] text-fg-faint">
               {config.ecomShots.length === 0
                 ? "Elegí al menos una toma."
-                : `${config.ecomShots.length} toma${config.ecomShots.length === 1 ? "" : "s"} · usá +/− para pedir varias variantes del mismo plano · pose ref opcional por toma (aplica a la #1).`}
+                : `${config.ecomShots.length} toma${config.ecomShots.length === 1 ? "" : "s"} · usá +/− para variantes · pose ref opcional (aplica a la #1) — si la pasás, la pose define la postura Y el encuadre (no el plano).`}
             </p>
           </div>
 

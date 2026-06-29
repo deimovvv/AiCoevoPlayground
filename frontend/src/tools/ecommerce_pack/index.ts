@@ -371,16 +371,14 @@ TAKE FROM IMAGE 1 (do NOT change any of this):
 - Every accessory that exists in image 1 (scarves, necklaces, bags, belts, hats, shoes, jewelry) — exactly as they appear
 - Background and studio lighting
 
-TAKE FROM IMAGE 2 (ONLY the body POSTURE, ignore everything else):
+TAKE FROM IMAGE 2 (the body POSTURE AND the framing — image 2 is the source of truth for how the shot looks):
 - Body posture: stance, weight distribution, leg position
 - Arm position and hand placement
 - Torso angle and shoulder position
 - Head tilt, head rotation, gaze direction
-(Posture ONLY — do NOT copy image 2's zoom, crop, framing or distance from camera.)
+- Camera FRAMING and CROP: match image 2's EXACT zoom and distance. If image 2 is a full-body shot the output is full-body; if it is a waist-up / medium / close shot, the output is cropped the same way. Do NOT re-frame to a different crop.
 
-FINAL FRAMING (MANDATORY — this defines the crop/zoom of the output, OVERRIDING image 2's framing): ${shot.framing}
-
-CRITICAL — do NOT contaminate the output with anything from image 2 that is not pose-related:
+CRITICAL — do NOT contaminate the output with anything from image 2 that is not pose- or framing-related:
 - Tattoos visible on the model in image 2 → DO NOT add them to the output (the person in image 1 may have clean skin without tattoos)
 - Jewelry, rings, bracelets, watches, earrings, necklaces shown on the model in image 2 → DO NOT add them
 - Clothing of the model in image 2 (vest, scarf, sandals, etc) → DO NOT add it
@@ -415,7 +413,7 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
       // Shot 2+ CON pose ref específica: pose ref como base + anchor de shot 1
       // + avatar ORIGINAL como segunda fuente de identidad (doble anclaje de cara).
       urls.push(instPoseRef);
-      desc.push(`Image ${idx}: BASE IMAGE (edit this) — start from this exact image and KEEP ONLY its body POSTURE: body position, stance, arm/hand placement, head tilt and gaze direction. Do NOT copy its framing, crop, zoom or distance from camera — the final framing is defined separately in the prompt. The PERSON shown in this base image is a stand-in: their face, head, hair, skin and identity are IRRELEVANT and MUST be fully replaced by the FACE REPLACEMENT (IDENTITY) reference below. The BACKGROUND / environment / room / floor / wall / lighting color of this base image are ALSO IRRELEVANT and MUST be fully discarded and replaced by the studio backdrop described in the prompt — do NOT keep the pose reference's background. REPLACE all the clothing (top AND bottom), the face/head AND the background as specified below.`);
+      desc.push(`Image ${idx}: BASE IMAGE (edit this) — start from this exact image and KEEP its body POSTURE AND its FRAMING: body position, stance, arm/hand placement, head tilt, gaze direction, AND the exact camera framing/crop/zoom (full-body, medium, close, etc.). This base image is the source of truth for the pose AND how the shot is framed — do NOT re-pose and do NOT re-frame. The PERSON shown in this base image is a stand-in: their face, head, hair, skin and identity are IRRELEVANT and MUST be fully replaced by the FACE REPLACEMENT (IDENTITY) reference below. The BACKGROUND / environment / room / floor / wall / lighting color of this base image are ALSO IRRELEVANT and MUST be fully discarded and replaced by the studio backdrop described in the prompt — do NOT keep the pose reference's background. REPLACE all the clothing (top AND bottom), the face/head AND the background as specified below.`);
       idx++;
       urls.push(anchorUrl);
       desc.push(`Image ${idx}: WARDROBE + STUDIO SOURCE — the clothing, accessories, studio look and lighting must match THIS image exactly. Apply them to the person in the BASE IMAGE.`);
@@ -467,10 +465,9 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
 - ${IDENTITY_LOCK}
 - ${FACE_REALISM}
 - ${GARMENT_ORIENTATION}
-- FRAMING (MANDATORY — this defines the crop/zoom of the final image, regardless of how zoomed-in or zoomed-out the base image is): ${shot.framing}
-- PRESERVE from the BASE IMAGE ONLY the body POSTURE: pose, stance, limb and hand positions, torso angle, head tilt and gaze. Do NOT re-pose the body. Do NOT copy the base image's framing, crop, zoom, camera distance, background or color cast — those come from the prompt, not the base image.
+- PRESERVE from the BASE IMAGE both the body POSTURE and the FRAMING: pose, stance, limb and hand positions, torso angle, head tilt, gaze, AND the exact camera framing/crop/zoom/distance (full-body, medium, close, etc.). The base image is the source of truth for the pose AND the framing — do NOT re-pose and do NOT re-frame to a different crop. ONLY the background and color cast must NOT be copied (those come from the studio backdrop in the prompt).
 - The garment/accessory reference photos contain models in OTHER poses and OTHER backgrounds — those models, faces, poses and backgrounds are IRRELEVANT. They exist ONLY to define what the clothing/accessory looks like.
-- Treat this like a Photoshop edit on a model cutout: same body POSTURE, but re-dressed, re-faced to the IDENTITY person, re-cropped to the mandatory framing, and placed on the clean studio backdrop.`
+- Treat this like a Photoshop edit on a model cutout: same body POSTURE and same framing/crop as the base image, but re-dressed, re-faced to the IDENTITY person, and placed on the clean studio backdrop.`
       : "";
     // Si NO hay pose ref imagen, inyectamos un preset textual de pose (rota
     // entre 8 si "auto", o usa la elegida por el user). Eso evita que la
