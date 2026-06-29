@@ -56,7 +56,11 @@ const FABRIC_REALISM = "ULTRA-REALISTIC fabric and garment texture: render the t
 const CAMERA_LIGHTING = "Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Professional studio lighting: soft diffused key light from the front-right at 45°, a large fill light on the opposite side for even commercial illumination, neutral 5500K white balance. Clean editorial e-commerce lighting.";
 // Negative prompt — el mayor lever de realismo en Nano Banana. Empuja fuera el look
 // plástico/ilustración/AI y el over-retoque que delata la imagen generada.
-const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, CGI, AI-generated look, plastic or waxy finish, over-retouched airbrushed perfection, oversaturated colors, cast shadows on the background.";
+const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, CGI, AI-generated look, plastic or waxy finish, over-retouched airbrushed perfection, oversaturated colors, harsh shadows projected on the backdrop wall.";
+// Sombra de contacto sutil — aterriza al sujeto (modelo/producto) para que no quede
+// flotando/recortado. Es la sombra de PISO, distinta de la proyectada en la pared
+// (que sí evitamos). Pedido del usuario: las fotos e-commerce siempre deben tenerla.
+const GROUNDING_SHADOW = "Include a soft, subtle CONTACT shadow on the floor directly beneath the subject (the model's feet, or the product's base) — gently diffused and natural, so the subject is grounded and not floating. Floor contact shadow only; keep the backdrop wall itself clean.";
 // Orientación de prenda — Nano Banana a veces da vuelta la remera (frente↔espalda).
 // Lock explícito: la prenda se usa como en la foto de referencia.
 const GARMENT_ORIENTATION = "Wear every garment in its CORRECT orientation, matching the garment reference exactly — prints, logos, buttons, zippers, pockets and necklines where they belong. In FRONT and 3/4 shots the front of the garment faces the camera; never reverse, mirror or show a garment's back unless this is explicitly a BACK shot.";
@@ -245,9 +249,11 @@ const handleGenerate: StepHandler = async (ctx) => {
   const moodboard = (activeBrand.moodboards || []).find((m) => m.id === config.selectedMoodboardId);
 
   const studioKey = (cfg.studioStyle as string) || "white";
-  const studioClause = studioKey === "custom"
+  const studioClauseBase = studioKey === "custom"
     ? (config.objective?.trim() || STUDIO_STYLES.white.clause)
     : (STUDIO_STYLES[studioKey]?.clause || STUDIO_STYLES.white.clause);
+  // La sombra de contacto va en TODOS los shots (on-model y flat) — aterriza al sujeto.
+  const studioClause = `${studioClauseBase} ${GROUNDING_SHADOW}`;
 
   const shots = ((Array.isArray(cfg.ecomShots) && (cfg.ecomShots as string[]).length) ? (cfg.ecomShots as string[]) : DEFAULT_SHOTS)
     .filter((s) => SHOT_CATALOG[s]);
