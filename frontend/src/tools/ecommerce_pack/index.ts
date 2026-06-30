@@ -387,6 +387,8 @@ TAKE FROM IMAGE 2 (the body POSTURE AND the framing — image 2 is the source of
 CRITICAL — do NOT contaminate the output with anything from image 2 that is not pose- or framing-related:
 - Tattoos visible on the model in image 2 → DO NOT add them to the output (the person in image 1 may have clean skin without tattoos)
 - Jewelry, rings, bracelets, watches, earrings, necklaces shown on the model in image 2 → DO NOT add them
+- Bags, purses, hats, caps, sunglasses, eyeglasses, scarves, belts, phones, cups, umbrellas or ANY prop/object held or worn in image 2 → DO NOT add them
+- The background, room, wall, floor, props and scenery of image 2 → DO NOT keep any of it; the background comes ONLY from the studio backdrop in the prompt
 - Clothing of the model in image 2 (vest, scarf, sandals, etc) → DO NOT add it
 - Makeup, lipstick, eye makeup of the model in image 2 → DO NOT apply
 - Piercings, body marks, scars of the model in image 2 → DO NOT add
@@ -465,6 +467,7 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
 EDIT INSTRUCTIONS (this is an image edit, not a composition):
 - The output MUST be the BASE IMAGE re-posed body, with these changes:
   1) ALL the clothing of the person is REPLACED by the WARDROBE REPLACEMENT garment(s) — top AND bottom (trousers/skirt/shorts) AND layers. The trousers/pants/bottoms and top visible in the base image are IRRELEVANT and must NOT survive; every garment comes ONLY from the WARDROBE/GARMENT references.
+  1b) REMOVE any accessory, prop or object in the BASE IMAGE that is NOT one of the provided ACCESSORY references — bag, purse, handbag, backpack, hat, cap, beanie, sunglasses, eyeglasses, scarf, belt, watch, bracelet, rings, necklace, earrings, gloves, phone, cup, bottle, umbrella, chair or anything held or worn. The model carries/wears ONLY the specified garments and accessory references — nothing from the base image's styling survives.
   2) The face/head/hair is REPLACED by the FACE REPLACEMENT (IDENTITY) reference — this is MANDATORY. Keep ONLY the head position, tilt and gaze from the BASE IMAGE; everything about WHO the face is comes from the FACE REPLACEMENT (IDENTITY) image, NOT from the base image. The base image person is a stand-in and their face must NOT survive into the output.
   3) Any specified ACCESSORY REPLACEMENT is added/replaced in its natural body location.
   4) The BACKGROUND / setting is REPLACED by the studio backdrop described at the top of this prompt (${studioClause.trim()}). Completely DISCARD the pose reference's environment — its room, floor, wall, props, colors and ambient lighting tint must NOT appear in the output. The final background is a clean studio backdrop, never the location from the pose reference.
