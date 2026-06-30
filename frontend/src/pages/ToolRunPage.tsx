@@ -378,6 +378,10 @@ interface ToolConfig {
   reelMode: "story" | "looks";
   // Ecommerce Pack
   studioStyle: string;
+  // Color sólido de fondo (cuando studioStyle === "color"). Hex.
+  ecomStudioColor: string;
+  // Fondo por FOTO (dataUrl). Si está, gana sobre el estilo/color — la modelo se ubica en esa escena.
+  ecomBackgroundImage: string;
   ecomShots: string[];
   // Pose ref por shot (data URL). El usuario sube una imagen de pose para
   // cada shot tildado y el handler la pasa como ref al generar ESE shot.
@@ -480,6 +484,8 @@ const DEFAULT_CONFIG: ToolConfig = {
   visualStyleCustom: "",
   reelMode: "story",
   studioStyle: "white",
+  ecomStudioColor: "#efefef",
+  ecomBackgroundImage: "",
   ecomShots: ["model_front", "model_back", "model_detail", "flat_front"],
   ecomShotPoses: {},
   ecomShotCounts: {},
@@ -3449,6 +3455,55 @@ function ConfigPanel({
           <p className="text-[10px] text-fg-faint -mt-1">
             Afiná con <strong>Look &amp; Feel</strong> (iluminación/estética) y/o <strong>moodboard</strong>. Para la postura de la modelo, usá <strong>Referencia de POSE</strong> (abajo).
           </p>
+
+          {/* Color sólido — solo cuando el estilo es "Color sólido" */}
+          {config.studioStyle === "color" && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-fg-muted">Color de fondo:</span>
+              <input
+                type="color"
+                value={config.ecomStudioColor || "#efefef"}
+                onChange={(e) => setConfig((p) => ({ ...p, ecomStudioColor: e.target.value }))}
+                className="w-8 h-8 rounded cursor-pointer border border-edge bg-transparent"
+                title="Elegí el color del fondo"
+              />
+              <input
+                type="text"
+                value={config.ecomStudioColor || "#efefef"}
+                onChange={(e) => setConfig((p) => ({ ...p, ecomStudioColor: e.target.value }))}
+                className="w-24 px-2 py-1 text-[11px] bg-surface-0 border border-edge rounded-[var(--radius-sm)] outline-none focus:border-[var(--color-brand)]"
+              />
+            </div>
+          )}
+
+          {/* Fondo por FOTO — si está, gana sobre el estilo/color */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Fondo por foto (opcional)</span>
+            {config.ecomBackgroundImage ? (
+              <div className="flex items-center gap-2">
+                <img src={config.ecomBackgroundImage} alt="fondo" className="w-12 h-12 rounded object-cover border-2 border-[var(--color-brand)]" />
+                <span className="text-[10px] text-fg-muted flex-1 leading-snug">La modelo se ubica en esta escena (gana sobre el estilo/color de arriba).</span>
+                <button onClick={() => setConfig((p) => ({ ...p, ecomBackgroundImage: "" }))} className="text-fg-faint hover:text-fg cursor-pointer shrink-0" title="Quitar fondo"><X size={13} /></button>
+              </div>
+            ) : (
+              <label className="flex items-center gap-1.5 px-2.5 py-2 rounded-[var(--radius-sm)] border border-dashed border-edge hover:border-[var(--color-brand)] cursor-pointer text-[11px] text-fg-muted hover:text-fg w-fit">
+                <Plus size={12} /> Subir foto de fondo
+                <input
+                  type="file"
+                  accept={IMAGE_ACCEPT}
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    const r = new FileReader();
+                    r.onload = () => setConfig((p) => ({ ...p, ecomBackgroundImage: r.result as string }));
+                    r.readAsDataURL(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
+          </div>
 
           {/* Shot selection — para cada shot on-model tildado se puede sumar una
               pose ref one-off. El handler la usa como ref específica de ese shot. */}

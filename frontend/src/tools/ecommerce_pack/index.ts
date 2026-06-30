@@ -35,6 +35,7 @@ export const STUDIO_STYLES: Record<string, { label: string; clause: string }> = 
   grey:      { label: "Gris estudio",    clause: "Light grey seamless studio backdrop, soft directional studio lighting with a subtle gradient, premium catalog look." },
   beige:     { label: "Beige cálido",    clause: "Warm beige / cream studio backdrop, soft natural-feeling light, refined editorial e-commerce look." },
   editorial: { label: "Editorial",       clause: "Editorial studio on a neutral backdrop, soft directional key light with gentle controlled shadows, fashion-magazine treatment." },
+  color:     { label: "Color sólido",    clause: "" },  // el handler arma la clause con ecomStudioColor
   custom:    { label: "Custom",          clause: "" },
 };
 
@@ -249,9 +250,19 @@ const handleGenerate: StepHandler = async (ctx) => {
   const moodboard = (activeBrand.moodboards || []).find((m) => m.id === config.selectedMoodboardId);
 
   const studioKey = (cfg.studioStyle as string) || "white";
-  const studioClauseBase = studioKey === "custom"
-    ? (config.objective?.trim() || STUDIO_STYLES.white.clause)
-    : (STUDIO_STYLES[studioKey]?.clause || STUDIO_STYLES.white.clause);
+  // Fondo por FOTO (dataUrl) — gana sobre todo: el modelo se ubica en esa escena.
+  const bgImageUrl = (cfg.ecomBackgroundImage as string) || undefined;
+  let studioClauseBase: string;
+  if (bgImageUrl) {
+    studioClauseBase = "Place the model in the exact BACKGROUND / setting shown in the BACKGROUND reference image — same scene, surface, colors and lighting. The model stands naturally within that environment.";
+  } else if (studioKey === "color") {
+    const color = ((cfg.ecomStudioColor as string) || "#efefef").trim();
+    studioClauseBase = `Seamless solid ${color} studio background — uniform and clean, soft even studio lighting, no gradient and no other objects on the backdrop.`;
+  } else if (studioKey === "custom") {
+    studioClauseBase = config.objective?.trim() || STUDIO_STYLES.white.clause;
+  } else {
+    studioClauseBase = STUDIO_STYLES[studioKey]?.clause || STUDIO_STYLES.white.clause;
+  }
   // La sombra de contacto va en TODOS los shots (on-model y flat) — aterriza al sujeto.
   const studioClause = `${studioClauseBase} ${GROUNDING_SHADOW}`;
 
@@ -273,6 +284,7 @@ const handleGenerate: StepHandler = async (ctx) => {
     const urls: string[] = []; const desc: string[] = []; let idx = start;
     if (lookFeelUrl) { urls.push(lookFeelUrl); desc.push(`Image ${idx}: LOOK & FEEL — match this color grading, lighting and overall treatment ONLY. Do NOT copy its content, layout or people.`); idx++; }
     if (moodboard?.imageUrl) { urls.push(moodboard.imageUrl); desc.push(`Image ${idx}: ART DIRECTION moodboard — aesthetic/palette reference ONLY, do not copy literally.`); idx++; }
+    if (bgImageUrl) { urls.push(bgImageUrl); desc.push(`Image ${idx}: BACKGROUND — use THIS exact scene/setting/surface as the background and place the model within it; match its colors and lighting. Do NOT copy any person from this image.`); idx++; }
     return { urls, desc };
   };
 
