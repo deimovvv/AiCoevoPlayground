@@ -1277,8 +1277,9 @@ export function ToolRunPage() {
       setConfig((prev) => ({ ...prev, aspectRatio: "4:5" }));
     }
     // Ecommerce Pack: la calidad de piel/tela es crítica → default 4K (producción).
+    // Aspect ratio 4:5 por default — el formato vertical estándar de e-commerce.
     if (tool.id === "ecommerce_pack") {
-      setConfig((prev) => ({ ...prev, resolution: "4K" }));
+      setConfig((prev) => ({ ...prev, resolution: "4K", aspectRatio: "4:5" }));
     }
     // Fashion Reel: keep whatever style the user has set (default is iphone
     // — overriding to editorial was the old default before we standardized).
