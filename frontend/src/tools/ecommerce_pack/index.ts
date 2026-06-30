@@ -18,7 +18,7 @@ export const SHOT_CATALOG: Record<string, { label: string; onModel: boolean; fra
   model_front:  { label: "On-model · Frente",  onModel: true,  framing: "Full-body or 3/4-body FRONT view: the model faces the camera straight on, standing naturally, the full garment clearly visible." },
   model_34:     { label: "On-model · 3/4",      onModel: true,  framing: "3/4 ANGLE view: the model's body turned about 45°, showing the garment's front and side." },
   model_american: { label: "On-model · Americano", onModel: true, framing: "AMERICAN / medium shot: the bottom edge of the frame CUTS THE BODY at the knee or mid-thigh — the feet, shoes and lower legs are OUT of frame. Framed from roughly mid-thigh up, the model facing the camera, the garment's upper and mid section shown clearly. This is a medium catalog crop — NOT a full-body shot (do not show the whole body or the feet) and NOT a tight close-up." },
-  model_back:   { label: "On-model · Espalda",  onModel: true,  framing: "BACK view: the model faces away from the camera, clearly showing the back of the garment." },
+  model_back:   { label: "On-model · Espalda",  onModel: true,  framing: "BACK view: the model faces FULLY away from the camera, clearly showing the complete back of the garment. By default the head faces away and the face is NOT visible (a clean catalog back shot) — do NOT turn the head back to camera unless the pose says so." },
   model_detail: { label: "On-model · Detalle prenda", onModel: true, framing: "Tight CLOSE-UP on the garment as worn (fabric, texture, print, stitching, logo) — crop to the chest/torso area, no face needed." },
   model_closeup: { label: "On-model · Primer plano", onModel: true, framing: "PORTRAIT close-up showing BOTH the model's FACE and the garment together: head-and-chest crop (roughly from mid-chest up), the face clearly visible, sharp and in focus, looking toward the camera, alongside the top of the garment — neckline, collar, shoulders and the fabric at the chest — plus any worn accessories (earrings, necklace, scarf). This is NOT a face-only beauty headshot: a meaningful part of the garment MUST be in frame." },
   model_detail_lower: { label: "On-model · Detalle inferior", onModel: true, framing: "LOWER-BODY close-up: framed from roughly the waist down to mid-calf or the shoes, showing the bottom garment (trousers, skirt, shorts) — its fabric, fit, drape, hem and length — plus footwear if it is part of the look. No face in frame." },
@@ -105,6 +105,10 @@ export const POSE_PRESETS: Record<string, { label: string; description: string }
     label: "Looking Down",
     description: "Standing centered and grounded, both hands resting in front (one hand lightly holding the other wrist OR fingers loosely interlaced). Head tilted down about 20°, gaze toward floor or hands, soft contemplative expression. Weight evenly distributed, posture tall.",
   },
+  back_clean: {
+    label: "Back · Limpia (catálogo)",
+    description: "Body facing FULLY away from the camera, showing the COMPLETE back of the garment, clean and unobstructed. Head faces forward/away — NOT turned back to the camera, the face is NOT visible. Natural relaxed standing posture, both arms relaxed at the sides so they don't cover the garment. A clean catalog back shot focused entirely on the garment's back.",
+  },
   back_over_shoulder: {
     label: "Back · Over Shoulder",
     description: "Body facing away from the camera, showing the back of the garment in full. Head turned back over the right shoulder, gaze toward the camera, hair flowing naturally. Both arms relaxed at sides, weight on left leg. Editorial back view with personality.",
@@ -135,7 +139,7 @@ const POSE_POOLS: Record<string, string[]> = {
   model_front:    ["natural_front", "hand_in_pocket", "arms_crossed", "hands_in_back_pockets", "looking_down", "walking"],
   model_34:       ["profile_34", "natural_front", "hand_in_pocket", "arms_crossed"],
   model_american: ["hand_in_pocket", "arms_crossed", "hands_in_back_pockets", "natural_front", "looking_down"],
-  model_back:     ["back_over_shoulder", "back_hand_to_neck", "back_walk_away"],
+  model_back:     ["back_clean", "back_over_shoulder", "back_hand_to_neck", "back_walk_away"],
 };
 
 // Close-ups: NO reciben pose preset. Las poses están escritas "full body in frame",
