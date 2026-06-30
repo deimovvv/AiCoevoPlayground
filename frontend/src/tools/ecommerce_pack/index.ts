@@ -61,7 +61,7 @@ const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, 
 // Sombra de contacto sutil — aterriza al sujeto (modelo/producto) para que no quede
 // flotando/recortado. Es la sombra de PISO, distinta de la proyectada en la pared
 // (que sí evitamos). Pedido del usuario: las fotos e-commerce siempre deben tenerla.
-const GROUNDING_SHADOW = "GROUND THE SUBJECT with a soft floor shadow: a clearly visible but subtle, faint, diffused contact shadow directly beneath the subject (the model's feet, or the product's base) — like a soft grey gradient on the floor, avoiding harsh lines — so the subject is grounded and NOT floating or cut-out. This floor shadow is intended even with bright high-key lighting; do not wash it out. Floor shadow only; keep the backdrop wall clean.";
+const GROUNDING_SHADOW = "GROUND THE SUBJECT with a SUBTLE floor shadow: a faint, soft, diffused contact shadow directly beneath the feet (or the product's base) — like a gentle soft grey gradient on the floor, avoiding harsh lines — so the subject isn't floating. Keep it subtle and natural, NEVER heavy, dark, dramatic or directional. The shadow lives ONLY on the floor under the subject — NEVER cast across the body, garment, face or the backdrop wall.";
 // Orientación de prenda — Nano Banana a veces da vuelta la remera (frente↔espalda).
 // Lock explícito: la prenda se usa como en la foto de referencia.
 const GARMENT_ORIENTATION = "Wear every garment in its CORRECT orientation, matching the garment reference exactly — prints, logos, buttons, zippers, pockets and necklines where they belong. In FRONT and 3/4 shots the front of the garment faces the camera; never reverse, mirror or show a garment's back unless this is explicitly a BACK shot.";
@@ -401,6 +401,7 @@ CRITICAL — do NOT contaminate the output with anything from image 2 that is no
 - Jewelry, rings, bracelets, watches, earrings, necklaces shown on the model in image 2 → DO NOT add them
 - Bags, purses, hats, caps, sunglasses, eyeglasses, scarves, belts, phones, cups, umbrellas or ANY prop/object held or worn in image 2 → DO NOT add them
 - The background, room, wall, floor, props and scenery of image 2 → DO NOT keep any of it; the background comes ONLY from the studio backdrop in the prompt
+- The LIGHTING, shadows, exposure and color/mood of image 2 → DO NOT copy. Image 2 may have dramatic, directional or harsh shadows on the body — those must NOT appear. The body is lit ONLY by image 1's soft, even studio light; the only shadow allowed is a subtle, soft shadow on the FLOOR beneath the feet. Image 2 contributes ONLY body geometry (posture) and camera framing — nothing about light, shadow or color.
 - Clothing of the model in image 2 (vest, scarf, sandals, etc) → DO NOT add it
 - Makeup, lipstick, eye makeup of the model in image 2 → DO NOT apply
 - Piercings, body marks, scars of the model in image 2 → DO NOT add
@@ -486,7 +487,8 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
 - ${IDENTITY_LOCK}
 - ${FACE_REALISM}
 - ${GARMENT_ORIENTATION}
-- PRESERVE from the BASE IMAGE both the body POSTURE and the FRAMING: pose, stance, limb and hand positions, torso angle, head tilt, gaze, AND the exact camera framing/crop/zoom/distance (full-body, medium, close, etc.). The base image is the source of truth for the pose AND the framing — do NOT re-pose and do NOT re-frame to a different crop. ONLY the background and color cast must NOT be copied (those come from the studio backdrop in the prompt).
+- PRESERVE from the BASE IMAGE ONLY the body POSTURE and the camera FRAMING: pose, stance, limb and hand positions, torso angle, head tilt, gaze, AND the exact camera framing/crop/zoom/distance (full-body, medium, close, etc.). The base image is the source of truth for the pose AND the framing — do NOT re-pose and do NOT re-frame to a different crop.
+- Do NOT copy the base image's LIGHTING, shadows, exposure, color cast or background. The base image may have dramatic, directional or harsh shadows on the body — those must NOT appear. The output is lit by the clean studio light described above (soft, even), and the ONLY shadow is a subtle, soft shadow on the FLOOR beneath the feet — never a harsh shadow across the body. The background is ALWAYS the clean studio backdrop from the prompt, never the base image's scene.
 - The garment/accessory reference photos contain models in OTHER poses and OTHER backgrounds — those models, faces, poses and backgrounds are IRRELEVANT. They exist ONLY to define what the clothing/accessory looks like.
 - Treat this like a Photoshop edit on a model cutout: same body POSTURE and same framing/crop as the base image, but re-dressed, re-faced to the IDENTITY person, and placed on the clean studio backdrop.`
       : "";
