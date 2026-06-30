@@ -31,7 +31,7 @@ export const DEFAULT_SHOTS = ["model_front", "model_back", "model_detail", "flat
 
 // Studio backdrop presets. "custom" falls back to the Setting Description (objective).
 export const STUDIO_STYLES: Record<string, { label: string; clause: string }> = {
-  white:     { label: "Blanco seamless", clause: "Seamless pure white studio background (#ffffff), soft even high-key e-commerce lighting, crisp and clean, no harsh shadows on the backdrop." },
+  white:     { label: "Blanco seamless", clause: "Clean, seamless, pure white cyclorama studio background with a very subtle, soft grey gradient on the floor. Bright, diffused, soft high-key studio lighting like natural overcast daylight. Bright and airy, high-end commercial look. Keep the backdrop WALL clean — no harsh projected shadows on the wall (the soft floor shadow below is intended)." },
   grey:      { label: "Gris estudio",    clause: "Light grey seamless studio backdrop, soft directional studio lighting with a subtle gradient, premium catalog look." },
   beige:     { label: "Beige cálido",    clause: "Warm beige / cream studio backdrop, soft natural-feeling light, refined editorial e-commerce look." },
   editorial: { label: "Editorial",       clause: "Editorial studio on a neutral backdrop, soft directional key light with gentle controlled shadows, fashion-magazine treatment." },
@@ -61,7 +61,7 @@ const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, 
 // Sombra de contacto sutil — aterriza al sujeto (modelo/producto) para que no quede
 // flotando/recortado. Es la sombra de PISO, distinta de la proyectada en la pared
 // (que sí evitamos). Pedido del usuario: las fotos e-commerce siempre deben tenerla.
-const GROUNDING_SHADOW = "Include a soft, subtle CONTACT shadow on the floor directly beneath the subject (the model's feet, or the product's base) — gently diffused and natural, so the subject is grounded and not floating. Floor contact shadow only; keep the backdrop wall itself clean.";
+const GROUNDING_SHADOW = "GROUND THE SUBJECT with a soft floor shadow: a clearly visible but subtle, faint, diffused contact shadow directly beneath the subject (the model's feet, or the product's base) — like a soft grey gradient on the floor, avoiding harsh lines — so the subject is grounded and NOT floating or cut-out. This floor shadow is intended even with bright high-key lighting; do not wash it out. Floor shadow only; keep the backdrop wall clean.";
 // Orientación de prenda — Nano Banana a veces da vuelta la remera (frente↔espalda).
 // Lock explícito: la prenda se usa como en la foto de referencia.
 const GARMENT_ORIENTATION = "Wear every garment in its CORRECT orientation, matching the garment reference exactly — prints, logos, buttons, zippers, pockets and necklines where they belong. In FRONT and 3/4 shots the front of the garment faces the camera; never reverse, mirror or show a garment's back unless this is explicitly a BACK shot.";
