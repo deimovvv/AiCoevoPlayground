@@ -3662,7 +3662,9 @@ function ConfigPanel({
                 const kitAccessories = (activeBrand?.clothing || []).filter(
                   (c) => (c.tags || []).some((t) => t === "accessory")
                 );
-                const showKitGrid = config.ecomAccessoryIds.length === 0 && kitAccessories.length > 0;
+                // Siempre visible si hay accesorios en el kit — antes se ocultaba al
+                // elegir el primero (length === 0), por eso "solo dejaba elegir uno".
+                const showKitGrid = kitAccessories.length > 0;
                 return showKitGrid;
               })() && (
                 <div className="space-y-1.5">
@@ -3673,19 +3675,35 @@ function ConfigPanel({
                       .map((item) => (
                         <div key={item.id} className="group/tile relative">
                           <button
-                            onClick={() => setConfig((p) => ({
-                              ...p,
-                              ecomAccessoryIds: [...p.ecomAccessoryIds, item.id],
-                              selectedClothingIds: p.selectedClothingIds.includes(item.id)
-                                ? p.selectedClothingIds
-                                : [...p.selectedClothingIds, item.id],
-                            }))}
-                            title={`Usar ${item.name}`}
-                            className="w-full border border-edge hover:border-[var(--color-brand)] rounded-[var(--radius-sm)] p-1 transition-all cursor-pointer text-left"
+                            onClick={() => setConfig((p) => {
+                              const on = p.ecomAccessoryIds.includes(item.id);
+                              return {
+                                ...p,
+                                // Toggle — sumá o quitá; podés tener VARIOS accesorios a la vez.
+                                ecomAccessoryIds: on
+                                  ? p.ecomAccessoryIds.filter((id) => id !== item.id)
+                                  : [...p.ecomAccessoryIds, item.id],
+                                selectedClothingIds: on
+                                  ? p.selectedClothingIds.filter((id) => id !== item.id)
+                                  : (p.selectedClothingIds.includes(item.id) ? p.selectedClothingIds : [...p.selectedClothingIds, item.id]),
+                              };
+                            })}
+                            title={config.ecomAccessoryIds.includes(item.id) ? `Quitar ${item.name}` : `Usar ${item.name}`}
+                            className={cn(
+                              "w-full border rounded-[var(--radius-sm)] p-1 transition-all cursor-pointer text-left",
+                              config.ecomAccessoryIds.includes(item.id)
+                                ? "border-[var(--color-brand)] bg-[var(--color-brand-subtle)]"
+                                : "border-edge hover:border-[var(--color-brand)]",
+                            )}
                           >
-                            <div className="aspect-square bg-surface-2 rounded-[2px] overflow-hidden mb-1">
+                            <div className="aspect-square bg-surface-2 rounded-[2px] overflow-hidden mb-1 relative">
                               {item.imageUrl && (
                                 <img src={clothingImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
+                              )}
+                              {config.ecomAccessoryIds.includes(item.id) && (
+                                <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-[var(--color-brand)] flex items-center justify-center">
+                                  <Check size={10} className="text-white" />
+                                </span>
                               )}
                             </div>
                             <span className="text-[9px] text-fg-muted truncate block font-medium leading-tight">{item.name}</span>
