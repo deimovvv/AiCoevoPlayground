@@ -8407,6 +8407,26 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       );
     }
 
+    // Todas las imágenes fallaron (Fal no devolvió ninguna URL) → mostrar el fallo claro,
+    // NO "1 creativo generado" + descarga rota. El error viene en cada entry (si el handler
+    // lo seteó). Reportado: "generé y me descarga un archivo vacío".
+    const succeeded = images.filter((i) => i.url);
+    if (images.length > 0 && succeeded.length === 0) {
+      const firstErr = (images.find((i) => (i as { error?: string }).error) as { error?: string } | undefined)?.error;
+      return (
+        <div className="flex items-start gap-2 bg-[var(--color-error)]/10 border border-[var(--color-error)]/30 rounded-[var(--radius-md)] px-3 py-2.5">
+          <AlertCircle size={14} className="text-[var(--color-error)] shrink-0 mt-0.5" />
+          <div className="text-[12px] text-fg leading-snug">
+            <p className="font-semibold">La generación falló — no se creó ninguna imagen.</p>
+            {firstErr
+              ? <p className="text-fg-muted mt-1">Error: {firstErr}</p>
+              : <p className="text-fg-muted mt-1">Mirá la terminal del backend (línea <code className="px-1 rounded bg-surface-2">[ecommerce_pack] … failed</code>) para la causa exacta. Suele ser: un asset inválido (HEIC), la API key de Fal, cuota agotada, o política de contenido (caras).</p>}
+            <p className="text-fg-faint mt-1.5">Tocá "Resetear paso" arriba y reintentá.</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="space-y-4">
         {data.interpretation && (
@@ -8417,7 +8437,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Check size={14} className="text-[var(--color-success)]" />
-            <span className="text-[13px] font-medium text-fg">{images.length} creativo{images.length === 1 ? "" : "s"} generado{images.length === 1 ? "" : "s"}</span>
+            <span className="text-[13px] font-medium text-fg">{succeeded.length} creativo{succeeded.length === 1 ? "" : "s"} generado{succeeded.length === 1 ? "" : "s"}</span>
           </div>
           <div className="flex items-center gap-2">
             {activeImg?.url && (
