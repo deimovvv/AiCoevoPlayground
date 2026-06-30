@@ -112,6 +112,23 @@ const VID_DURATIONS = ["5", "10"] as const;
 const SEEDANCE_RESOLUTIONS = ["480p", "720p", "1080p"] as const;
 const VID_ASPECT_RATIOS = ["9:16", "16:9", "1:1", "4:3", "3:4"] as const;
 
+// Tarifas de video en Fal ($/segundo, audio off). Verificado en fal.ai jun-2026 —
+// actualizar acá si Fal cambia precios. Kling es plano por modelo; Seedance escala
+// con la resolución (más píxeles = más caro). Fuente: páginas de modelo de fal.ai.
+const VIDEO_RATE_PER_SEC: Record<string, number | Record<string, number>> = {
+    "v3-pro": 0.112,      // Kling V3 Pro
+    "v2-5-turbo": 0.07,   // Kling V2.5 Turbo
+    "seedance-2": { "480p": 0.135, "720p": 0.302, "1080p": 0.680 },
+};
+/** Estimado de costo de un video = tarifa($/seg) × duración. null si no hay tarifa. */
+function estimateVideoCost(modelId: string, resolution: string, durationSec: string | number): number | null {
+    const rate = VIDEO_RATE_PER_SEC[modelId];
+    if (rate == null) return null;
+    const perSec = typeof rate === "number" ? rate : (rate[resolution] ?? Object.values(rate)[0]);
+    const secs = Number(durationSec) || 0;
+    return perSec * secs;
+}
+
 type Mode = "image" | "video";
 type VideoMode = "i2v" | "f2f" | "rtv";
 type VideoModelId = KlingModel | "seedance-2";
@@ -1999,6 +2016,24 @@ export function ManualLabV2() {
                                 <button onClick={() => setError(null)} className="ml-auto text-fg-faint hover:text-fg cursor-pointer text-[12px] leading-none">×</button>
                             </div>
                         )}
+                        {/* Costo estimado del video — según modelo + (resolución Seedance) + duración.
+                            Tarifas de Fal; "~" porque el real puede variar levemente. */}
+                        {mode === "video" && (() => {
+                            const est = estimateVideoCost(videoModelId, vidResolution, vidDuration);
+                            if (est == null) return null;
+                            return (
+                                <div
+                                    className="flex items-center justify-center gap-1.5 text-[11px]"
+                                    title="Estimado según las tarifas de Fal (audio off). El costo real puede variar levemente."
+                                >
+                                    <span className="text-fg-faint">Costo estimado:</span>
+                                    <span className="font-semibold text-fg">~${est.toFixed(2)}</span>
+                                    <span className="text-fg-faint">
+                                        ({currentVideoModel.label}, {vidDuration}s{currentVideoModel.resolutions ? `, ${vidResolution}` : ""})
+                                    </span>
+                                </div>
+                            );
+                        })()}
                         <button
                             onClick={submit}
                             disabled={!canGenerate}
