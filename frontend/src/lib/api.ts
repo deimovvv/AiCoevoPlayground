@@ -1090,6 +1090,21 @@ export async function describeConsistencyUpload(file: File): Promise<{ kind: str
     return res.json();
 }
 
+/** Interpreta SOLO la luz/color/mood/materiales de una escena (para reconstrucción).
+ *  Función dedicada → salida limpia, sin boilerplate del curador. */
+export async function describeSceneLighting(imageUrl: string): Promise<{ description: string }> {
+    const res = await fetch(`${API_BASE}/api/scene/describe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || "No se pudo analizar la escena");
+    }
+    return res.json();
+}
+
 export function lookAndFeelImageUrl(relativeUrl: string): string {
     if (relativeUrl.startsWith("http")) return relativeUrl;
     return `${API_BASE}${relativeUrl}`;

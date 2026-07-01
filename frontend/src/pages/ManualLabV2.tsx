@@ -42,7 +42,7 @@ import {
     saveGeneration, fetchManualGenerations,
     avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl,
     moodboardImageUrl, lookAndFeelImageUrl, brandLogoImageUrl,
-    enhanceManualPrompt, describeLookAndFeel, describeLookAndFeelUpload, describeConsistencyUpload,
+    enhanceManualPrompt, describeLookAndFeel, describeLookAndFeelUpload, describeConsistencyUpload, describeSceneLighting,
     createKlingVideo, createKlingFrameToFrame, pollKlingVideo,
     createSeedanceReferenceToVideo, pollSeedanceVideo,
     ensureHostedRefUrl,
@@ -720,19 +720,14 @@ export function ManualLabV2() {
     const extractSceneLighting = useCallback(async (refUrl: string) => {
         setExtractingScene(true);
         try {
-            const enh = await enhanceManualPrompt({
-                prompt: "Analyze the attached image and write a precise photographic prompt describing ONLY its LIGHTING (direction, quality, hardness, color temperature), its color palette, its mood / atmosphere, and the materials and textures of the environment (floor, walls, surfaces). Do NOT describe the main subject or product — only light, color, mood and materials. This will be reused to re-render a scene with the exact same look.",
-                refs: [{ tag: "img1", label: "escena original", url: refUrl }],
-                mode: "image",
-                targetModel: model,
-            });
-            if (enh.enhanced) setSceneDescription(enh.enhanced.trim());
+            const res = await describeSceneLighting(refUrl);
+            if (res.description) setSceneDescription(res.description.trim());
         } catch (e) {
             console.error("[scene-lighting] extract failed:", e);
         } finally {
             setExtractingScene(false);
         }
-    }, [model]);
+    }, []);
 
     // ── Sketch (Fase 1 del método de reconstrucción) — genera un estudio de
     // composición B&N barato: fija layout/cámara/luz sin pelear detalles todavía.
