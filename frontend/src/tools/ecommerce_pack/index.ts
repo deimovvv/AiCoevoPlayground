@@ -62,6 +62,10 @@ const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, 
 // flotando/recortado. Es la sombra de PISO, distinta de la proyectada en la pared
 // (que sí evitamos). Pedido del usuario: las fotos e-commerce siempre deben tenerla.
 const GROUNDING_SHADOW = "GROUND THE SUBJECT with a SUBTLE floor shadow: a faint, soft, diffused contact shadow directly beneath the feet (or the product's base) — like a gentle soft grey gradient on the floor, avoiding harsh lines — so the subject isn't floating. Keep it subtle and natural, NEVER heavy, dark, dramatic or directional. The shadow lives ONLY on the floor under the subject — NEVER cast across the body, garment, face or the backdrop wall.";
+// Aislamiento del fondo — los assets (prenda/accesorio/producto) vienen fotografiados
+// sobre SU propia superficie/color, y Nano Banana a veces adopta ese color de fondo.
+// Reportado: "con studio seamless pero accesorios, el fondo toma el color del accesorio".
+const BG_ISOLATION = "The background is ONLY the studio backdrop described above — do NOT adopt any background color, surface, gradient, table or setting from the garment / accessory / product reference photos. Those references are product cutouts on their own surfaces; take ONLY the item itself and completely ignore whatever is behind it.";
 // Orientación de prenda — Nano Banana a veces da vuelta la remera (frente↔espalda).
 // Lock explícito: la prenda se usa como en la foto de referencia.
 const GARMENT_ORIENTATION = "Wear every garment in its CORRECT orientation, matching the garment reference exactly — prints, logos, buttons, zippers, pockets and necklines where they belong. In FRONT and 3/4 shots the front of the garment faces the camera; never reverse, mirror or show a garment's back unless this is explicitly a BACK shot.";
@@ -267,8 +271,8 @@ const handleGenerate: StepHandler = async (ctx) => {
   } else {
     studioClauseBase = STUDIO_STYLES[studioKey]?.clause || STUDIO_STYLES.white.clause;
   }
-  // La sombra de contacto va en TODOS los shots (on-model y flat) — aterriza al sujeto.
-  const studioClause = `${studioClauseBase} ${GROUNDING_SHADOW}`;
+  // La sombra de contacto + el aislamiento de fondo van en TODOS los shots.
+  const studioClause = `${studioClauseBase} ${GROUNDING_SHADOW} ${BG_ISOLATION}`;
 
   const shots = ((Array.isArray(cfg.ecomShots) && (cfg.ecomShots as string[]).length) ? (cfg.ecomShots as string[]) : DEFAULT_SHOTS)
     .filter((s) => SHOT_CATALOG[s]);
