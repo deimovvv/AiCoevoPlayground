@@ -894,7 +894,9 @@ export function ManualLabV2() {
      *  (el sketch) pero se renderiza foto-real con los otros refs + el prompt. */
     const buildCompositionPrompt = useCallback((tag: string) => (
         `Output: a finished PHOTOREALISTIC image that follows the EXACT composition of [${tag}] — the same layout, camera angle, framing, placement of every element, perspective, depth and direction of light. [${tag}] is a rough SKETCH / structural guide: do NOT reproduce its pencil lines, its flatness or its lack of detail. Render a real, fully-detailed photographic image on that structure.\n` +
-        `Take the actual subjects / products (their exact identity, shape, color and materials) from the OTHER reference images and this prompt, and place them exactly where [${tag}] indicates. Lock the composition of [${tag}] — change ONLY the rendering, making it photoreal.`
+        `Take the actual subjects / products (their exact identity, shape, color and materials) from the OTHER reference images and this prompt, and place them exactly where [${tag}] indicates.\n` +
+        `LIGHTING & COLOR: follow the light DIRECTION shown in the sketch, but the exact lighting quality, color palette, materials and mood come from this prompt and from any look & feel / reference image provided (NOT from the flat B&W sketch). Match them precisely.\n` +
+        `Lock the composition of [${tag}] — change ONLY the rendering, making it photoreal.`
     ), []);
 
     /** Toggle del ancla de composición sobre [img1]. La ref [img1] (típicamente el
@@ -939,6 +941,13 @@ export function ManualLabV2() {
         try {
             // Build the prompt — mismo flow para imagen y video.
             let finalPrompt = (enhancedPrompt ?? prompt).trim();
+            // Si hay un TEMPLATE activo (composición / consistencia / look&feel) Y además
+            // escribiste algo abajo, tu texto se SUMA al template en vez de ignorarse.
+            // Así podés agregar luz/color/detalles (ej. "warm amber beam, pearl white")
+            // al template de Composición. Sin esto, el enhancedPrompt pisaba tu prompt.
+            if (enhancedPrompt && enhancedPrompt.trim() && prompt.trim()) {
+                finalPrompt = `${enhancedPrompt.trim()}\n\nAdditional direction (apply this too — lighting, color, mood, details): ${prompt.trim()}`;
+            }
             if (!passThrough && !enhancedPrompt) {
                 setBusyLabel("Curando prompt con Gemini…");
                 const enh = await enhanceManualPrompt({
