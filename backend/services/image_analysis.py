@@ -353,6 +353,36 @@ Rules:
         return {"kind": "object", "label": "elemento", "lock": cleaned[:300]}
 
 
+async def describe_scene_lighting(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    """
+    Analyze a scene image and return ONLY a clean lighting/mood/materials description —
+    the 'master prompt' for re-rendering a scene with the same look. Purpose-built (not the
+    generic curator) so the output is clean, with NO 'REFERENCE IMAGES:' boilerplate and NO
+    mention of the main subject/product.
+    """
+    prompt = """Look at this image and describe ONLY its lighting, color and environment — as a
+precise, ready-to-use photographic prompt fragment for re-rendering a DIFFERENT subject in this same
+look. Cover, concretely:
+- LIGHTING: direction, hardness/softness, whether it's a beam/shaft/ambient, color temperature (Kelvin), contrast.
+- COLOR palette and overall mood / atmosphere.
+- ENVIRONMENT materials and textures: walls, floor, surfaces, reflections.
+
+Hard rules:
+- Do NOT mention or describe the main subject / product (car, person, object) at all — only light, color, mood, environment.
+- Do NOT write any preamble, headers, "REFERENCE IMAGES", "Image 1", "Output:", labels or markdown.
+- Just the descriptive prompt fragment itself, 2-4 sentences, in English."""
+
+    raw = await _call_vision(prompt, [(image_bytes, mime_type)])
+    text = (raw or "").strip()
+    # Defensa: si el modelo igual mete boilerplate, lo recortamos.
+    for junk in ("REFERENCE IMAGES:", "Image 1:", "Output:", "QUÉ ENTENDÍ:", "```"):
+        idx = text.find(junk)
+        if idx != -1:
+            # quitamos la línea que lo contiene
+            text = "\n".join(ln for ln in text.split("\n") if junk not in ln).strip()
+    return text.strip()
+
+
 async def describe_moodboard(image_bytes: bytes, mime_type: str = "image/jpeg", moodboard_name: str = "") -> str:
     """
     Analyze a moodboard image and return a concise visual-style description.

@@ -2048,6 +2048,28 @@ async def describe_consistency_upload(image: UploadFile = File(...)):
     return result
 
 
+class SceneDescribeRequest(BaseModel):
+    imageUrl: str
+
+
+@app.post("/api/scene/describe")
+async def describe_scene(req: SceneDescribeRequest):
+    """Analyze a scene image (by URL / dataUrl) and return ONLY a clean lighting/mood/materials
+    description — the 'master prompt' for re-rendering. Used by the Manual Lab: al generar el
+    sketch, extrae la luz de la imagen original. Función dedicada (no el curador) → salida limpia."""
+    if not image_analysis.is_configured():
+        raise HTTPException(status_code=400, detail="Gemini no está configurado")
+    try:
+        img_bytes, mime = await manual_lab._fetch_image_bytes(req.imageUrl)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo leer la imagen: {str(e)[:200]}")
+    try:
+        desc = await image_analysis.describe_scene_lighting(img_bytes, mime)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"No se pudo analizar la escena: {str(e)[:200]}")
+    return {"description": (desc or "").strip()}
+
+
 # ══════════════════════════════════════════════════════════════
 #  Brand Logo API
 # ══════════════════════════════════════════════════════════════
