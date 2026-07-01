@@ -20,12 +20,14 @@ import { videoSwap } from "./video_swap";
 import { ecommercePack } from "./ecommerce_pack";
 import { fashionEditorial } from "./fashion_editorial";
 import { productSheet } from "./product_sheet";
+import { sceneReconstruct } from "./scene_reconstruct";
 
 export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   avatar_creator: avatarCreator,
   product_sheet: productSheet,
   fashion_reel: fashionReel,
   ecommerce_pack: ecommercePack,
+  scene_reconstruct: sceneReconstruct,
   fashion_editorial: fashionEditorial,
   video_swap: videoSwap,
   ugc_creator: ugcCreator,
