@@ -76,6 +76,9 @@ interface RefImage {
     consistencyType?: "avatar" | "product" | "smart";
     /** Texto del chip para el modo smart (ej. "reemplaza cartera roja en [img1]"). */
     consistencyDesc?: string;
+    /** Ancla de COMPOSICIÓN — esta ref (típicamente un sketch) define la estructura
+     *  exacta del output; el render se hace foto-real con los otros refs + prompt. */
+    isComposition?: boolean;
 }
 
 // Cuánto pegar el grade de Look & Feel — el modo imagen salía muy brusco.
@@ -886,6 +889,31 @@ export function ManualLabV2() {
         setInterpretation("");
     }, []);
 
+    // ── Composición (Fase 3) ─────────────────────────────────────────
+    /** Prompt de ancla de composición: el output sigue la ESTRUCTURA de [tag]
+     *  (el sketch) pero se renderiza foto-real con los otros refs + el prompt. */
+    const buildCompositionPrompt = useCallback((tag: string) => (
+        `Output: a finished PHOTOREALISTIC image that follows the EXACT composition of [${tag}] — the same layout, camera angle, framing, placement of every element, perspective, depth and direction of light. [${tag}] is a rough SKETCH / structural guide: do NOT reproduce its pencil lines, its flatness or its lack of detail. Render a real, fully-detailed photographic image on that structure.\n` +
+        `Take the actual subjects / products (their exact identity, shape, color and materials) from the OTHER reference images and this prompt, and place them exactly where [${tag}] indicates. Lock the composition of [${tag}] — change ONLY the rendering, making it photoreal.`
+    ), []);
+
+    /** Toggle del ancla de composición sobre [img1]. La ref [img1] (típicamente el
+     *  sketch) pasa a definir la estructura; los demás refs aportan el contenido real. */
+    const toggleComposition = useCallback(() => {
+        if (refs.length === 0) {
+            alert("Primero 'usá como ref' el sketch (o subí una imagen de estructura). La composición se ancla a [img1].");
+            return;
+        }
+        const already = refs.some((r) => r.isComposition);
+        if (already) {
+            setRefs((prev) => prev.map((r) => ({ ...r, isComposition: false })));
+            setEnhancedPrompt(null);
+            return;
+        }
+        setRefs((prev) => prev.map((r, i) => ({ ...r, isComposition: i === 0 })));
+        setEnhancedPrompt(buildCompositionPrompt(refs[0].tag));
+    }, [refs, buildCompositionPrompt]);
+
     // ── Submit ───────────────────────────────────────────────────────
     const hasContent = useMemo(
         () => prompt.trim().length > 0 || (enhancedPrompt && enhancedPrompt.trim().length > 0),
@@ -1359,6 +1387,23 @@ export function ManualLabV2() {
                                     >
                                         <Target size={14} />
                                         <span className="text-[9px] font-medium leading-tight">Consistencia</span>
+                                    </button>
+                                )}
+                                {/* Composición (Fase 3) — ancla la ESTRUCTURA de [img1] (el sketch);
+                                    el render se hace foto-real con los otros refs + prompt. */}
+                                {mode === "image" && (
+                                    <button
+                                        onClick={toggleComposition}
+                                        className={cn(
+                                            "aspect-square flex flex-col items-center justify-center gap-1 border border-dashed rounded-[var(--radius-sm)] cursor-pointer transition-colors text-center px-1",
+                                            refs.some((r) => r.isComposition)
+                                                ? "border-[var(--color-action-muted)] bg-[var(--color-action-subtle)] text-fg"
+                                                : "border-edge text-fg-muted hover:text-fg hover:border-edge-strong hover:bg-surface-1"
+                                        )}
+                                        title="Anclar composición — [img1] (el sketch) define la estructura; el auto/producto sale de los otros refs, renderizado foto-real"
+                                    >
+                                        <Pencil size={14} />
+                                        <span className="text-[9px] font-medium leading-tight">Composición</span>
                                     </button>
                                 )}
                             </div>
