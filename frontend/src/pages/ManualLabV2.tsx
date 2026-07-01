@@ -33,7 +33,7 @@ import {
     Download, RotateCcw, Sparkles, FlaskConical, AlertTriangle,
     Mic, MicOff, Video, Eye, ChevronLeft, ChevronRight, Target,
     AudioLines, Upload, Link2, Play,
-    ChevronDown, Check,
+    ChevronDown, Check, Pencil,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useDictation } from "../lib/useDictation";
@@ -706,6 +706,17 @@ export function ManualLabV2() {
             setBusyLabel("Generando…");
         }
     }, [refs, prompt, model]);
+
+    // ── Sketch (Fase 1 del método de reconstrucción) — genera un estudio de
+    // composición B&N barato: fija layout/cámara/luz sin pelear detalles todavía.
+    // Después "usá como ref" el sketch para anclar la estructura en la generación real.
+    const generateSketch = useCallback(() => {
+        const base = ((enhancedPrompt ?? prompt) || "").trim();
+        if (!base) { alert("Escribí primero qué querés componer — el sketch fija la estructura de esa idea."); return; }
+        const sketchPrompt = `Rough black-and-white pencil sketch — a loose composition study of: ${base}. Focus ONLY on the composition: where each element goes, the camera angle, the perspective and depth, and the direction of the light. Clean pencil lines on white paper, like a concept storyboard sketch. NO color, NO photographic rendering, NO textures, NO final detail.`;
+        setEnhancedPrompt(sketchPrompt);
+        setPendingSubmit((n) => n + 1);
+    }, [enhancedPrompt, prompt]);
 
     // ── Look & Feel apply — dispatch según el modo activo (recipe vs image). ────
     const applyLookFeel = useCallback(async (item: LookFeelItem & { adhocFile?: File }) => {
@@ -1798,6 +1809,18 @@ export function ManualLabV2() {
                                     <SegBtn label="Tal cual" active={passThrough} onClick={() => setPassThrough(true)} />
                                     <SegBtn label="Curar con Gemini" active={!passThrough} onClick={() => setPassThrough(false)} />
                                 </div>
+                                {/* Sketch (Fase 1) — genera un estudio de composición B&N barato para
+                                    fijar layout/cámara/luz. Después "usá como ref" ese sketch. */}
+                                {mode === "image" && (
+                                    <button
+                                        onClick={generateSketch}
+                                        disabled={busy}
+                                        title="Genera un sketch B&N de composición (barato): fija layout, cámara y dirección de luz. Después 'usá como ref' el sketch para anclar la estructura."
+                                        className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full border border-edge text-fg-muted hover:text-fg hover:bg-surface-2 cursor-pointer transition-colors disabled:opacity-40"
+                                    >
+                                        <Pencil size={11} /> Sketch
+                                    </button>
+                                )}
                                 {/* Recomendar animación — solo en modo video con al menos 1 ref.
                                     Gemini Vision mira la imagen y propone un prompt de motion para
                                     Kling/Seedance. Respeta el intent que ya escribiste; si está
