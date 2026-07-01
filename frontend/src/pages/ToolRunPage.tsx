@@ -376,6 +376,9 @@ interface ToolConfig {
   visualStyle: "iphone" | "cinematic" | "studio" | "custom" | "editorial";
   visualStyleCustom: string;
   reelMode: "story" | "looks";
+  // Scene Reconstruct — imagen original (dataUrl) + assets reales (dataUrls)
+  sceneOriginal: string;
+  sceneAssets: string[];
   // Ecommerce Pack
   studioStyle: string;
   // Color sólido de fondo (cuando studioStyle === "color"). Hex.
@@ -483,6 +486,8 @@ const DEFAULT_CONFIG: ToolConfig = {
   visualStyle: "iphone",
   visualStyleCustom: "",
   reelMode: "story",
+  sceneOriginal: "",
+  sceneAssets: [],
   studioStyle: "white",
   ecomStudioColor: "#efefef",
   ecomBackgroundImage: "",
@@ -3439,6 +3444,63 @@ function ConfigPanel({
           </div>
         );
       })()}
+
+      {tool.id === "scene_reconstruct" && (
+        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-4">
+          <p className="text-[11px] text-fg-muted leading-snug">
+            Subí la <strong>imagen original</strong> (de ahí salen composición + luz) y los <strong>assets reales</strong> (ej. el auto). El tool genera el sketch, interpreta la luz, y arma la foto real con esa composición.
+          </p>
+
+          {/* Imagen original */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Imagen original de escena</span>
+            {config.sceneOriginal ? (
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setLightboxUrl(config.sceneOriginal)} className="cursor-zoom-in shrink-0">
+                  <img src={config.sceneOriginal} alt="original" className="w-16 h-16 rounded object-cover border-2 border-[var(--color-brand)]" />
+                </button>
+                <span className="text-[10px] text-fg-muted flex-1 leading-snug">De acá salen la composición y la luz/color.</span>
+                <button onClick={() => setConfig((p) => ({ ...p, sceneOriginal: "" }))} className="text-fg-faint hover:text-fg cursor-pointer shrink-0" title="Quitar"><X size={13} /></button>
+              </div>
+            ) : (
+              <label className="flex items-center justify-center gap-1.5 px-2.5 py-3 rounded-[var(--radius-sm)] border border-dashed border-edge hover:border-[var(--color-brand)] cursor-pointer text-[11px] text-fg-muted hover:text-fg w-full">
+                <Plus size={13} /> Subir imagen original
+                <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(e) => {
+                  const f = e.target.files?.[0]; if (!f) return;
+                  const r = new FileReader(); r.onload = () => setConfig((p) => ({ ...p, sceneOriginal: r.result as string })); r.readAsDataURL(f); e.target.value = "";
+                }} />
+              </label>
+            )}
+          </div>
+
+          {/* Assets reales (múltiples) */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Assets reales {config.sceneAssets.length > 0 && `(${config.sceneAssets.length})`}</span>
+            <div className="grid grid-cols-4 gap-1.5">
+              {config.sceneAssets.map((url, i) => (
+                <div key={i} className="relative group/asset aspect-square">
+                  <button type="button" onClick={() => setLightboxUrl(url)} className="w-full h-full cursor-zoom-in">
+                    <img src={url} alt={`asset ${i + 1}`} className="w-full h-full rounded object-cover border border-edge" />
+                  </button>
+                  <button onClick={() => setConfig((p) => ({ ...p, sceneAssets: p.sceneAssets.filter((_, j) => j !== i) }))} className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/asset:opacity-100 cursor-pointer" title="Quitar"><X size={9} /></button>
+                </div>
+              ))}
+              <label className="aspect-square flex flex-col items-center justify-center gap-0.5 border border-dashed border-edge hover:border-[var(--color-brand)] rounded-[var(--radius-sm)] cursor-pointer text-fg-muted hover:text-fg">
+                <Plus size={14} />
+                <span className="text-[8px]">Asset</span>
+                <input type="file" accept={IMAGE_ACCEPT} multiple className="hidden" onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  Promise.all(files.map((f) => new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.readAsDataURL(f); }))).then((urls) => {
+                    setConfig((p) => ({ ...p, sceneAssets: [...p.sceneAssets, ...urls] }));
+                  });
+                  e.target.value = "";
+                }} />
+              </label>
+            </div>
+            <p className="text-[10px] text-fg-faint">El auto / producto real que va a la escena. Podés poner varios.</p>
+          </div>
+        </div>
+      )}
 
       {tool.id === "ecommerce_pack" && (
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-4">

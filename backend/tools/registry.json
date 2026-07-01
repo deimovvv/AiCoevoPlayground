@@ -175,6 +175,17 @@
     ]
   },
   {
+    "id": "scene_reconstruct",
+    "name": "Reconstrucción de escena",
+    "category": "images",
+    "description": "Reconstruí una escena foto-real: subís la imagen original (composición + luz) + los assets reales (ej. un auto), y el tool genera sketch → interpreta la luz → arma la foto real con esa composición.",
+    "icon": "image",
+    "status": "active",
+    "pipeline": [
+      "generate_all"
+    ]
+  },
+  {
     "id": "fashion_editorial",
     "name": "Fashion Editorial",
     "category": "images",

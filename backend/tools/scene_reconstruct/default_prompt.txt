@@ -1,0 +1,4 @@
+Scene Reconstruct — la lógica de prompts vive en el frontend
+(frontend/src/tools/scene_reconstruct/index.ts). El handler encadena:
+sketch de composición → interpretación de luz (dedicada) → render foto-real.
+Este archivo es un placeholder por convención de tools/.
