@@ -712,11 +712,19 @@ export function ManualLabV2() {
     // Después "usá como ref" el sketch para anclar la estructura en la generación real.
     const generateSketch = useCallback(() => {
         const base = ((enhancedPrompt ?? prompt) || "").trim();
-        if (!base) { alert("Escribí primero qué querés componer — el sketch fija la estructura de esa idea."); return; }
-        const sketchPrompt = `Rough black-and-white pencil sketch — a loose composition study of: ${base}. Focus ONLY on the composition: where each element goes, the camera angle, the perspective and depth, and the direction of the light. Clean pencil lines on white paper, like a concept storyboard sketch. NO color, NO photographic rendering, NO textures, NO final detail.`;
+        const hasRefs = refs.length > 0;
+        if (!base && !hasRefs) {
+            alert("El sketch necesita algo de lo que partir: escribí qué querés componer, o meté una imagen como ref (o 'usá como ref' una generación de la galería).");
+            return;
+        }
+        // Con ref y sin texto → sacamos el sketch de la composición de la imagen.
+        // Con texto → sketch de la idea escrita (Fase 1 clásica).
+        const sketchPrompt = (hasRefs && !base)
+            ? `Convert [img1] into a rough BLACK-AND-WHITE pencil composition sketch: keep its exact layout, camera angle, placement of every element, perspective, depth and light direction — but render it as clean, loose pencil lines on white paper. NO color, NO photographic detail, NO textures. A concept/structure study of [img1].`
+            : `Rough black-and-white pencil sketch — a loose composition study of: ${base}. Focus ONLY on the composition: where each element goes, the camera angle, the perspective and depth, and the direction of the light. Clean pencil lines on white paper, like a concept storyboard sketch. NO color, NO photographic rendering, NO textures, NO final detail.`;
         setEnhancedPrompt(sketchPrompt);
         setPendingSubmit((n) => n + 1);
-    }, [enhancedPrompt, prompt]);
+    }, [enhancedPrompt, prompt, refs.length]);
 
     // ── Look & Feel apply — dispatch según el modo activo (recipe vs image). ────
     const applyLookFeel = useCallback(async (item: LookFeelItem & { adhocFile?: File }) => {
