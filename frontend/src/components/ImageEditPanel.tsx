@@ -38,6 +38,9 @@ export function ImageEditPanel({
   const [prompt, setPrompt] = useState(defaultPrompt);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Los pickers completos del kit arrancan ocultos — arriba mostramos el/los asset(s)
+  // seleccionado(s) para comprobar consistencia; "Ver todos" despliega el resto.
+  const [showAllAssets, setShowAllAssets] = useState(false);
 
   const products = activeBrand?.products || [];
   const clothing = activeBrand?.clothing || [];
@@ -146,8 +149,40 @@ export function ImageEditPanel({
         </button>
       </div>
 
+      {/* Asset seleccionado — para comprobar consistencia contra la imagen que editás.
+          Es lo que elegiste para ESTA generación; mostrarlo acá evita adivinar. */}
+      {(selectedProduct || selectedClothingItems.length > 0) && (
+        <div className="space-y-1.5">
+          <span className="text-[9px] font-medium text-fg-faint uppercase tracking-wider">Asset seleccionado — comprobá consistencia</span>
+          <div className="flex gap-2 flex-wrap">
+            {selectedProduct && (
+              <div className="flex flex-col items-center gap-0.5 w-14">
+                <img src={productImageUrl(selectedProduct.imageUrl)} alt={selectedProduct.name} className="w-14 h-14 rounded object-cover border-2 border-[var(--color-brand)]" />
+                <span className="text-[8px] text-fg-faint truncate max-w-[56px]" title={selectedProduct.name}>{selectedProduct.name}</span>
+              </div>
+            )}
+            {selectedClothingItems.map((c) => (
+              <div key={c.id} className="flex flex-col items-center gap-0.5 w-14">
+                <img src={clothingImageUrl(c.imageUrl)} alt={c.name} className="w-14 h-14 rounded object-cover border-2 border-[var(--color-brand)]" />
+                <span className="text-[8px] text-fg-faint truncate max-w-[56px]" title={c.name}>{c.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Ver todos los assets del kit — colapsado por default. */}
+      {(allProductImages.length > 0 || allClothingImages.length > 0) && (
+        <button
+          onClick={() => setShowAllAssets((v) => !v)}
+          className="text-[10px] font-medium text-[var(--color-action)] hover:opacity-80 cursor-pointer"
+        >
+          {showAllAssets ? "▾ Ocultar todos los assets" : "▸ Ver todos los assets del kit (para sumar refs)"}
+        </button>
+      )}
+
       {/* Product image picker */}
-      {allProductImages.length > 0 && (
+      {showAllAssets && allProductImages.length > 0 && (
         <div className="space-y-1.5">
           <span className="text-[9px] font-medium text-fg-faint uppercase tracking-wider">Referencia del producto (click para incluir)</span>
           <div className="flex gap-1.5 flex-wrap">
@@ -171,7 +206,7 @@ export function ImageEditPanel({
       )}
 
       {/* Clothing image picker */}
-      {allClothingImages.length > 0 && (
+      {showAllAssets && allClothingImages.length > 0 && (
         <div className="space-y-1.5">
           <span className="text-[9px] font-medium text-fg-faint uppercase tracking-wider">Referencia de ropa (click para incluir)</span>
           <div className="flex gap-1.5 flex-wrap">
