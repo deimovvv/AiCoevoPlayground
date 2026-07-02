@@ -376,9 +376,11 @@ interface ToolConfig {
   visualStyle: "iphone" | "cinematic" | "studio" | "custom" | "editorial";
   visualStyleCustom: string;
   reelMode: "story" | "looks";
-  // Scene Reconstruct — imagen original (dataUrl) + assets reales (dataUrls)
+  // Scene Reconstruct — imagen original (dataUrl) + assets reales (dataUrls de upload)
+  // + ids de assets de marca (productos/prendas del Brand Kit, resueltos en el handler).
   sceneOriginal: string;
   sceneAssets: string[];
+  sceneBrandAssetIds: string[];
   // Ecommerce Pack
   studioStyle: string;
   // Color sólido de fondo (cuando studioStyle === "color"). Hex.
@@ -488,6 +490,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   reelMode: "story",
   sceneOriginal: "",
   sceneAssets: [],
+  sceneBrandAssetIds: [],
   studioStyle: "white",
   ecomStudioColor: "#efefef",
   ecomBackgroundImage: "",
@@ -3500,35 +3503,38 @@ function ConfigPanel({
             <p className="text-[10px] text-fg-faint">El auto / producto real que va a la escena. Podés poner varios.</p>
           </div>
 
-          {/* O elegí de la marca — productos + prendas del Brand Kit. Al elegir, lo
-              convertimos a dataUrl (así funciona con Fal igual que un upload). */}
+          {/* O elegí de la marca — productos + prendas del Brand Kit. Guardamos el id
+              (sin fetch); el handler resuelve la imagen para Fal, como ecommerce_pack. */}
           {(((activeBrand?.products || []).length + (activeBrand?.clothing || []).length) > 0) && (
             <div className="space-y-1.5">
-              <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">O elegí de la marca</span>
+              <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">O elegí de la marca {config.sceneBrandAssetIds.length > 0 && `(${config.sceneBrandAssetIds.length})`}</span>
               <div className="grid grid-cols-4 gap-1.5">
                 {[
                   ...(activeBrand?.products || []).map((p) => ({ id: p.id, name: p.name, url: productImageUrl(p.imageUrl) })),
                   ...(activeBrand?.clothing || []).map((c) => ({ id: c.id, name: c.name, url: c.imageUrl ? clothingImageUrl(c.imageUrl) : "" })),
-                ].filter((a) => a.url).map((a) => (
-                  <button
-                    key={a.id}
-                    type="button"
-                    title={`Sumar ${a.name}`}
-                    onClick={async () => {
-                      try {
-                        const res = await fetch(a.url);
-                        const blob = await res.blob();
-                        const dataUrl = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result as string); r.onerror = reject; r.readAsDataURL(blob); });
-                        setConfig((prev) => ({ ...prev, sceneAssets: [...prev.sceneAssets, dataUrl] }));
-                      } catch (e) { console.error("[scene] add brand asset failed:", e); alert("No se pudo agregar el asset de marca."); }
-                    }}
-                    className="aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge hover:border-[var(--color-brand)] cursor-pointer"
-                  >
-                    <img src={a.url} alt={a.name} className="w-full h-full object-cover" />
-                  </button>
-                ))}
+                ].filter((a) => a.url).map((a) => {
+                  const on = config.sceneBrandAssetIds.includes(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      title={on ? `Quitar ${a.name}` : `Sumar ${a.name}`}
+                      onClick={() => setConfig((p) => ({
+                        ...p,
+                        sceneBrandAssetIds: on ? p.sceneBrandAssetIds.filter((x) => x !== a.id) : [...p.sceneBrandAssetIds, a.id],
+                      }))}
+                      className={cn(
+                        "relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border-2 cursor-pointer transition-all",
+                        on ? "border-[var(--color-brand)]" : "border-edge hover:border-[var(--color-brand)]",
+                      )}
+                    >
+                      <img src={a.url} alt={a.name} className="w-full h-full object-cover" />
+                      {on && <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-[var(--color-brand)] flex items-center justify-center"><Check size={10} className="text-white" /></span>}
+                    </button>
+                  );
+                })}
               </div>
-              <p className="text-[10px] text-fg-faint">Tocá un asset de marca para sumarlo a la escena.</p>
+              <p className="text-[10px] text-fg-faint">Tocá un asset de marca para sumarlo a la escena (se ve el ✓).</p>
             </div>
           )}
         </div>
