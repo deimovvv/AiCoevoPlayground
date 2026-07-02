@@ -6896,8 +6896,23 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
           </div>
         )}
 
-        {/* Storyboard scenes */}
+        {/* Storyboard scenes — cada escena se puede borrar del guion (antes de gastar en
+            imágenes) para acotar lo que trae Content Analyzer. */}
         {scenes.map((scene, i) => {
+          const handleDeleteScene = () => {
+            if (scenes.length <= 1) { alert("Tiene que quedar al menos una escena."); return; }
+            const raw = result as Record<string, unknown>;
+            const arr = raw?.scenes as Array<unknown> | undefined;
+            let newResult: unknown = result;
+            if (Array.isArray(arr)) {
+              newResult = Array.isArray(arr[0])
+                ? { ...raw, scenes: [(arr[0] as Array<Record<string, unknown>>).filter((s) => s.id !== scene.id), ...arr.slice(1)] }
+                : { ...raw, scenes: (arr as Array<Record<string, unknown>>).filter((s) => s.id !== scene.id) };
+            } else if (Array.isArray(result)) {
+              newResult = (result as Array<Record<string, unknown>>).filter((s) => s.id !== scene.id);
+            }
+            onUpdateStepResult?.("script", newResult);
+          };
           // Rewrite just this scene, passing all scenes for coherence.
           const handleSceneRegen = async () => {
             if (!activeBrand) return;
@@ -7016,6 +7031,14 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
                 >
                   {scriptRegenId === scene.id ? <Loader2 size={9} className="animate-spin" /> : <RotateCcw size={9} />}
                   Regenerar
+                </button>
+                {/* Borrar esta escena del guion — antes de generar imágenes. */}
+                <button
+                  onClick={() => { if (scenes.length <= 1) { alert("Tiene que quedar al menos una escena."); return; } if (confirm(`Borrar "${scene.title}" del guion? No se genera imagen para esta escena.`)) handleDeleteScene(); }}
+                  title="Borrar esta escena del guion (antes de gastar en imágenes)"
+                  className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-medium rounded border border-edge bg-surface-1 text-fg-muted hover:text-red-400 hover:border-red-400/40 cursor-pointer"
+                >
+                  <Trash2 size={9} /> Borrar
                 </button>
                 {hasAiSuggestion && (
                   <span className="text-[9px] text-fg-faint italic">IA</span>
