@@ -10241,7 +10241,13 @@ function AssetSelector({
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [open, setOpen] = useState(!collapsible || !defaultCollapsed);
+  // Filtro "solo seleccionados" — con muchos assets (ej. 25 prendas) ver solo los
+  // elegidos. Solo aplica a multi-select con al menos uno seleccionado.
+  const [onlySelected, setOnlySelected] = useState(false);
   const selectedCount = multi ? (selectedIds || []).length : (selectedId ? 1 : 0);
+  const displayItems = (onlySelected && multi)
+    ? items.filter((it) => (selectedIds || []).includes(it.id))
+    : items;
 
   // Sube uno o varios archivos. Secuencial para evitar races en setConfig/
   // refreshBrands (cada onUpload refresca el brand y agrega su id a la selección).
@@ -10322,6 +10328,19 @@ function AssetSelector({
           {collapsible && !open && selectedCount > 0 && (
             <span className="text-[9px] font-semibold text-[var(--color-brand)]">{selectedCount} sel.</span>
           )}
+          {/* Ver solo los seleccionados — útil con muchos assets. */}
+          {multi && selectedCount > 0 && (
+            <button
+              onClick={() => { setOnlySelected((v) => !v); setOpen(true); }}
+              title={onlySelected ? "Ver todos" : "Ver solo los seleccionados"}
+              className={cn(
+                "flex items-center gap-0.5 px-1.5 h-5 rounded text-[9px] font-medium cursor-pointer transition-colors",
+                onlySelected ? "bg-[var(--color-brand)] text-white" : "text-[var(--color-brand)] hover:bg-[var(--color-brand-subtle)]",
+              )}
+            >
+              <Eye size={10} /> {onlySelected ? "Todos" : `Solo sel. (${selectedCount})`}
+            </button>
+          )}
           {hasItems && (
             <span className="text-[9px] text-fg-faint">{items.length}</span>
           )}
@@ -10342,7 +10361,7 @@ function AssetSelector({
 
       {open && hasItems && (
         <div className="grid grid-cols-4 gap-1.5">
-          {items.map((item) => {
+          {displayItems.map((item) => {
             const isSelected = multi
               ? (selectedIds || []).includes(item.id)
               : selectedId === item.id;
