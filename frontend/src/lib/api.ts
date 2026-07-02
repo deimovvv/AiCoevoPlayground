@@ -1105,6 +1105,18 @@ export async function describeSceneLighting(imageUrl: string): Promise<{ descrip
     return res.json();
 }
 
+/** Traduce/afila una instrucción de edición (español/spanglish) → inglés conciso para
+ *  Nano Banana. Fail-open en el backend: si Gemini falla, devuelve el texto original. */
+export async function refineEditInstruction(text: string): Promise<{ refined: string }> {
+    const res = await fetch(`${API_BASE}/api/edit/refine-instruction`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+    });
+    if (!res.ok) return { refined: text }; // fail-open: no bloquees la edición
+    return res.json();
+}
+
 export function lookAndFeelImageUrl(relativeUrl: string): string {
     if (relativeUrl.startsWith("http")) return relativeUrl;
     return `${API_BASE}${relativeUrl}`;

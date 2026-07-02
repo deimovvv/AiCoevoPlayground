@@ -8,8 +8,18 @@
 import { useState } from "react";
 import { Loader2, Wand2 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
-import { createImageEdit, pollImageGen, productImageUrl, clothingImageUrl } from "../lib/api";
+import { createImageEdit, pollImageGen, productImageUrl, clothingImageUrl, refineEditInstruction } from "../lib/api";
 import { cn } from "../lib/utils";
+
+// Heurística barata: ¿el texto parece español? Si sí, lo pasamos por Gemini para
+// traducirlo a inglés fiel antes de mandarlo a Nano Banana (que rinde mejor en inglés).
+// Si es inglés (ej. los atajos ya generan prompts en inglés) → no lo tocamos, sin latencia.
+function looksSpanish(text: string): boolean {
+  const t = text.toLowerCase();
+  if (/[áéíóúñ¿¡]/.test(t)) return true;
+  const words = /\b(el|la|los|las|un|una|de|del|con|sin|que|más|menos|para|por|fondo|cara|pelo|color|cálid|fría|prenda|campera|remera|pantalón|zapat|poné|poner|cambiá|cambiar|hacé|hacer|sacá|sacar|quitá|quitar|agregá|mostrar|mostrá|debe|tiene|blanco|negro|claro|oscuro|izquierda|derecha)\b/;
+  return words.test(t);
+}
 
 interface ImageEditPanelProps {
   imageUrl: string;
@@ -80,8 +90,17 @@ export function ImageEditPanel({
     setLoading(true);
     setError(null);
     try {
+      // Si el texto parece español, lo traducimos/afilamos a inglés (fail-open: si falla,
+      // el backend devuelve el original). Los atajos ya escriben inglés → no se tocan.
+      let finalPrompt = prompt.trim();
+      if (looksSpanish(finalPrompt)) {
+        try {
+          const { refined } = await refineEditInstruction(finalPrompt);
+          if (refined && refined.trim()) finalPrompt = refined.trim();
+        } catch { /* fail-open: seguimos con el texto original */ }
+      }
       const refs = [imageUrl, ...selectedRefs];
-      const job = await createImageEdit(refs, prompt.trim(), aspectRatio, resolution);
+      const job = await createImageEdit(refs, finalPrompt, aspectRatio, resolution);
       const result = await pollImageGen(job.request_id);
       if (result.image_url) {
         onImageUpdated(result.image_url);
@@ -149,24 +168,49 @@ export function ImageEditPanel({
         </button>
       </div>
 
-      {/* Asset seleccionado — para comprobar consistencia contra la imagen que editás.
-          Es lo que elegiste para ESTA generación; mostrarlo acá evita adivinar. */}
+      {/* Assets de ESTA tirada — clickeables como referencia. Es lo que elegiste para
+          esta generación; tocá uno para sumarlo de ref (borde naranja = incluido) y
+          escribí "poné esta campera / respetá este producto" → Nano Banana lo matchea.
+          También sirve para comprobar consistencia visual contra la imagen que editás. */}
       {(selectedProduct || selectedClothingItems.length > 0) && (
         <div className="space-y-1.5">
-          <span className="text-[9px] font-medium text-fg-faint uppercase tracking-wider">Asset seleccionado — comprobá consistencia</span>
+          <span className="text-[9px] font-medium text-fg-faint uppercase tracking-wider">Assets de esta tirada — tocá para usar de referencia</span>
           <div className="flex gap-2 flex-wrap">
-            {selectedProduct && (
-              <div className="flex flex-col items-center gap-0.5 w-14">
-                <img src={productImageUrl(selectedProduct.imageUrl)} alt={selectedProduct.name} className="w-14 h-14 rounded object-cover border-2 border-[var(--color-brand)]" />
-                <span className="text-[8px] text-fg-faint truncate max-w-[56px]" title={selectedProduct.name}>{selectedProduct.name}</span>
-              </div>
-            )}
-            {selectedClothingItems.map((c) => (
-              <div key={c.id} className="flex flex-col items-center gap-0.5 w-14">
-                <img src={clothingImageUrl(c.imageUrl)} alt={c.name} className="w-14 h-14 rounded object-cover border-2 border-[var(--color-brand)]" />
-                <span className="text-[8px] text-fg-faint truncate max-w-[56px]" title={c.name}>{c.name}</span>
-              </div>
-            ))}
+            {selectedProduct && (() => {
+              const on = selectedRefs.includes(selectedProduct.imageUrl);
+              return (
+                <button
+                  type="button"
+                  onClick={() => toggleRef(selectedProduct.imageUrl)}
+                  className="flex flex-col items-center gap-0.5 w-14 cursor-pointer group/asset"
+                  title={on ? "Quitar de referencias" : "Usar como referencia"}
+                >
+                  <span className={cn("relative w-14 h-14 rounded overflow-hidden border-2 transition-all", on ? "border-[var(--color-action)]" : "border-[var(--color-brand)] opacity-70 group-hover/asset:opacity-100")}>
+                    <img src={productImageUrl(selectedProduct.imageUrl)} alt={selectedProduct.name} className="w-full h-full object-cover" />
+                    {on && <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-action)] text-[var(--color-action-fg)] flex items-center justify-center text-[8px]">✓</span>}
+                  </span>
+                  <span className="text-[8px] text-fg-faint truncate max-w-[56px]" title={selectedProduct.name}>{selectedProduct.name}</span>
+                </button>
+              );
+            })()}
+            {selectedClothingItems.map((c) => {
+              const on = selectedRefs.includes(c.imageUrl);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => toggleRef(c.imageUrl)}
+                  className="flex flex-col items-center gap-0.5 w-14 cursor-pointer group/asset"
+                  title={on ? "Quitar de referencias" : "Usar como referencia"}
+                >
+                  <span className={cn("relative w-14 h-14 rounded overflow-hidden border-2 transition-all", on ? "border-[var(--color-action)]" : "border-[var(--color-brand)] opacity-70 group-hover/asset:opacity-100")}>
+                    <img src={clothingImageUrl(c.imageUrl)} alt={c.name} className="w-full h-full object-cover" />
+                    {on && <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-action)] text-[var(--color-action-fg)] flex items-center justify-center text-[8px]">✓</span>}
+                  </span>
+                  <span className="text-[8px] text-fg-faint truncate max-w-[56px]" title={c.name}>{c.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

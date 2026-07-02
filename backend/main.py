@@ -2070,6 +2070,26 @@ async def describe_scene(req: SceneDescribeRequest):
     return {"description": (desc or "").strip()}
 
 
+class RefineEditRequest(BaseModel):
+    text: str
+
+
+@app.post("/api/edit/refine-instruction")
+async def refine_edit_instruction(req: RefineEditRequest):
+    """Traduce/afila una instrucción de edición (español/spanglish) → inglés conciso para
+    Nano Banana. Usado por el ImageEditPanel: el usuario escribe en español y esto lo pasa a
+    inglés fiel (sin agregar estilo) antes de mandarlo al generador. Fail-open: si Gemini no
+    está o falla, devuelve el texto original."""
+    text = (req.text or "").strip()
+    if not text or not image_analysis.is_configured():
+        return {"refined": text}
+    try:
+        refined = await image_analysis.refine_edit_instruction(text)
+    except Exception:
+        refined = text
+    return {"refined": (refined or "").strip() or text}
+
+
 # ══════════════════════════════════════════════════════════════
 #  Brand Logo API
 # ══════════════════════════════════════════════════════════════

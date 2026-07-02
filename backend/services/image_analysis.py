@@ -890,6 +890,38 @@ Return a single concise paragraph (2-4 sentences) suitable for use as a pose ref
     return await _call_vision(prompt, [(image_bytes, mime_type)])
 
 
+async def refine_edit_instruction(text: str) -> str:
+    """
+    Traduce/afila una instrucción de EDICIÓN de imagen (escrita en español o spanglish)
+    a una instrucción concisa en inglés que Nano Banana entiende con máxima fidelidad.
+
+    NO es un enhancer creativo: no agrega estilo, sujetos ni detalles que el usuario no
+    pidió. Solo traduce y expresa la MISMA intención de edición en inglés claro e
+    imperativo. Si el texto ya está en inglés, lo devuelve prácticamente igual.
+    """
+    text = (text or "").strip()
+    if not text:
+        return ""
+    prompt = (
+        "You are a translator for image-EDITING instructions. The user writes what they "
+        "want changed in a generated image, usually in Spanish or mixed Spanish/English.\n"
+        "Rewrite their instruction as ONE concise, imperative English sentence (or two, max) "
+        "that an image-editing model can follow.\n"
+        "RULES:\n"
+        "- Preserve the EXACT intent. Do NOT add style, mood, subjects, colors or details the user did not mention.\n"
+        "- Do NOT expand or embellish. Keep it minimal and literal.\n"
+        "- Keep proper nouns, brand names and reference tags (like [img1]) as-is.\n"
+        "- Output ONLY the English instruction — no quotes, no preamble, no explanation.\n\n"
+        f"User instruction:\n{text}"
+    )
+    try:
+        out = await _call_vision(prompt, [])
+        return (out or "").strip() or text
+    except Exception as e:
+        print(f"[refine-edit] failed, using original text: {e}")
+        return text
+
+
 async def _call_vision(prompt: str, images: list[tuple[bytes, str]], model: str = GEMINI_MODEL) -> str:
     """Call Gemini Vision with text prompt + images."""
     if not GEMINI_API_KEY:
