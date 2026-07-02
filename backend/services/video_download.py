@@ -23,13 +23,24 @@ def _is_tiktok(url: str) -> bool:
     return "tiktok.com" in url or "vm.tiktok.com" in url
 
 
-async def _run_ytdlp(cmd: list, work_dir: Path) -> tuple[int, str]:
+async def _run_ytdlp(cmd: list, work_dir: Path, timeout: int = 90) -> tuple[int, str]:
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    _, stderr = await proc.communicate()
+    try:
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        # Ej: --cookies-from-browser dispara el prompt de Keychain en macOS y queda
+        # bloqueado esperando la contraseña. Matamos el proceso y devolvemos error para
+        # que el request NO se cuelgue (antes → "Failed to fetch" en el front).
+        try:
+            proc.kill()
+            await proc.wait()
+        except Exception:
+            pass
+        return 1, "yt-dlp timed out (posible prompt de credenciales del navegador bloqueando la descarga)"
     return proc.returncode, stderr.decode() if stderr else ""
 
 
@@ -91,17 +102,24 @@ async def download_video(url: str, max_duration: int = 120) -> dict:
         "-o", str(output_path),
     ]
 
-    # Multi-strategy para TODAS las URLs — no solo TikTok. Instagram exige login para
-    # bajar; --cookies-from-browser le pasa la sesión de IG del browser del usuario
-    # (si está logueado), que es lo que destraba la descarga. Antes IG iba solo con el
-    # intento plano (anónimo) → siempre bloqueado. Orden: impersonate → cookies chrome →
-    # cookies firefox → plano. El impersonate necesita curl_cffi (ya en requirements).
-    attempts: list[list[str]] = [
-        ["yt-dlp", "--impersonate", "chrome", *base_args, url],
-        ["yt-dlp", "--cookies-from-browser", "chrome", *base_args, url],
-        ["yt-dlp", "--cookies-from-browser", "firefox", *base_args, url],
-        ["yt-dlp", *base_args, url],  # last-resort plain (TikTok/YouTube públicos)
-    ]
+    # IMPORTANTE (macOS): --cookies-from-browser dispara el prompt de Keychain
+    # ("yt-dlp wants to access Chrome Safe Storage") y BLOQUEA el request → "Failed to
+    # fetch". Por eso lo usamos SOLO para TikTok (que sin cookies no baja y donde el
+    # impersonate suele resolver antes). Para Instagram / YouTube: impersonate + plano,
+    # sin cookies-from-browser → nunca dispara el Keychain. IG que exige login → falla
+    # limpio → el usuario usa "Upload Video".
+    if _is_tiktok(url):
+        attempts: list[list[str]] = [
+            ["yt-dlp", "--impersonate", "chrome", *base_args, url],
+            ["yt-dlp", "--cookies-from-browser", "chrome", *base_args, url],
+            ["yt-dlp", "--cookies-from-browser", "firefox", *base_args, url],
+            ["yt-dlp", *base_args, url],
+        ]
+    else:
+        attempts = [
+            ["yt-dlp", "--impersonate", "chrome", *base_args, url],
+            ["yt-dlp", *base_args, url],  # plano (YouTube público, etc.)
+        ]
 
     last_error = ""
     for cmd in attempts:
@@ -121,10 +139,9 @@ async def download_video(url: str, max_duration: int = 120) -> dict:
             )
         if "instagram.com" in url:
             raise Exception(
-                "Instagram bloqueó la descarga. IG exige login para bajar videos: "
-                "iniciá sesión en Instagram en tu Chrome o Firefox (yt-dlp usa esa sesión), "
-                "o — más simple — descargá el reel a tu compu y subilo con el botón "
-                "'Upload Video' de abajo. URLs de TikTok y YouTube sí funcionan directo."
+                "Instagram no permite bajar el reel por URL (exige login y bloquea descargas "
+                "anónimas). Descargá el reel a tu compu y subilo con el botón 'Upload Video' de "
+                "abajo — así funciona siempre. URLs de TikTok y YouTube sí andan directo."
             )
         raise Exception(f"Download failed: {last_error}")
 
