@@ -42,7 +42,7 @@ import {
     saveGeneration, fetchManualGenerations,
     avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl,
     moodboardImageUrl, lookAndFeelImageUrl, brandLogoImageUrl,
-    enhanceManualPrompt, describeLookAndFeel, describeLookAndFeelUpload, describeConsistencyUpload, describeSceneLighting,
+    enhanceManualPrompt, describeLookAndFeel, describeLookAndFeelUpload, describeConsistencyUpload,
     createKlingVideo, createKlingFrameToFrame, pollKlingVideo,
     createSeedanceReferenceToVideo, pollSeedanceVideo,
     ensureHostedRefUrl,
@@ -76,9 +76,6 @@ interface RefImage {
     consistencyType?: "avatar" | "product" | "smart";
     /** Texto del chip para el modo smart (ej. "reemplaza cartera roja en [img1]"). */
     consistencyDesc?: string;
-    /** Ancla de COMPOSICIÓN — esta ref (típicamente un sketch) define la estructura
-     *  exacta del output; el render se hace foto-real con los otros refs + prompt. */
-    isComposition?: boolean;
 }
 
 // Cuánto pegar el grade de Look & Feel — el modo imagen salía muy brusco.
@@ -288,10 +285,6 @@ export function ManualLabV2() {
     // guardado, o subir ad-hoc. Solo una activa a la vez. Solo modo imagen.
     const [showConsistency, setShowConsistency] = useState(false);
 
-    // Luz/mood interpretados de la imagen original por Gemini (al generar el sketch).
-    // Se inyecta solo en el template de Composición — así no escribís el prompt maestro.
-    const [sceneDescription, setSceneDescription] = useState<string>("");
-    const [extractingScene, setExtractingScene] = useState(false);
 
     // Lightbox
     // Lightbox — soporta navegación entre variantes con ← / → o las flechas del UI.
@@ -715,23 +708,8 @@ export function ManualLabV2() {
         }
     }, [refs, prompt, model]);
 
-    // Interpreta la LUZ / mood de una imagen con Gemini Vision → prompt maestro (Fase 2).
-    // Se guarda en sceneDescription para inyectarlo solo en Composición (así no lo escribís).
-    const extractSceneLighting = useCallback(async (refUrl: string) => {
-        setExtractingScene(true);
-        try {
-            const res = await describeSceneLighting(refUrl);
-            if (res.description) setSceneDescription(res.description.trim());
-        } catch (e) {
-            console.error("[scene-lighting] extract failed:", e);
-        } finally {
-            setExtractingScene(false);
-        }
-    }, []);
-
-    // ── Sketch (Fase 1 del método de reconstrucción) — genera un estudio de
-    // composición B&N barato: fija layout/cámara/luz sin pelear detalles todavía.
-    // Después "usá como ref" el sketch para anclar la estructura en la generación real.
+    // ── Sketch — genera un estudio de composición B&N barato: fija layout/cámara/luz
+    // sin pelear detalles. Desde texto (idea) o desde una ref (composición de esa imagen).
     const generateSketch = useCallback(() => {
         const base = ((enhancedPrompt ?? prompt) || "").trim();
         const hasRefs = refs.length > 0;
@@ -739,9 +717,6 @@ export function ManualLabV2() {
             alert("El sketch necesita algo de lo que partir: escribí qué querés componer, o meté una imagen como ref (o 'usá como ref' una generación de la galería).");
             return;
         }
-        // Si hay una imagen de referencia, Gemini interpreta su luz/mood EN PARALELO
-        // (Fase 2 automática) — se guarda para inyectarlo en Composición.
-        if (hasRefs) void extractSceneLighting(refs[0].url);
         // Con ref y sin texto → sacamos el sketch de la composición de la imagen.
         // Con texto → sketch de la idea escrita (Fase 1 clásica).
         const sketchPrompt = (hasRefs && !base)
@@ -749,7 +724,7 @@ export function ManualLabV2() {
             : `Rough black-and-white pencil sketch — a loose composition study of: ${base}. Focus ONLY on the composition: where each element goes, the camera angle, the perspective and depth, and the direction of the light. Clean pencil lines on white paper, like a concept storyboard sketch. NO color, NO photographic rendering, NO textures, NO final detail.`;
         setEnhancedPrompt(sketchPrompt);
         setPendingSubmit((n) => n + 1);
-    }, [enhancedPrompt, prompt, refs, extractSceneLighting]);
+    }, [enhancedPrompt, prompt, refs]);
 
     // ── Look & Feel apply — dispatch según el modo activo (recipe vs image). ────
     const applyLookFeel = useCallback(async (item: LookFeelItem & { adhocFile?: File }) => {
@@ -911,37 +886,6 @@ export function ManualLabV2() {
         setInterpretation("");
     }, []);
 
-    // ── Composición (Fase 3) ─────────────────────────────────────────
-    /** Prompt de ancla de composición: el output sigue la ESTRUCTURA de [tag]
-     *  (el sketch) pero se renderiza foto-real con los otros refs + el prompt. */
-    const buildCompositionPrompt = useCallback((tag: string) => (
-        `Output: a finished PHOTOREALISTIC image that follows the EXACT composition of [${tag}] — the same layout, camera angle, framing, placement of every element, perspective, depth and direction of light. [${tag}] is a rough SKETCH / structural guide: do NOT reproduce its pencil lines, its flatness or its lack of detail. Render a real, fully-detailed photographic image on that structure.\n` +
-        `Take the actual subjects / products (their exact identity, shape, color and materials) from the OTHER reference images and this prompt, and place them exactly where [${tag}] indicates.\n` +
-        `LIGHTING & COLOR: follow the light DIRECTION shown in the sketch, but the exact lighting quality, color palette, materials and mood come from this prompt and from any look & feel / reference image provided (NOT from the flat B&W sketch). Match them precisely.\n` +
-        `Lock the composition of [${tag}] — change ONLY the rendering, making it photoreal.`
-    ), []);
-
-    /** Toggle del ancla de composición sobre [img1]. La ref [img1] (típicamente el
-     *  sketch) pasa a definir la estructura; los demás refs aportan el contenido real. */
-    const toggleComposition = useCallback(() => {
-        if (refs.length === 0) {
-            alert("Primero 'usá como ref' el sketch (o subí una imagen de estructura). La composición se ancla a [img1].");
-            return;
-        }
-        const already = refs.some((r) => r.isComposition);
-        if (already) {
-            setRefs((prev) => prev.map((r) => ({ ...r, isComposition: false })));
-            setEnhancedPrompt(null);
-            return;
-        }
-        setRefs((prev) => prev.map((r, i) => ({ ...r, isComposition: i === 0 })));
-        // Si Gemini ya interpretó la luz de la escena original (al sketchear), la
-        // inyectamos sola en el template — así no escribís el prompt maestro.
-        const tmpl = buildCompositionPrompt(refs[0].tag);
-        setEnhancedPrompt(sceneDescription
-            ? `${tmpl}\n\nLIGHTING / MOOD (match this exactly — interpreted from the original scene): ${sceneDescription}`
-            : tmpl);
-    }, [refs, buildCompositionPrompt, sceneDescription]);
 
     // ── Submit ───────────────────────────────────────────────────────
     const hasContent = useMemo(
@@ -1425,39 +1369,7 @@ export function ManualLabV2() {
                                         <span className="text-[9px] font-medium leading-tight">Consistencia</span>
                                     </button>
                                 )}
-                                {/* Composición (Fase 3) — ancla la ESTRUCTURA de [img1] (el sketch);
-                                    el render se hace foto-real con los otros refs + prompt. */}
-                                {mode === "image" && (
-                                    <button
-                                        onClick={toggleComposition}
-                                        className={cn(
-                                            "aspect-square flex flex-col items-center justify-center gap-1 border border-dashed rounded-[var(--radius-sm)] cursor-pointer transition-colors text-center px-1",
-                                            refs.some((r) => r.isComposition)
-                                                ? "border-[var(--color-action-muted)] bg-[var(--color-action-subtle)] text-fg"
-                                                : "border-edge text-fg-muted hover:text-fg hover:border-edge-strong hover:bg-surface-1"
-                                        )}
-                                        title="Anclar composición — [img1] (el sketch) define la estructura; el auto/producto sale de los otros refs, renderizado foto-real"
-                                    >
-                                        <Pencil size={14} />
-                                        <span className="text-[9px] font-medium leading-tight">Composición</span>
-                                    </button>
-                                )}
                             </div>
-                            {/* Luz interpretada — Gemini analizó la escena original al sketchear.
-                                Se inyecta sola al activar Composición; no hace falta escribirla. */}
-                            {mode === "image" && (extractingScene || sceneDescription) && (
-                                <div className="mt-2 flex items-center gap-1.5 text-[10px]">
-                                    {extractingScene ? (
-                                        <><RefreshCw size={10} className="animate-spin text-fg-faint" /><span className="text-fg-faint">Interpretando luz / mood de la imagen…</span></>
-                                    ) : (
-                                        <>
-                                            <Sparkles size={10} className="text-[var(--color-action)]" />
-                                            <span className="text-fg-muted flex-1 leading-snug">Luz interpretada — se aplica sola cuando actives <strong>Composición</strong>.</span>
-                                            <button onClick={() => setSceneDescription("")} className="text-fg-faint hover:text-fg cursor-pointer shrink-0" title="Descartar la luz interpretada"><X size={11} /></button>
-                                        </>
-                                    )}
-                                </div>
-                            )}
                             <input
                                 ref={fileInputRef}
                                 type="file"
