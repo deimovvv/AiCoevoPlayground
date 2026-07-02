@@ -22,11 +22,22 @@ const SKETCH_PROMPT =
 const NO_TEXT = " Single clean photograph. No text, no watermark, no logo overlay, no graphics.";
 
 const handleGenerate: StepHandler = async (ctx) => {
-  const { config } = ctx;
+  const { config, activeBrand } = ctx;
   const cfg = config as unknown as Record<string, unknown>;
 
   const original = (cfg.sceneOriginal as string) || "";
-  const assets = ((cfg.sceneAssets as string[]) || []).filter(Boolean);
+  const uploaded = ((cfg.sceneAssets as string[]) || []).filter(Boolean);
+  // Assets de marca elegidos por id → resolvemos a su imageUrl cruda (el backend la
+  // sube a Fal, igual que ecommerce_pack). Van primero para priorizar el producto real.
+  const brandIds = ((cfg.sceneBrandAssetIds as string[]) || []);
+  const brandUrls: string[] = [];
+  for (const id of brandIds) {
+    const p = activeBrand?.products?.find((x) => x.id === id);
+    if (p?.imageUrl) { brandUrls.push(p.imageUrl); continue; }
+    const c = activeBrand?.clothing?.find((x) => x.id === id);
+    if (c?.imageUrl) brandUrls.push(c.imageUrl);
+  }
+  const assets = [...brandUrls, ...uploaded];
   const extraDirection = (config.objective || "").trim();
 
   if (!original) throw new Error("Subí la imagen ORIGINAL de la escena (de ahí salen composición y luz).");
