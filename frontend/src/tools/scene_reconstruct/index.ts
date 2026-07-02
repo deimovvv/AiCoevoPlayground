@@ -83,14 +83,31 @@ const handleGenerate: StepHandler = async (ctx) => {
     `${lightingLine}${directionLine}\n` +
     `Lock the composition of image 1 — change ONLY the rendering, making it photoreal, sharp and high-end. Avoid a 3D/CGI look.${NO_TEXT}`;
 
+  let renderUrl = "";
   try {
     const job = await createImageEdit(renderRefs, renderPrompt, ar, res);
     const r = await pollImageGen(job.request_id);
-    const finalUrl = r.image_url || "";
-    images.push({ id: "render", url: finalUrl, label: "② Reconstrucción", prompt: renderPrompt, status: finalUrl ? "done" : "failed" });
+    renderUrl = r.image_url || "";
+    images.push({ id: "render", url: renderUrl, label: "② Reconstrucción", prompt: renderPrompt, status: renderUrl ? "done" : "failed" });
   } catch (e) {
     images.push({ id: "render", url: "", label: "② Reconstrucción", prompt: renderPrompt, status: "failed" });
     console.error("[scene_reconstruct] render failed:", e);
+  }
+
+  // ── Fase 4 — Color match: pasamos la ORIGINAL como referencia de color sobre el
+  // render, para calcar el look & feel exacto (el texto de la Fase 2 es lossy). Es el
+  // paso que pediste: "pasarle la original a la generada para que copie color".
+  if (renderUrl) {
+    const gradePrompt =
+      `Regrade IMAGE 1 (the render) to match the EXACT color palette, lighting mood, color temperature, contrast and overall atmosphere of IMAGE 2 (the original reference). Apply IMAGE 2's color/light treatment to IMAGE 1 like a film LUT.\n` +
+      `KEEP IMAGE 1's content, composition, subject, framing, product and details EXACTLY — change ONLY color, tone, lighting mood and atmosphere to match IMAGE 2. Do NOT copy any object, subject or layout from IMAGE 2; use it ONLY as a color / lighting reference.${NO_TEXT}`;
+    try {
+      const job = await createImageEdit([renderUrl, original], gradePrompt, ar, res);
+      const r = await pollImageGen(job.request_id);
+      if (r.image_url) images.push({ id: "graded", url: r.image_url, label: "③ Con color de la original", prompt: gradePrompt, status: "done" });
+    } catch (e) {
+      console.error("[scene_reconstruct] color grade failed:", e);
+    }
   }
 
   const successful = images.filter((im) => im.url).length;
