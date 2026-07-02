@@ -3114,6 +3114,42 @@ function ConfigPanel({
     schema.showVariations,
   ].filter(Boolean).length;
 
+  // Resumen consolidado de TODO lo seleccionado (avatar + productos + prendas +
+  // accesorios + fondo + moodboard), con X para quitar. Extraído a helper para
+  // poder colocarlo arriba de Accesorios en ecommerce_pack (y en la grilla de
+  // assets para el resto). Devuelve null si no hay nada seleccionado.
+  const renderSelectedSummary = () => {
+    const b = activeBrand;
+    if (!b) return null;
+    type Sel = { kind: string; name: string; thumb?: string; remove: () => void };
+    const sels: Sel[] = [];
+    const avIds = config.selectedAvatarIds?.length ? config.selectedAvatarIds : (config.selectedAvatarId ? [config.selectedAvatarId] : []);
+    for (const id of avIds) { const a = b.avatars?.find((x) => x.id === id); if (a) sels.push({ kind: "Avatar", name: a.name, thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedAvatarId: p.selectedAvatarId === id ? null : p.selectedAvatarId, selectedAvatarIds: (p.selectedAvatarIds || []).filter((x) => x !== id) })) }); }
+    const prIds = config.selectedProductIds?.length ? config.selectedProductIds : (config.selectedProductId ? [config.selectedProductId] : []);
+    for (const id of prIds) { const pr = b.products?.find((x) => x.id === id); if (pr) sels.push({ kind: "Producto", name: pr.name, thumb: pr.imageUrl ? productImageUrl(pr.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedProductId: p.selectedProductId === id ? null : p.selectedProductId, selectedProductIds: (p.selectedProductIds || []).filter((x) => x !== id) })) }); }
+    for (const id of (config.selectedClothingIds || [])) { const c = b.clothing?.find((x) => x.id === id); if (c) { const isAcc = (config.ecomAccessoryIds || []).includes(id); sels.push({ kind: isAcc ? "Accesorio" : "Prenda", name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedClothingIds: (p.selectedClothingIds || []).filter((x) => x !== id), ecomAccessoryIds: (p.ecomAccessoryIds || []).filter((x) => x !== id) })) }); } }
+    if (config.selectedBackgroundId) { const bg = b.backgrounds?.find((x) => x.id === config.selectedBackgroundId); if (bg) sels.push({ kind: "Fondo", name: bg.name, thumb: bg.imageUrl ? backgroundImageUrl(bg.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedBackgroundId: null })) }); }
+    if (config.selectedMoodboardId) { const md = b.moodboards?.find((x) => x.id === config.selectedMoodboardId); if (md) sels.push({ kind: "Moodboard", name: md.name, thumb: md.imageUrl ? moodboardImageUrl(md.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedMoodboardId: null })) }); }
+    if (sels.length === 0) return null;
+    return (
+      <div className="bg-surface-1 border border-[var(--color-brand-muted)] rounded-[var(--radius-sm)] p-2.5">
+        <span className="text-[11px] font-semibold text-fg-secondary">Seleccionados <span className="text-fg-faint font-normal text-[10px]">· {sels.length}</span></span>
+        <div className="grid grid-cols-4 gap-1.5 mt-2">
+          {sels.map((s, i) => (
+            <div key={i} className="group/sel relative border border-edge rounded-[var(--radius-sm)] p-1 bg-surface-0">
+              <div className="aspect-square rounded overflow-hidden bg-surface-2 mb-1">
+                {s.thumb && <img src={s.thumb} alt={s.name} className="w-full h-full object-cover" />}
+              </div>
+              <span className="block text-[8px] text-fg-faint uppercase tracking-wide leading-tight">{s.kind}</span>
+              <span className="block text-[9px] text-fg-muted truncate leading-tight">{s.name}</span>
+              <button onClick={s.remove} className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/sel:opacity-100 cursor-pointer" title="Quitar de la selección"><X size={9} /></button>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     // Refactor split layout: el ConfigPanel ahora vive en un sidebar de 440px.
     // Quitamos el brand summary box (info ya está en el header del split layout) y
@@ -3539,6 +3575,11 @@ function ConfigPanel({
           )}
         </div>
       )}
+
+      {/* Seleccionados — arriba de todo el bloque ecommerce (por ende, arriba de
+          Accesorios). Con las Prendas colapsadas abajo, este resumen es la forma
+          de ver de un vistazo qué outfit va a la generación. */}
+      {tool.id === "ecommerce_pack" && renderSelectedSummary()}
 
       {tool.id === "ecommerce_pack" && (
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-4">
@@ -4900,40 +4941,10 @@ function ConfigPanel({
           se encimen. El layout 2-cols del antiguo full-width se descarta. */}
       {(schema.showAvatar || schema.showProduct || schema.showClothing || schema.showBackground || schema.showMoodboard) && (
         <div className="grid grid-cols-1 gap-2">
-          {/* Resumen consolidado — TODO lo seleccionado en un solo lugar (avatar +
-              productos + prendas + accesorios + fondo + moodboard), con X para quitar.
-              Para no tener que scrollear cada categoría y ver qué va a la generación. */}
-          {(() => {
-            const b = activeBrand;
-            if (!b) return null;
-            type Sel = { kind: string; name: string; thumb?: string; remove: () => void };
-            const sels: Sel[] = [];
-            const avIds = config.selectedAvatarIds?.length ? config.selectedAvatarIds : (config.selectedAvatarId ? [config.selectedAvatarId] : []);
-            for (const id of avIds) { const a = b.avatars?.find((x) => x.id === id); if (a) sels.push({ kind: "Avatar", name: a.name, thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedAvatarId: p.selectedAvatarId === id ? null : p.selectedAvatarId, selectedAvatarIds: (p.selectedAvatarIds || []).filter((x) => x !== id) })) }); }
-            const prIds = config.selectedProductIds?.length ? config.selectedProductIds : (config.selectedProductId ? [config.selectedProductId] : []);
-            for (const id of prIds) { const pr = b.products?.find((x) => x.id === id); if (pr) sels.push({ kind: "Producto", name: pr.name, thumb: pr.imageUrl ? productImageUrl(pr.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedProductId: p.selectedProductId === id ? null : p.selectedProductId, selectedProductIds: (p.selectedProductIds || []).filter((x) => x !== id) })) }); }
-            for (const id of (config.selectedClothingIds || [])) { const c = b.clothing?.find((x) => x.id === id); if (c) { const isAcc = (config.ecomAccessoryIds || []).includes(id); sels.push({ kind: isAcc ? "Accesorio" : "Prenda", name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedClothingIds: (p.selectedClothingIds || []).filter((x) => x !== id), ecomAccessoryIds: (p.ecomAccessoryIds || []).filter((x) => x !== id) })) }); } }
-            if (config.selectedBackgroundId) { const bg = b.backgrounds?.find((x) => x.id === config.selectedBackgroundId); if (bg) sels.push({ kind: "Fondo", name: bg.name, thumb: bg.imageUrl ? backgroundImageUrl(bg.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedBackgroundId: null })) }); }
-            if (config.selectedMoodboardId) { const md = b.moodboards?.find((x) => x.id === config.selectedMoodboardId); if (md) sels.push({ kind: "Moodboard", name: md.name, thumb: md.imageUrl ? moodboardImageUrl(md.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedMoodboardId: null })) }); }
-            if (sels.length === 0) return null;
-            return (
-              <div className="bg-surface-1 border border-[var(--color-brand-muted)] rounded-[var(--radius-sm)] p-2.5">
-                <span className="text-[11px] font-semibold text-fg-secondary">Seleccionados <span className="text-fg-faint font-normal text-[10px]">· {sels.length}</span></span>
-                <div className="grid grid-cols-4 gap-1.5 mt-2">
-                  {sels.map((s, i) => (
-                    <div key={i} className="group/sel relative border border-edge rounded-[var(--radius-sm)] p-1 bg-surface-0">
-                      <div className="aspect-square rounded overflow-hidden bg-surface-2 mb-1">
-                        {s.thumb && <img src={s.thumb} alt={s.name} className="w-full h-full object-cover" />}
-                      </div>
-                      <span className="block text-[8px] text-fg-faint uppercase tracking-wide leading-tight">{s.kind}</span>
-                      <span className="block text-[9px] text-fg-muted truncate leading-tight">{s.name}</span>
-                      <button onClick={s.remove} className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 hover:bg-red-500 text-white flex items-center justify-center opacity-0 group-hover/sel:opacity-100 cursor-pointer" title="Quitar de la selección"><X size={9} /></button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
+          {/* Resumen consolidado — TODO lo seleccionado en un solo lugar. En
+              ecommerce_pack lo renderizamos arriba (encima de Accesorios), así que
+              acá lo salteamos para no duplicarlo. */}
+          {tool.id !== "ecommerce_pack" && renderSelectedSummary()}
           {schema.showAvatar && (
             <AssetSelector
               label={schema.avatarLabel || "Avatar"}
@@ -5045,6 +5056,7 @@ function ConfigPanel({
           {schema.showClothing && (
             <AssetSelector
               collapsible
+              defaultCollapsed={tool.id === "ecommerce_pack"}
               label={schema.clothingLabel || "Clothing"}
               sublabel={schema.clothingSublabel || "multi-select"}
               emptyText="Upload clothing items or add from here"
