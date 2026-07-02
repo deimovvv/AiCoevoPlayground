@@ -3499,6 +3499,38 @@ function ConfigPanel({
             </div>
             <p className="text-[10px] text-fg-faint">El auto / producto real que va a la escena. Podés poner varios.</p>
           </div>
+
+          {/* O elegí de la marca — productos + prendas del Brand Kit. Al elegir, lo
+              convertimos a dataUrl (así funciona con Fal igual que un upload). */}
+          {(((activeBrand?.products || []).length + (activeBrand?.clothing || []).length) > 0) && (
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">O elegí de la marca</span>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[
+                  ...(activeBrand?.products || []).map((p) => ({ id: p.id, name: p.name, url: productImageUrl(p.imageUrl) })),
+                  ...(activeBrand?.clothing || []).map((c) => ({ id: c.id, name: c.name, url: c.imageUrl ? clothingImageUrl(c.imageUrl) : "" })),
+                ].filter((a) => a.url).map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    title={`Sumar ${a.name}`}
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(a.url);
+                        const blob = await res.blob();
+                        const dataUrl = await new Promise<string>((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result as string); r.onerror = reject; r.readAsDataURL(blob); });
+                        setConfig((prev) => ({ ...prev, sceneAssets: [...prev.sceneAssets, dataUrl] }));
+                      } catch (e) { console.error("[scene] add brand asset failed:", e); alert("No se pudo agregar el asset de marca."); }
+                    }}
+                    className="aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge hover:border-[var(--color-brand)] cursor-pointer"
+                  >
+                    <img src={a.url} alt={a.name} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-fg-faint">Tocá un asset de marca para sumarlo a la escena.</p>
+            </div>
+          )}
         </div>
       )}
 
