@@ -70,6 +70,15 @@ const BG_ISOLATION = "The background is ONLY the studio backdrop described above
 // Lock explícito: la prenda se usa como en la foto de referencia.
 const GARMENT_ORIENTATION = "Wear every garment in its CORRECT orientation, matching the garment reference exactly — prints, logos, buttons, zippers, pockets and necklines where they belong. In FRONT and 3/4 shots the front of the garment faces the camera; never reverse, mirror or show a garment's back unless this is explicitly a BACK shot.";
 
+// Énfasis en piernas / tren inferior al copiar una pose. El fallo #1 de Nano Banana es
+// copiar los brazos pero dejar las piernas en un parado default — este bloque le da a
+// las piernas el mismo peso que a los brazos y lo dice explícitamente.
+const POSE_FULL_BODY = "Copy the pose of the WHOLE body from head to feet — the LEGS AND LOWER BODY are as important as the arms. Replicate the exact lower-body stance: which leg carries the weight, how much each knee is bent, whether the legs are together / apart / crossed / staggered, and how the feet are planted and angled. The single most common mistake is copying the arms while leaving the legs in a plain straight standing stance — do NOT do that; the legs must match the reference just as precisely as the upper body.";
+
+// Consistencia de fondo entre etapas/shots — el backdrop es el MISMO estudio en todo el
+// pack, sin variación de tono/gradiente/piso de una toma a otra.
+const BG_CONSISTENCY = "BACKGROUND CONSISTENCY: the studio backdrop must stay IDENTICAL and uniform across every shot in this pack — same exact tone, same gradient, same floor. Do NOT invent, drift or vary the background between shots; it is always the same clean studio described above.";
+
 // Prompt del botón "Mejorar texturas + 4K" — pasa la imagen YA generada de vuelta
 // por Nano Banana en modo edit a 4K. Mejora SOLO la nitidez/textura de piel y tela;
 // NO recompone, NO cambia identidad, ropa, pose, fondo ni encuadre.
@@ -272,7 +281,7 @@ const handleGenerate: StepHandler = async (ctx) => {
     studioClauseBase = STUDIO_STYLES[studioKey]?.clause || STUDIO_STYLES.white.clause;
   }
   // La sombra de contacto + el aislamiento de fondo van en TODOS los shots.
-  const studioClause = `${studioClauseBase} ${GROUNDING_SHADOW} ${BG_ISOLATION}`;
+  const studioClause = `${studioClauseBase} ${GROUNDING_SHADOW} ${BG_ISOLATION} ${BG_CONSISTENCY}`;
 
   const shots = ((Array.isArray(cfg.ecomShots) && (cfg.ecomShots as string[]).length) ? (cfg.ecomShots as string[]) : DEFAULT_SHOTS)
     .filter((s) => SHOT_CATALOG[s]);
@@ -395,14 +404,17 @@ TAKE FROM IMAGE 1 (do NOT change any of this):
 - Skin condition (smooth/clean) — same exact skin as image 1, NO new tattoos, NO new birthmarks, NO new piercings, NO new jewelry that isn't already in image 1
 - Every single garment the person is wearing (top, bottom, layers) — colors, patterns, fabric, fit, cut, length
 - Every accessory that exists in image 1 (scarves, necklaces, bags, belts, hats, shoes, jewelry) — exactly as they appear
-- Background and studio lighting
+- Background and studio lighting: keep the EXACT studio backdrop from image 1 — same tone, same gradient, same floor. Do NOT introduce, invent or drift to a different background.
 
 TAKE FROM IMAGE 2 (the body POSTURE AND the framing — image 2 is the source of truth for how the shot looks):
-- Body posture: stance, weight distribution, leg position
+- Overall body posture: stance, weight distribution, torso lean
+- LEGS AND LOWER BODY (as important as the arms): the exact position of each leg — which leg bears the weight, how much each knee is bent, feet placement and angle, legs together / apart / crossed / staggered. Copy the lower body as precisely as the upper body; do NOT default to a plain straight-legged stance.
 - Arm position and hand placement
 - Torso angle and shoulder position
 - Head tilt, head rotation, gaze direction
 - Camera FRAMING and CROP: match image 2's EXACT zoom and distance. If image 2 is a full-body shot the output is full-body; if it is a waist-up / medium / close shot, the output is cropped the same way. Do NOT re-frame to a different crop.
+
+${POSE_FULL_BODY}
 
 CRITICAL — do NOT contaminate the output with anything from image 2 that is not pose- or framing-related:
 - Tattoos visible on the model in image 2 → DO NOT add them to the output (the person in image 1 may have clean skin without tattoos)
@@ -495,7 +507,7 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
 - ${IDENTITY_LOCK}
 - ${FACE_REALISM}
 - ${GARMENT_ORIENTATION}
-- PRESERVE from the BASE IMAGE ONLY the body POSTURE and the camera FRAMING: pose, stance, limb and hand positions, torso angle, head tilt, gaze, AND the exact camera framing/crop/zoom/distance (full-body, medium, close, etc.). The base image is the source of truth for the pose AND the framing — do NOT re-pose and do NOT re-frame to a different crop.
+- PRESERVE from the BASE IMAGE ONLY the body POSTURE and the camera FRAMING: pose, stance, torso angle, head tilt, gaze, arm and hand positions, LEG AND LOWER-BODY position (weight-bearing leg, knee bend, feet placement and angle — copy the legs as precisely as the arms, do NOT reset them to a plain straight stance), AND the exact camera framing/crop/zoom/distance (full-body, medium, close, etc.). The base image is the source of truth for the pose AND the framing — do NOT re-pose and do NOT re-frame to a different crop. ${POSE_FULL_BODY}
 - Do NOT copy the base image's LIGHTING, shadows, exposure, color cast or background. The base image may have dramatic, directional or harsh shadows on the body — those must NOT appear. The output is lit by the clean studio light described above (soft, even), and the ONLY shadow is a subtle, soft shadow on the FLOOR beneath the feet — never a harsh shadow across the body. The background is ALWAYS the clean studio backdrop from the prompt, never the base image's scene.
 - The garment/accessory reference photos contain models in OTHER poses and OTHER backgrounds — those models, faces, poses and backgrounds are IRRELEVANT. They exist ONLY to define what the clothing/accessory looks like.
 - Treat this like a Photoshop edit on a model cutout: same body POSTURE and same framing/crop as the base image, but re-dressed, re-faced to the IDENTITY person, and placed on the clean studio backdrop.`
