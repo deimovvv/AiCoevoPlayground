@@ -128,7 +128,10 @@ export const handleScript: StepHandler = async (ctx) => {
       natural: "outdoor natural environment, soft diffused daylight, organic textures, lifestyle fashion feel.",
     };
     const presetKey = (cfg.locationPreset as string) || "brand";
-    const presetText = LOCATION_PRESETS[presetKey];
+    // "custom" → el texto libre del usuario manda como escenario forzado.
+    const presetText = presetKey === "custom"
+      ? ((cfg.locationCustom as string) || "").trim() || undefined
+      : LOCATION_PRESETS[presetKey];
 
     const selectedBackgroundForPrompt = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
     const settingOverride = (cfg.settingOverride as string)?.trim();
@@ -699,6 +702,11 @@ export const handleAnimate: StepHandler = async (ctx) => {
 
   const animatedResults: Array<{ sceneId: string; title: string; videoUrl: string; imageUrl: string; mode?: string; motionPrompt?: string }> = [];
 
+  // Contador por shotId — la Nº ocurrencia de cada plano elige una variante de motion
+  // distinta, así dos clips del mismo plano (ej. dos "general") NO salen con el idéntico
+  // movimiento. Reportado: "los prompts de animación son siempre los mismos".
+  const shotSeen: Record<string, number> = {};
+
   for (let i = 0; i < framesToAnimate.length; i++) {
     const frame = framesToAnimate[i];
     // Debug: log para cada frame qué rama va a tomar (entry hook / seedance / f2f / single).
@@ -712,8 +720,18 @@ export const handleAnimate: StepHandler = async (ctx) => {
     });
     // Motion específico del shot (general/medium/detail/back) si vino del catalog;
     // sino caemos al genérico. Cada shot tiene su propia receta de movimiento
-    // (ej. detail = dolly-in lento sobre el textil, no sway de modelo).
-    const shotMotion = frame.shotId ? VIDEO_SHOT_CATALOG[frame.shotId]?.motion : undefined;
+    // (ej. detail = dolly-in lento sobre el textil, no sway de modelo). Rotamos entre
+    // motionVariants según cuántas veces ya salió ESE shot → clips no repetidos.
+    let shotMotion: string | undefined;
+    if (frame.shotId) {
+      const meta = VIDEO_SHOT_CATALOG[frame.shotId];
+      if (meta) {
+        const nth = shotSeen[frame.shotId] || 0;
+        shotSeen[frame.shotId] = nth + 1;
+        const variants = meta.motionVariants?.length ? meta.motionVariants : [meta.motion];
+        shotMotion = variants[nth % variants.length];
+      }
+    }
     // USER DIRECTION — la instrucción que el usuario tipeó en curación. Si está,
     // se inyecta con marca clara para que Kling sepa que es la prioridad. La idea
     // es enriquecer (no reemplazar) el motion del catálogo, así el "detail" sigue

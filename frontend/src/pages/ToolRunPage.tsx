@@ -35,6 +35,7 @@ import {
   X,
   Mountain,
   ChevronDown,
+  GripVertical,
   Trash2,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
@@ -415,7 +416,9 @@ interface ToolConfig {
   // Fashion Reel — preset de escenario que pisa el setting inferido. "brand" usa
   // el background del Brand Kit + settingOverride; el resto fuerza un texto fijo
   // ("estudio fondo blanco infinito con luz softbox", etc.) directo al image_prompt.
-  locationPreset: "brand" | "studio_white" | "studio_black" | "street" | "natural";
+  locationPreset: "brand" | "studio_white" | "studio_black" | "street" | "natural" | "custom";
+  // Fashion Reel — texto libre del escenario cuando locationPreset === "custom".
+  locationCustom: string;
   // Fashion Reel — duración por clip individual (no del video total). Kling V3 Pro
   // solo acepta 5s o 10s (mínimo 5). El total = N escenas × clipDuration.
   clipDuration: "5" | "10";
@@ -501,6 +504,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   ecomAccessoryIds: [],
   looksShots: ["general", "detail"],
   locationPreset: "brand",
+  locationCustom: "",
   clipDuration: "5",
   productSheetViews: ["hero_34", "side", "front"],
   editorialFraming: "full_body",
@@ -4113,6 +4117,7 @@ function ConfigPanel({
                     { id: "studio_black" as const, label: "Estudio negro", desc: "Fondo negro infinito con luz lateral dramática" },
                     { id: "street" as const, label: "Urbano", desc: "Calle urbana, hora dorada" },
                     { id: "natural" as const, label: "Natural", desc: "Exterior con luz natural difusa" },
+                    { id: "custom" as const, label: "Custom", desc: "Describí vos el escenario/locación abajo" },
                   ].map((p) => (
                     <button
                       key={p.id}
@@ -4132,80 +4137,78 @@ function ConfigPanel({
                 <p className="text-[10px] text-fg-faint">
                   {config.locationPreset === "brand"
                     ? "Usa el fondo del Brand Kit; podés afinar con Setting/Locación abajo."
-                    : "Pisa cualquier fondo del Brand Kit y fuerza este escenario en todas las escenas."}
+                    : config.locationPreset === "custom"
+                      ? "Describí el escenario libremente abajo — se fuerza en todas las escenas."
+                      : "Pisa cualquier fondo del Brand Kit y fuerza este escenario en todas las escenas."}
                 </p>
+                {config.locationPreset === "custom" && (
+                  <textarea
+                    value={config.locationCustom}
+                    onChange={(e) => setConfig((c) => ({ ...c, locationCustom: e.target.value }))}
+                    placeholder='Ej: "azotea urbana al atardecer, luz cálida rasante, skyline de fondo desenfocado" o "loft industrial con ventanales, luz natural difusa, piso de cemento"'
+                    rows={3}
+                    className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-0 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-brand)] resize-none leading-snug"
+                  />
+                )}
               </div>
 
-              {/* Planos por outfit — contador por shot. Cada click incrementa la
-                  cantidad de escenas a generar para ese plano. Ej. plano general ×2
-                  + detalle ×1 = 3 escenas por outfit. Internamente el array contiene
-                  el shot repetido N veces, respetando orden de tildado. */}
+              {/* Secuencia de planos por outfit — orden ARRASTRABLE. `looksShots` es un
+                  array ordenado (un ítem = una escena); el orden acá es el orden real en
+                  el reel. Se agrega con los botones "+"; se reordena con drag; se quita
+                  con la ×. Antes eran contadores → el orden quedaba invisible. */}
               <div className="space-y-1.5">
-                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Planos por outfit</span>
-                <div className="space-y-1">
-                  {Object.entries(VIDEO_SHOT_CATALOG).map(([id, shot]) => {
-                    const count = config.looksShots.filter((s) => s === id).length;
-                    const on = count > 0;
-                    const inc = () => setConfig((p) => ({ ...p, looksShots: [...p.looksShots, id] }));
-                    const dec = () => setConfig((p) => {
-                      const idx = p.looksShots.lastIndexOf(id);
-                      if (idx === -1) return p;
-                      return { ...p, looksShots: [...p.looksShots.slice(0, idx), ...p.looksShots.slice(idx + 1)] };
-                    });
-                    return (
-                      <div
-                        key={id}
-                        title={shot.framing}
-                        className={cn(
-                          "flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--radius-sm)] border text-[11px] transition-colors",
-                          on ? "bg-[var(--color-brand-subtle)] border-[var(--color-brand)] text-fg" : "bg-surface-0 border-edge text-fg-muted",
-                        )}
-                      >
-                        <span
-                          onClick={inc}
-                          className="flex-1 cursor-pointer select-none"
-                        >
-                          {shot.label}
-                        </span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={dec}
-                            disabled={count === 0}
-                            className={cn(
-                              "w-5 h-5 rounded flex items-center justify-center text-[14px] leading-none font-bold transition-colors",
-                              count === 0 ? "text-fg-faint cursor-not-allowed" : "text-fg-muted hover:bg-surface-2 hover:text-fg cursor-pointer",
-                            )}
-                          >
-                            −
-                          </button>
-                          <span className={cn(
-                            "min-w-[18px] text-center text-[11px] font-semibold",
-                            on ? "text-[var(--color-brand)]" : "text-fg-faint",
-                          )}>
-                            {count}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={inc}
-                            disabled={count >= 6}
-                            className={cn(
-                              "w-5 h-5 rounded flex items-center justify-center text-[14px] leading-none font-bold transition-colors",
-                              count >= 6 ? "text-fg-faint cursor-not-allowed" : "text-fg-muted hover:bg-surface-2 hover:text-fg cursor-pointer",
-                            )}
-                          >
-                            +
-                          </button>
-                        </div>
+                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Secuencia de planos por outfit</span>
+                {config.looksShots.length === 0 ? (
+                  <p className="text-[10px] text-fg-faint italic px-1 py-2">
+                    Sin planos → usa los defaults ({DEFAULT_LOOKS_SHOTS.map((s) => VIDEO_SHOT_CATALOG[s]?.label || s).join(" + ")}). Agregá abajo para controlar el orden.
+                  </p>
+                ) : (
+                  <DndContext
+                    collisionDetection={closestCenter}
+                    onDragEnd={(e: DragEndEvent) => {
+                      const { active, over } = e;
+                      if (!over || active.id === over.id) return;
+                      const oldIndex = Number(active.id);
+                      const newIndex = Number(over.id);
+                      if (Number.isNaN(oldIndex) || Number.isNaN(newIndex)) return;
+                      setConfig((p) => ({ ...p, looksShots: arrayMove(p.looksShots, oldIndex, newIndex) }));
+                    }}
+                  >
+                    <SortableContext items={config.looksShots.map((_, i) => String(i))} strategy={verticalListSortingStrategy}>
+                      <div className="space-y-1">
+                        {config.looksShots.map((shotId, i) => (
+                          <SortableShotChip
+                            key={i}
+                            id={String(i)}
+                            index={i}
+                            label={VIDEO_SHOT_CATALOG[shotId]?.label || shotId}
+                            title={VIDEO_SHOT_CATALOG[shotId]?.framing}
+                            onRemove={() => setConfig((p) => ({ ...p, looksShots: p.looksShots.filter((_, j) => j !== i) }))}
+                          />
+                        ))}
                       </div>
-                    );
-                  })}
+                    </SortableContext>
+                  </DndContext>
+                )}
+                {/* Agregar plano — appendea al final de la secuencia. */}
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {Object.entries(VIDEO_SHOT_CATALOG).map(([id, shot]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      title={shot.framing}
+                      disabled={config.looksShots.length >= 12}
+                      onClick={() => setConfig((p) => ({ ...p, looksShots: [...p.looksShots, id] }))}
+                      className="flex items-center gap-1 px-2 py-1 rounded-[var(--radius-sm)] border border-edge bg-surface-0 text-[10px] text-fg-muted hover:text-fg hover:border-[var(--color-brand)] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Plus size={10} /> {shot.label}
+                    </button>
+                  ))}
                 </div>
                 <p className="text-[10px] text-fg-faint">
-                  {(() => {
-                    const totalShots = config.looksShots.length || DEFAULT_LOOKS_SHOTS.length;
-                    return `${totalShots} plano(s) por outfit · si dejás en 0 todos, usa los defaults (${DEFAULT_LOOKS_SHOTS.join(" + ")})`;
-                  })()}
+                  {config.looksShots.length > 0
+                    ? `${config.looksShots.length} escena(s) por outfit · arrastrá ☰ para reordenar · el orden es el del reel`
+                    : `Vacío usa los defaults (${DEFAULT_LOOKS_SHOTS.join(" + ")})`}
                 </p>
               </div>
             </>
@@ -10283,6 +10286,47 @@ interface AssetItem {
   name: string;
   description?: string;
   imageUrl?: string;
+}
+
+// Chip arrastrable de un plano en la secuencia del Fashion Reel (modo Looks).
+// El orden en la lista = orden en el reel final. Drag por el handle ☰.
+function SortableShotChip({ id, index, label, title, onRemove }: {
+  id: string;
+  index: number;
+  label: string;
+  title?: string;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      title={title}
+      className="flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] border border-[var(--color-brand)] bg-[var(--color-brand-subtle)] text-[11px] text-fg"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing text-fg-faint hover:text-fg touch-none shrink-0"
+        title="Arrastrar para reordenar"
+      >
+        <GripVertical size={13} />
+      </button>
+      <span className="w-4 text-center text-[10px] text-fg-faint tabular-nums shrink-0">{index + 1}</span>
+      <span className="flex-1 select-none truncate">{label}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-fg-faint hover:text-red-400 cursor-pointer shrink-0"
+        title="Quitar de la secuencia"
+      >
+        <X size={12} />
+      </button>
+    </div>
+  );
 }
 
 function AssetSelector({
