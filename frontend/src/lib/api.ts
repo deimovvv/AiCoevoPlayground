@@ -1806,6 +1806,15 @@ export async function ensureHostedRefUrl(url: string, filename?: string): Promis
  * Generate a short video from a static image using Kling.
  * Accepts image URL or can upload an image file.
  */
+/** Duraciones (en segundos, como string) que soporta cada modelo de video. Kling V3 Pro
+ *  acepta 3–15; el resto (Kling V2.x, Seedance) solo 5 o 10. Ofrecemos un set compacto y
+ *  útil para V3 Pro (3–10). Usado por el Lab y Fashion Reel para poblar el selector. */
+export function klingDurationOptions(modelId?: string): string[] {
+    return modelId === "v3-pro"
+        ? ["3", "4", "5", "6", "7", "8", "10"]
+        : ["5", "10"];
+}
+
 export async function createKlingVideo(
     imageUrl: string,
     prompt?: string,

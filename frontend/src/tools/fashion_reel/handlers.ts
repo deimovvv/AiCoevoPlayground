@@ -13,7 +13,7 @@ import {
   generateToolPrompt,
   createImageEdit, createTextToImage, pollImageGen,
   createKlingVideo, pollKlingVideo,
-  createKlingFrameToFrame,
+  createKlingFrameToFrame, klingDurationOptions,
   createSeedanceReferenceToVideo, pollSeedanceVideo,
   concatVideos,
   analyzePoseReference,
@@ -685,8 +685,10 @@ export const handleAnimate: StepHandler = async (ctx) => {
   const rawCreativeMode = (cfg.creativeMode as string) || "single-frame";
   const useF2F = engine === "kling" && rawCreativeMode === "frame-to-frame";
   const klingModel = ((cfg.videoModel as KlingModel) || "v3-pro") as KlingModel;
-  // Duración por clip — Kling V3 Pro acepta "5" o "10". Default 5s.
-  const clipDuration = ((cfg.clipDuration as string) === "10" ? "10" : "5") as "5" | "10";
+  // Duración por clip — depende del modelo (V3 Pro: 3–10; V2.x: 5/10). Clampeamos al set
+  // permitido para no mandarle a Fal un valor que rechaza. Default 5s.
+  const allowedDurations = klingDurationOptions(klingModel);
+  const clipDuration = allowedDurations.includes(String(cfg.clipDuration)) ? String(cfg.clipDuration) : "5";
   // Debug log para troubleshooting del modo de clip. Si f2f no funciona, abrir la
   // consola del browser y ver estos valores — ayuda a distinguir entre "config
   // no se guardó" vs "lógica del handler no entra en la rama f2f".
