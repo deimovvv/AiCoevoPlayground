@@ -347,9 +347,9 @@ interface ToolConfig {
   tone: string;
   platform: string;
   language: string;
-  // Content Analyzer — versión objetivo del output. "full" = replica todas las escenas
-  // del video original (default). "short"/"medium" = condensa a las mejores N escenas.
-  caVersion: "short" | "medium" | "full";
+  // Content Analyzer — nº EXACTO de escenas del output. 0 = todas (replica el original,
+  // default). N>0 = condensa a las N mejores escenas.
+  caTargetScenes: number;
   notes: string;
   numVariations: number;
   locationRef: string;
@@ -463,7 +463,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   tone: "engaging",
   platform: "instagram",
   language: "es",
-  caVersion: "full",
+  caTargetScenes: 0,
   notes: "",
   numVariations: 1,
   locationRef: "",
@@ -2936,37 +2936,35 @@ function ContentAnalyzerInput({
         </div>
       )}
 
-      {/* Versión del output — el tool NO recorta el video: genera contenido nuevo desde
-          el análisis. Por default replica TODAS las escenas del original (video de 43s →
-          reel largo con todas las prendas). "Corta"/"Media" le dicen a Gemini que condense
-          a las mejores N escenas → versión mínima sin tener que cortar en Premiere. */}
+      {/* Nº de escenas del output — el tool NO recorta el video: genera contenido nuevo
+          desde el análisis. Por default (0 = "Todas") replica TODAS las escenas del
+          original. Elegí un número exacto y Gemini condensa a esas N mejores escenas →
+          versión a medida sin tener que cortar en Premiere. */}
       <div className="pt-1 border-t border-edge/60 space-y-1.5">
-        <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Versión del output</span>
-        <div className="grid grid-cols-3 gap-1">
-          {[
-            { id: "short" as const, label: "Corta", sub: "~3 escenas" },
-            { id: "medium" as const, label: "Media", sub: "~5 escenas" },
-            { id: "full" as const, label: "Completa", sub: "todas" },
-          ].map((opt) => (
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Nº de escenas</span>
+          <div className="flex items-center gap-1 shrink-0">
             <button
-              key={opt.id}
-              onClick={() => setConfig((p) => ({ ...p, caVersion: opt.id }))}
-              className={cn(
-                "px-2 py-1.5 rounded-[var(--radius-sm)] border text-center leading-tight cursor-pointer transition-colors",
-                config.caVersion === opt.id
-                  ? "bg-[var(--color-action)]/15 border-[var(--color-action)] text-fg"
-                  : "bg-surface-2 border-edge text-fg-muted hover:text-fg",
-              )}
-            >
-              <span className="block text-[11px] font-medium">{opt.label}</span>
-              <span className="block text-[9px] text-fg-faint">{opt.sub}</span>
-            </button>
-          ))}
+              type="button"
+              onClick={() => setConfig((p) => ({ ...p, caTargetScenes: Math.max(0, (p.caTargetScenes || 0) - 1) }))}
+              disabled={(config.caTargetScenes || 0) === 0}
+              className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-sm)] border border-edge text-fg-muted hover:text-fg disabled:opacity-30 disabled:cursor-default cursor-pointer"
+            ><Minus size={12} /></button>
+            <span className="min-w-[54px] text-center text-[12px] font-semibold tabular-nums text-fg">
+              {(config.caTargetScenes || 0) === 0 ? "Todas" : config.caTargetScenes}
+            </span>
+            <button
+              type="button"
+              onClick={() => setConfig((p) => ({ ...p, caTargetScenes: Math.min(20, (p.caTargetScenes || 0) + 1) }))}
+              disabled={(config.caTargetScenes || 0) >= 20}
+              className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-sm)] border border-edge text-fg-muted hover:text-fg disabled:opacity-30 disabled:cursor-default cursor-pointer"
+            ><Plus size={12} /></button>
+          </div>
         </div>
         <p className="text-[10px] text-fg-faint">
-          {config.caVersion === "full"
+          {(config.caTargetScenes || 0) === 0
             ? "Replica todas las escenas del video original."
-            : "Gemini condensa a las mejores escenas — no hace falta cortar el video."}
+            : `Condensa a las ${config.caTargetScenes} mejores escenas — no hace falta cortar el video. ≈ ${config.caTargetScenes * 5}s de reel.`}
         </p>
       </div>
     </div>
