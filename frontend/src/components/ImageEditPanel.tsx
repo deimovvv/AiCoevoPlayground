@@ -6,7 +6,7 @@
  */
 
 import { useState } from "react";
-import { Loader2, Wand2 } from "lucide-react";
+import { Loader2, Wand2, ImagePlus, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { createImageEdit, pollImageGen, productImageUrl, clothingImageUrl, refineEditInstruction } from "../lib/api";
 import { cn } from "../lib/utils";
@@ -70,6 +70,17 @@ export function ImageEditPanel({
     return items.map((c) => c.imageUrl).filter(Boolean);
   };
   const [selectedRefs, setSelectedRefs] = useState<string[]>(getProductRefs);
+  // Refs subidas al toque (dataURLs) — para cuando faltó algo (un accesorio, el producto)
+  // y lo querés meter sin tenerlo en el Brand Kit. El backend convierte el dataURL a Fal URL.
+  const [uploadedRefs, setUploadedRefs] = useState<string[]>([]);
+
+  const addUploadedFiles = (files: File[]) => {
+    files.filter((f) => f.type.startsWith("image/")).forEach((f) => {
+      const r = new FileReader();
+      r.onload = () => setUploadedRefs((prev) => [...prev, r.result as string]);
+      r.readAsDataURL(f);
+    });
+  };
 
   // All product images (main + extras)
   const allProductImages = products.flatMap((p) => [
@@ -99,7 +110,7 @@ export function ImageEditPanel({
           if (refined && refined.trim()) finalPrompt = refined.trim();
         } catch { /* fail-open: seguimos con el texto original */ }
       }
-      const refs = [imageUrl, ...selectedRefs];
+      const refs = [imageUrl, ...selectedRefs, ...uploadedRefs];
       const job = await createImageEdit(refs, finalPrompt, aspectRatio, resolution);
       const result = await pollImageGen(job.request_id);
       if (result.image_url) {
@@ -119,8 +130,42 @@ export function ImageEditPanel({
     <div className="bg-surface-2 rounded-[var(--radius-md)] p-4 space-y-3">
       {/* Cómo se usa — corto, para que no quede ambiguo. */}
       <p className="text-[10px] text-fg-faint leading-snug">
-        Escribí abajo qué querés cambiar (ej. <span className="text-fg-muted">"el fondo debe ser blanco"</span>) y tocá <span className="text-fg-muted">Aplicar</span> — se regenera ESTA imagen con el cambio. Opcional: sumá refs de producto/ropa abajo para que respete un asset, o usá un atajo.
+        Escribí abajo qué querés cambiar (ej. <span className="text-fg-muted">"el fondo debe ser blanco"</span>) y tocá <span className="text-fg-muted">Aplicar</span> — se regenera ESTA imagen con el cambio. Sumá una <span className="text-fg-muted">imagen de referencia</span> (abajo) si faltó algo, o refs del kit / un atajo.
       </p>
+
+      {/* Subir imagen de referencia — para cuando faltó algo (accesorio, producto) y no
+          está en el kit. Se suma como ref a la edición, igual que en el Lab. */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--radius-sm)] border border-dashed border-edge hover:border-[var(--color-action)] text-[10px] text-fg-muted hover:text-fg cursor-pointer transition-colors">
+            <ImagePlus size={12} /> Subir imagen de referencia
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => { addUploadedFiles(Array.from(e.target.files || [])); e.target.value = ""; }}
+            />
+          </label>
+          {uploadedRefs.length > 0 && (
+            <span className="text-[9px] text-fg-faint">{uploadedRefs.length} subida{uploadedRefs.length === 1 ? "" : "s"} — se usan en el cambio</span>
+          )}
+        </div>
+        {uploadedRefs.length > 0 && (
+          <div className="flex gap-1.5 flex-wrap">
+            {uploadedRefs.map((url, i) => (
+              <div key={i} className="relative group/up">
+                <img src={url} alt={`ref ${i + 1}`} className="w-12 h-12 rounded object-cover border-2 border-[var(--color-action)]" />
+                <button
+                  onClick={() => setUploadedRefs((prev) => prev.filter((_, j) => j !== i))}
+                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-black/80 hover:bg-red-500 text-white flex items-center justify-center cursor-pointer"
+                  title="Quitar"
+                ><X size={9} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Quick actions */}
       <div className="flex gap-2 flex-wrap">
