@@ -160,6 +160,13 @@ const POSE_POOLS: Record<string, string[]> = {
 // clause ya describe el crop y, en primer plano, la cara mirando a cámara).
 const CLOSEUP_SHOTS = new Set(["model_detail", "model_closeup", "model_detail_lower"]);
 
+// Shots on-model donde la CARA debe quedar en cuadro sí o sí. Si la pose ref viene
+// recortada al cuello/pecho, NO copiamos ese crop — extendemos hacia arriba para no
+// decapitar a la modelo. (detail / detail_lower / back no necesitan cara.) Reportado:
+// pasaron una pose street-style cortada al cuello y salió sin cabeza.
+const FACE_REQUIRED_SHOTS = new Set(["model_front", "model_34", "model_american", "model_closeup"]);
+const FACE_MUST_STAY = "FRAMING OVERRIDE (mandatory for this shot): the model's HEAD and FACE must remain FULLY within the frame. If the pose / base reference is cropped tighter (head cut off, framed at the neck, shoulders or chest), do NOT copy that tight crop — pull the camera back and extend the framing UPWARD so the entire head and face are clearly visible. NEVER output a headless or decapitated shot.";
+
 /** Devuelve la descripción de la pose para una instancia de shot.
  *  - close-up → null (el encuadre manda; las poses full-body contradicen el crop).
  *  - "auto" → rota DENTRO del pool del encuadre por la variante (nth): variante #1
@@ -336,6 +343,8 @@ const handleGenerate: StepHandler = async (ctx) => {
     const inst = onModelInstances[i];
     const sid = inst.sid;
     const shot = SHOT_CATALOG[sid];
+    // ¿Este shot exige cara en cuadro? Si sí, ninguna pose ref puede decapitar.
+    const faceRequired = FACE_REQUIRED_SHOTS.has(sid);
     // Sufijo para el label cuando hay cantidad >1 ("#2", "#3"…).
     const vSuffix = inst.count > 1 ? ` #${inst.nth + 1}` : "";
     // La pose ref del shot SOLO aplica a la 1ª instancia; las extra rotan pose
@@ -412,9 +421,9 @@ TAKE FROM IMAGE 2 (the body POSTURE AND the framing — image 2 is the source of
 - Arm position and hand placement
 - Torso angle and shoulder position
 - Head tilt, head rotation, gaze direction
-- Camera FRAMING and CROP: match image 2's EXACT zoom and distance. If image 2 is a full-body shot the output is full-body; if it is a waist-up / medium / close shot, the output is cropped the same way. Do NOT re-frame to a different crop.
+- Camera FRAMING and CROP: match image 2's EXACT zoom and distance. If image 2 is a full-body shot the output is full-body; if it is a waist-up / medium / close shot, the output is cropped the same way. Do NOT re-frame to a different crop.${faceRequired ? " EXCEPTION: never crop the model's head/face out — if image 2 cuts the head off, extend the framing upward so the whole face stays visible." : ""}
 
-${POSE_FULL_BODY}
+${POSE_FULL_BODY}${faceRequired ? `\n\n${FACE_MUST_STAY}` : ""}
 
 CRITICAL — do NOT contaminate the output with anything from image 2 that is not pose- or framing-related:
 - Tattoos visible on the model in image 2 → DO NOT add them to the output (the person in image 1 may have clean skin without tattoos)
@@ -507,7 +516,7 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
 - ${IDENTITY_LOCK}
 - ${FACE_REALISM}
 - ${GARMENT_ORIENTATION}
-- PRESERVE from the BASE IMAGE ONLY the body POSTURE and the camera FRAMING: pose, stance, torso angle, head tilt, gaze, arm and hand positions, LEG AND LOWER-BODY position (weight-bearing leg, knee bend, feet placement and angle — copy the legs as precisely as the arms, do NOT reset them to a plain straight stance), AND the exact camera framing/crop/zoom/distance (full-body, medium, close, etc.). The base image is the source of truth for the pose AND the framing — do NOT re-pose and do NOT re-frame to a different crop. ${POSE_FULL_BODY}
+- PRESERVE from the BASE IMAGE ONLY the body POSTURE and the camera FRAMING: pose, stance, torso angle, head tilt, gaze, arm and hand positions, LEG AND LOWER-BODY position (weight-bearing leg, knee bend, feet placement and angle — copy the legs as precisely as the arms, do NOT reset them to a plain straight stance), AND the exact camera framing/crop/zoom/distance (full-body, medium, close, etc.). The base image is the source of truth for the pose AND the framing — do NOT re-pose and do NOT re-frame to a different crop.${faceRequired ? " EXCEPTION: never crop the model's head/face out — if the base image cuts the head off, extend the framing upward so the whole face stays visible." : ""} ${POSE_FULL_BODY}${faceRequired ? ` ${FACE_MUST_STAY}` : ""}
 - Do NOT copy the base image's LIGHTING, shadows, exposure, color cast or background. The base image may have dramatic, directional or harsh shadows on the body — those must NOT appear. The output is lit by the clean studio light described above (soft, even), and the ONLY shadow is a subtle, soft shadow on the FLOOR beneath the feet — never a harsh shadow across the body. The background is ALWAYS the clean studio backdrop from the prompt, never the base image's scene.
 - The garment/accessory reference photos contain models in OTHER poses and OTHER backgrounds — those models, faces, poses and backgrounds are IRRELEVANT. They exist ONLY to define what the clothing/accessory looks like.
 - Treat this like a Photoshop edit on a model cutout: same body POSTURE and same framing/crop as the base image, but re-dressed, re-faced to the IDENTITY person, and placed on the clean studio backdrop.`
