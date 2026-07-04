@@ -43,7 +43,7 @@ import {
     avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl,
     moodboardImageUrl, lookAndFeelImageUrl, brandLogoImageUrl,
     enhanceManualPrompt, describeLookAndFeel, describeLookAndFeelUpload, describeConsistencyUpload,
-    createKlingVideo, createKlingFrameToFrame, pollKlingVideo,
+    createKlingVideo, createKlingFrameToFrame, pollKlingVideo, klingDurationOptions,
     createSeedanceReferenceToVideo, pollSeedanceVideo,
     ensureHostedRefUrl,
     analyzeMotionFromVideo,
@@ -107,8 +107,7 @@ const VARIANT_COUNTS = [1, 2, 3, 4] as const;
 type AspectRatio = typeof IMG_ASPECT_RATIOS[number];
 type Resolution = typeof IMG_RESOLUTIONS[number];
 
-// Video — matchea las opciones de v1 para feature parity.
-const VID_DURATIONS = ["5", "10"] as const;
+// Video — las duraciones ahora vienen de klingDurationOptions(modelo) (V3 Pro: 3–10; resto: 5/10).
 const SEEDANCE_RESOLUTIONS = ["480p", "720p", "1080p"] as const;
 const VID_ASPECT_RATIOS = ["9:16", "16:9", "1:1", "4:3", "3:4"] as const;
 
@@ -220,7 +219,7 @@ export function ManualLabV2() {
     // Video params — defaults matchean los más usados de v1.
     const [videoModelId, setVideoModelId] = useState<VideoModelId>("v3-pro");
     const [videoMode, setVideoMode] = useState<VideoMode>("i2v");
-    const [vidDuration, setVidDuration] = useState<typeof VID_DURATIONS[number]>("5");
+    const [vidDuration, setVidDuration] = useState<string>("5");
     const [vidResolution, setVidResolution] = useState<string>("1080p");
     const [vidAspectRatio, setVidAspectRatio] = useState<string>("9:16");
 
@@ -228,6 +227,8 @@ export function ManualLabV2() {
         () => VIDEO_MODELS.find((m) => m.id === videoModelId) || VIDEO_MODELS[0],
         [videoModelId],
     );
+    // Duraciones permitidas por modelo — Kling V3 Pro: 3–10s; resto: 5/10.
+    const vidDurationOptions = useMemo(() => klingDurationOptions(videoModelId), [videoModelId]);
 
     // Cuando cambia el modelo de video, ajustamos el modo si el actual no es válido
     // (ej. estabas en i2v con Kling y switcheas a Seedance que solo soporta rtv).
@@ -236,6 +237,12 @@ export function ManualLabV2() {
             setVideoMode(currentVideoModel.modes[0]);
         }
     }, [currentVideoModel, videoMode]);
+
+    // Si la duración elegida no la soporta el modelo nuevo (ej. tenías 3s y pasás a
+    // V2.5 que solo hace 5/10), la clampeamos a 5s.
+    useEffect(() => {
+        if (!vidDurationOptions.includes(vidDuration)) setVidDuration("5");
+    }, [vidDurationOptions, vidDuration]);
 
     // Si el usuario tenía el panel de Look & Feel o Consistencia abierto y cambia
     // a modo video, los cerramos automáticamente (en video no aplican).
@@ -1993,10 +2000,10 @@ export function ManualLabV2() {
                                     <Field label="Duración">
                                         <select
                                             value={vidDuration}
-                                            onChange={(e) => setVidDuration(e.target.value as typeof VID_DURATIONS[number])}
+                                            onChange={(e) => setVidDuration(e.target.value)}
                                             className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] text-[12px] text-fg px-2 py-1.5 outline-none focus:border-[var(--color-edge-focus)] cursor-pointer"
                                         >
-                                            {VID_DURATIONS.map((d) => (
+                                            {vidDurationOptions.map((d) => (
                                                 <option key={d} value={d}>{d}s</option>
                                             ))}
                                         </select>

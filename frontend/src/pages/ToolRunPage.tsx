@@ -42,7 +42,7 @@ import { useBrand } from "../lib/BrandContext";
 import {
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl, brandLogoImageUrl,
   type Brand,
-  generateCopy, regenerateScene, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen,
+  generateCopy, regenerateScene, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen, klingDurationOptions,
   createFalLipSync, pollFalLipSync, concatVideos, saveGeneration,
   generateToolPrompt, createKlingVideo, pollKlingVideo,
   createKlingFrameToFrame, createSeedanceReferenceToVideo, pollSeedanceVideo,
@@ -423,8 +423,8 @@ interface ToolConfig {
   // Fashion Reel — texto libre del escenario cuando locationPreset === "custom".
   locationCustom: string;
   // Fashion Reel — duración por clip individual (no del video total). Kling V3 Pro
-  // solo acepta 5s o 10s (mínimo 5). El total = N escenas × clipDuration.
-  clipDuration: "5" | "10";
+  // acepta 3–15s; V2.x solo 5/10 (ver klingDurationOptions). El total = N escenas × clipDuration.
+  clipDuration: string;
   // Product Sheet — vistas seleccionadas por el usuario (hero_34 / side / front / etc.).
   // Cada vista = una imagen individual generada con base_prompt + composition por vista.
   // Si vacío, el handler usa DEFAULT_PRODUCT_VIEWS (hero_34 + side + front).
@@ -4286,37 +4286,39 @@ function ConfigPanel({
             </>
           )}
 
-          {/* Duración por clip — Kling V3 Pro solo acepta 5s o 10s (mínimo 5).
-              Total del reel = N escenas × clipDuration. Default 5s (más barato y
-              rápido). Visible para todas las variantes de Fashion Reel + Kling. */}
-          {config.animationEngine === "kling" && (
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Duración por clip</span>
-              <div className="grid grid-cols-2 gap-1.5">
-                {[
-                  { id: "5" as const, label: "5 segundos", desc: "Default — más barato. Mínimo soportado por Kling V3 Pro." },
-                  { id: "10" as const, label: "10 segundos", desc: "Clips más largos y suaves (mejor para frame-to-frame). Cuesta el doble." },
-                ].map((opt) => (
-                  <button
-                    key={opt.id}
-                    title={opt.desc}
-                    onClick={() => setConfig((p) => ({ ...p, clipDuration: opt.id }))}
-                    className={cn(
-                      "px-2.5 py-2 rounded-[var(--radius-sm)] border text-[11px] cursor-pointer transition-colors text-center leading-snug",
-                      config.clipDuration === opt.id
-                        ? "bg-[var(--color-brand-subtle)] border-[var(--color-brand)] text-fg"
-                        : "bg-surface-0 border-edge text-fg-muted hover:text-fg",
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+          {/* Duración por clip — depende del modelo. Kling V3 Pro acepta 3–10s (podés
+              hacer clips cortos de 3s); V2.x solo 5/10. Total del reel = N escenas × esta
+              duración. Visible solo con Kling. */}
+          {config.animationEngine === "kling" && (() => {
+            const durs = klingDurationOptions(((config as { videoModel?: string }).videoModel) || "v3-pro");
+            return (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Duración por clip</span>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {durs.map((d) => (
+                    <button
+                      key={d}
+                      title={`${d} segundos por clip`}
+                      onClick={() => setConfig((p) => ({ ...p, clipDuration: d }))}
+                      className={cn(
+                        "px-2 py-2 rounded-[var(--radius-sm)] border text-[11px] cursor-pointer transition-colors text-center tabular-nums",
+                        config.clipDuration === d
+                          ? "bg-[var(--color-brand-subtle)] border-[var(--color-brand)] text-fg"
+                          : "bg-surface-0 border-edge text-fg-muted hover:text-fg",
+                      )}
+                    >
+                      {d}s
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-fg-faint">
+                  {durs.length > 2
+                    ? "Kling V3 Pro permite 3–10s por clip. Total del reel = Nº de escenas × esta duración."
+                    : "Este modelo solo permite 5 o 10s. Total = Nº de escenas × esta duración."}
+                </p>
               </div>
-              <p className="text-[10px] text-fg-faint">
-                Total estimado: N escenas × {config.clipDuration}s. Kling V3 Pro no soporta menos de 5s.
-              </p>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Modo de animación de clips — antes vivía enterrado dentro de "Ajustes
               técnicos > Motor de video". El default "auto" forzaba frame-to-frame
