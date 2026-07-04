@@ -10408,6 +10408,10 @@ function AssetSelector({
   // Filtro "solo seleccionados" — con muchos assets (ej. 25 prendas) ver solo los
   // elegidos. Solo aplica a multi-select con al menos uno seleccionado.
   const [onlySelected, setOnlySelected] = useState(false);
+  // Hover-preview — al pasar el mouse por un thumb, mostramos la imagen más grande
+  // (object-contain: se ve la prenda ENTERA, no recortada). Posición fija calculada
+  // desde el rect del thumb, así escapa el overflow del sidebar y se clampa al viewport.
+  const [hoverPreview, setHoverPreview] = useState<{ url: string; name: string; top: number; left: number } | null>(null);
   const selectedCount = multi ? (selectedIds || []).length : (selectedId ? 1 : 0);
   const displayItems = (onlySelected && multi)
     ? items.filter((it) => (selectedIds || []).includes(it.id))
@@ -10552,7 +10556,19 @@ function AssetSelector({
                       <Check size={8} className="text-[var(--color-brand-fg)]" />
                     </div>
                   )}
-                  <div className="w-full aspect-square bg-surface-2 rounded-[2px] overflow-hidden">
+                  <div
+                    className="w-full aspect-square bg-surface-2 rounded-[2px] overflow-hidden"
+                    onMouseEnter={(e) => {
+                      if (!item.imageUrl) return;
+                      const r = e.currentTarget.getBoundingClientRect();
+                      const PW = 220, PH = 250;
+                      let left = r.right + 10;
+                      if (left + PW > window.innerWidth - 8) left = r.left - PW - 10;
+                      const top = Math.max(8, Math.min(r.top + r.height / 2 - PH / 2, window.innerHeight - PH - 8));
+                      setHoverPreview({ url: item.imageUrl, name: item.name, top, left });
+                    }}
+                    onMouseLeave={() => setHoverPreview(null)}
+                  >
                     {item.imageUrl ? (
                       <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
                     ) : (
@@ -10589,6 +10605,16 @@ function AssetSelector({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Hover-preview flotante — imagen grande de la prenda bajo el cursor. */}
+      {hoverPreview && (
+        <div className="fixed z-[60] pointer-events-none" style={{ top: hoverPreview.top, left: hoverPreview.left }}>
+          <div className="bg-surface-0 border border-[var(--color-brand)] rounded-[var(--radius-md)] p-1.5 shadow-2xl w-[220px]">
+            <img src={hoverPreview.url} alt={hoverPreview.name} className="w-full aspect-square object-contain rounded bg-surface-2" />
+            <span className="block text-[10px] text-fg-muted truncate mt-1 px-0.5">{hoverPreview.name}</span>
+          </div>
         </div>
       )}
     </div>
