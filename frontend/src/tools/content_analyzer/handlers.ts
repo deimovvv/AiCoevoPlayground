@@ -380,6 +380,15 @@ export const handleAdapt: StepHandler = async (ctx) => {
   console.log("[adapt] nested keys:", nestedObj ? Object.keys(nestedObj) : "none");
   console.log("[adapt] scenes found:", scenes.length, "first:", JSON.stringify(scenes[0]));
 
+  // Garantía dura del "Nº de escenas": si Gemini devolvió más de las pedidas (a veces
+  // ignora el target del prompt), cortamos a las primeras N. El prompt ya le pidió
+  // ordenar por las más fuertes primero. 0 = sin límite (todas).
+  const targetScenes = (config as { caTargetScenes?: number }).caTargetScenes || 0;
+  if (targetScenes > 0 && scenes.length > targetScenes) {
+    console.log(`[adapt] truncando ${scenes.length} → ${targetScenes} escenas (Nº de escenas)`);
+    scenes.length = targetScenes;
+  }
+
   // Top-level may be nested under video_adaptation or similar
   const root = (Object.values(parsed).find(v => v && typeof v === "object" && !Array.isArray(v)) as Record<string, unknown> | undefined) ?? parsed;
 
