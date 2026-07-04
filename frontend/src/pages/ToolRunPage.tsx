@@ -425,6 +425,10 @@ interface ToolConfig {
   // Fashion Reel — duración por clip individual (no del video total). Kling V3 Pro
   // acepta 3–15s; V2.x solo 5/10 (ver klingDurationOptions). El total = N escenas × clipDuration.
   clipDuration: string;
+  // Fashion Reel — accesorios ad-hoc (dataURLs) que la modelo lleva/usa en la escena
+  // (cartera, lentes, cinturón). Se suman como refs a la imagen base sin tener que
+  // cargarlos en el Brand Kit.
+  reelAccessories: string[];
   // Product Sheet — vistas seleccionadas por el usuario (hero_34 / side / front / etc.).
   // Cada vista = una imagen individual generada con base_prompt + composition por vista.
   // Si vacío, el handler usa DEFAULT_PRODUCT_VIEWS (hero_34 + side + front).
@@ -510,6 +514,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   locationPreset: "brand",
   locationCustom: "",
   clipDuration: "5",
+  reelAccessories: [],
   productSheetViews: ["hero_34", "side", "front"],
   editorialFraming: "full_body",
   editorialLighting: "dramatic",
@@ -4286,6 +4291,49 @@ function ConfigPanel({
             </>
           )}
 
+          {/* Accesorios (opcional) — subís cartera/lentes/cinturón ad-hoc y la modelo
+              los lleva integrados al look en la imagen base. No hace falta cargarlos en
+              el Brand Kit. Aplica a ambos modos (Story y Looks). */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">✨ Accesorios (opcional)</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--radius-sm)] border border-dashed border-edge hover:border-[var(--color-brand)] text-[10px] text-fg-muted hover:text-fg cursor-pointer transition-colors">
+                <Plus size={12} /> Subir accesorio
+                <input
+                  type="file"
+                  accept={IMAGE_ACCEPT}
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []).filter((f) => f.type.startsWith("image/"));
+                    files.forEach((f) => {
+                      const r = new FileReader();
+                      r.onload = () => setConfig((p) => ({ ...p, reelAccessories: [...p.reelAccessories, r.result as string] }));
+                      r.readAsDataURL(f);
+                    });
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {config.reelAccessories.length > 0 && (
+                <span className="text-[9px] text-fg-faint">la modelo los lleva integrados</span>
+              )}
+            </div>
+            {config.reelAccessories.length > 0 && (
+              <div className="flex gap-1.5 flex-wrap">
+                {config.reelAccessories.map((url, i) => (
+                  <div key={i} className="relative group/acc">
+                    <img src={url} alt={`accesorio ${i + 1}`} className="w-12 h-12 rounded object-cover border-2 border-[var(--color-brand)]" />
+                    <button
+                      onClick={() => setConfig((p) => ({ ...p, reelAccessories: p.reelAccessories.filter((_, j) => j !== i) }))}
+                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-black/80 hover:bg-red-500 text-white flex items-center justify-center cursor-pointer"
+                      title="Quitar accesorio"
+                    ><X size={9} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Modo de animación de clips — antes vivía enterrado dentro de "Ajustes
               técnicos > Motor de video". El default "auto" forzaba frame-to-frame

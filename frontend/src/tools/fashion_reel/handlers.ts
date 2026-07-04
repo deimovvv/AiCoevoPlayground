@@ -334,6 +334,11 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   selectedProducts.filter(Boolean).forEach((p) => {
     if (p?.imageUrl) candidates.push({ url: p.imageUrl, priority: 3, label: `PRODUCT — the model holds/features this. Reproduce it exactly. Take ONLY the product — ignore the background/person in this image.` });
   });
+  // Accesorios ad-hoc (dataURLs) — cartera, lentes, cinturón, etc. La modelo los lleva
+  // integrados al look. Prioridad 2 (arriba de product) para que sobrevivan el cap.
+  ((cfg.reelAccessories as string[]) || []).filter(Boolean).forEach((url) => {
+    candidates.push({ url, priority: 2, label: `ACCESSORY — the model also wears/carries this exact item integrated into the look (bag on shoulder/hand, sunglasses on face, belt on waist, scarf around neck, etc.). Reproduce it exactly. Take ONLY the accessory — ignore the background/person/pose in this image.` });
+  });
   // Si el usuario eligió un preset de escenario (Estudio blanco, etc.), el preset
   // gana y NO incluimos el background del Brand Kit como ref — agregaría una señal
   // visual contradictoria. Solo incluimos el background ref cuando el preset es "brand".

@@ -91,8 +91,9 @@ export const fashionReel: ToolDefinition = {
     showAvatar: true,
     avatarLabel: "Model",
     avatarSublabel: "Modelo del reel",
-    showProduct: true,
-    productLabel: "Producto",
+    // Producto oculto — Fashion Reel es sobre outfits/looks, no product hero. Para
+    // sumar cartera/lentes está la sección Accesorios. (Feedback usuario.)
+    showProduct: false,
     showClothing: true,
     clothingLabel: "Outfits",
     clothingSublabel: "multi-select",
