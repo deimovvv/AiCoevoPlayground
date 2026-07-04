@@ -665,6 +665,10 @@ export function ToolRunPage() {
   // Riel "Contenido generado" — visible al costado, como la galería del Lab. Default
   // abierto (preferencia: todo visible). Colapsable por el ancho en pantallas chicas.
   const [showContentRail, setShowContentRail] = useState(true);
+  // Lightbox del riel "Contenido generado" — antes el onClick llamaba a un
+  // setLightboxUrl que NO existía en este scope (vivía en ConfigPanel), así que el
+  // clic no hacía nada. Estado propio + overlay al final del return.
+  const [railLightbox, setRailLightbox] = useState<string | null>(null);
   const generatedMedia = useMemo(() => collectGeneratedMedia(steps, batches), [steps, batches]);
   // Flag para que el próximo Generar del usuario SUME una tanda en vez de pisar
   // la sesión actual. Se enciende cuando clickeás "Nueva tanda" desde el panel
@@ -2630,7 +2634,7 @@ export function ToolRunPage() {
                   {generatedMedia.map((m, i) => (
                     <button
                       key={`${m.url}_${i}`}
-                      onClick={() => (m.type === "video" ? window.open(m.url, "_blank") : setLightboxUrl(m.url))}
+                      onClick={() => (m.type === "video" ? window.open(m.url, "_blank") : setRailLightbox(m.url))}
                       title={m.label}
                       className="group relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge hover:border-[var(--color-brand)] cursor-zoom-in bg-surface-1"
                     >
@@ -2666,6 +2670,38 @@ export function ToolRunPage() {
           </button>
         )}
       </div>
+
+      {/* Lightbox del riel — imagen a pantalla completa. Click en el fondo o la X cierra;
+          botón de descarga arriba a la derecha. */}
+      {railLightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-8 cursor-zoom-out"
+          onClick={() => setRailLightbox(null)}
+        >
+          <img
+            src={railLightbox}
+            alt="Contenido generado"
+            className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <a
+            href={railLightbox}
+            download
+            onClick={(e) => e.stopPropagation()}
+            title="Descargar"
+            className="absolute top-4 right-14 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer"
+          >
+            <Download size={16} />
+          </a>
+          <button
+            onClick={() => setRailLightbox(null)}
+            title="Cerrar"
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
     </div>
   );
