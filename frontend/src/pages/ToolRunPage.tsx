@@ -3211,9 +3211,15 @@ function ConfigPanel({
     for (const id of (config.selectedClothingIds || [])) { const c = b.clothing?.find((x) => x.id === id); if (c) { const isAcc = (config.ecomAccessoryIds || []).includes(id); sels.push({ kind: isAcc ? "Accesorio" : "Prenda", name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedClothingIds: (p.selectedClothingIds || []).filter((x) => x !== id), ecomAccessoryIds: (p.ecomAccessoryIds || []).filter((x) => x !== id) })) }); } }
     if (config.selectedBackgroundId) { const bg = b.backgrounds?.find((x) => x.id === config.selectedBackgroundId); if (bg) sels.push({ kind: "Fondo", name: bg.name, thumb: bg.imageUrl ? backgroundImageUrl(bg.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedBackgroundId: null })) }); }
     if (config.selectedMoodboardId) { const md = b.moodboards?.find((x) => x.id === config.selectedMoodboardId); if (md) sels.push({ kind: "Moodboard", name: md.name, thumb: md.imageUrl ? moodboardImageUrl(md.imageUrl) : undefined, remove: () => setConfig((p) => ({ ...p, selectedMoodboardId: null })) }); }
+    // Accesorios ad-hoc de Fashion Reel (dataURLs) — el thumb es la propia dataURL.
+    (config.reelAccessories || []).forEach((url, i) => {
+      sels.push({ kind: "Accesorio", name: `Accesorio ${i + 1}`, thumb: url, remove: () => setConfig((p) => ({ ...p, reelAccessories: p.reelAccessories.filter((_, j) => j !== i) })) });
+    });
     if (sels.length === 0) return null;
     return (
-      <div className="bg-surface-1 border border-[var(--color-brand-muted)] rounded-[var(--radius-sm)] p-2.5">
+      // Sticky — al scrollear por las listas largas de assets, "Seleccionados" queda
+      // pegado arriba para que siempre veas qué elegiste (feedback usuario).
+      <div className="sticky top-0 z-20 bg-surface-1 border border-[var(--color-brand-muted)] rounded-[var(--radius-sm)] p-2.5 shadow-[0_3px_10px_-3px_rgba(0,0,0,0.5)]">
         <span className="text-[11px] font-semibold text-fg-secondary">Seleccionados <span className="text-fg-faint font-normal text-[10px]">· {sels.length}</span></span>
         <div className="grid grid-cols-4 gap-1.5 mt-2">
           {sels.map((s, i) => (
