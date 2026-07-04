@@ -167,6 +167,15 @@ const CLOSEUP_SHOTS = new Set(["model_detail", "model_closeup", "model_detail_lo
 const FACE_REQUIRED_SHOTS = new Set(["model_front", "model_34", "model_american", "model_closeup"]);
 const FACE_MUST_STAY = "FRAMING OVERRIDE (mandatory for this shot): the model's HEAD and FACE must remain FULLY within the frame. If the pose / base reference is cropped tighter (head cut off, framed at the neck, shoulders or chest), do NOT copy that tight crop — pull the camera back and extend the framing UPWARD so the entire head and face are clearly visible. NEVER output a headless or decapitated shot.";
 
+// Mensaje legible para la UI. createImageEdit tira el `detail` del backend (Fal key
+// inválida, cuota, HEIC…); pollImageGen devuelve status "failed" con .error (política
+// de contenido / caras). Así el usuario ve la causa SIN abrir la terminal.
+function ecomErr(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e);
+  return m.trim() || "Error desconocido en la generación.";
+}
+const POLL_FAILED_MSG = "Fal marcó la generación como fallida (probable política de contenido — caras — o el modelo no pudo generar). Probá otra pose/imagen o reintentá.";
+
 /** Devuelve la descripción de la pose para una instancia de shot.
  *  - close-up → null (el encuadre manda; las poses full-body contradicen el crop).
  *  - "auto" → rota DENTRO del pool del encuadre por la variante (nth): variante #1
@@ -314,7 +323,7 @@ const handleGenerate: StepHandler = async (ctx) => {
 
   const onModelShots = shots.filter((s) => SHOT_CATALOG[s].onModel);
   const flatShots = shots.filter((s) => !SHOT_CATALOG[s].onModel);
-  const generated: Record<string, { id: string; url: string; label: string; downloadName: string; prompt: string; status: string }> = {};
+  const generated: Record<string, { id: string; url: string; label: string; downloadName: string; prompt: string; status: string; error?: string }> = {};
 
   // Per-shot pose refs (subidas por el usuario una por cada shot tildado). Da
   // dinámica — pose distinta por front/back/detail en lugar de modelo duro.
@@ -443,9 +452,9 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
         const res2 = await pollImageGen(job2.request_id);
         const url2 = res2.image_url || "";
         if (url2) anchorUrl = url2;
-        generated[inst.key] = { id: inst.key, url: url2, label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: step2Prompt, status: res2.status === "failed" ? "failed" : "done" };
+        generated[inst.key] = { id: inst.key, url: url2, label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: step2Prompt, status: res2.status === "failed" ? "failed" : "done", error: res2.status === "failed" ? (res2.error || POLL_FAILED_MSG) : undefined };
       } catch (e) {
-        generated[inst.key] = { id: inst.key, url: "", label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: "", status: "failed" };
+        generated[inst.key] = { id: inst.key, url: "", label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: "", status: "failed", error: ecomErr(e) };
         console.error(`[ecommerce_pack] ${inst.key} (2-step) failed:`, e);
       }
       continue; // saltea el flow 1-step
@@ -539,11 +548,11 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
       // El name de cada garment viene del filename original via deriveAssetName.
       const garmentNames = garments.map((g) => g.name).filter(Boolean).join(" + ") || selectedProduct?.name || "";
       const onModelLabel = garmentNames ? `${shot.label}${vSuffix} · ${garmentNames}` : `${shot.label}${vSuffix}`;
-      generated[inst.key] = { id: inst.key, url, label: onModelLabel, downloadName: primaryGarmentName, prompt, status: res.status === "failed" ? "failed" : "done" };
+      generated[inst.key] = { id: inst.key, url, label: onModelLabel, downloadName: primaryGarmentName, prompt, status: res.status === "failed" ? "failed" : "done", error: res.status === "failed" ? (res.error || POLL_FAILED_MSG) : undefined };
     } catch (e) {
       const garmentNames = garments.map((g) => g.name).filter(Boolean).join(" + ") || selectedProduct?.name || "";
       const onModelLabel = garmentNames ? `${shot.label}${vSuffix} · ${garmentNames}` : `${shot.label}${vSuffix}`;
-      generated[inst.key] = { id: inst.key, url: "", label: onModelLabel, downloadName: primaryGarmentName, prompt, status: "failed" };
+      generated[inst.key] = { id: inst.key, url: "", label: onModelLabel, downloadName: primaryGarmentName, prompt, status: "failed", error: ecomErr(e) };
       console.error(`[ecommerce_pack] ${inst.key} failed:`, e);
     }
   }
@@ -564,7 +573,7 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
     sid.includes("detail") ? "detail" :
     sid.includes("front") ? "front" : "any";
 
-  const flatImages: Array<{ sid: string; id: string; url: string; label: string; downloadName: string; prompt: string; status: string }> = [];
+  const flatImages: Array<{ sid: string; id: string; url: string; label: string; downloadName: string; prompt: string; status: string; error?: string }> = [];
   await Promise.all(flatShots.flatMap((sid) => {
     const shot = SHOT_CATALOG[sid];
     const shotType = flatShotType(sid);
@@ -595,16 +604,16 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
       try {
         const job = await createImageEdit(urls, prompt, config.aspectRatio, config.resolution);
         const res = await pollImageGen(job.request_id);
-        flatImages.push({ sid, id, url: res.image_url || "", label, downloadName, prompt, status: res.status === "failed" ? "failed" : "done" });
+        flatImages.push({ sid, id, url: res.image_url || "", label, downloadName, prompt, status: res.status === "failed" ? "failed" : "done", error: res.status === "failed" ? (res.error || POLL_FAILED_MSG) : undefined });
       } catch (e) {
-        flatImages.push({ sid, id, url: "", label, downloadName, prompt, status: "failed" });
+        flatImages.push({ sid, id, url: "", label, downloadName, prompt, status: "failed", error: ecomErr(e) });
         console.error(`[ecommerce_pack] flat ${id} failed:`, e);
       }
     });
   }));
 
   // Assemble in the user's shot order: on-model shots, then each flat shot's per-garment images.
-  const images: Array<{ id: string; url: string; label: string; downloadName: string; prompt: string; status: string }> = [];
+  const images: Array<{ id: string; url: string; label: string; downloadName: string; prompt: string; status: string; error?: string }> = [];
   for (const sid of shots) {
     if (SHOT_CATALOG[sid]?.onModel) {
       // Todas las instancias de esta toma, en orden (#1, #2, …).
@@ -612,7 +621,7 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
         if (generated[inst.key]) images.push(generated[inst.key]);
       });
     } else {
-      flatImages.filter((im) => im.sid === sid).forEach(({ id, url, label, downloadName, prompt, status }) => images.push({ id, url, label, downloadName, prompt, status }));
+      flatImages.filter((im) => im.sid === sid).forEach(({ id, url, label, downloadName, prompt, status, error }) => images.push({ id, url, label, downloadName, prompt, status, error }));
     }
   }
   const successful = images.filter((im) => im.url).length;
