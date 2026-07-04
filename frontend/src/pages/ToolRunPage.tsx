@@ -2964,7 +2964,7 @@ function ContentAnalyzerInput({
         <p className="text-[10px] text-fg-faint">
           {(config.caTargetScenes || 0) === 0
             ? "Replica todas las escenas del video original."
-            : `Condensa a las ${config.caTargetScenes} mejores escenas — no hace falta cortar el video. ≈ ${config.caTargetScenes * 5}s de reel.`}
+            : `El OUTPUT final se condensa a ${config.caTargetScenes} escenas (se aplica al generar, en el paso Adaptar). ⚠️ El Mapeo de abajo igual lista TODO lo que detectó el video — es normal ver más. ≈ ${config.caTargetScenes * 5}s de reel.`}
         </p>
       </div>
     </div>
