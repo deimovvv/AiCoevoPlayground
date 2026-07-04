@@ -347,6 +347,9 @@ interface ToolConfig {
   tone: string;
   platform: string;
   language: string;
+  // Content Analyzer — versión objetivo del output. "full" = replica todas las escenas
+  // del video original (default). "short"/"medium" = condensa a las mejores N escenas.
+  caVersion: "short" | "medium" | "full";
   notes: string;
   numVariations: number;
   locationRef: string;
@@ -460,6 +463,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   tone: "engaging",
   platform: "instagram",
   language: "es",
+  caVersion: "full",
   notes: "",
   numVariations: 1,
   locationRef: "",
@@ -2931,6 +2935,40 @@ function ContentAnalyzerInput({
           )}
         </div>
       )}
+
+      {/* Versión del output — el tool NO recorta el video: genera contenido nuevo desde
+          el análisis. Por default replica TODAS las escenas del original (video de 43s →
+          reel largo con todas las prendas). "Corta"/"Media" le dicen a Gemini que condense
+          a las mejores N escenas → versión mínima sin tener que cortar en Premiere. */}
+      <div className="pt-1 border-t border-edge/60 space-y-1.5">
+        <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Versión del output</span>
+        <div className="grid grid-cols-3 gap-1">
+          {[
+            { id: "short" as const, label: "Corta", sub: "~3 escenas" },
+            { id: "medium" as const, label: "Media", sub: "~5 escenas" },
+            { id: "full" as const, label: "Completa", sub: "todas" },
+          ].map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => setConfig((p) => ({ ...p, caVersion: opt.id }))}
+              className={cn(
+                "px-2 py-1.5 rounded-[var(--radius-sm)] border text-center leading-tight cursor-pointer transition-colors",
+                config.caVersion === opt.id
+                  ? "bg-[var(--color-action)]/15 border-[var(--color-action)] text-fg"
+                  : "bg-surface-2 border-edge text-fg-muted hover:text-fg",
+              )}
+            >
+              <span className="block text-[11px] font-medium">{opt.label}</span>
+              <span className="block text-[9px] text-fg-faint">{opt.sub}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-fg-faint">
+          {config.caVersion === "full"
+            ? "Replica todas las escenas del video original."
+            : "Gemini condensa a las mejores escenas — no hace falta cortar el video."}
+        </p>
+      </div>
     </div>
   );
 }

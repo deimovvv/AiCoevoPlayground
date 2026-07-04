@@ -313,6 +313,17 @@ export const handleAdapt: StepHandler = async (ctx) => {
     userMsg += `\n\nSTRICT ASSET-SWAP RULES (user-confirmed mappings — every scene's script AND image_prompt must comply):\n${allRewriteRules}`;
   }
 
+  // Versión corta/media — condensar a las mejores N escenas. Sobrescribe la regla del
+  // template ("recreá cada escena / el ritmo visual del original"). Así el usuario saca
+  // una versión mínima de un video largo SIN cortarlo en Premiere.
+  const caVersion = (config as { caVersion?: string }).caVersion || "full";
+  if (caVersion !== "full") {
+    const target = caVersion === "short"
+      ? "a SHORT, condensed version: about 3 scenes MAXIMUM (~15 seconds total)"
+      : "a MEDIUM, condensed version: about 5 scenes (~25-30 seconds total)";
+    userMsg += `\n\nLENGTH TARGET (this OVERRIDES the 'recreate every original scene / visual rhythm' rule): produce ${target}. Do NOT reproduce all of the source video's scenes. From the analysis, select ONLY the strongest, most representative moments and outfits and DROP the rest. The output JSON must contain that reduced number of scenes — fewer, punchier scenes, NOT the full original sequence.`;
+  }
+
   const { result } = await generateToolPrompt(activeBrand.id, "content_analyzer", userMsg, extraVars);
 
   // Parse — handle string, markdown fences, or already-parsed object
