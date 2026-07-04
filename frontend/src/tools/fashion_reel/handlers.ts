@@ -802,7 +802,9 @@ export const handleAnimate: StepHandler = async (ctx) => {
         videoUrl = result.video_url || "";
         clipMode = "f2f";
       } else {
-        const job = await createKlingVideo(frame.imageUrl, motionPrompt, "5", klingModel);
+        // Single-frame — antes hardcodeaba "5" e ignoraba el selector de duración.
+        // Ahora respeta clipDuration (3–10s en V3 Pro). Reportado: "pongo 3 y sale 5".
+        const job = await createKlingVideo(frame.imageUrl, motionPrompt, clipDuration, klingModel);
         const result = await pollKlingVideo(job.request_id);
         videoUrl = result.video_url || "";
       }
