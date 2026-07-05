@@ -11,6 +11,7 @@ import PipelineConfigPage from "./pages/PipelineConfigPage";
 import { GeneratePage } from "./pages/GeneratePage";
 import { ToolRunPage } from "./pages/ToolRunPage";
 import { CampaignsPage } from "./pages/CampaignsPage";
+import { NewCampaignPage } from "./pages/NewCampaignPage";
 import { CampaignDetailPage } from "./pages/CampaignDetailPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { PortalPage } from "./pages/PortalPage";
@@ -78,6 +79,7 @@ function App() {
         <Route path="brands/:brandId" element={<BrandSettings />} />
         <Route path="brands/:brandId/generate" element={<GenerationPipeline />} />
         <Route path="campaigns" element={<CampaignsPage />} />
+        <Route path="campaigns/new" element={<NewCampaignPage />} />
         <Route path="campaigns/:campaignId" element={<CampaignDetailPage />} />
         <Route path="generate" element={<GeneratePage />} />
         <Route path="generate/:toolId" element={<ErrorBoundary><ToolRunPage /></ErrorBoundary>} />

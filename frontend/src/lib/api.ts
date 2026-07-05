@@ -373,6 +373,10 @@ export interface Campaign {
     productIds: string[];
     moodboardId: string | null;
     poseId: string | null;
+    avatarId: string | null;
+    clothingIds: string[];
+    backgroundId: string | null;
+    lookFeelId: string | null;
     shotPlan: "ai" | "manual";
     customShots: string[];
     variationsPerShot: number;
@@ -399,6 +403,10 @@ export async function createCampaign(payload: {
     productIds?: string[];
     moodboardId?: string | null;
     poseId?: string | null;
+    avatarId?: string | null;
+    clothingIds?: string[];
+    backgroundId?: string | null;
+    lookFeelId?: string | null;
     shotPlan?: "ai" | "manual";
     customShots?: string[];
     variationsPerShot?: number;
