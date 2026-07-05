@@ -356,6 +356,15 @@ export async function fetchBrands(): Promise<Brand[]> {
 //  Campaigns — contenedor por marca (ver docs/campaigns.md)
 // ══════════════════════════════════════════════════════════════
 
+export interface CampaignPiece {
+    id: string;
+    url: string;
+    type: "image" | "video";
+    aspectRatio: string;
+    prompt: string;
+    status: "done" | "failed";
+}
+
 export interface Campaign {
     id: string;
     brandId: string;
@@ -371,6 +380,7 @@ export interface Campaign {
     resolution: string;
     status: "draft" | "generating" | "review" | "approved";
     generationIds: string[];
+    pieces: CampaignPiece[];
     createdAt: string;
     updatedAt: string;
 }
