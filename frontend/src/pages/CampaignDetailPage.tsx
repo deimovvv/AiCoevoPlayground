@@ -50,25 +50,42 @@ export function CampaignDetailPage() {
 
   const handleGenerate = async () => {
     if (!activeBrand || !campaign || generating) return;
+    const avatar = (activeBrand.avatars || []).find((a) => a.id === campaign.avatarId);
     const products = (activeBrand.products || []).filter((p) => campaign.productIds.includes(p.id));
+    const clothing = (activeBrand.clothing || []).filter((c) => campaign.clothingIds?.includes(c.id));
+    const background = (activeBrand.backgrounds || []).find((x) => x.id === campaign.backgroundId);
     const moodboard = (activeBrand.moodboards || []).find((m) => m.id === campaign.moodboardId);
+    const lookFeel = (activeBrand.lookAndFeel || []).find((l) => l.id === campaign.lookFeelId);
 
-    // Refs para Nano Banana: fotos del producto (principal + extras) + moodboard.
+    // Refs para Nano Banana, por prioridad (cap 8 = límite de Fal): identidad → producto
+    // → prenda → fondo → moodboard → look&feel. Se usan las imageUrls crudas (el backend
+    // las sube a Fal).
     const refs: string[] = [];
+    if (avatar?.imageUrl) refs.push(avatar.imageUrl);
     products.forEach((p) => { if (p.imageUrl) refs.push(p.imageUrl); (p.images || []).forEach((im) => im.imageUrl && refs.push(im.imageUrl)); });
+    clothing.forEach((c) => { if (c.imageUrl) refs.push(c.imageUrl); });
+    if (background?.imageUrl) refs.push(background.imageUrl);
     if (moodboard?.imageUrl) refs.push(moodboard.imageUrl);
+    if (lookFeel?.imageUrl) refs.push(lookFeel.imageUrl);
+    const cappedRefs = refs.slice(0, 8);
 
-    if (refs.length === 0 && !activeBrand.brandContext) {
-      alert("Asigná al menos un producto o moodboard (o cargá brand context) para generar.");
+    if (cappedRefs.length === 0 && !activeBrand.brandContext) {
+      alert("Asigná al menos un asset (producto, modelo, moodboard…) o cargá brand context para generar.");
       return;
     }
 
     const ctx = (activeBrand.brandContext || "").slice(0, 400);
     const prodNames = products.map((p) => p.name).join(", ");
+    const clothingNames = clothing.map((c) => c.name).join(", ");
     const prompt =
-      `Professional advertising campaign photograph${prodNames ? ` featuring ${prodNames}` : ""} for the brand ${activeBrand.name}. ` +
+      `Professional advertising campaign photograph for the brand ${activeBrand.name}. ` +
+      `${avatar ? "Use the EXACT model from the identity reference (same face, hair, skin). " : ""}` +
+      `${prodNames ? `Feature the product(s): ${prodNames}, reproduced faithfully from the reference. ` : ""}` +
+      `${clothingNames ? `The model wears: ${clothingNames}, matched to the reference. ` : ""}` +
       `${ctx} ` +
-      `${moodboard ? "Follow the visual style, composition, palette and mood of the moodboard reference image. " : ""}` +
+      `${background ? "Place the subject in the environment shown in the background reference. " : ""}` +
+      `${moodboard ? "Follow the visual style, composition, palette and mood of the moodboard reference. " : ""}` +
+      `${lookFeel ? "Apply the lighting and color grade of the look & feel reference. " : ""}` +
       `High-end editorial commercial quality, sharp, photorealistic. No text, no watermark, no logo overlay.`;
 
     // Una pieza por (aspect ratio × variante), capado por costo.
@@ -83,8 +100,8 @@ export function CampaignDetailPage() {
     for (let i = 0; i < capped.length; i++) {
       const ar = capped[i];
       try {
-        const job = refs.length
-          ? await createImageEdit(refs, prompt, ar, campaign.resolution)
+        const job = cappedRefs.length
+          ? await createImageEdit(cappedRefs, prompt, ar, campaign.resolution)
           : await createTextToImage(prompt, ar, campaign.resolution);
         const r = await pollImageGen(job.request_id);
         fresh.push({ id: `pc_${campaign.pieces.length + i}_${ar}_${i}`, url: r.image_url || "", type: "image", aspectRatio: ar, prompt, status: r.image_url ? "done" : "failed" });

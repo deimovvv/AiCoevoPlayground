@@ -470,6 +470,10 @@ class CampaignCreateRequest(BaseModel):
     productIds: list[str] = []
     moodboardId: Optional[str] = None
     poseId: Optional[str] = None
+    avatarId: Optional[str] = None
+    clothingIds: list[str] = []
+    backgroundId: Optional[str] = None
+    lookFeelId: Optional[str] = None
     shotPlan: str = "ai"
     customShots: list[str] = []
     variationsPerShot: int = 1

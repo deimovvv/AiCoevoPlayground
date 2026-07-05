@@ -57,6 +57,11 @@ def new_campaign(payload: dict) -> dict:
         "productIds": payload.get("productIds", []) or [],
         "moodboardId": payload.get("moodboardId"),
         "poseId": payload.get("poseId"),
+        # Más assets de la marca que la campaña puede usar como refs.
+        "avatarId": payload.get("avatarId"),
+        "clothingIds": payload.get("clothingIds", []) or [],
+        "backgroundId": payload.get("backgroundId"),
+        "lookFeelId": payload.get("lookFeelId"),
         # "ai" = la IA decide el shot list · "manual" = estilos elegidos por el usuario.
         "shotPlan": payload.get("shotPlan", "ai"),
         "customShots": payload.get("customShots", []) or [],
@@ -78,6 +83,7 @@ _EDITABLE = {
     "name", "brief", "productIds", "moodboardId", "poseId", "shotPlan",
     "customShots", "variationsPerShot", "aspectRatios", "resolution",
     "status", "generationIds", "pieces",
+    "avatarId", "clothingIds", "backgroundId", "lookFeelId",
 }
 
 
