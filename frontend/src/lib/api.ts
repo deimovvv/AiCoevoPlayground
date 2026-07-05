@@ -352,6 +352,82 @@ export async function fetchBrands(): Promise<Brand[]> {
     return data.brands;
 }
 
+// ══════════════════════════════════════════════════════════════
+//  Campaigns — contenedor por marca (ver docs/campaigns.md)
+// ══════════════════════════════════════════════════════════════
+
+export interface Campaign {
+    id: string;
+    brandId: string;
+    name: string;
+    brief: string;
+    productIds: string[];
+    moodboardId: string | null;
+    poseId: string | null;
+    shotPlan: "ai" | "manual";
+    customShots: string[];
+    variationsPerShot: number;
+    aspectRatios: string[];
+    resolution: string;
+    status: "draft" | "generating" | "review" | "approved";
+    generationIds: string[];
+    createdAt: string;
+    updatedAt: string;
+}
+
+export async function listCampaigns(brandId: string): Promise<Campaign[]> {
+    const res = await fetch(`${API_BASE}/api/campaigns?brandId=${encodeURIComponent(brandId)}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.campaigns || []) as Campaign[];
+}
+
+export async function createCampaign(payload: {
+    brandId: string;
+    name?: string;
+    brief?: string;
+    productIds?: string[];
+    moodboardId?: string | null;
+    poseId?: string | null;
+    shotPlan?: "ai" | "manual";
+    customShots?: string[];
+    variationsPerShot?: number;
+    aspectRatios?: string[];
+    resolution?: string;
+}): Promise<Campaign> {
+    const res = await fetch(`${API_BASE}/api/campaigns`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || "No se pudo crear la campaña");
+    }
+    return res.json();
+}
+
+export async function getCampaign(id: string): Promise<Campaign> {
+    const res = await fetch(`${API_BASE}/api/campaigns/${id}`);
+    if (!res.ok) throw new Error("Campaña no encontrada");
+    return res.json();
+}
+
+export async function updateCampaign(id: string, patch: Partial<Campaign>): Promise<Campaign> {
+    const res = await fetch(`${API_BASE}/api/campaigns/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error("No se pudo actualizar la campaña");
+    return res.json();
+}
+
+export async function deleteCampaign(id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/campaigns/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("No se pudo borrar la campaña");
+}
+
 export async function fetchBrand(brandId: string): Promise<Brand> {
     const res = await fetch(`${API_BASE}/api/brands/${brandId}`);
     if (!res.ok) throw new Error("Failed to fetch brand");

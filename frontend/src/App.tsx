@@ -10,6 +10,8 @@ import ToolsPage from "./pages/ToolsPage";
 import PipelineConfigPage from "./pages/PipelineConfigPage";
 import { GeneratePage } from "./pages/GeneratePage";
 import { ToolRunPage } from "./pages/ToolRunPage";
+import { CampaignsPage } from "./pages/CampaignsPage";
+import { CampaignDetailPage } from "./pages/CampaignDetailPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { PortalPage } from "./pages/PortalPage";
 import { BrandProvider } from "./lib/BrandContext";
@@ -75,6 +77,8 @@ function App() {
         <Route path="brands" element={<Dashboard />} />
         <Route path="brands/:brandId" element={<BrandSettings />} />
         <Route path="brands/:brandId/generate" element={<GenerationPipeline />} />
+        <Route path="campaigns" element={<CampaignsPage />} />
+        <Route path="campaigns/:campaignId" element={<CampaignDetailPage />} />
         <Route path="generate" element={<GeneratePage />} />
         <Route path="generate/:toolId" element={<ErrorBoundary><ToolRunPage /></ErrorBoundary>} />
         {/* /dashboard/lab ahora es v2 (el "Manual Lab" único). /dashboard/lab-v2 queda
