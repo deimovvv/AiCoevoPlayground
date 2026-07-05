@@ -890,6 +890,52 @@ Return a single concise paragraph (2-4 sentences) suitable for use as a pose ref
     return await _call_vision(prompt, [(image_bytes, mime_type)])
 
 
+async def check_product_consistency(
+    generated: tuple[bytes, str],
+    references: list[tuple[bytes, str]],
+    category: str = "",
+) -> dict:
+    """AutoQA de fidelidad de producto (Fase 0 de Campañas). Gemini Vision compara la
+    imagen GENERADA (primera) contra las REFERENCIAS reales del producto y devuelve un
+    verdict estructurado. Category-aware. Fail-open: si Gemini falla → ok=True (no bloquea).
+
+    Devuelve: { ok: bool, severity: none|minor|major, issues: [str], fix_hint: str }
+    """
+    cat = (category or "product").strip()
+    prompt = (
+        "You are a STRICT product-fidelity QA reviewer for an ad agency. "
+        "IMAGE 1 is a GENERATED image. The REMAINING images are the REAL reference photos "
+        f"of the product (category: {cat}).\n"
+        "Compare how the product appears in IMAGE 1 against the references. Judge ONLY the "
+        "product's fidelity: shape, proportions, color, materials, logos/text, hardware and "
+        f"the distinctive details that matter most for a {cat}. IGNORE background, model, "
+        "pose and lighting — only the product itself.\n\n"
+        "Respond with ONLY a JSON object, no prose:\n"
+        '{"ok": true|false, "severity": "none"|"minor"|"major", '
+        '"issues": ["short phrase", ...], "fix_hint": "one imperative sentence to fix it"}\n'
+        "Set ok=false ONLY on a MAJOR mismatch a client would reject (wrong color, wrong "
+        "shape, missing/garbled logo, invented details). Minor differences → ok=true, "
+        'severity "minor". If the product looks faithful → ok=true, severity "none", empty issues.'
+    )
+    try:
+        out = await _call_vision(prompt, [generated, *references])
+        clean = (out or "").strip()
+        if clean.startswith("```"):
+            clean = clean.strip("`")
+            clean = clean[4:].strip() if clean.lower().startswith("json") else clean
+        s, e = clean.find("{"), clean.rfind("}")
+        data = json.loads(clean[s:e + 1]) if s != -1 and e != -1 and e > s else {}
+        return {
+            "ok": bool(data.get("ok", True)),
+            "severity": str(data.get("severity", "none")),
+            "issues": [str(x) for x in (data.get("issues") or [])][:6],
+            "fix_hint": str(data.get("fix_hint", "")),
+        }
+    except Exception as ex:
+        print(f"[product-qa] fail-open: {ex}")
+        return {"ok": True, "severity": "none", "issues": [], "fix_hint": ""}
+
+
 async def refine_edit_instruction(text: str) -> str:
     """
     Traduce/afila una instrucción de EDICIÓN de imagen (escrita en español o spanglish)
