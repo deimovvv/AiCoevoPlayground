@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional, Dict, List
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +25,7 @@ load_dotenv()
 
 # ── Services ─────────────────────────────────────────────────
 from services import tts, heygen, copy_gen, brands
+from services import campaigns as campaigns_service
 from services import stt
 from services import fal_lipsync
 from services import kling_video
@@ -457,6 +458,76 @@ def get_job_status(job_id: str):
 # ══════════════════════════════════════════════════════════════
 #  Brand CRUD
 # ══════════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════════
+#  Campaigns API — contenedor por marca (ver docs/campaigns.md)
+# ══════════════════════════════════════════════════════════════
+
+class CampaignCreateRequest(BaseModel):
+    brandId: str
+    name: str = "Campaña sin nombre"
+    brief: str = ""
+    productIds: list[str] = []
+    moodboardId: Optional[str] = None
+    poseId: Optional[str] = None
+    shotPlan: str = "ai"
+    customShots: list[str] = []
+    variationsPerShot: int = 1
+    aspectRatios: list[str] = ["9:16"]
+    resolution: str = "2K"
+
+
+@app.get("/api/campaigns")
+def list_campaigns(brandId: Optional[str] = None):
+    """Lista campañas. Si viene brandId, filtra por marca (el caso normal)."""
+    items = campaigns_service.load_campaigns()
+    if brandId:
+        items = [c for c in items if c.get("brandId") == brandId]
+    # Más nuevas primero.
+    items = sorted(items, key=lambda c: c.get("createdAt", ""), reverse=True)
+    return {"campaigns": items}
+
+
+@app.post("/api/campaigns")
+def create_campaign(req: CampaignCreateRequest):
+    if not req.brandId:
+        raise HTTPException(status_code=400, detail="brandId requerido")
+    items = campaigns_service.load_campaigns()
+    campaign = campaigns_service.new_campaign(req.model_dump())
+    items.append(campaign)
+    campaigns_service.save_campaigns(items)
+    return campaign
+
+
+@app.get("/api/campaigns/{campaign_id}")
+def get_campaign(campaign_id: str):
+    items = campaigns_service.load_campaigns()
+    campaign = campaigns_service.find_campaign(items, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    return campaign
+
+
+@app.patch("/api/campaigns/{campaign_id}")
+def update_campaign(campaign_id: str, patch: dict = Body(...)):
+    items = campaigns_service.load_campaigns()
+    campaign = campaigns_service.find_campaign(items, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    campaigns_service.apply_update(campaign, patch)
+    campaigns_service.save_campaigns(items)
+    return campaign
+
+
+@app.delete("/api/campaigns/{campaign_id}")
+def delete_campaign(campaign_id: str):
+    items = campaigns_service.load_campaigns()
+    if not campaigns_service.find_campaign(items, campaign_id):
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    items = [c for c in items if c.get("id") != campaign_id]
+    campaigns_service.save_campaigns(items)
+    return {"ok": True}
+
 
 @app.get("/api/brands")
 def list_brands():
