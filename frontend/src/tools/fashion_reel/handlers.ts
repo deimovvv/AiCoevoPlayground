@@ -147,8 +147,13 @@ export const handleScript: StepHandler = async (ctx) => {
     // Cada outfit × cada shot = una escena. El orden en `looksShots` es el orden en el
     // video final (todos los shots del outfit 1, después todos los del outfit 2, etc.).
     const looksShotsRaw = (cfg.looksShots as string[]) || DEFAULT_LOOKS_SHOTS;
-    const looksShots = looksShotsRaw.filter((s) => VIDEO_SHOT_CATALOG[s]);
-    const shots = looksShots.length > 0 ? looksShots : DEFAULT_LOOKS_SHOTS;
+    const notesRaw = (cfg.looksShotNotes as string[]) || [];
+    // Combinamos shot + instrucción por plano (alineadas por índice), filtrando juntas
+    // para no desalinear las notas. Cada entrada = una escena por outfit.
+    const combined = looksShotsRaw
+      .map((s, i) => ({ shot: s, note: (notesRaw[i] || "").trim() }))
+      .filter((x) => VIDEO_SHOT_CATALOG[x.shot]);
+    const shots = combined.length > 0 ? combined : DEFAULT_LOOKS_SHOTS.map((s) => ({ shot: s, note: "" }));
 
     const scenes: Array<{
       id: string;
@@ -168,19 +173,25 @@ export const handleScript: StepHandler = async (ctx) => {
       const garment = selectedClothing[oi];
       const garmentLabel = `${garment.name}${garment.description ? ` (${garment.description})` : ""}`;
       for (let si = 0; si < shots.length; si++) {
-        const shotId = shots[si];
+        const shotId = shots[si].shot;
+        const shotNote = shots[si].note;
         const shotMeta = VIDEO_SHOT_CATALOG[shotId];
+        // Instrucción por plano — pisa la postura/setting default del framing
+        // (ej. "general" es parada; con nota "sentada en una silla" se sienta).
+        const noteClause = shotNote
+          ? ` SHOT DIRECTION (mandatory — overrides the default posture/setting of this shot): ${shotNote}.`
+          : "";
         scenes.push({
-          id: `look_${oi + 1}_${shotId}`,
+          id: `look_${oi + 1}_${shotId}_${si}`,
           title: `${garment.name} · ${shotMeta.label}`,
           script: "",
-          // El image_prompt arranca con el framing del shot + la consigna del look +
-          // la location forzada (settingOverride o background). base_image /
-          // multishot lo expanden con la prenda real y el background como refs.
-          image_prompt: `${shotMeta.framing} ${avatarDesc} wearing ${garmentLabel}. Confident fashion presence.${locationLine ? ` ${locationLine}` : ""}`,
+          // El image_prompt arranca con el framing del shot + la instrucción del plano +
+          // la consigna del look + la location forzada. base_image / multishot lo
+          // expanden con la prenda real y el background como refs.
+          image_prompt: `${shotMeta.framing} ${avatarDesc} wearing ${garmentLabel}.${noteClause} Confident fashion presence.${locationLine ? ` ${locationLine}` : ""}`,
           sceneType: "creative",
           shot: shotId,
-          note: `${garment.name} — ${shotMeta.label}`,
+          note: `${garment.name} — ${shotMeta.label}${shotNote ? ` · ${shotNote}` : ""}`,
           garmentId: garment.id,
           shotId,
         });

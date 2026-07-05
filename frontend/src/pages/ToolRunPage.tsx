@@ -416,6 +416,10 @@ interface ToolConfig {
   // ENTRADAS REPETIDAS — ej. ["general","general","detail"] = 2 generales + 1 detail.
   // El handler recorre el array tal cual; el orden importa para el reel final.
   looksShots: string[];
+  // Fashion Reel — instrucción opcional por plano, ALINEADA por índice con looksShots
+  // (mismo largo). Ej: looksShots[2]="general" + looksShotNotes[2]="sentada en una silla".
+  // Se inyecta en el image_prompt de esa escena, sobrescribiendo la postura default.
+  looksShotNotes: string[];
   // Fashion Reel — preset de escenario que pisa el setting inferido. "brand" usa
   // el background del Brand Kit + settingOverride; el resto fuerza un texto fijo
   // ("estudio fondo blanco infinito con luz softbox", etc.) directo al image_prompt.
@@ -511,6 +515,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   ecomPosePreset: "auto",
   ecomAccessoryIds: [],
   looksShots: ["general", "detail"],
+  looksShotNotes: [],
   locationPreset: "brand",
   locationCustom: "",
   clipDuration: "5",
@@ -4254,7 +4259,11 @@ function ConfigPanel({
                       const oldIndex = Number(active.id);
                       const newIndex = Number(over.id);
                       if (Number.isNaN(oldIndex) || Number.isNaN(newIndex)) return;
-                      setConfig((p) => ({ ...p, looksShots: arrayMove(p.looksShots, oldIndex, newIndex) }));
+                      // Reordenamos shots Y notas en sincronía (alineadas por índice).
+                      setConfig((p) => {
+                        const notes = p.looksShots.map((_, j) => p.looksShotNotes[j] || "");
+                        return { ...p, looksShots: arrayMove(p.looksShots, oldIndex, newIndex), looksShotNotes: arrayMove(notes, oldIndex, newIndex) };
+                      });
                     }}
                   >
                     <SortableContext items={config.looksShots.map((_, i) => String(i))} strategy={verticalListSortingStrategy}>
@@ -4266,7 +4275,16 @@ function ConfigPanel({
                             index={i}
                             label={VIDEO_SHOT_CATALOG[shotId]?.label || shotId}
                             title={VIDEO_SHOT_CATALOG[shotId]?.framing}
-                            onRemove={() => setConfig((p) => ({ ...p, looksShots: p.looksShots.filter((_, j) => j !== i) }))}
+                            note={config.looksShotNotes[i] || ""}
+                            onNoteChange={(v) => setConfig((p) => {
+                              const notes = p.looksShots.map((_, j) => p.looksShotNotes[j] || "");
+                              notes[i] = v;
+                              return { ...p, looksShotNotes: notes };
+                            })}
+                            onRemove={() => setConfig((p) => {
+                              const notes = p.looksShots.map((_, j) => p.looksShotNotes[j] || "");
+                              return { ...p, looksShots: p.looksShots.filter((_, j) => j !== i), looksShotNotes: notes.filter((_, j) => j !== i) };
+                            })}
                           />
                         ))}
                       </div>
@@ -4281,7 +4299,7 @@ function ConfigPanel({
                       type="button"
                       title={shot.framing}
                       disabled={config.looksShots.length >= 12}
-                      onClick={() => setConfig((p) => ({ ...p, looksShots: [...p.looksShots, id] }))}
+                      onClick={() => setConfig((p) => ({ ...p, looksShots: [...p.looksShots, id], looksShotNotes: [...p.looksShots.map((_, j) => p.looksShotNotes[j] || ""), ""] }))}
                       className="flex items-center gap-1 px-2 py-1 rounded-[var(--radius-sm)] border border-edge bg-surface-0 text-[10px] text-fg-muted hover:text-fg hover:border-[var(--color-brand)] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Plus size={10} /> {shot.label}
@@ -10419,11 +10437,13 @@ interface AssetItem {
 
 // Chip arrastrable de un plano en la secuencia del Fashion Reel (modo Looks).
 // El orden en la lista = orden en el reel final. Drag por el handle ☰.
-function SortableShotChip({ id, index, label, title, onRemove }: {
+function SortableShotChip({ id, index, label, title, note, onNoteChange, onRemove }: {
   id: string;
   index: number;
   label: string;
   title?: string;
+  note: string;
+  onNoteChange: (v: string) => void;
   onRemove: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -10432,28 +10452,37 @@ function SortableShotChip({ id, index, label, title, onRemove }: {
     <div
       ref={setNodeRef}
       style={style}
-      title={title}
-      className="flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] border border-[var(--color-brand)] bg-[var(--color-brand-subtle)] text-[11px] text-fg"
+      className="rounded-[var(--radius-sm)] border border-[var(--color-brand)] bg-[var(--color-brand-subtle)] text-[11px] text-fg p-1.5 space-y-1"
     >
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing text-fg-faint hover:text-fg touch-none shrink-0"
-        title="Arrastrar para reordenar"
-      >
-        <GripVertical size={13} />
-      </button>
-      <span className="w-4 text-center text-[10px] text-fg-faint tabular-nums shrink-0">{index + 1}</span>
-      <span className="flex-1 select-none truncate">{label}</span>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="text-fg-faint hover:text-red-400 cursor-pointer shrink-0"
-        title="Quitar de la secuencia"
-      >
-        <X size={12} />
-      </button>
+      <div className="flex items-center gap-2" title={title}>
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-fg-faint hover:text-fg touch-none shrink-0"
+          title="Arrastrar para reordenar"
+        >
+          <GripVertical size={13} />
+        </button>
+        <span className="w-4 text-center text-[10px] text-fg-faint tabular-nums shrink-0">{index + 1}</span>
+        <span className="flex-1 select-none truncate">{label}</span>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-fg-faint hover:text-red-400 cursor-pointer shrink-0"
+          title="Quitar de la secuencia"
+        >
+          <X size={12} />
+        </button>
+      </div>
+      {/* Instrucción opcional por plano — se inyecta en el prompt de ESA escena y pisa
+          la postura default del framing (ej. "general" parada → "sentada en una silla"). */}
+      <input
+        value={note}
+        onChange={(e) => onNoteChange(e.target.value)}
+        placeholder="Instrucción (opcional) — ej: sentada en una silla"
+        className="w-full h-7 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-0 text-[10px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-brand)]"
+      />
     </div>
   );
 }
