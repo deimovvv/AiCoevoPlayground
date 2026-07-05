@@ -66,6 +66,8 @@ def new_campaign(payload: dict) -> dict:
         "status": "draft",
         # Ids de generaciones que pertenecen a esta campaña (se linkean al generar).
         "generationIds": [],
+        # Piezas generadas dentro de la campaña: { id, url, type, aspectRatio, prompt, status }.
+        "pieces": [],
         "createdAt": _now(),
         "updatedAt": _now(),
     }
@@ -75,7 +77,7 @@ def new_campaign(payload: dict) -> dict:
 _EDITABLE = {
     "name", "brief", "productIds", "moodboardId", "poseId", "shotPlan",
     "customShots", "variationsPerShot", "aspectRatios", "resolution",
-    "status", "generationIds",
+    "status", "generationIds", "pieces",
 }
 
 

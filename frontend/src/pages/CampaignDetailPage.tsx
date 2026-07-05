@@ -1,8 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, Loader2, Trash2, Sparkles, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, Sparkles, Image as ImageIcon, AlertCircle, X, Download } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
-import { getCampaign, deleteCampaign, productImageUrl, moodboardImageUrl, type Campaign } from "../lib/api";
+import {
+  getCampaign, deleteCampaign, updateCampaign,
+  createImageEdit, createTextToImage, pollImageGen,
+  productImageUrl, moodboardImageUrl,
+  type Campaign, type CampaignPiece,
+} from "../lib/api";
 import { cn } from "../lib/utils";
 
 const STATUS_LABEL: Record<Campaign["status"], { label: string; cls: string }> = {
@@ -12,6 +17,9 @@ const STATUS_LABEL: Record<Campaign["status"], { label: string; cls: string }> =
   approved: { label: "Aprobada", cls: "bg-green-500/15 text-green-400" },
 };
 
+const AR_CLASS: Record<string, string> = { "9:16": "aspect-[9/16]", "16:9": "aspect-[16/9]", "1:1": "aspect-square", "4:5": "aspect-[4/5]" };
+const MAX_PIECES_PER_RUN = 8; // cap de costo por tanda
+
 export function CampaignDetailPage() {
   const { campaignId } = useParams();
   const navigate = useNavigate();
@@ -19,6 +27,9 @@ export function CampaignDetailPage() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [lightbox, setLightbox] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!campaignId) return;
@@ -37,12 +48,66 @@ export function CampaignDetailPage() {
     catch { alert("No se pudo borrar."); }
   };
 
+  const handleGenerate = async () => {
+    if (!activeBrand || !campaign || generating) return;
+    const products = (activeBrand.products || []).filter((p) => campaign.productIds.includes(p.id));
+    const moodboard = (activeBrand.moodboards || []).find((m) => m.id === campaign.moodboardId);
+
+    // Refs para Nano Banana: fotos del producto (principal + extras) + moodboard.
+    const refs: string[] = [];
+    products.forEach((p) => { if (p.imageUrl) refs.push(p.imageUrl); (p.images || []).forEach((im) => im.imageUrl && refs.push(im.imageUrl)); });
+    if (moodboard?.imageUrl) refs.push(moodboard.imageUrl);
+
+    if (refs.length === 0 && !activeBrand.brandContext) {
+      alert("Asigná al menos un producto o moodboard (o cargá brand context) para generar.");
+      return;
+    }
+
+    const ctx = (activeBrand.brandContext || "").slice(0, 400);
+    const prodNames = products.map((p) => p.name).join(", ");
+    const prompt =
+      `Professional advertising campaign photograph${prodNames ? ` featuring ${prodNames}` : ""} for the brand ${activeBrand.name}. ` +
+      `${ctx} ` +
+      `${moodboard ? "Follow the visual style, composition, palette and mood of the moodboard reference image. " : ""}` +
+      `High-end editorial commercial quality, sharp, photorealistic. No text, no watermark, no logo overlay.`;
+
+    // Una pieza por (aspect ratio × variante), capado por costo.
+    const jobs: string[] = [];
+    campaign.aspectRatios.forEach((ar) => { for (let i = 0; i < campaign.variationsPerShot; i++) jobs.push(ar); });
+    const capped = jobs.slice(0, MAX_PIECES_PER_RUN);
+    if (jobs.length > MAX_PIECES_PER_RUN) console.warn(`[campaign] capado ${jobs.length} → ${MAX_PIECES_PER_RUN} piezas por tanda`);
+
+    setGenerating(true);
+    setProgress({ done: 0, total: capped.length });
+    const fresh: CampaignPiece[] = [];
+    for (let i = 0; i < capped.length; i++) {
+      const ar = capped[i];
+      try {
+        const job = refs.length
+          ? await createImageEdit(refs, prompt, ar, campaign.resolution)
+          : await createTextToImage(prompt, ar, campaign.resolution);
+        const r = await pollImageGen(job.request_id);
+        fresh.push({ id: `pc_${campaign.pieces.length + i}_${ar}_${i}`, url: r.image_url || "", type: "image", aspectRatio: ar, prompt, status: r.image_url ? "done" : "failed" });
+      } catch (e) {
+        console.error("[campaign] pieza falló:", e);
+        fresh.push({ id: `pc_${campaign.pieces.length + i}_${ar}_${i}`, url: "", type: "image", aspectRatio: ar, prompt, status: "failed" });
+      }
+      setProgress((p) => ({ ...p, done: p.done + 1 }));
+    }
+    try {
+      const updated = await updateCampaign(campaign.id, { pieces: [...campaign.pieces, ...fresh], status: "review" });
+      setCampaign(updated);
+    } catch { /* si falla el patch, al menos mostramos lo generado en memoria */ setCampaign((c) => c ? { ...c, pieces: [...c.pieces, ...fresh], status: "review" } : c); }
+    setGenerating(false);
+  };
+
   if (loading) return <div className="flex items-center gap-2 text-fg-muted text-[13px] py-16 justify-center"><Loader2 size={16} className="animate-spin" /> Cargando…</div>;
   if (error || !campaign) return <div className="p-10 text-center text-fg-muted">{error || "Campaña no encontrada"} · <button onClick={() => navigate("/dashboard/campaigns")} className="text-[var(--color-brand)] cursor-pointer">Volver</button></div>;
 
   const st = STATUS_LABEL[campaign.status] || STATUS_LABEL.draft;
   const products = (activeBrand?.products || []).filter((p) => campaign.productIds.includes(p.id));
   const moodboard = (activeBrand?.moodboards || []).find((m) => m.id === campaign.moodboardId);
+  const pieces = campaign.pieces || [];
 
   return (
     <div className="max-w-5xl mx-auto p-6 md:p-8">
@@ -70,7 +135,6 @@ export function CampaignDetailPage() {
             <Row label="Formatos" value={campaign.aspectRatios.join(" · ")} />
             <Row label="Resolución" value={campaign.resolution} />
           </div>
-          {/* Productos */}
           <div className="mt-4">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-fg-faint">Producto(s)</span>
             {products.length === 0 ? <p className="text-[11px] text-fg-faint mt-1">Sin producto asignado.</p> : (
@@ -85,7 +149,6 @@ export function CampaignDetailPage() {
             )}
           </div>
         </div>
-        {/* Moodboard */}
         <div className="rounded-[var(--radius-md)] border border-edge bg-surface-0 p-4">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-fg-faint">Moodboard</span>
           {moodboard?.imageUrl ? (
@@ -96,19 +159,49 @@ export function CampaignDetailPage() {
 
       {/* Piezas */}
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[16px] font-bold">Piezas</h3>
+        <h3 className="text-[16px] font-bold">Piezas {pieces.length > 0 && <span className="text-fg-faint font-normal text-[13px]">· {pieces.length}</span>}</h3>
         <button
-          onClick={() => navigate("/dashboard/generate")}
-          className="flex items-center gap-1.5 px-4 h-9 rounded-full bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-[12px] font-semibold hover:opacity-90 cursor-pointer"
+          onClick={handleGenerate}
+          disabled={generating}
+          className="flex items-center gap-1.5 px-4 h-9 rounded-full bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-[12px] font-semibold hover:opacity-90 disabled:opacity-60 cursor-pointer"
         >
-          <Sparkles size={13} /> Generar piezas
+          {generating ? <><Loader2 size={13} className="animate-spin" /> Generando {progress.done}/{progress.total}</> : <><Sparkles size={13} /> {pieces.length > 0 ? "Generar más" : "Generar piezas"}</>}
         </button>
       </div>
-      <div className="border border-dashed border-edge rounded-[var(--radius-md)] p-10 text-center">
-        <ImageIcon size={26} className="mx-auto text-fg-faint mb-2" />
-        <p className="text-[13px] text-fg-muted">Todavía no hay piezas en esta campaña.</p>
-        <p className="text-[11px] text-fg-faint mt-1">El pipeline con checkpoint (imágenes → aprobar → video + voz) llega en la próxima iteración. Por ahora, generá en las tools y las vinculamos a la campaña.</p>
-      </div>
+
+      {pieces.length === 0 && !generating ? (
+        <div className="border border-dashed border-edge rounded-[var(--radius-md)] p-10 text-center">
+          <ImageIcon size={26} className="mx-auto text-fg-faint mb-2" />
+          <p className="text-[13px] text-fg-muted">Todavía no hay piezas.</p>
+          <p className="text-[11px] text-fg-faint mt-1">Tocá <strong>Generar piezas</strong> — usa el producto + moodboard + formatos de la campaña. El checkpoint (aprobar → video + voz) llega en la próxima.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {pieces.map((pc) => (
+            <div key={pc.id} className={cn("relative rounded-[var(--radius-md)] overflow-hidden border border-edge bg-surface-1 group", AR_CLASS[pc.aspectRatio] || "aspect-square")}>
+              {pc.url ? (
+                <>
+                  <img src={pc.url} alt="" className="w-full h-full object-cover cursor-zoom-in" onClick={() => setLightbox(pc.url)} />
+                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px]">{pc.aspectRatio}</span>
+                  <a href={pc.url} download onClick={(e) => e.stopPropagation()} className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" title="Descargar"><Download size={12} /></a>
+                </>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-[var(--color-error)] gap-1"><AlertCircle size={16} /><span className="text-[9px]">falló</span></div>
+              )}
+            </div>
+          ))}
+          {generating && Array.from({ length: Math.max(0, progress.total - (progress.done)) }).map((_, i) => (
+            <div key={`skel_${i}`} className="aspect-square rounded-[var(--radius-md)] border border-edge bg-surface-1 flex items-center justify-center"><Loader2 size={16} className="animate-spin text-fg-faint" /></div>
+          ))}
+        </div>
+      )}
+
+      {lightbox && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-8 cursor-zoom-out" onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="" className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]" onClick={(e) => e.stopPropagation()} />
+          <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer"><X size={16} /></button>
+        </div>
+      )}
     </div>
   );
 }
