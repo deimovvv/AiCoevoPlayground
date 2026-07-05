@@ -2070,6 +2070,34 @@ async def describe_scene(req: SceneDescribeRequest):
     return {"description": (desc or "").strip()}
 
 
+class ProductQARequest(BaseModel):
+    imageUrl: str
+    refUrls: list[str] = []
+    category: str = ""
+
+
+@app.post("/api/qa/product-consistency")
+async def qa_product_consistency(req: ProductQARequest):
+    """AutoQA de fidelidad de producto — compara una imagen generada contra las referencias
+    reales del producto (Gemini Vision) y devuelve un verdict {ok, severity, issues, fix_hint}.
+    Fase 0 de Campañas; reutilizable por cualquier tool. Fail-open."""
+    if not image_analysis.is_configured():
+        return {"ok": True, "severity": "none", "issues": [], "fix_hint": ""}
+    try:
+        gen = await manual_lab._fetch_image_bytes(req.imageUrl)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo leer la imagen: {str(e)[:200]}")
+    refs: list[tuple[bytes, str]] = []
+    for u in (req.refUrls or [])[:4]:
+        try:
+            refs.append(await manual_lab._fetch_image_bytes(u))
+        except Exception:
+            pass
+    if not refs:
+        return {"ok": True, "severity": "none", "issues": [], "fix_hint": "Sin referencia de producto para comparar."}
+    return await image_analysis.check_product_consistency(gen, refs, req.category)
+
+
 class RefineEditRequest(BaseModel):
     text: str
 

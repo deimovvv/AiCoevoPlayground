@@ -1105,6 +1105,27 @@ export async function describeSceneLighting(imageUrl: string): Promise<{ descrip
     return res.json();
 }
 
+/** AutoQA de fidelidad de producto — Gemini Vision compara una imagen generada contra las
+ *  referencias reales del producto. Devuelve verdict {ok, severity, issues, fix_hint}.
+ *  Fail-open: si algo falla, ok=true (no bloquea). Fase 0 del flujo de Campañas. */
+export async function checkProductConsistency(opts: {
+    imageUrl: string;
+    refUrls: string[];
+    category?: string;
+}): Promise<{ ok: boolean; severity: "none" | "minor" | "major"; issues: string[]; fix_hint: string }> {
+    try {
+        const res = await fetch(`${API_BASE}/api/qa/product-consistency`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageUrl: opts.imageUrl, refUrls: opts.refUrls, category: opts.category || "" }),
+        });
+        if (!res.ok) return { ok: true, severity: "none", issues: [], fix_hint: "" };
+        return await res.json();
+    } catch {
+        return { ok: true, severity: "none", issues: [], fix_hint: "" };
+    }
+}
+
 /** Traduce/afila una instrucción de edición (español/spanglish) → inglés conciso para
  *  Nano Banana. Fail-open en el backend: si Gemini falla, devuelve el texto original. */
 export async function refineEditInstruction(text: string): Promise<{ refined: string }> {
