@@ -43,7 +43,10 @@ export function DashboardHome() {
   }, [activeBrand]);
 
   return (
-    <div className="max-w-6xl mx-auto p-6 md:p-10">
+    <div className="relative max-w-6xl mx-auto p-6 md:p-10">
+      {/* Glow ambiental — profundidad en dark (halo del burgundy detrás del saludo). */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-64 -z-10 opacity-70"
+        style={{ background: "radial-gradient(50% 100% at 20% 0%, rgba(196,88,48,0.14), transparent 70%)" }} />
       {/* Greeting */}
       <div className="mb-10">
         <p className="text-[13px] text-fg-faint mb-1">Hola 👋</p>
@@ -66,24 +69,24 @@ export function DashboardHome() {
             <button
               key={t.id}
               onClick={() => navigate(`/dashboard/generate/${t.id}`)}
-              className="group text-left shrink-0 w-[220px] rounded-[var(--radius-md)] border border-edge bg-surface-0 overflow-hidden hover:border-[var(--color-brand)] transition-colors cursor-pointer"
+              className="group relative shrink-0 w-[200px] aspect-[3/4] rounded-[var(--radius-md)] overflow-hidden border border-edge hover:border-[var(--color-brand)] transition-colors cursor-pointer bg-surface-2"
             >
-              <div className="relative aspect-[16/10] overflow-hidden bg-surface-2">
-                {t.src ? (
-                  <Media src={t.src} type={t.type} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
-                ) : (
-                  <div className={cn("w-full h-full bg-gradient-to-br flex items-center justify-center", t.gradient)}>
-                    <span className="text-[34px] font-bold text-white/70">{t.name[0]}</span>
-                  </div>
-                )}
-                {t.type === "video" && <span className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm text-white flex items-center justify-center"><Play size={11} className="fill-white" /></span>}
-              </div>
-              <div className="p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-[13px] font-semibold">{t.name}</h3>
-                  <ArrowRight size={13} className="text-fg-faint group-hover:text-[var(--color-brand)] group-hover:translate-x-0.5 transition-all" />
+              {t.src ? (
+                <Media src={t.src} type={t.type} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+              ) : (
+                <div className={cn("absolute inset-0 bg-gradient-to-br flex items-center justify-center", t.gradient)}>
+                  <span className="text-[40px] font-bold text-white/70">{t.name[0]}</span>
                 </div>
-                <p className="text-[11px] text-fg-muted leading-snug mt-0.5">{t.tagline}</p>
+              )}
+              {/* Gradiente oscuro para legibilidad del label sobre la imagen. */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+              {t.type === "video" && <span className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center"><Play size={11} className="fill-white" /></span>}
+              <div className="absolute inset-x-0 bottom-0 p-3 text-left">
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-[14px] font-semibold text-white leading-tight">{t.name}</h3>
+                  <ArrowRight size={14} className="text-white/80 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+                <p className="text-[11px] text-white/70 leading-snug mt-0.5">{t.tagline}</p>
               </div>
             </button>
           ))}
@@ -97,24 +100,30 @@ export function DashboardHome() {
             <h2 className="font-display text-[20px] md:text-[24px] font-semibold tracking-tight">Campañas recientes</h2>
             <button onClick={() => navigate("/dashboard/campaigns")} className="flex items-center gap-1 text-[12px] text-fg-muted hover:text-fg cursor-pointer">Ver todas <ChevronRight size={13} /></button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Nueva campaña */}
             <button onClick={() => navigate("/dashboard/campaigns/new")}
-              className="rounded-[var(--radius-md)] border border-dashed border-edge hover:border-[var(--color-brand)] p-4 flex flex-col items-center justify-center gap-2 text-fg-muted hover:text-fg transition-colors cursor-pointer min-h-[110px]">
+              className="aspect-[4/3] rounded-[var(--radius-md)] border border-dashed border-edge hover:border-[var(--color-brand)] flex flex-col items-center justify-center gap-2 text-fg-muted hover:text-fg transition-colors cursor-pointer">
               <Plus size={20} /> <span className="text-[12px] font-medium">Nueva campaña</span>
             </button>
             {campaigns.map((c) => {
               const st = STATUS_LABEL[c.status] || STATUS_LABEL.draft;
+              const cover = c.pieces?.find((p) => p.url)?.url;
               return (
                 <button key={c.id} onClick={() => navigate(`/dashboard/campaigns/${c.id}`)}
-                  className="group text-left rounded-[var(--radius-md)] border border-edge bg-surface-0 p-4 hover:border-[var(--color-brand)] transition-colors cursor-pointer">
-                  <div className="flex items-start gap-2 mb-2">
-                    <Megaphone size={15} className="text-[var(--color-brand)] shrink-0 mt-0.5" />
-                    <h3 className="text-[13px] font-semibold leading-tight line-clamp-2">{c.name}</h3>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium", st.cls)}>{st.label}</span>
-                    <span className="text-[10px] text-fg-faint">{c.pieces?.length || 0} pieza{(c.pieces?.length || 0) === 1 ? "" : "s"}</span>
+                  className="group relative aspect-[4/3] rounded-[var(--radius-md)] overflow-hidden border border-edge hover:border-[var(--color-brand)] transition-colors cursor-pointer bg-surface-1">
+                  {cover ? (
+                    <img src={cover} alt="" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center"><Megaphone size={22} className="text-fg-faint" /></div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 p-3 text-left">
+                    <h3 className="text-[13px] font-semibold text-white leading-tight line-clamp-2">{c.name}</h3>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium", st.cls)}>{st.label}</span>
+                      <span className="text-[10px] text-white/70">{c.pieces?.length || 0} pieza{(c.pieces?.length || 0) === 1 ? "" : "s"}</span>
+                    </div>
                   </div>
                 </button>
               );
