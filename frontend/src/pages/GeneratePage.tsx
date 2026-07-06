@@ -90,6 +90,52 @@ const CATEGORY_LABELS: Record<string, string> = {
   copy: "Copy",
 };
 
+// Use-cases (cara "App" tipo Pletor) — agrupan las tools por caso de uso. El orden define
+// las filas. Tools no mapeadas caen en "Más tools".
+const USE_CASES: Array<{ key: string; label: string; toolIds: string[] }> = [
+  { key: "fashion", label: "Moda & editorial", toolIds: ["fashion_reel", "fashion_editorial"] },
+  { key: "ecommerce", label: "Ecommerce & producto", toolIds: ["ecommerce_pack", "ecommerce_batch", "product_sheet", "product_clip", "product_spotlight"] },
+  { key: "ugc", label: "UGC & avatares", toolIds: ["ugc_creator", "avatar_creator"] },
+  { key: "ads", label: "Ads & creativos", toolIds: ["video_ad_creator", "static_ad", "ad_creative_lab", "carousel_creator"] },
+  { key: "adapt", label: "Analizar & adaptar", toolIds: ["content_analyzer", "video_swap"] },
+];
+
+// Card de carousel — ALTURA FIJA (h-[280px]) para no colapsar dentro del flex row
+// (el ToolCard de grid usa aspect-ratio y colapsa con align-items:stretch). Image-first.
+function ToolTile({ tool, disabled, onClick }: { tool: ToolEntry; disabled: boolean; onClick: () => void }) {
+  const media = TOOL_PREVIEW_MEDIA[tool.id];
+  const tagline = TOOL_TAGLINES[tool.id] || tool.description;
+  const gradient = TOOL_GRADIENTS[tool.id] || "from-surface-2 via-surface-1 to-surface-0";
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "group relative shrink-0 w-[210px] h-[280px] rounded-[var(--radius-lg)] overflow-hidden border border-[var(--glass-border)] transition-all",
+        disabled ? "opacity-50 cursor-not-allowed" : "hover:border-[var(--color-brand)]/50 hover:-translate-y-1 cursor-pointer",
+      )}
+    >
+      {media?.type === "video" ? (
+        <video src={media.url} autoPlay muted loop playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+      ) : media?.type === "image" ? (
+        <img src={media.url} alt={tool.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+      ) : (
+        <div className={cn("absolute inset-0 bg-gradient-to-br flex items-center justify-center", gradient)}>
+          <span className="text-[38px] font-bold text-white/25">{tool.name[0]}</span>
+        </div>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+      <span className="absolute top-2.5 left-2.5 text-[9px] font-semibold uppercase tracking-widest text-white/80 bg-black/40 backdrop-blur px-2 py-0.5 rounded-full">
+        {CATEGORY_LABELS[tool.category] || tool.category}
+      </span>
+      <div className="absolute inset-x-0 bottom-0 p-3.5 text-left">
+        <h3 className="text-[15px] font-semibold text-white leading-tight">{tool.name}</h3>
+        <p className="text-[11px] text-white/70 leading-snug mt-0.5 line-clamp-2">{tagline}</p>
+      </div>
+    </button>
+  );
+}
+
 
 export function GeneratePage() {
   const { activeBrand } = useBrand();
@@ -159,17 +205,48 @@ export function GeneratePage() {
         ))}
       </div>
 
-      {/* Tools grid — image-first cards. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        {orderedTools.map((tool) => (
-          <ToolCard
-            key={tool.id}
-            tool={tool}
-            disabled={!activeBrand || tool.status !== "active"}
-            onClick={() => navigate(tool.route || `/dashboard/generate/${tool.id}`)}
-          />
-        ))}
-      </div>
+      {/* "Todas" → galería de use-cases (carousels con ToolTile de altura fija).
+          Con filtro activo → grid plano con el ToolCard grande. */}
+      {filter === "all" ? (
+        (() => {
+          const tile = (tool: ToolEntry) => (
+            <ToolTile key={tool.id} tool={tool} disabled={!activeBrand || tool.status !== "active"} onClick={() => navigate(tool.route || `/dashboard/generate/${tool.id}`)} />
+          );
+          const mappedIds = new Set(USE_CASES.flatMap((u) => u.toolIds));
+          const rest = orderedTools.filter((t) => !mappedIds.has(t.id));
+          return (
+            <div className="space-y-9">
+              {USE_CASES.map((uc) => {
+                const ucTools = uc.toolIds.map((id) => orderedTools.find((t) => t.id === id)).filter(Boolean) as ToolEntry[];
+                if (ucTools.length === 0) return null;
+                return (
+                  <section key={uc.key}>
+                    <h2 className="font-display text-[20px] md:text-[24px] font-semibold tracking-tight mb-3">{uc.label}</h2>
+                    <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 no-scrollbar">{ucTools.map(tile)}</div>
+                  </section>
+                );
+              })}
+              {rest.length > 0 && (
+                <section>
+                  <h2 className="font-display text-[20px] md:text-[24px] font-semibold tracking-tight mb-3">Más tools</h2>
+                  <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 no-scrollbar">{rest.map(tile)}</div>
+                </section>
+              )}
+            </div>
+          );
+        })()
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {orderedTools.map((tool) => (
+            <ToolCard
+              key={tool.id}
+              tool={tool}
+              disabled={!activeBrand || tool.status !== "active"}
+              onClick={() => navigate(tool.route || `/dashboard/generate/${tool.id}`)}
+            />
+          ))}
+        </div>
+      )}
 
       {filteredTools.length === 0 && (
         <div className="text-center py-16 text-fg-muted text-[14px]">
