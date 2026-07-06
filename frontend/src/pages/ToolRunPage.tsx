@@ -720,7 +720,14 @@ export function ToolRunPage() {
   // setLightboxUrl que NO existía en este scope (vivía en ConfigPanel), así que el
   // clic no hacía nada. Estado propio + overlay al final del return.
   const [railLightbox, setRailLightbox] = useState<string | null>(null);
-  const generatedMedia = useMemo(() => collectGeneratedMedia(steps, batches), [steps, batches]);
+  // Historial de corridas previas de esta sesión (se acumula al tocar "Generar otra vez").
+  // Permite re-generar sin Reset destructivo: los outputs viejos siguen en el rail para comparar.
+  const [runHistory, setRunHistory] = useState<GeneratedMedia[]>([]);
+  const generatedMedia = useMemo(() => {
+    const current = collectGeneratedMedia(steps, batches);
+    const seen = new Set(current.map((m) => m.url));
+    return [...current, ...runHistory.filter((m) => !seen.has(m.url))];
+  }, [steps, batches, runHistory]);
   // Flag para que el próximo Generar del usuario SUME una tanda en vez de pisar
   // la sesión actual. Se enciende cuando clickeás "Nueva tanda" desde el panel
   // de resultados.
@@ -2301,6 +2308,23 @@ export function ToolRunPage() {
     setStarted(false);
     setActiveStep(0);
     setSteps((prev) => prev.map((s) => ({ ...s, status: "pending" })));
+    // Reset = empezar de cero: limpiamos también el historial acumulado del rail.
+    setRunHistory([]);
+    setBatches([]);
+  };
+
+  // "Generar otra vez" — re-abre el pipeline SIN perder lo generado: snapshotea la corrida
+  // actual en el historial (queda en el rail para comparar) y desbloquea la config para
+  // ajustar y volver a Generar. A diferencia de Reset, no borra nada. Loop tipo Pletor.
+  const regenerateAgain = () => {
+    setRunHistory((prev) => {
+      const current = collectGeneratedMedia(stepsRef.current, batches);
+      const seen = new Set(prev.map((m) => m.url));
+      return [...current.filter((m) => !seen.has(m.url)), ...prev];
+    });
+    setStarted(false);
+    setActiveStep(0);
+    setSteps((prev) => prev.map((s) => ({ ...s, status: "pending" })));
   };
 
   // Resetea la corrida para la marca nueva: limpia steps, tandas y la config
@@ -2466,7 +2490,7 @@ export function ToolRunPage() {
             const bannerText = mockRunning
               ? "Pipeline corriendo — esperá a que termine para modificar config."
               : started && !isBatchable
-                ? "Pipeline ya ejecutado — para cambiar la config, tocá Reset arriba."
+                ? 'Pipeline ejecutado — tocá "Generar otra vez" abajo para ajustar y re-generar (lo anterior queda en el rail).'
                 : "";
             return (
               <div className="flex-1 overflow-y-auto px-4 py-4 relative">
@@ -2524,9 +2548,37 @@ export function ToolRunPage() {
                   </button>
                 );
               }
+              // Non-batchable + started: si la corrida terminó (hay algo done y nada corriendo),
+              // ofrecemos "Generar otra vez" (re-abre sin perder lo generado). Si sigue corriendo,
+              // el mensaje de siempre.
+              const anyRunning = steps.some((s) => s.status === "running");
+              const anyDone = steps.some((s) => s.status === "done" || s.status === "review");
+              const runComplete = anyDone && !anyRunning;
+              if (runComplete) {
+                return (
+                  <div className="space-y-1.5">
+                    <button
+                      onClick={regenerateAgain}
+                      disabled={!activeBrand}
+                      className={cn(
+                        "w-full flex items-center justify-center gap-2 px-4 py-3 text-[13px] font-bold uppercase tracking-wide rounded-[var(--radius-md)] transition-all cursor-pointer",
+                        activeBrand
+                          ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:brightness-105 shadow-[0_4px_24px_-6px_var(--color-brand-muted)] hover:shadow-[0_6px_32px_-4px_var(--color-brand)]"
+                          : "text-fg-faint bg-surface-2 cursor-not-allowed"
+                      )}
+                      title="Re-abre la config sin borrar lo generado — los resultados quedan en el rail para comparar"
+                    >
+                      <RotateCcw size={14} /> Generar otra vez
+                    </button>
+                    <p className="text-[10px] text-fg-faint text-center leading-snug">
+                      Ajustás y volvés a generar — lo anterior queda en <strong>Contenido generado</strong>. Reset (arriba) empieza de cero.
+                    </p>
+                  </div>
+                );
+              }
               return (
                 <div className="text-[10px] text-fg-faint text-center">
-                  Pipeline corriendo — ajustá la config arriba y usá "Reset" en el header si necesitás re-empezar.
+                  Pipeline corriendo — esperá a que termine.
                 </div>
               );
             })()}
