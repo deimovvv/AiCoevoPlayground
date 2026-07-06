@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, Loader2, Check, Plus } from "lucide-react";
+import { ArrowLeft, Loader2, Check, Plus, ChevronDown } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
   createCampaign,
@@ -13,7 +13,8 @@ const RES_OPTIONS = ["1K", "2K", "4K"];
 
 type AssetItem = { id: string; name: string; thumb?: string };
 
-/** Grid de assets de un tipo — single (radio) o multi (checkbox). */
+/** Módulo colapsable de assets de un tipo — single (radio) o multi (checkbox).
+ *  Cerrado por default; el header muestra qué elegiste (thumbs + contador) sin abrir. */
 function AssetGrid({ label, hint, items, multi, selectedId, selectedIds, onSingle, onToggle }: {
   label: string;
   hint?: string;
@@ -24,30 +25,51 @@ function AssetGrid({ label, hint, items, multi, selectedId, selectedIds, onSingl
   onSingle?: (id: string | null) => void;
   onToggle?: (id: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const selected = useMemo(
+    () => multi ? items.filter((i) => (selectedIds || []).includes(i.id)) : items.filter((i) => i.id === selectedId),
+    [items, multi, selectedIds, selectedId],
+  );
   if (items.length === 0) return null;
+
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-baseline gap-2">
+    <div className="rounded-[var(--radius-sm)] border border-edge bg-surface-1 overflow-hidden">
+      {/* Header — click para abrir/cerrar. Muestra selección aunque esté cerrado. */}
+      <button type="button" onClick={() => setOpen((v) => !v)} className="w-full flex items-center gap-2 px-3 py-2.5 cursor-pointer text-left">
+        <ChevronDown size={14} className={cn("text-fg-faint shrink-0 transition-transform", open ? "" : "-rotate-90")} />
         <span className="text-[12px] font-semibold text-fg-secondary">{label}</span>
         {hint && <span className="text-[10px] text-fg-faint">{hint}</span>}
-      </div>
-      <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5">
-        {!multi && (
-          <button type="button" onClick={() => onSingle?.(null)}
-            className={cn("aspect-square rounded-[var(--radius-sm)] border-2 flex items-center justify-center text-[9px] cursor-pointer", selectedId == null ? "border-[var(--color-brand)] text-fg" : "border-edge text-fg-faint")}>Ninguno</button>
-        )}
-        {items.map((it) => {
-          const on = multi ? (selectedIds || []).includes(it.id) : selectedId === it.id;
-          return (
-            <button key={it.id} type="button" title={it.name}
-              onClick={() => multi ? onToggle?.(it.id) : onSingle?.(it.id)}
-              className={cn("relative aspect-square rounded-[var(--radius-sm)] border-2 overflow-hidden cursor-pointer", on ? "border-[var(--color-brand)]" : "border-edge opacity-70 hover:opacity-100")}>
-              {it.thumb ? <img src={it.thumb} alt={it.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-surface-2 flex items-center justify-center text-[8px] text-fg-faint p-1 text-center">{it.name}</div>}
-              {on && <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-brand)] text-white flex items-center justify-center"><Check size={9} /></span>}
-            </button>
-          );
-        })}
-      </div>
+        <span className="ml-auto flex items-center gap-1.5">
+          {!open && selected.slice(0, 4).map((s) => (
+            <span key={s.id} className="w-6 h-6 rounded overflow-hidden border border-edge bg-surface-2 shrink-0">
+              {s.thumb && <img src={s.thumb} alt={s.name} className="w-full h-full object-cover" />}
+            </span>
+          ))}
+          <span className={cn("text-[10px] font-medium", selected.length ? "text-[var(--color-brand)]" : "text-fg-faint")}>
+            {selected.length ? `${selected.length} sel.` : "Elegir"}
+          </span>
+        </span>
+      </button>
+
+      {open && (
+        <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 p-3 pt-0">
+          {!multi && (
+            <button type="button" onClick={() => onSingle?.(null)}
+              className={cn("aspect-square rounded-[var(--radius-sm)] border-2 flex items-center justify-center text-[9px] cursor-pointer", selectedId == null ? "border-[var(--color-brand)] text-fg" : "border-edge text-fg-faint")}>Ninguno</button>
+          )}
+          {items.map((it) => {
+            const on = multi ? (selectedIds || []).includes(it.id) : selectedId === it.id;
+            return (
+              <button key={it.id} type="button" title={it.name}
+                onClick={() => multi ? onToggle?.(it.id) : onSingle?.(it.id)}
+                className={cn("relative aspect-square rounded-[var(--radius-sm)] border-2 overflow-hidden cursor-pointer", on ? "border-[var(--color-brand)]" : "border-edge opacity-70 hover:opacity-100")}>
+                {it.thumb ? <img src={it.thumb} alt={it.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-surface-2 flex items-center justify-center text-[8px] text-fg-faint p-1 text-center">{it.name}</div>}
+                {on && <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-brand)] text-white flex items-center justify-center"><Check size={9} /></span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -111,9 +133,9 @@ export function NewCampaignPage() {
             className="mt-1.5 w-full h-10 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[14px] outline-none focus:border-[var(--color-brand)]" />
         </div>
 
-        {/* Assets de la marca */}
-        <div className="space-y-5 rounded-[var(--radius-md)] border border-edge bg-surface-0 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-fg-faint">Assets de la marca</div>
+        {/* Assets de la marca — cada tipo es un módulo colapsable (cerrado por default). */}
+        <div className="space-y-2">
+          <div className="text-[11px] font-semibold uppercase tracking-widest text-fg-faint mb-1">Assets de la marca</div>
           {(b.avatars?.length || b.products?.length || b.clothing?.length || b.backgrounds?.length || b.moodboards?.length || b.lookAndFeel?.length) ? (
             <>
               <AssetGrid label="Modelo / Avatar" hint="uno" selectedId={avatarId} onSingle={setAvatarId}
