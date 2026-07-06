@@ -73,7 +73,7 @@ import { ModelDropdown } from "../components/ui/ModelDropdown";
 import { ComposeOverlay } from "../components/ComposeOverlay";
 import { UGCPlayer } from "../remotion/UGCPlayer";
 import { TOOL_DEFINITIONS } from "../tools/registry";
-import { greenScreenPrompt, compositePrompt } from "../tools/screen_mockup";
+import { greenScreenPrompt, compositePrompt, compositeOnPhotoPrompt } from "../tools/screen_mockup";
 import { TOOL_EXAMPLES } from "../lib/toolPreviews";
 import { autoSaveStep, getActiveGenId, setActiveGenId, clearActiveGen } from "../tools/shared/autoSave";
 
@@ -373,6 +373,9 @@ interface ToolConfig {
   // Pose reference — body position / framing ONLY (scoped in handlers so it doesn't
   // bleed lighting/scene/style). Separate from referenceImages (which is look&feel).
   poseReference: File[];
+  // Screen Mockup: foto real de escena (device con pantalla) provista por el usuario.
+  // Si está, salteamos la generación de escena verde y componemos la UI directo sobre esta foto.
+  mockupSceneImages?: File[];
   // Video Swap (Beeble SwitchX): the user's source video + how to mask it.
   sourceVideo: File[];
   alphaMode: "auto" | "select" | "fill" | "custom";
@@ -4892,6 +4895,40 @@ function ConfigPanel({
               />
             </label>
 
+            {/* Screen Mockup — foto de escena opcional. Si la subís, salteamos la generación
+                de escena verde y componemos tu UI directo sobre tu foto. */}
+            {tool.id === "screen_mockup" && (() => {
+              const scenePhoto = config.mockupSceneImages?.[0];
+              return (
+                <div className="mt-3 pt-3 border-t border-edge-subtle space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-semibold text-fg-secondary">
+                      Foto de escena <span className="text-fg-faint font-normal">(opcional — traé tu propia foto)</span>
+                    </label>
+                    {scenePhoto && (
+                      <button onClick={() => setConfig((p) => ({ ...p, mockupSceneImages: [] }))} className="text-[9px] text-fg-faint hover:text-fg cursor-pointer">Quitar</button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-fg-faint leading-snug">
+                    Subí una foto real de un device con pantalla y salteamos la escena generada — componemos tu UI directo ahí.
+                  </p>
+                  {scenePhoto && (
+                    <div className="rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0">
+                      <img src={URL.createObjectURL(scenePhoto)} alt="escena" className="w-full max-h-40 object-contain" />
+                    </div>
+                  )}
+                  <label className="flex items-center justify-center gap-1.5 py-2 border border-dashed border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 rounded-[var(--radius-sm)] cursor-pointer text-[10px] text-fg-muted hover:text-fg transition-all">
+                    <Plus size={11} /> {scenePhoto ? "Reemplazar foto de escena" : "Subir foto de escena"}
+                    <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(e) => {
+                      const f = Array.from(e.target.files || [])[0];
+                      if (f) setConfig((p) => ({ ...p, mockupSceneImages: [f] }));
+                      e.target.value = "";
+                    }} />
+                  </label>
+                </div>
+              );
+            })()}
+
             {/* Loading state while classifying */}
             {classifyingRef && tool.id === "static_ad" && (
               <div className="mt-2 p-2.5 bg-surface-1 border border-edge rounded-[var(--radius-sm)] flex items-center gap-2">
@@ -5783,9 +5820,11 @@ function ConfigPanel({
             Para iterar sobre un solo paso: Generá una vez, editá acá, y en el step de arriba
             usá "Resetear paso" + Run — re-corre ESE paso con el prompt nuevo. */}
         {tool.id === "screen_mockup" && (() => {
+          const usingPhoto = (config.mockupSceneImages?.length || 0) > 0;
           const steps: Array<{ key: string; label: string; hint: string; def: string }> = [
-            { key: "scene", label: "Prompt · Escena base", hint: "El device con pantalla verde croma", def: greenScreenPrompt(config.objective?.trim() || "a person using the device in a modern, natural real-world setting") },
-            { key: "composite", label: "Prompt · Componer UI", hint: "Cómo se encaja tu UI en el verde", def: compositePrompt },
+            // Con foto de escena propia, el paso de escena es passthrough → su prompt no aplica.
+            ...(usingPhoto ? [] : [{ key: "scene", label: "Prompt · Escena base", hint: "El device con pantalla verde croma", def: greenScreenPrompt(config.objective?.trim() || "a person using the device in a modern, natural real-world setting") }]),
+            { key: "composite", label: "Prompt · Componer UI", hint: usingPhoto ? "Cómo se encaja tu UI en tu foto" : "Cómo se encaja tu UI en el verde", def: usingPhoto ? compositeOnPhotoPrompt : compositePrompt },
           ];
           const sp = config.stepPrompts || {};
           const setPrompt = (key: string, val: string) =>
@@ -6872,13 +6911,17 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   // Base intermedia. La mostramos compacta para que se vea el pipeline ejecutándose
   // (como los nodos de Pletor), pero dejando claro que NO es el entregable.
   if (stepId === "scene" && result && typeof result === "object" && "images" in (result as object)) {
-    const scenes = ((result as { images?: Array<{ id: string; url: string; label: string; status?: string }> }).images || []);
+    const sr = result as { images?: Array<{ id: string; url: string; label: string; status?: string }>; source?: string };
+    const scenes = sr.images || [];
     const ok = scenes.filter((s) => s.url);
+    const fromPhoto = sr.source === "upload";
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-2 text-[12px] text-fg-muted">
           <Check size={13} className="text-[var(--color-success)]" />
-          Escena base lista ({ok.length}) — se encaja tu UI en la pantalla verde en el siguiente paso.
+          {fromPhoto
+            ? <>Usando tu foto de escena ({ok.length}) — se encaja tu UI en su pantalla en el siguiente paso.</>
+            : <>Escena base lista ({ok.length}) — se encaja tu UI en la pantalla verde en el siguiente paso.</>}
         </div>
         <div className="flex flex-wrap gap-2">
           {scenes.map((s) => (
@@ -6886,7 +6929,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
               {s.url
                 ? <img src={s.url} alt={s.label} className="w-full h-auto object-cover" />
                 : <div className="w-full h-28 flex items-center justify-center text-[10px] text-[var(--color-danger)]">falló</div>}
-              <div className="px-1.5 py-1 text-[9px] text-fg-faint uppercase tracking-wide">Base · chroma</div>
+              <div className="px-1.5 py-1 text-[9px] text-fg-faint uppercase tracking-wide">{fromPhoto ? "Tu foto" : "Base · chroma"}</div>
             </div>
           ))}
         </div>
@@ -9036,9 +9079,9 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
 
     // Screen Mockup: tira de flujo visual "cómo se usa la UI" — inputs → output,
     // como los nodos de Pletor. Escena verde (paso previo) + tu UI = resultado.
-    const smSceneUrl = toolId === "screen_mockup"
-      ? (((allSteps.find((s) => s.id === "scene")?.result as { images?: Array<{ url: string }> })?.images || []).find((im) => im.url)?.url)
-      : undefined;
+    const smSceneResult = toolId === "screen_mockup" ? (allSteps.find((s) => s.id === "scene")?.result as { images?: Array<{ url: string }>; source?: string } | undefined) : undefined;
+    const smSceneUrl = (smSceneResult?.images || []).find((im) => im.url)?.url;
+    const smSceneLabel = smSceneResult?.source === "upload" ? "Escena (tu foto)" : "Escena (chroma)";
     const smUiFile = toolId === "screen_mockup" ? config?.referenceImages?.[0] : undefined;
     const smUiUrl = smUiFile ? URL.createObjectURL(smUiFile) : undefined;
     const smOutUrl = activeImg?.url || succeeded[0]?.url;
@@ -9051,8 +9094,8 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             <div className="flex items-center gap-2 flex-wrap">
               {smSceneUrl && (
                 <div className="text-center">
-                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0"><img src={smSceneUrl} alt="escena verde" className="w-full h-full object-cover" /></div>
-                  <div className="text-[9px] text-fg-faint mt-1">Escena (chroma)</div>
+                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0"><img src={smSceneUrl} alt="escena" className="w-full h-full object-cover" /></div>
+                  <div className="text-[9px] text-fg-faint mt-1">{smSceneLabel}</div>
                 </div>
               )}
               <span className="text-fg-faint text-[15px]">+</span>

@@ -46,6 +46,15 @@ export const compositePrompt =
   `(identical layout, colors, text and elements — do not redraw or restyle it). Add subtle, realistic screen glare and reflection ON TOP of the UI. ` +
   `Do NOT change anything else in the photograph — the person, environment, lighting and device frame stay identical. Photorealistic result.${NO_TEXT}`;
 
+// Variante para cuando el usuario trae SU foto de escena (no hay verde): reemplazar lo que
+// muestre la pantalla del device por la UI. Mismo cuidado de encaje/fidelidad.
+export const compositeOnPhotoPrompt =
+  `Image 1 is a photograph of a real device (phone, laptop or tablet) with its screen visible. Image 2 is a user-interface screenshot. ` +
+  `Replace whatever is currently shown on the device's screen in image 1 with the EXACT UI from image 2. ` +
+  `Fit the UI precisely to the screen shape: correct perspective, rounded corners, edge-to-edge. Keep the UI pixel-faithful ` +
+  `(identical layout, colors, text and elements — do not redraw or restyle it). Add subtle, realistic screen glare and reflection ON TOP of the UI. ` +
+  `Do NOT change anything else in the photograph — the person, environment, lighting and device frame stay identical. Photorealistic result.${NO_TEXT}`;
+
 type SceneImg = { id: string; url: string; label: string; prompt: string; status: string };
 
 // ── Paso 1: escena con pantalla verde ──────────────────────
@@ -62,6 +71,18 @@ const handleScene: StepHandler = async (ctx) => {
   const ar = config.aspectRatio || "4:5";
   const res = config.resolution || "2K";
   const variations = Math.max(1, Math.min(4, config.numVariations || 1));
+
+  // Camino "traé tu foto": si el usuario subió una foto real de escena, la usamos tal cual
+  // (passthrough) y salteamos la generación verde. El paso sigue visible en el stepper.
+  const sceneFiles = ((cfg.mockupSceneImages as File[]) || []).filter((f) => f && typeof f.type === "string" && f.type.startsWith("image/"));
+  if (sceneFiles.length > 0) {
+    const url = await fileToDataUrl(sceneFiles[0]);
+    const images: SceneImg[] = Array.from({ length: variations }, (_, i) => ({
+      id: `scene_${i}`, url, label: `Escena (tu foto) #${i + 1}`, prompt: "(foto de escena provista por el usuario)", status: "done",
+    }));
+    return { result: { images, source: "upload", successful: variations, total: variations }, needsApproval: false };
+  }
+
   // Override editable desde el panel (vacío = automático desde la escena). Loop tipo Pletor.
   const override = (cfg.stepPrompts as Record<string, string> | undefined)?.scene?.trim();
   const prompt = override || greenScreenPrompt(scene);
@@ -77,7 +98,7 @@ const handleScene: StepHandler = async (ctx) => {
       console.error(`[screen_mockup/scene] #${i + 1} failed:`, e);
     }
   }
-  return { result: { images, successful: images.filter((im) => im.url).length, total: images.length }, needsApproval: false };
+  return { result: { images, source: "generated", successful: images.filter((im) => im.url).length, total: images.length }, needsApproval: false };
 };
 
 // ── Paso 2: componer la UI sobre el verde ──────────────────
@@ -92,12 +113,15 @@ const handleComposite: StepHandler = async (ctx) => {
 
   const ar = config.aspectRatio || "4:5";
   const res = config.resolution || "2K";
-  const sceneResult = ctx.getStepResult("scene") as { images?: SceneImg[] } | undefined;
+  const sceneResult = ctx.getStepResult("scene") as { images?: SceneImg[]; source?: string } | undefined;
   const scenes = (sceneResult?.images || []).filter((s) => s.url);
   if (scenes.length === 0) throw new Error("No hay escena base para componer (el paso anterior no generó ninguna).");
 
+  // Prompt por defecto según el origen de la escena: verde generado vs foto del usuario.
+  const isUpload = sceneResult?.source === "upload";
+  const defaultComp = isUpload ? compositeOnPhotoPrompt : compositePrompt;
   // Override editable desde el panel (vacío = prompt de composición por defecto).
-  const compPrompt = (cfg.stepPrompts as Record<string, string> | undefined)?.composite?.trim() || compositePrompt;
+  const compPrompt = (cfg.stepPrompts as Record<string, string> | undefined)?.composite?.trim() || defaultComp;
 
   const images: SceneImg[] = [];
   for (let i = 0; i < scenes.length; i++) {
