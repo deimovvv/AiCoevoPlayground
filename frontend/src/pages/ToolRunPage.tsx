@@ -62,6 +62,7 @@ import {
 import { cn, downloadUrl, IMAGE_ACCEPT } from "../lib/utils";
 import { downloadFile, downloadZip } from "../lib/download";
 import { ImageEditPanel } from "../components/ImageEditPanel";
+import { ToolHelpButton } from "../components/ToolHelp";
 import { SHOT_CATALOG, STUDIO_STYLES, POSE_PRESETS, ENHANCE_TEXTURE_PROMPT } from "../tools/ecommerce_pack";
 import { AVATAR_VIEWS } from "../tools/avatar_creator";
 import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "../tools/fashion_reel";
@@ -2345,6 +2346,18 @@ export function ToolRunPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {tool && (() => {
+            const sc = TOOL_DEFINITIONS[tool.id]?.schema ?? TOOL_SCHEMAS[tool.id] ?? DEFAULT_SCHEMA;
+            const inputs = [
+              sc.showAvatar && (sc.avatarLabel || "Modelo"),
+              sc.showProduct && (sc.productLabel || "Producto"),
+              sc.showClothing && (sc.clothingLabel || "Prendas"),
+              sc.showBackground && "Fondo",
+              sc.showMoodboard && "Moodboard",
+              sc.showVoice && "Voz",
+            ].filter(Boolean) as string[];
+            return <ToolHelpButton toolId={tool.id} name={tool.name} description={tool.description} inputs={inputs} />;
+          })()}
           <Link
             to="/dashboard/brand"
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-fg-muted hover:text-fg bg-surface-1 hover:bg-surface-2 rounded-[var(--radius-sm)] transition-colors"
