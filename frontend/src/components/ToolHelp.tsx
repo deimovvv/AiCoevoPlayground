@@ -27,6 +27,12 @@ const TOOL_TIPS: Record<string, string[]> = {
     "Genera en 2 pasos: primero la escena con pantalla verde, después encaja tu UI ahí (por eso sale nítida).",
     "Cada variación = 2 imágenes internas, así que rinde un poco más lento pero más limpio.",
   ],
+  fooh_subway: [
+    "Elegí un producto del Brand Kit para que genere el ad — o subí tu propio poster como referencia.",
+    "En el brief describí el vibe del ad Y la estación (ciudad, hora, luz).",
+    "Genera en 3 pasos: poster → estación con billboard verde → encaja el ad en el panel.",
+    "Cada variación arma una estación distinta; el poster se reusa.",
+  ],
 };
 
 const GENERIC_TIPS = [

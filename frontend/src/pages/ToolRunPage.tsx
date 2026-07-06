@@ -74,6 +74,7 @@ import { ComposeOverlay } from "../components/ComposeOverlay";
 import { UGCPlayer } from "../remotion/UGCPlayer";
 import { TOOL_DEFINITIONS } from "../tools/registry";
 import { greenScreenPrompt, compositePrompt, compositeOnPhotoPrompt } from "../tools/screen_mockup";
+import { posterPrompt, subwayScenePrompt, foohCompositePrompt } from "../tools/fooh_subway";
 import { TOOL_EXAMPLES } from "../lib/toolPreviews";
 import { autoSaveStep, getActiveGenId, setActiveGenId, clearActiveGen } from "../tools/shared/autoSave";
 
@@ -245,6 +246,11 @@ const STEP_META: Record<
     icon: <ImageIcon size={15} />,
     description: "Generá la escena con el dispositivo en pantalla verde (chroma) — base para encajar tu UI",
   },
+  poster: {
+    label: "Poster",
+    icon: <Megaphone size={15} />,
+    description: "Generá el ad/poster desde tu producto — o usá el que subiste",
+  },
 };
 
 const TOOL_ICONS: Record<string, React.ReactNode> = {
@@ -322,9 +328,9 @@ function collectGeneratedMedia(steps: StepState[], batches: BatchEntry[]): Gener
   // Steps en orden inverso → los outputs más nuevos arriba.
   for (let i = steps.length - 1; i >= 0; i--) {
     const st = steps[i];
-    // "scene" (screen_mockup) es una base intermedia (pantalla verde), no un entregable:
-    // no la sumamos al riel de contenido generado.
-    if (st.id === "scene") continue;
+    // "scene" (screen_mockup / fooh_subway) y "poster" (fooh_subway) son bases intermedias,
+    // no entregables: no las sumamos al riel de contenido generado (solo el mockup final).
+    if (st.id === "scene" || st.id === "poster") continue;
     const stepLabel = STEP_META[st.id]?.label || st.id;
     const r = st.result;
     if (Array.isArray(r)) {
@@ -4854,6 +4860,7 @@ function ConfigPanel({
                   : tool.id === "fashion_editorial" ? "Referencia Look & Feel"
                   : tool.id === "product_sheet" ? "Fotos del producto"
                   : tool.id === "screen_mockup" ? "Tu UI / pantalla"
+                  : tool.id === "fooh_subway" ? "Tu ad / poster"
                   : (tool.id === "static_ad" || tool.id === "product_clip") ? "Reference Image"
                   : "Reference Images"}
                 <span className="text-fg-faint font-normal ml-1">
@@ -4865,6 +4872,7 @@ function ConfigPanel({
                     : tool.id === "fashion_editorial" ? "(iluminación/color — se analiza en receta de texto, sin filtrar la escena)"
                     : tool.id === "product_sheet" ? "(subí acá front / back / detail / packaging si no usás un producto del Brand Kit)"
                     : tool.id === "screen_mockup" ? "(screenshot de tu app o software — se muestra en el dispositivo)"
+                    : tool.id === "fooh_subway" ? "(opcional — si ya tenés el ad, subilo y salteamos la generación del poster)"
                     : (tool.id === "static_ad" || tool.id === "product_clip") ? "(style/mood reference)"
                     : "(campaign style references)"}
                 </span>
@@ -4872,10 +4880,10 @@ function ConfigPanel({
               <span className="text-[10px] text-fg-faint">{config.referenceImages.length} uploaded</span>
             </div>
 
-            {config.referenceImages.length > 0 && tool.id === "screen_mockup" && (
-              // Named slot con preview real — así se lee "acá va TU UI" (ref: nodo "UI Screen" de Pletor).
+            {config.referenceImages.length > 0 && (tool.id === "screen_mockup" || tool.id === "fooh_subway") && (
+              // Named slot con preview real — así se lee "acá va TU UI/ad" (ref: nodos de Pletor).
               <div className="relative rounded-[var(--radius-sm)] overflow-hidden border border-edge group bg-surface-0">
-                <img src={URL.createObjectURL(config.referenceImages[0])} alt="UI" className="w-full max-h-56 object-contain" />
+                <img src={URL.createObjectURL(config.referenceImages[0])} alt="ref" className="w-full max-h-56 object-contain" />
                 <button
                   onClick={() => setConfig((p) => ({ ...p, referenceImages: [] }))}
                   className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
@@ -4886,7 +4894,7 @@ function ConfigPanel({
               </div>
             )}
 
-            {config.referenceImages.length > 0 && tool.id !== "screen_mockup" && (
+            {config.referenceImages.length > 0 && tool.id !== "screen_mockup" && tool.id !== "fooh_subway" && (
               <div className="flex gap-1.5 flex-wrap">
                 {config.referenceImages.map((file, i) => (
                   <div key={i} className="relative w-12 h-12 rounded-[var(--radius-sm)] overflow-hidden border border-edge group shrink-0">
@@ -4910,6 +4918,7 @@ function ConfigPanel({
                 : tool.id === "carousel_creator" ? "Subir template"
                 : tool.id === "product_sheet" ? "Subir fotos del producto"
                 : tool.id === "screen_mockup" ? (config.referenceImages.length > 0 ? "Reemplazar screenshot" : "Subir screenshot de tu UI")
+                : tool.id === "fooh_subway" ? (config.referenceImages.length > 0 ? "Reemplazar ad" : "Subir tu ad / poster")
                 : (tool.id === "static_ad" || tool.id === "product_clip") ? "Upload reference"
                 : "Add references"}
               <input
@@ -4922,7 +4931,7 @@ function ConfigPanel({
                   if (files.length > 0) {
                     setConfig((p) => ({
                       ...p,
-                      referenceImages: tool.id === "static_ad" || tool.id === "carousel_creator" || tool.id === "screen_mockup" ? [files[0]] : [...p.referenceImages, ...files].slice(0, 10),
+                      referenceImages: tool.id === "static_ad" || tool.id === "carousel_creator" || tool.id === "screen_mockup" || tool.id === "fooh_subway" ? [files[0]] : [...p.referenceImages, ...files].slice(0, 10),
                       // Carousel: when a template is uploaded, default to "composition" — that's the use case
                       referenceMode: tool.id === "carousel_creator" ? "composition" : p.referenceMode,
                     }));
@@ -5871,13 +5880,22 @@ function ConfigPanel({
             Vacío = automático (el paso usa su prompt por defecto). Con texto = tu prompt manda.
             Para iterar sobre un solo paso: Generá una vez, editá acá, y en el step de arriba
             usá "Resetear paso" + Run — re-corre ESE paso con el prompt nuevo. */}
-        {tool.id === "screen_mockup" && (() => {
+        {(tool.id === "screen_mockup" || tool.id === "fooh_subway") && (() => {
           const usingPhoto = (config.mockupSceneImages?.length || 0) > 0;
-          const steps: Array<{ key: string; label: string; hint: string; def: string }> = [
-            // Con foto de escena propia, el paso de escena es passthrough → su prompt no aplica.
-            ...(usingPhoto ? [] : [{ key: "scene", label: "Prompt · Escena base", hint: "El device con pantalla verde croma", def: greenScreenPrompt(config.objective?.trim() || "a person using the device in a modern, natural real-world setting") }]),
-            { key: "composite", label: "Prompt · Componer UI", hint: usingPhoto ? "Cómo se encaja tu UI en tu foto" : "Cómo se encaja tu UI en el verde", def: usingPhoto ? compositeOnPhotoPrompt : compositePrompt },
-          ];
+          const usingPoster = (config.referenceImages?.length || 0) > 0; // fooh: ad propio subido
+          const vibe = config.objective?.trim() || "";
+          const steps: Array<{ key: string; label: string; hint: string; def: string }> = tool.id === "fooh_subway"
+            ? [
+                // Con ad propio subido, el paso poster es passthrough → su prompt no aplica.
+                ...(usingPoster ? [] : [{ key: "poster", label: "Prompt · Poster", hint: "Cómo se genera el ad desde tu producto", def: posterPrompt(vibe, "") }]),
+                { key: "scene", label: "Prompt · Estación", hint: "La estación de metro con billboard verde", def: subwayScenePrompt(vibe) },
+                { key: "composite", label: "Prompt · Componer FOOH", hint: "Cómo se encaja el poster en el billboard", def: foohCompositePrompt },
+              ]
+            : [
+                // Con foto de escena propia, el paso de escena es passthrough → su prompt no aplica.
+                ...(usingPhoto ? [] : [{ key: "scene", label: "Prompt · Escena base", hint: "El device con pantalla verde croma", def: greenScreenPrompt(config.objective?.trim() || "a person using the device in a modern, natural real-world setting") }]),
+                { key: "composite", label: "Prompt · Componer UI", hint: usingPhoto ? "Cómo se encaja tu UI en tu foto" : "Cómo se encaja tu UI en el verde", def: usingPhoto ? compositeOnPhotoPrompt : compositePrompt },
+              ];
           const sp = config.stepPrompts || {};
           const setPrompt = (key: string, val: string) =>
             setConfig((p) => ({ ...p, stepPrompts: { ...(p.stepPrompts || {}), [key]: val } }));
@@ -6896,7 +6914,7 @@ function resultHasMedia(result: unknown): boolean {
 
 function UsedInputsStrip({ config, toolId, result }: { config?: ToolConfig; toolId?: string; result?: unknown }) {
   const { activeBrand } = useBrand();
-  if (!config || toolId === "screen_mockup" || !resultHasMedia(result)) return null;
+  if (!config || toolId === "screen_mockup" || toolId === "fooh_subway" || !resultHasMedia(result)) return null;
 
   type Chip = { key: string; label: string; thumb?: string };
   const chips: Chip[] = [];
@@ -7035,18 +7053,34 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   // ── Screen Mockup: paso "scene" (base con pantalla verde) ──────────
   // Base intermedia. La mostramos compacta para que se vea el pipeline ejecutándose
   // (como los nodos de Pletor), pero dejando claro que NO es el entregable.
-  if (stepId === "scene" && result && typeof result === "object" && "images" in (result as object)) {
+  if ((stepId === "scene" || stepId === "poster") && result && typeof result === "object" && "images" in (result as object)) {
     const sr = result as { images?: Array<{ id: string; url: string; label: string; status?: string }>; source?: string };
     const scenes = sr.images || [];
     const ok = scenes.filter((s) => s.url);
     const fromPhoto = sr.source === "upload";
+    const isFooh = toolId === "fooh_subway";
+    // Mensaje y chip según paso + tool.
+    let msg: React.ReactNode;
+    let chip: string;
+    if (stepId === "poster") {
+      msg = fromPhoto
+        ? <>Usando tu ad ({ok.length}) — se encaja en el billboard de la estación en el paso final.</>
+        : <>Poster listo ({ok.length}) — se encaja en el billboard de la estación en el paso final.</>;
+      chip = fromPhoto ? "Tu ad" : "Poster";
+    } else if (isFooh) {
+      msg = <>Estación lista ({ok.length}) — se encaja el poster en el billboard verde en el paso final.</>;
+      chip = "Estación · chroma";
+    } else {
+      msg = fromPhoto
+        ? <>Usando tu foto de escena ({ok.length}) — se encaja tu UI en su pantalla en el siguiente paso.</>
+        : <>Escena base lista ({ok.length}) — se encaja tu UI en la pantalla verde en el siguiente paso.</>;
+      chip = fromPhoto ? "Tu foto" : "Base · chroma";
+    }
     return (
       <div className="space-y-3">
         <div className="flex items-center gap-2 text-[12px] text-fg-muted">
           <Check size={13} className="text-[var(--color-success)]" />
-          {fromPhoto
-            ? <>Usando tu foto de escena ({ok.length}) — se encaja tu UI en su pantalla en el siguiente paso.</>
-            : <>Escena base lista ({ok.length}) — se encaja tu UI en la pantalla verde en el siguiente paso.</>}
+          {msg}
         </div>
         <div className="flex flex-wrap gap-2">
           {scenes.map((s) => (
@@ -7054,7 +7088,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
               {s.url
                 ? <img src={s.url} alt={s.label} className="w-full h-auto object-cover" />
                 : <div className="w-full h-28 flex items-center justify-center text-[10px] text-[var(--color-danger)]">falló</div>}
-              <div className="px-1.5 py-1 text-[9px] text-fg-faint uppercase tracking-wide">{fromPhoto ? "Tu foto" : "Base · chroma"}</div>
+              <div className="px-1.5 py-1 text-[9px] text-fg-faint uppercase tracking-wide">{chip}</div>
             </div>
           ))}
         </div>
@@ -9202,39 +9236,53 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       );
     }
 
-    // Screen Mockup: tira de flujo visual "cómo se usa la UI" — inputs → output,
-    // como los nodos de Pletor. Escena verde (paso previo) + tu UI = resultado.
-    const smSceneResult = toolId === "screen_mockup" ? (allSteps.find((s) => s.id === "scene")?.result as { images?: Array<{ url: string }>; source?: string } | undefined) : undefined;
-    const smSceneUrl = (smSceneResult?.images || []).find((im) => im.url)?.url;
-    const smSceneLabel = smSceneResult?.source === "upload" ? "Escena (tu foto)" : "Escena (chroma)";
-    const smUiFile = toolId === "screen_mockup" ? config?.referenceImages?.[0] : undefined;
-    const smUiUrl = smUiFile ? URL.createObjectURL(smUiFile) : undefined;
-    const smOutUrl = activeImg?.url || succeeded[0]?.url;
+    // Tira de flujo visual "inputs → output" tipo nodos de Pletor. Para las tools de la
+    // familia mockup (screen_mockup / fooh_subway): [escena/base] + [UI/poster] → [resultado].
+    const isMockupFamily = toolId === "screen_mockup" || toolId === "fooh_subway";
+    const flowSceneResult = isMockupFamily ? (allSteps.find((s) => s.id === "scene")?.result as { images?: Array<{ url: string }>; source?: string } | undefined) : undefined;
+    const flowSceneUrl = (flowSceneResult?.images || []).find((im) => im.url)?.url;
+    const flowSceneLabel = toolId === "fooh_subway"
+      ? "Estación (chroma)"
+      : (flowSceneResult?.source === "upload" ? "Escena (tu foto)" : "Escena (chroma)");
+    // Segundo input: para screen_mockup = la UI subida; para fooh_subway = el poster (paso 1).
+    let flow2Url: string | undefined;
+    let flow2Label = "";
+    if (toolId === "screen_mockup") {
+      const uiFile = config?.referenceImages?.[0];
+      flow2Url = uiFile ? URL.createObjectURL(uiFile) : undefined;
+      flow2Label = "Tu UI";
+    } else if (toolId === "fooh_subway") {
+      flow2Url = ((allSteps.find((s) => s.id === "poster")?.result as { images?: Array<{ url: string }> } | undefined)?.images || []).find((im) => im.url)?.url;
+      flow2Label = "Poster";
+    }
+    const flowOutUrl = activeImg?.url || succeeded[0]?.url;
+    const flowOutLabel = toolId === "fooh_subway" ? "FOOH" : "Mockup";
+    const flowTitle = toolId === "fooh_subway" ? "Cómo se armó el FOOH" : "Cómo se usó tu UI";
 
     return (
       <div className="space-y-4">
-        {toolId === "screen_mockup" && (smSceneUrl || smUiUrl) && (
+        {isMockupFamily && (flowSceneUrl || flow2Url) && (
           <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-faint mb-2">Cómo se usó tu UI</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-faint mb-2">{flowTitle}</div>
             <div className="flex items-center gap-2 flex-wrap">
-              {smSceneUrl && (
+              {flowSceneUrl && (
                 <div className="text-center">
-                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0"><img src={smSceneUrl} alt="escena" className="w-full h-full object-cover" /></div>
-                  <div className="text-[9px] text-fg-faint mt-1">{smSceneLabel}</div>
+                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0"><img src={flowSceneUrl} alt="escena" className="w-full h-full object-cover" /></div>
+                  <div className="text-[9px] text-fg-faint mt-1">{flowSceneLabel}</div>
                 </div>
               )}
               <span className="text-fg-faint text-[15px]">+</span>
-              {smUiUrl && (
+              {flow2Url && (
                 <div className="text-center">
-                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0"><img src={smUiUrl} alt="tu UI" className="w-full h-full object-contain" /></div>
-                  <div className="text-[9px] text-fg-faint mt-1">Tu UI</div>
+                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0"><img src={flow2Url} alt={flow2Label} className="w-full h-full object-contain" /></div>
+                  <div className="text-[9px] text-fg-faint mt-1">{flow2Label}</div>
                 </div>
               )}
               <span className="text-[var(--color-brand)] text-[16px] font-semibold px-1">→</span>
-              {smOutUrl && (
+              {flowOutUrl && (
                 <div className="text-center">
-                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-[var(--color-brand)]/50 bg-surface-0"><img src={smOutUrl} alt="resultado" className="w-full h-full object-cover" /></div>
-                  <div className="text-[9px] text-[var(--color-brand)] mt-1">Mockup</div>
+                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-[var(--color-brand)]/50 bg-surface-0"><img src={flowOutUrl} alt="resultado" className="w-full h-full object-cover" /></div>
+                  <div className="text-[9px] text-[var(--color-brand)] mt-1">{flowOutLabel}</div>
                 </div>
               )}
             </div>
