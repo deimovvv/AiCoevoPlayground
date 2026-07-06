@@ -73,6 +73,7 @@ import { ModelDropdown } from "../components/ui/ModelDropdown";
 import { ComposeOverlay } from "../components/ComposeOverlay";
 import { UGCPlayer } from "../remotion/UGCPlayer";
 import { TOOL_DEFINITIONS } from "../tools/registry";
+import { greenScreenPrompt, compositePrompt } from "../tools/screen_mockup";
 import { autoSaveStep, getActiveGenId, setActiveGenId, clearActiveGen } from "../tools/shared/autoSave";
 
 // ── Types ──────────────────────────────────────────────────
@@ -487,6 +488,8 @@ interface ToolConfig {
   templateColorMode?: "brand" | "template";
   perSlideTemplates?: File[];
   overlayTemplate?: string;
+  // Prompts editables por step (loop tipo Pletor). key = stepId → override. Ver screen_mockup.
+  stepPrompts?: Record<string, string>;
 }
 
 const DEFAULT_CONFIG: ToolConfig = {
@@ -5703,6 +5706,62 @@ function ConfigPanel({
             />
           </div>
         )}
+
+        {/* Screen Mockup — prompts editables por step (loop tipo Pletor: ver los pasos,
+            tocar el prompt de cada uno, re-correr para ver cómo cambia).
+            Vacío = automático (el paso usa su prompt por defecto). Con texto = tu prompt manda.
+            Para iterar sobre un solo paso: Generá una vez, editá acá, y en el step de arriba
+            usá "Resetear paso" + Run — re-corre ESE paso con el prompt nuevo. */}
+        {tool.id === "screen_mockup" && (() => {
+          const steps: Array<{ key: string; label: string; hint: string; def: string }> = [
+            { key: "scene", label: "Prompt · Escena base", hint: "El device con pantalla verde croma", def: greenScreenPrompt(config.objective?.trim() || "a person using the device in a modern, natural real-world setting") },
+            { key: "composite", label: "Prompt · Componer UI", hint: "Cómo se encaja tu UI en el verde", def: compositePrompt },
+          ];
+          const sp = config.stepPrompts || {};
+          const setPrompt = (key: string, val: string) =>
+            setConfig((p) => ({ ...p, stepPrompts: { ...(p.stepPrompts || {}), [key]: val } }));
+          return (
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center gap-1.5">
+                <Wand2 size={11} className="text-[var(--color-brand)]" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-faint">Prompts por paso</span>
+                <span className="text-[9px] text-fg-faint italic">— editá y re-corré para ver</span>
+              </div>
+              {steps.map((st) => {
+                const val = sp[st.key] || "";
+                const dirty = val.trim().length > 0;
+                return (
+                  <div key={st.key} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-medium text-fg-secondary" title={st.hint}>
+                        {st.label} <span className="text-fg-faint italic font-normal">{dirty ? "· editado" : "· auto"}</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        {!dirty && (
+                          <button onClick={() => setPrompt(st.key, st.def)} className="text-[9px] text-fg-faint hover:text-fg cursor-pointer" title="Cargar el prompt por defecto para editarlo">
+                            Cargar default
+                          </button>
+                        )}
+                        {dirty && (
+                          <button onClick={() => setPrompt(st.key, "")} className="text-[9px] text-fg-faint hover:text-fg cursor-pointer">
+                            Restablecer
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <textarea
+                      value={val}
+                      onChange={(e) => setPrompt(st.key, e.target.value)}
+                      rows={dirty ? 4 : 2}
+                      placeholder={`Vacío = automático. "Cargar default" para editar desde:\n${st.def.slice(0, 90)}…`}
+                      className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[11px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-none leading-snug font-mono"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Custom Script — per-scene inputs, skip Gemini (UGC only) */}
         {tool.id === "ugc_creator" && (

@@ -29,7 +29,8 @@ const fileToDataUrl = (f: File): Promise<string> =>
   });
 
 // Paso 1 — foto de la escena con el device mostrando una pantalla verde croma limpia.
-const greenScreenPrompt = (scene: string) =>
+// Exportado para que el panel muestre/edite el prompt por defecto (loop tipo Pletor).
+export const greenScreenPrompt = (scene: string) =>
   `Professional lifestyle product photograph. Scene: ${scene}. ` +
   `A real device (phone, laptop or tablet — whichever fits the scene) is prominently featured with its screen facing the camera. ` +
   `The device screen is displaying a SOLID BRIGHT CHROMA-KEY GREEN (#00d000), completely flat, evenly lit, with NO content, ` +
@@ -38,7 +39,7 @@ const greenScreenPrompt = (scene: string) =>
   `Sharp, natural lighting, high-end commercial quality.${NO_TEXT}`;
 
 // Paso 2 — reemplazar el verde por la UI real, encajada con perspectiva y reflejos.
-const compositePrompt =
+export const compositePrompt =
   `Image 1 is a photograph of a device with a solid green chroma-key screen. Image 2 is a user-interface screenshot. ` +
   `Replace ONLY the green screen area of the device in image 1 with the EXACT UI from image 2. ` +
   `Fit the UI precisely to the screen shape: correct perspective, rounded corners, edge-to-edge. Keep the UI pixel-faithful ` +
@@ -61,7 +62,9 @@ const handleScene: StepHandler = async (ctx) => {
   const ar = config.aspectRatio || "4:5";
   const res = config.resolution || "2K";
   const variations = Math.max(1, Math.min(4, config.numVariations || 1));
-  const prompt = greenScreenPrompt(scene);
+  // Override editable desde el panel (vacío = automático desde la escena). Loop tipo Pletor.
+  const override = (cfg.stepPrompts as Record<string, string> | undefined)?.scene?.trim();
+  const prompt = override || greenScreenPrompt(scene);
 
   const images: SceneImg[] = [];
   for (let i = 0; i < variations; i++) {
@@ -93,20 +96,23 @@ const handleComposite: StepHandler = async (ctx) => {
   const scenes = (sceneResult?.images || []).filter((s) => s.url);
   if (scenes.length === 0) throw new Error("No hay escena base para componer (el paso anterior no generó ninguna).");
 
+  // Override editable desde el panel (vacío = prompt de composición por defecto).
+  const compPrompt = (cfg.stepPrompts as Record<string, string> | undefined)?.composite?.trim() || compositePrompt;
+
   const images: SceneImg[] = [];
   for (let i = 0; i < scenes.length; i++) {
     try {
-      const job = await createImageEdit([scenes[i].url, uiUrl], compositePrompt, ar, res);
+      const job = await createImageEdit([scenes[i].url, uiUrl], compPrompt, ar, res);
       const r = await pollImageGen(job.request_id);
       images.push({
         id: `mockup_${i}`,
         url: r.image_url || "",
         label: `Mockup #${i + 1}`,
-        prompt: `${scenes[i].prompt}\n\n— compositing —\n${compositePrompt}`,
+        prompt: `${scenes[i].prompt}\n\n— compositing —\n${compPrompt}`,
         status: r.image_url ? "done" : "failed",
       });
     } catch (e) {
-      images.push({ id: `mockup_${i}`, url: "", label: `Mockup #${i + 1}`, prompt: compositePrompt, status: "failed" });
+      images.push({ id: `mockup_${i}`, url: "", label: `Mockup #${i + 1}`, prompt: compPrompt, status: "failed" });
       console.error(`[screen_mockup/composite] #${i + 1} failed:`, e);
     }
   }
