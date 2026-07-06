@@ -75,7 +75,7 @@ import { UGCPlayer } from "../remotion/UGCPlayer";
 import { TOOL_DEFINITIONS } from "../tools/registry";
 import { greenScreenPrompt, compositePrompt, compositeOnPhotoPrompt } from "../tools/screen_mockup";
 import { posterPrompt, subwayScenePrompt, foohCompositePrompt } from "../tools/fooh_subway";
-import { TOOL_EXAMPLES } from "../lib/toolPreviews";
+import { TOOL_EXAMPLES, TOOL_PREVIEW_MEDIA, type ToolExample } from "../lib/toolPreviews";
 import { autoSaveStep, getActiveGenId, setActiveGenId, clearActiveGen } from "../tools/shared/autoSave";
 
 // ── Types ──────────────────────────────────────────────────
@@ -2675,28 +2675,37 @@ export function ToolRunPage() {
 
             {!started ? (
               (() => {
-                const example = TOOL_EXAMPLES[tool.id];
-                if (!example) {
-                  return (
-                    <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto py-8">
-                      <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center text-fg-muted mb-3">
-                        {TOOL_ICONS[tool.icon] || <Sparkles size={20} />}
-                      </div>
-                      <h3 className="text-[14px] font-semibold text-fg">Listo para arrancar</h3>
-                      <p className="text-[12px] text-fg-muted mt-1.5 leading-relaxed">
-                        Configurá los parámetros en el panel de la izquierda y tocá <strong>Generar</strong>. Cada step del pipeline aparece arriba a medida que avanza.
-                      </p>
-                    </div>
-                  );
-                }
-                // Ejemplo pre-armado (tipo Pletor): inputs de muestra → output, apenas entrás.
+                // Ejemplo por tool (tipo Pletor): inputs → output, apenas entrás. Universal:
+                // si no hay ejemplo curado, se deriva del schema (qué necesita) + el preview
+                // de la card como output. Así TODAS las tools muestran algo, no solo las de mockup.
+                const curated = TOOL_EXAMPLES[tool.id];
+                const media = TOOL_PREVIEW_MEDIA[tool.id];
+                const sc = TOOL_DEFINITIONS[tool.id]?.schema ?? TOOL_SCHEMAS[tool.id] ?? DEFAULT_SCHEMA;
+                const derivedInputs = [
+                  sc.showAvatar && { label: sc.avatarLabel || "Modelo" },
+                  sc.showProduct && { label: sc.productLabel || "Producto" },
+                  sc.showClothing && { label: sc.clothingLabel || "Prendas" },
+                  sc.showBackground && { label: "Fondo" },
+                  sc.showMoodboard && { label: "Moodboard" },
+                  sc.showReference && { label: "Referencia" },
+                  sc.showVoice && { label: "Voz" },
+                  { label: sc.objectiveLabel || "Brief" },
+                ].filter(Boolean) as Array<{ label: string; imageUrl?: string; text?: string }>;
+                const example: ToolExample = curated ?? {
+                  inputs: derivedInputs,
+                  outputUrl: media?.url || "",
+                  outputType: media?.type || "image",
+                };
+                const hasOutput = !!example.outputUrl;
+                const canPrefill = !!(curated && (curated.scene || curated.prefillImageUrl));
+
                 const useExample = async () => {
                   const updates: Partial<ToolConfig> = {};
-                  if (example.scene) updates.objective = example.scene;
-                  if (example.prefillImageUrl) {
+                  if (curated?.scene) updates.objective = curated.scene;
+                  if (curated?.prefillImageUrl) {
                     try {
-                      const blob = await fetch(example.prefillImageUrl).then((r) => r.blob());
-                      const name = example.prefillImageUrl.split("/").pop() || "example.png";
+                      const blob = await fetch(curated.prefillImageUrl).then((r) => r.blob());
+                      const name = curated.prefillImageUrl.split("/").pop() || "example.png";
                       updates.referenceImages = [new File([blob], name, { type: blob.type || "image/png" })];
                     } catch (e) { console.error("[example] no se pudo precargar la imagen:", e); }
                   }
@@ -2714,9 +2723,10 @@ export function ToolRunPage() {
                       {/* Flujo: inputs → output */}
                       <div className="flex items-stretch gap-3">
                         <div className="flex-1 space-y-2">
+                          <div className="text-[9px] font-semibold uppercase tracking-wider text-fg-faint">Qué necesita</div>
                           {example.inputs.map((inp, i) => (
                             <div key={i} className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-2.5">
-                              <div className="text-[9px] font-semibold uppercase tracking-wider text-fg-faint mb-1.5">{inp.label}</div>
+                              <div className={cn("text-[11px] font-medium text-fg-secondary", (inp.imageUrl || inp.text) && "mb-1.5")}>{inp.label}</div>
                               {inp.imageUrl && (
                                 <div className="rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0">
                                   <img src={inp.imageUrl} alt={inp.label} className="w-full max-h-28 object-cover" />
@@ -2729,22 +2739,31 @@ export function ToolRunPage() {
                         <div className="flex items-center text-[var(--color-brand)] text-[20px] font-semibold shrink-0">→</div>
                         <div className="flex-1">
                           <div className="text-[9px] font-semibold uppercase tracking-wider text-fg-faint mb-1.5">Resultado</div>
-                          <div className="rounded-[var(--radius-md)] overflow-hidden border border-[var(--color-brand)]/40 bg-surface-0">
-                            {example.outputType === "video"
-                              ? <video src={example.outputUrl} autoPlay muted loop playsInline className="w-full object-cover" />
-                              : <img src={example.outputUrl} alt="Ejemplo de resultado" className="w-full object-cover" />}
-                          </div>
+                          {hasOutput ? (
+                            <div className="rounded-[var(--radius-md)] overflow-hidden border border-[var(--color-brand)]/40 bg-surface-0">
+                              {example.outputType === "video"
+                                ? <video src={example.outputUrl} autoPlay muted loop playsInline className="w-full object-cover" onError={(e) => { (e.currentTarget as HTMLVideoElement).style.display = "none"; }} />
+                                : <img src={example.outputUrl} alt="Ejemplo de resultado" className="w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />}
+                            </div>
+                          ) : (
+                            <div className="rounded-[var(--radius-md)] border border-dashed border-edge bg-surface-1 aspect-[4/5] flex flex-col items-center justify-center text-center px-4">
+                              <div className="w-10 h-10 rounded-full bg-surface-2 flex items-center justify-center text-fg-muted mb-2">{TOOL_ICONS[tool.icon] || <Sparkles size={18} />}</div>
+                              <p className="text-[11px] text-fg-muted leading-snug">Tu resultado aparece acá</p>
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       <div className="mt-5 flex items-center justify-center gap-3">
-                        <button
-                          onClick={useExample}
-                          className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-semibold text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
-                        >
-                          <Sparkles size={13} /> Usar este ejemplo
-                        </button>
-                        <span className="text-[11px] text-fg-faint">o cargá lo tuyo a la izquierda y tocá Generar</span>
+                        {canPrefill && (
+                          <button
+                            onClick={useExample}
+                            className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-semibold text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+                          >
+                            <Sparkles size={13} /> Usar este ejemplo
+                          </button>
+                        )}
+                        <span className="text-[11px] text-fg-faint">{canPrefill ? "o cargá lo tuyo a la izquierda y tocá Generar" : "Cargá lo tuyo a la izquierda y tocá Generar"}</span>
                       </div>
                     </div>
                   </div>

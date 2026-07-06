@@ -47,6 +47,54 @@ export const TOOL_EXAMPLES: Record<string, ToolExample> = {
     outputUrl: "/previews/screenmockup.png",
     outputType: "image",
   },
+  // Curados con el preview real que ya existe en /previews/ (output = hero de la card).
+  ugc_creator: {
+    inputs: [
+      { label: "Avatar", text: "un avatar de tu marca hablando a cámara" },
+      { label: "Guión", text: "el mensaje / hook a decir" },
+    ],
+    outputUrl: "/previews/ugccreator.mp4",
+    outputType: "video",
+  },
+  video_ad_creator: {
+    inputs: [
+      { label: "Producto", text: "el producto a anunciar" },
+      { label: "Brief", text: "dirección creativa del ad" },
+    ],
+    outputUrl: "/previews/videoadcreator.mp4",
+    outputType: "video",
+  },
+  fashion_reel: {
+    inputs: [
+      { label: "Modelo", text: "el/la modelo del brand kit" },
+      { label: "Prendas", text: "los looks a mostrar" },
+    ],
+    outputUrl: "/previews/agnatesttt.mp4",
+    outputType: "video",
+  },
+  static_ad: {
+    inputs: [
+      { label: "Producto", text: "el producto protagonista" },
+      { label: "Copy", text: "headline / mensaje del ad" },
+    ],
+    outputUrl: "/previews/staticad.png",
+    outputType: "image",
+  },
+  ecommerce_pack: {
+    inputs: [
+      { label: "Prenda", text: "la prenda a fotografiar" },
+      { label: "Modelo", text: "el/la modelo del brand kit" },
+    ],
+    outputUrl: "/previews/eccomerce.png",
+    outputType: "image",
+  },
+  avatar_creator: {
+    inputs: [
+      { label: "Brief", text: "descripción del avatar a crear (o un avatar existente)" },
+    ],
+    outputUrl: "/previews/avatar.png",
+    outputType: "image",
+  },
 };
 
 export const TOOL_PREVIEW_MEDIA: Record<string, ToolPreview> = {
