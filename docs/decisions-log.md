@@ -302,6 +302,76 @@ Solo una ref de consistencia activa a la vez (la nueva reemplaza la anterior). M
 
 ---
 
+## 2026-07 — Dirección estética "fina" (serif + glass + image-first, dark-first)
+
+**Contexto.** La app se sentía más "herramienta de dev" que producto premium (ref: Pletor).
+Faltaba refinamiento visual en las superficies de marca.
+
+**Decisiones.**
+1. **Serif de display Fraunces** (`--font-display`, utility `font-display`) para titulares
+   (Home, Dashboard Home, Campañas). Inter se queda en UI/body. El serif es el 80% de la
+   sensación "editorial". Descartado Instrument Serif (menos carácter).
+2. **Cards image-first**: la imagen llena la card, gradiente oscuro abajo, label encima
+   (el patrón de las category cards de Pletor). Aplicado en Home, Dashboard Home, Campañas,
+   y el `ToolCard` del Generate (ya lo era).
+3. **Glassmorphism selectivo** con los tokens `--glass-*` existentes (bg/border/sheen).
+   Solo en superficies de marca con un fondo detrás para frostear. **NO** en las tools de
+   trabajo densas (glass sobre config = ilegible + choca con "todo visible").
+4. **Profundidad dark = glow, no sombra.** Halos del burgundy detrás de heros/saludos.
+
+**Enviado.** Landing showcase, Dashboard Home (saludo glass + carousel image-first +
+campañas), sidebar colapsable, onboarding tour (`<Coachmarks>` reusable), "¿Cómo
+funciona?" por tool (`<ToolHelpButton>` data-driven).
+
+**Qué pasó después.** La galería de use-cases en Generate (carousels agrupados) se
+**revirtió**: el `ToolCard` (pensado para grid) colapsa dentro de un carousel flex → filas
+vacías. Aprendizaje: **para un carousel, card propia con altura fija**, no reusar el de grid.
+
+**Límite.** El "fino" va en brand surfaces (Home/Dashboard/Campañas/Portal). Las tools de
+trabajo se quedan **densas y funcionales** (ver 2026-06 "todo visible / no colapsables").
+
+---
+
+## 2026-07 — Campañas + arquitectura de nodos + framing Studio/App
+
+**Contexto.** El usuario quiere dar acceso a marcas para trabajar por campañas, y notó que
+cada tool "es como un canvas" (pipeline de steps) — ref al node-canvas de Pletor.
+
+**Decisiones.**
+1. **Campañas** = contenedor por marca (setup con assets del brand kit → generar piezas
+   in-place → revisar → [futuro: aprobar → video+voz]). Entidad + CRUD + UI. Adapta
+   patrones de "Invent" (proyecto cliente confidencial, NO copiar su código). Spec:
+   `docs/campaigns.md`.
+2. **Arquitectura de nodos** como cura de la deuda del monolito (`ToolRunPage` +
+   `tool.id === "..."`). Investigación del landscape (n8n/ComfyUI/Langflow/Dify) →
+   **primitivas de step tipadas + renderer genérico**, **stacked-steps primero** (canvas
+   React Flow después como renderer aditivo), **ejecución backend**, migración
+   **tool-por-tool detrás de un adapter**. Plan completo: `docs/architecture-nodes.md`.
+3. **Framing Studio vs App**: dos renderers sobre UN grafo. **App** (cliente corre un form
+   simple → output) = App-first, es lo que ya somos. **Studio** (agencia compone) = Fase
+   posterior. NO invertir el orden (canvas-first = anti-pattern del research).
+
+**Modelo de negocio (avalado):** vender OUTPUT (servicio productizado, vertical
+moda/ecommerce), NO SaaS horizontal. El moat es workflow + criterio + brand context, no la
+IA (todo corre sobre modelos commodity).
+
+---
+
+## 2026-07 — Build de producción: `vite build` (type-check separado)
+
+**Contexto.** `npm run build` (`tsc -b && vite build`) fallaba por **204 errores de tipo
+pre-existentes** (mayormente `noUnusedLocals` + accesos dinámicos a `config`), acumulados
+hace tiempo. El dev anda perfecto (esbuild ignora tipos); solo el gate de `tsc` trababa el
+deploy.
+
+**Decisión.** `build` → `vite build` (siempre produce `dist/` deployable). `typecheck` →
+`tsc -b` (script nuevo, opcional/CI). La deuda de 204 errores queda como limpieza dedicada
+(empezar por los ~66 `TS2339` reales, que sí pueden esconder bugs — los "unused" son ruido).
+
+**No es código roto**: la app corre. Es deuda de estrictez.
+
+---
+
 ## Cómo usar este archivo
 
 - **Agregar entrada cuando.** Tomamos una decisión que: (a) descarta otra opción razonable, (b) no es obvia leyendo el código, (c) podría confundir a otro dev futuro o re-discutir en 3 meses.
