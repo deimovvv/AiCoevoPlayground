@@ -10,6 +10,7 @@ import ToolsPage from "./pages/ToolsPage";
 import PipelineConfigPage from "./pages/PipelineConfigPage";
 import { GeneratePage } from "./pages/GeneratePage";
 import { ToolRunPage } from "./pages/ToolRunPage";
+import { DashboardHome } from "./pages/DashboardHome";
 import { CampaignsPage } from "./pages/CampaignsPage";
 import { NewCampaignPage } from "./pages/NewCampaignPage";
 import { CampaignDetailPage } from "./pages/CampaignDetailPage";
@@ -67,7 +68,7 @@ function App() {
           </BrandProvider>
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<DashboardHome />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="content" element={<ContentPage />} />
         <Route path="brand" element={<BrandSettings />} />
