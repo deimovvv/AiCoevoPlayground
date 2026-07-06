@@ -35,7 +35,7 @@ export function CampaignsPage() {
     <div className="max-w-5xl mx-auto p-6 md:p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <div className="flex items-center gap-2 text-[22px] font-bold tracking-tight">
+          <div className="flex items-center gap-2 font-display text-[24px] font-semibold tracking-tight">
             <Megaphone size={20} className="text-[var(--color-brand)]" /> Campañas
           </div>
           <p className="text-[12px] text-fg-faint mt-0.5">Marca: <span className="text-fg-muted">{activeBrand.name}</span></p>

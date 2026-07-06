@@ -71,10 +71,10 @@ export function Home() {
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-brand)] animate-pulse" />
             AI CONTENT FACTORY
           </div>
-          <h1 className="text-[40px] md:text-[62px] leading-[1.02] font-bold tracking-tight">
+          <h1 className="font-display text-[44px] md:text-[68px] leading-[1.0] font-semibold tracking-[-0.01em]">
             Del brief al video
             <br />
-            <span className="text-[var(--color-brand)]">listo para publicar</span>
+            <span className="text-[var(--color-brand)] italic">listo para publicar</span>
           </h1>
           <p className="mt-6 text-[15px] md:text-[17px] text-fg-muted leading-relaxed max-w-lg">
             La IA escribe el guion, genera las imágenes, clona la voz y renderiza el corte final.
@@ -111,7 +111,7 @@ export function Home() {
       {/* Showcase — muro de outputs reales */}
       <section className="max-w-6xl mx-auto px-6 md:px-10 py-10">
         <div className="flex items-baseline justify-between mb-5">
-          <h2 className="text-[20px] md:text-[26px] font-bold tracking-tight">Hecho con Coevo</h2>
+          <h2 className="font-display text-[22px] md:text-[28px] font-semibold tracking-tight">Hecho con Coevo</h2>
           <span className="text-[12px] text-fg-faint">Piezas reales generadas por la plataforma</span>
         </div>
         <div className="columns-2 md:columns-3 gap-3 [column-fill:_balance]">
@@ -127,7 +127,7 @@ export function Home() {
 
       {/* Tools */}
       <section className="max-w-6xl mx-auto px-6 md:px-10 py-12">
-        <h2 className="text-[20px] md:text-[26px] font-bold tracking-tight mb-5">Las tools</h2>
+        <h2 className="font-display text-[22px] md:text-[28px] font-semibold tracking-tight mb-5">Las tools</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {TOOL_CARDS.map((t) => (
             <button
@@ -163,7 +163,7 @@ export function Home() {
       <section className="max-w-6xl mx-auto px-6 md:px-10 py-16">
         <div className="relative rounded-[28px] border border-edge overflow-hidden p-10 md:p-16 text-center bg-surface-1">
           <div className="pointer-events-none absolute inset-0 opacity-60" style={{ background: "radial-gradient(50% 60% at 50% 0%, rgba(196,88,48,0.22), transparent 70%)" }} />
-          <h2 className="relative text-[26px] md:text-[38px] font-bold tracking-tight">Tu próxima campaña, en minutos</h2>
+          <h2 className="font-display relative text-[28px] md:text-[42px] font-semibold tracking-tight">Tu próxima campaña, en minutos</h2>
           <p className="relative mt-3 text-[15px] text-fg-muted max-w-md mx-auto">Elegí una marca, elegí una tool, y dejá que la IA haga el resto.</p>
           <button
             onClick={() => navigate("/dashboard")}

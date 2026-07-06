@@ -146,7 +146,7 @@ export function CampaignDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-[24px] font-bold tracking-tight">{campaign.name}</h1>
+          <h1 className="font-display text-[26px] font-semibold tracking-tight">{campaign.name}</h1>
           <div className="flex items-center gap-2 mt-1.5">
             <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", st.cls)}>{st.label}</span>
             <span className="text-[11px] text-fg-faint">{activeBrand?.name}</span>
