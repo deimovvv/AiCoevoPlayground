@@ -13,6 +13,42 @@ export interface ToolPreview {
   type: "image" | "video";
 }
 
+/**
+ * Ejemplo pre-armado por tool (ref: Pletor te muestra el template lleno apenas entrás —
+ * inputs de muestra + output — para que entiendas qué va dónde sin tocar nada).
+ * Se muestra en el estado vacío del ToolRunPage. "Usar este ejemplo" precarga los inputs.
+ * Sumar un ejemplo = agregar una entrada acá (+ los assets de muestra en /previews/).
+ */
+export interface ToolExampleInput {
+  label: string;
+  /** Imagen de muestra (path en /previews/). Si está, se muestra como thumb. */
+  imageUrl?: string;
+  /** Texto de muestra (ej. la escena/brief). */
+  text?: string;
+}
+export interface ToolExample {
+  /** Prefill del campo objective al tocar "Usar este ejemplo". */
+  scene?: string;
+  /** Imagen que se precarga como referenceImages[0] (ej. la UI). */
+  prefillImageUrl?: string;
+  inputs: ToolExampleInput[];
+  outputUrl: string;
+  outputType?: "image" | "video";
+}
+
+export const TOOL_EXAMPLES: Record<string, ToolExample> = {
+  screen_mockup: {
+    scene: "laptop en un café moderno, luz cálida de tarde, fondo desenfocado",
+    prefillImageUrl: "/previews/screenmockup-ui.png",
+    inputs: [
+      { label: "Tu UI / pantalla", imageUrl: "/previews/screenmockup-ui.png" },
+      { label: "Escena / dispositivo", text: "laptop en un café moderno, luz cálida de tarde" },
+    ],
+    outputUrl: "/previews/screenmockup.png",
+    outputType: "image",
+  },
+};
+
 export const TOOL_PREVIEW_MEDIA: Record<string, ToolPreview> = {
   video_ad_creator: { url: "/previews/videoadcreator.mp4", type: "video" },
   ugc_creator: { url: "/previews/ugccreator.mp4", type: "video" },

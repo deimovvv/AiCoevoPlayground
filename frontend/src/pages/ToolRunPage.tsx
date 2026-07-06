@@ -74,6 +74,7 @@ import { ComposeOverlay } from "../components/ComposeOverlay";
 import { UGCPlayer } from "../remotion/UGCPlayer";
 import { TOOL_DEFINITIONS } from "../tools/registry";
 import { greenScreenPrompt, compositePrompt } from "../tools/screen_mockup";
+import { TOOL_EXAMPLES } from "../lib/toolPreviews";
 import { autoSaveStep, getActiveGenId, setActiveGenId, clearActiveGen } from "../tools/shared/autoSave";
 
 // ── Types ──────────────────────────────────────────────────
@@ -2612,15 +2613,82 @@ export function ToolRunPage() {
             )}
 
             {!started ? (
-              <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto py-8">
-                <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center text-fg-muted mb-3">
-                  {TOOL_ICONS[tool.icon] || <Sparkles size={20} />}
-                </div>
-                <h3 className="text-[14px] font-semibold text-fg">Listo para arrancar</h3>
-                <p className="text-[12px] text-fg-muted mt-1.5 leading-relaxed">
-                  Configurá los parámetros en el panel de la izquierda y tocá <strong>Generar</strong>. Cada step del pipeline aparece arriba a medida que avanza.
-                </p>
-              </div>
+              (() => {
+                const example = TOOL_EXAMPLES[tool.id];
+                if (!example) {
+                  return (
+                    <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto py-8">
+                      <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center text-fg-muted mb-3">
+                        {TOOL_ICONS[tool.icon] || <Sparkles size={20} />}
+                      </div>
+                      <h3 className="text-[14px] font-semibold text-fg">Listo para arrancar</h3>
+                      <p className="text-[12px] text-fg-muted mt-1.5 leading-relaxed">
+                        Configurá los parámetros en el panel de la izquierda y tocá <strong>Generar</strong>. Cada step del pipeline aparece arriba a medida que avanza.
+                      </p>
+                    </div>
+                  );
+                }
+                // Ejemplo pre-armado (tipo Pletor): inputs de muestra → output, apenas entrás.
+                const useExample = async () => {
+                  const updates: Partial<ToolConfig> = {};
+                  if (example.scene) updates.objective = example.scene;
+                  if (example.prefillImageUrl) {
+                    try {
+                      const blob = await fetch(example.prefillImageUrl).then((r) => r.blob());
+                      const name = example.prefillImageUrl.split("/").pop() || "example.png";
+                      updates.referenceImages = [new File([blob], name, { type: blob.type || "image/png" })];
+                    } catch (e) { console.error("[example] no se pudo precargar la imagen:", e); }
+                  }
+                  setConfig((p) => ({ ...p, ...updates }));
+                };
+                return (
+                  <div className="h-full overflow-y-auto py-8 px-2">
+                    <div className="max-w-xl mx-auto">
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-brand)]">Ejemplo</span>
+                        <span className="h-px flex-1 bg-edge" />
+                        <span className="text-[11px] text-fg-faint">Así funciona esta tool</span>
+                      </div>
+
+                      {/* Flujo: inputs → output */}
+                      <div className="flex items-stretch gap-3">
+                        <div className="flex-1 space-y-2">
+                          {example.inputs.map((inp, i) => (
+                            <div key={i} className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-2.5">
+                              <div className="text-[9px] font-semibold uppercase tracking-wider text-fg-faint mb-1.5">{inp.label}</div>
+                              {inp.imageUrl && (
+                                <div className="rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0">
+                                  <img src={inp.imageUrl} alt={inp.label} className="w-full max-h-28 object-cover" />
+                                </div>
+                              )}
+                              {inp.text && <p className="text-[12px] text-fg-muted italic leading-snug">“{inp.text}”</p>}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center text-[var(--color-brand)] text-[20px] font-semibold shrink-0">→</div>
+                        <div className="flex-1">
+                          <div className="text-[9px] font-semibold uppercase tracking-wider text-fg-faint mb-1.5">Resultado</div>
+                          <div className="rounded-[var(--radius-md)] overflow-hidden border border-[var(--color-brand)]/40 bg-surface-0">
+                            {example.outputType === "video"
+                              ? <video src={example.outputUrl} autoPlay muted loop playsInline className="w-full object-cover" />
+                              : <img src={example.outputUrl} alt="Ejemplo de resultado" className="w-full object-cover" />}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 flex items-center justify-center gap-3">
+                        <button
+                          onClick={useExample}
+                          className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-semibold text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+                        >
+                          <Sparkles size={13} /> Usar este ejemplo
+                        </button>
+                        <span className="text-[11px] text-fg-faint">o cargá lo tuyo a la izquierda y tocá Generar</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
             ) : (
               <StepPanel
                 tool={tool}
