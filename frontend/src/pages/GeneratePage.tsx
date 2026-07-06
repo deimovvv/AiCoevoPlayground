@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { cn } from "../lib/utils";
+import { TOOL_PREVIEW_MEDIA } from "../lib/toolPreviews";
 
 interface ToolEntry {
   id: string;
@@ -35,15 +36,6 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   film: <Film size={18} />,
   eraser: <Eraser size={18} />,
   sparkles: <Sparkles size={18} />,
-};
-
-const TOOL_PREVIEW_MEDIA: Record<string, { url: string; type: "image" | "video" }> = {
-  video_ad_creator: { url: "/previews/videoadcreator.mp4", type: "video" },
-  ugc_creator: { url: "/previews/ugccreator.mp4", type: "video" },
-  fashion_reel: { url: "/previews/agnatesttt.mp4", type: "video" },
-  static_ad: { url: "/previews/staticad.png", type: "image" },
-  ecommerce_pack: { url: "/previews/eccomerce.png", type: "image" },
-  avatar_creator: { url: "/previews/avatar.png", type: "image" },
 };
 
 // Punchy tagline per tool — overrides description on card
@@ -117,15 +109,15 @@ function ToolTile({ tool, disabled, onClick }: { tool: ToolEntry; disabled: bool
         disabled ? "opacity-50 cursor-not-allowed" : "hover:border-[var(--color-brand)]/50 hover:-translate-y-1 cursor-pointer",
       )}
     >
+      {/* Gradiente + inicial siempre de fondo → si el preview falta/404, cae acá elegante. */}
+      <div className={cn("absolute inset-0 bg-gradient-to-br flex items-center justify-center", gradient)}>
+        <span className="text-[38px] font-bold text-white/25">{tool.name[0]}</span>
+      </div>
       {media?.type === "video" ? (
-        <video src={media.url} autoPlay muted loop playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+        <video src={media.url} autoPlay muted loop playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => { (e.currentTarget as HTMLVideoElement).style.display = "none"; }} />
       ) : media?.type === "image" ? (
-        <img src={media.url} alt={tool.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-      ) : (
-        <div className={cn("absolute inset-0 bg-gradient-to-br flex items-center justify-center", gradient)}>
-          <span className="text-[38px] font-bold text-white/25">{tool.name[0]}</span>
-        </div>
-      )}
+        <img src={media.url} alt={tool.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+      ) : null}
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
       <span className="absolute top-2.5 left-2.5 text-[9px] font-semibold uppercase tracking-widest text-white/80 bg-black/40 backdrop-blur px-2 py-0.5 rounded-full">
         {CATEGORY_LABELS[tool.category] || tool.category}
@@ -325,6 +317,7 @@ function ToolCard({
               "absolute inset-0 w-full h-full object-cover transition-opacity duration-300",
               hover ? "opacity-100" : "opacity-80"
             )}
+            onError={(e) => { (e.currentTarget as HTMLVideoElement).style.display = "none"; }}
           />
         )}
         {media?.type === "image" && (
@@ -335,6 +328,7 @@ function ToolCard({
               "absolute inset-0 w-full h-full object-cover transition-transform duration-500",
               hover && !disabled && "scale-105"
             )}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
         )}
 

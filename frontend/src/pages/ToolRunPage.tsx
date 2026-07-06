@@ -238,6 +238,11 @@ const STEP_META: Record<
     icon: <Camera size={15} />,
     description: "Generá todas las tomas seleccionadas, consistentes entre sí",
   },
+  scene: {
+    label: "Escena base",
+    icon: <ImageIcon size={15} />,
+    description: "Generá la escena con el dispositivo en pantalla verde (chroma) — base para encajar tu UI",
+  },
 };
 
 const TOOL_ICONS: Record<string, React.ReactNode> = {
@@ -315,6 +320,9 @@ function collectGeneratedMedia(steps: StepState[], batches: BatchEntry[]): Gener
   // Steps en orden inverso → los outputs más nuevos arriba.
   for (let i = steps.length - 1; i >= 0; i--) {
     const st = steps[i];
+    // "scene" (screen_mockup) es una base intermedia (pantalla verde), no un entregable:
+    // no la sumamos al riel de contenido generado.
+    if (st.id === "scene") continue;
     const stepLabel = STEP_META[st.id]?.label || st.id;
     const r = st.result;
     if (Array.isArray(r)) {
@@ -4738,7 +4746,21 @@ function ConfigPanel({
               <span className="text-[10px] text-fg-faint">{config.referenceImages.length} uploaded</span>
             </div>
 
-            {config.referenceImages.length > 0 && (
+            {config.referenceImages.length > 0 && tool.id === "screen_mockup" && (
+              // Named slot con preview real — así se lee "acá va TU UI" (ref: nodo "UI Screen" de Pletor).
+              <div className="relative rounded-[var(--radius-sm)] overflow-hidden border border-edge group bg-surface-0">
+                <img src={URL.createObjectURL(config.referenceImages[0])} alt="UI" className="w-full max-h-56 object-contain" />
+                <button
+                  onClick={() => setConfig((p) => ({ ...p, referenceImages: [] }))}
+                  className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  title="Quitar"
+                >
+                  <span className="text-white text-[11px]">×</span>
+                </button>
+              </div>
+            )}
+
+            {config.referenceImages.length > 0 && tool.id !== "screen_mockup" && (
               <div className="flex gap-1.5 flex-wrap">
                 {config.referenceImages.map((file, i) => (
                   <div key={i} className="relative w-12 h-12 rounded-[var(--radius-sm)] overflow-hidden border border-edge group shrink-0">
@@ -4761,6 +4783,7 @@ function ConfigPanel({
               <Plus size={11} /> {tool.id === "content_analyzer" ? "Upload video"
                 : tool.id === "carousel_creator" ? "Subir template"
                 : tool.id === "product_sheet" ? "Subir fotos del producto"
+                : tool.id === "screen_mockup" ? (config.referenceImages.length > 0 ? "Reemplazar screenshot" : "Subir screenshot de tu UI")
                 : (tool.id === "static_ad" || tool.id === "product_clip") ? "Upload reference"
                 : "Add references"}
               <input
@@ -6715,6 +6738,32 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       setEnhancingId(null);
     }
   };
+
+  // ── Screen Mockup: paso "scene" (base con pantalla verde) ──────────
+  // Base intermedia. La mostramos compacta para que se vea el pipeline ejecutándose
+  // (como los nodos de Pletor), pero dejando claro que NO es el entregable.
+  if (stepId === "scene" && result && typeof result === "object" && "images" in (result as object)) {
+    const scenes = ((result as { images?: Array<{ id: string; url: string; label: string; status?: string }> }).images || []);
+    const ok = scenes.filter((s) => s.url);
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-[12px] text-fg-muted">
+          <Check size={13} className="text-[var(--color-success)]" />
+          Escena base lista ({ok.length}) — se encaja tu UI en la pantalla verde en el siguiente paso.
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {scenes.map((s) => (
+            <div key={s.id} className="relative w-28 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0">
+              {s.url
+                ? <img src={s.url} alt={s.label} className="w-full h-auto object-cover" />
+                : <div className="w-full h-28 flex items-center justify-center text-[10px] text-[var(--color-danger)]">falló</div>}
+              <div className="px-1.5 py-1 text-[9px] text-fg-faint uppercase tracking-wide">Base · chroma</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // ── Product Sheet: Brief step ────────────────────────────
   // Distinguished from the Avatar brief by the presence of product-specific keys.
