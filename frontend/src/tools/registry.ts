@@ -21,9 +21,11 @@ import { ecommercePack } from "./ecommerce_pack";
 import { fashionEditorial } from "./fashion_editorial";
 import { productSheet } from "./product_sheet";
 import { sceneReconstruct } from "./scene_reconstruct";
+import { screenMockup } from "./screen_mockup";
 
 export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   avatar_creator: avatarCreator,
+  screen_mockup: screenMockup,
   product_sheet: productSheet,
   fashion_reel: fashionReel,
   ecommerce_pack: ecommercePack,

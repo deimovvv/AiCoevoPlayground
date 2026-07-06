@@ -4706,7 +4706,7 @@ function ConfigPanel({
           "gap-4",
           tool.id === "static_ad" ? "grid grid-cols-2" : "space-y-4",
           // Single-image reference tools → keep it compact (not full-width sprawl).
-          ["fashion_reel", "ugc_creator", "product_spotlight", "product_clip", "fashion_editorial"].includes(tool.id) && "sm:max-w-md",
+          ["fashion_reel", "ugc_creator", "product_spotlight", "product_clip", "fashion_editorial", "screen_mockup"].includes(tool.id) && "sm:max-w-md",
         )}>
           {/* Reference Image — single for Static Ad, multiple for Ad Creative Lab */}
           <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 space-y-2">
@@ -4719,6 +4719,7 @@ function ConfigPanel({
                   : tool.id === "ecommerce_pack" ? "Referencia Look & Feel"
                   : tool.id === "fashion_editorial" ? "Referencia Look & Feel"
                   : tool.id === "product_sheet" ? "Fotos del producto"
+                  : tool.id === "screen_mockup" ? "Tu UI / pantalla"
                   : (tool.id === "static_ad" || tool.id === "product_clip") ? "Reference Image"
                   : "Reference Images"}
                 <span className="text-fg-faint font-normal ml-1">
@@ -4729,6 +4730,7 @@ function ConfigPanel({
                     : tool.id === "ecommerce_pack" ? "(imagen de iluminación/estética — Nano Banana copia el look, no el contenido)"
                     : tool.id === "fashion_editorial" ? "(iluminación/color — se analiza en receta de texto, sin filtrar la escena)"
                     : tool.id === "product_sheet" ? "(subí acá front / back / detail / packaging si no usás un producto del Brand Kit)"
+                    : tool.id === "screen_mockup" ? "(screenshot de tu app o software — se muestra en el dispositivo)"
                     : (tool.id === "static_ad" || tool.id === "product_clip") ? "(style/mood reference)"
                     : "(campaign style references)"}
                 </span>
@@ -4771,7 +4773,7 @@ function ConfigPanel({
                   if (files.length > 0) {
                     setConfig((p) => ({
                       ...p,
-                      referenceImages: tool.id === "static_ad" || tool.id === "carousel_creator" ? [files[0]] : [...p.referenceImages, ...files].slice(0, 10),
+                      referenceImages: tool.id === "static_ad" || tool.id === "carousel_creator" || tool.id === "screen_mockup" ? [files[0]] : [...p.referenceImages, ...files].slice(0, 10),
                       // Carousel: when a template is uploaded, default to "composition" — that's the use case
                       referenceMode: tool.id === "carousel_creator" ? "composition" : p.referenceMode,
                     }));
