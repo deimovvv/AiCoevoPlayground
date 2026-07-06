@@ -2970,7 +2970,7 @@ function LipsyncDrawer({
     useEffect(() => {
         if (voiceId) return;
         if (systemVoices.length > 0) {
-            setVoiceId(systemVoices[0].voice_id);
+            setVoiceId(systemVoices[0].id);
             setVoiceName(systemVoices[0].name);
         }
     }, [systemVoices, voiceId]);
@@ -3159,7 +3159,7 @@ function LipsyncDrawer({
                                         className="w-full px-3 py-2 text-[12px] bg-surface-0 border border-edge focus:border-[var(--color-brand)] rounded-[var(--radius-sm)] outline-none cursor-pointer"
                                         disabled={busy}
                                     >
-                                        {systemVoices.map((v) => (<option key={v.voice_id} value={v.voice_id}>{v.name}</option>))}
+                                        {systemVoices.map((v) => (<option key={v.id} value={v.id}>{v.name}</option>))}
                                     </select>
                                 </div>
                                 <div className="flex items-center gap-2">
