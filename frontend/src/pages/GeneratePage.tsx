@@ -90,6 +90,16 @@ const CATEGORY_LABELS: Record<string, string> = {
   copy: "Copy",
 };
 
+// Use-cases (cara "App" tipo Pletor) — agrupan las tools por caso de uso, no por tipo
+// de media. El orden define las filas del gallery. Tools no mapeadas caen en "Más tools".
+const USE_CASES: Array<{ key: string; label: string; toolIds: string[] }> = [
+  { key: "fashion", label: "Moda & editorial", toolIds: ["fashion_reel", "fashion_editorial"] },
+  { key: "ecommerce", label: "Ecommerce & producto", toolIds: ["ecommerce_pack", "ecommerce_batch", "product_sheet", "product_clip", "product_spotlight"] },
+  { key: "ugc", label: "UGC & avatares", toolIds: ["ugc_creator", "avatar_creator"] },
+  { key: "ads", label: "Ads & creativos", toolIds: ["video_ad_creator", "static_ad", "ad_creative_lab", "carousel_creator"] },
+  { key: "adapt", label: "Analizar & adaptar", toolIds: ["content_analyzer", "video_swap"] },
+];
+
 export function GeneratePage() {
   const { activeBrand } = useBrand();
   const navigate = useNavigate();
@@ -158,17 +168,55 @@ export function GeneratePage() {
         ))}
       </div>
 
-      {/* Tools grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        {orderedTools.map((tool) => (
-          <ToolCard
-            key={tool.id}
-            tool={tool}
-            disabled={!activeBrand || tool.status !== "active"}
-            onClick={() => navigate(tool.route || `/dashboard/generate/${tool.id}`)}
-          />
-        ))}
-      </div>
+      {/* "Todas" → galería por use-cases (carousels). Con filtro activo → grid plano. */}
+      {filter === "all" ? (
+        (() => {
+          const renderCard = (tool: ToolEntry) => (
+            <div key={tool.id} className="shrink-0 w-[240px]">
+              <ToolCard
+                tool={tool}
+                disabled={!activeBrand || tool.status !== "active"}
+                onClick={() => navigate(tool.route || `/dashboard/generate/${tool.id}`)}
+              />
+            </div>
+          );
+          const mappedIds = new Set(USE_CASES.flatMap((u) => u.toolIds));
+          const rest = orderedTools.filter((t) => !mappedIds.has(t.id));
+          return (
+            <div className="space-y-10">
+              {USE_CASES.map((uc) => {
+                const ucTools = uc.toolIds.map((id) => orderedTools.find((t) => t.id === id)).filter(Boolean) as ToolEntry[];
+                if (ucTools.length === 0) return null;
+                return (
+                  <section key={uc.key}>
+                    <h2 className="font-display text-[20px] md:text-[24px] font-semibold tracking-tight mb-3">{uc.label}</h2>
+                    <div className="flex gap-4 overflow-x-auto pb-3 -mx-1 px-1 no-scrollbar">
+                      {ucTools.map(renderCard)}
+                    </div>
+                  </section>
+                );
+              })}
+              {rest.length > 0 && (
+                <section>
+                  <h2 className="font-display text-[20px] md:text-[24px] font-semibold tracking-tight mb-3">Más tools</h2>
+                  <div className="flex gap-4 overflow-x-auto pb-3 -mx-1 px-1 no-scrollbar">{rest.map(renderCard)}</div>
+                </section>
+              )}
+            </div>
+          );
+        })()
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {orderedTools.map((tool) => (
+            <ToolCard
+              key={tool.id}
+              tool={tool}
+              disabled={!activeBrand || tool.status !== "active"}
+              onClick={() => navigate(tool.route || `/dashboard/generate/${tool.id}`)}
+            />
+          ))}
+        </div>
+      )}
 
       {filteredTools.length === 0 && (
         <div className="text-center py-16 text-fg-muted text-[14px]">
