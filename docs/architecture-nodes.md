@@ -24,6 +24,20 @@ Síntomas de que no escala:
 - **La deuda de tipos** (204 errores en `npm run build`, ver `package.json` split de build) es
   consecuencia directa: accesos dinámicos a `config` + UI acoplada.
 
+## 1b. Framing "Studio vs App" (dos renderers, un grafo)
+
+Pletor tiene dos superficies sobre el MISMO modelo de grafo:
+- **App** = una composición **publicada**, expuesta como un **form simple** (corré → output).
+  El cliente/operador vive acá. **Nuestras tools ya son "Apps"** (Generate → form → run).
+- **Studio** = el **canvas** donde se **compone** una app desde primitivas. La agencia/power
+  vive acá. Es Fase 4/5.
+
+No son dos sistemas: es una arquitectura (nodos) con dos vistas. Consecuencia estratégica:
+**somos App-first (correcto)**, el Studio es la capa de poder que se construye después. NO
+invertir el orden (canvas-first = anti-pattern). Encaja con los dos audiences del negocio:
+cliente = Apps (curado, vende output), agencia = Studio (compone). Un "App" publicado =
+un grafo con su form auto-generado (Fase 5).
+
 ## 2. Target — primitivas de step + renderer genérico
 
 La lección del node-canvas NO es "dibujar cablecitos". Es la **arquitectura**:
