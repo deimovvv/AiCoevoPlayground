@@ -5,7 +5,7 @@ import { useBrand } from "../lib/BrandContext";
 import {
   getCampaign, deleteCampaign, updateCampaign,
   createImageEdit, createTextToImage, pollImageGen,
-  productImageUrl, moodboardImageUrl,
+  avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl, lookAndFeelImageUrl,
   type Campaign, type CampaignPiece,
 } from "../lib/api";
 import { cn } from "../lib/utils";
@@ -122,9 +122,22 @@ export function CampaignDetailPage() {
   if (error || !campaign) return <div className="p-10 text-center text-fg-muted">{error || "Campaña no encontrada"} · <button onClick={() => navigate("/dashboard/campaigns")} className="text-[var(--color-brand)] cursor-pointer">Volver</button></div>;
 
   const st = STATUS_LABEL[campaign.status] || STATUS_LABEL.draft;
-  const products = (activeBrand?.products || []).filter((p) => campaign.productIds.includes(p.id));
-  const moodboard = (activeBrand?.moodboards || []).find((m) => m.id === campaign.moodboardId);
   const pieces = campaign.pieces || [];
+
+  // Todos los assets asignados (avatar, productos, prendas, fondo, moodboard, look&feel)
+  // como una sola lista para el strip compacto.
+  const b = activeBrand;
+  const assigned: Array<{ kind: string; name: string; thumb?: string }> = [];
+  const av = b?.avatars?.find((a) => a.id === campaign.avatarId);
+  if (av) assigned.push({ kind: "Modelo", name: av.name, thumb: av.imageUrl ? avatarImageUrl(av.imageUrl) : undefined });
+  (b?.products || []).filter((p) => campaign.productIds.includes(p.id)).forEach((p) => assigned.push({ kind: "Producto", name: p.name, thumb: p.imageUrl ? productImageUrl(p.imageUrl) : undefined }));
+  (b?.clothing || []).filter((c) => campaign.clothingIds?.includes(c.id)).forEach((c) => assigned.push({ kind: "Prenda", name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined }));
+  const bg = b?.backgrounds?.find((x) => x.id === campaign.backgroundId);
+  if (bg) assigned.push({ kind: "Fondo", name: bg.name, thumb: bg.imageUrl ? backgroundImageUrl(bg.imageUrl) : undefined });
+  const mb = b?.moodboards?.find((m) => m.id === campaign.moodboardId);
+  if (mb) assigned.push({ kind: "Moodboard", name: mb.name, thumb: mb.imageUrl ? moodboardImageUrl(mb.imageUrl) : undefined });
+  const lf = b?.lookAndFeel?.find((l) => l.id === campaign.lookFeelId);
+  if (lf) assigned.push({ kind: "Look & Feel", name: lf.name, thumb: lf.imageUrl ? lookAndFeelImageUrl(lf.imageUrl) : undefined });
 
   return (
     <div className="max-w-5xl mx-auto p-6 md:p-8">
@@ -142,36 +155,31 @@ export function CampaignDetailPage() {
         <button onClick={handleDelete} className="flex items-center gap-1.5 px-3 h-9 rounded-full border border-edge text-[12px] text-fg-muted hover:text-red-400 hover:border-red-400/40 cursor-pointer"><Trash2 size={13} /> Borrar</button>
       </div>
 
-      {/* Settings resumen */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-        <div className="md:col-span-2 rounded-[var(--radius-md)] border border-edge bg-surface-0 p-4">
-          <h3 className="text-[11px] font-semibold uppercase tracking-widest text-fg-faint mb-3">Setup de la campaña</h3>
-          <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-[12px]">
-            <Row label="Shot list" value={campaign.shotPlan === "ai" ? "Que decida la IA" : "Estilos elegidos"} />
-            <Row label="Variantes por toma" value={String(campaign.variationsPerShot)} />
-            <Row label="Formatos" value={campaign.aspectRatios.join(" · ")} />
-            <Row label="Resolución" value={campaign.resolution} />
-          </div>
-          <div className="mt-4">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-fg-faint">Producto(s)</span>
-            {products.length === 0 ? <p className="text-[11px] text-fg-faint mt-1">Sin producto asignado.</p> : (
-              <div className="flex gap-1.5 mt-1.5 flex-wrap">
-                {products.map((p) => (
-                  <div key={p.id} className="w-14 flex flex-col items-center gap-0.5">
-                    <div className="w-14 h-14 rounded overflow-hidden border border-edge bg-surface-2">{p.imageUrl && <img src={productImageUrl(p.imageUrl)} alt={p.name} className="w-full h-full object-cover" />}</div>
-                    <span className="text-[8px] text-fg-faint truncate max-w-[56px]">{p.name}</span>
-                  </div>
-                ))}
+      {/* Setup — strip compacto: chips + assets asignados en una fila */}
+      <div className="rounded-[var(--radius-md)] border border-edge bg-surface-0 p-4 mb-6">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <Chip label="Shot list" value={campaign.shotPlan === "ai" ? "IA decide" : "Estilos"} />
+          <Chip label="Variantes" value={String(campaign.variationsPerShot)} />
+          <Chip label="Formatos" value={campaign.aspectRatios.join(" · ")} />
+          <Chip label="Resolución" value={campaign.resolution} />
+        </div>
+        {assigned.length === 0 ? (
+          <p className="text-[11px] text-fg-faint">Sin assets asignados. <button onClick={() => navigate("/dashboard/campaigns/new")} className="text-[var(--color-brand)] cursor-pointer">Creá otra con assets</button> o generá solo desde el brand context.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2.5">
+            {assigned.map((a, i) => (
+              <div key={i} className="flex flex-col items-center gap-1 w-16">
+                <div className="w-16 h-16 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-2">
+                  {a.thumb && <img src={a.thumb} alt={a.name} className="w-full h-full object-cover" />}
+                </div>
+                <div className="text-center leading-tight">
+                  <span className="block text-[8px] uppercase tracking-wide text-[var(--color-brand)] font-semibold">{a.kind}</span>
+                  <span className="block text-[9px] text-fg-faint truncate max-w-[64px]">{a.name}</span>
+                </div>
               </div>
-            )}
+            ))}
           </div>
-        </div>
-        <div className="rounded-[var(--radius-md)] border border-edge bg-surface-0 p-4">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-fg-faint">Moodboard</span>
-          {moodboard?.imageUrl ? (
-            <img src={moodboardImageUrl(moodboard.imageUrl)} alt={moodboard.name} className="w-full aspect-square object-cover rounded-[var(--radius-sm)] mt-2 border border-edge" />
-          ) : <p className="text-[11px] text-fg-faint mt-2">Sin moodboard.</p>}
-        </div>
+        )}
       </div>
 
       {/* Piezas */}
@@ -223,11 +231,11 @@ export function CampaignDetailPage() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Chip({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col">
-      <span className="text-[9px] uppercase tracking-wide text-fg-faint">{label}</span>
-      <span className="text-fg">{value}</span>
-    </div>
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-edge bg-surface-1 text-[11px]">
+      <span className="text-fg-faint">{label}</span>
+      <span className="text-fg font-medium">{value}</span>
+    </span>
   );
 }
