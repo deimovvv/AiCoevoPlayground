@@ -63,6 +63,7 @@ const TOOL_TAGLINES: Record<string, string> = {
   fashion_editorial: "Editorial de moda: modelo + prenda, look de revista. Brief en español → variantes",
   ecommerce_batch: "Batch: drop carpeta de outfits + poses, generá todas las fotos de catálogo de una",
   product_sheet: "Sheet del producto: vistas múltiples o close-ups, desde 1-4 fotos",
+  screen_mockup: "Tu app/UI en un dispositivo real, en contexto lifestyle",
 };
 
 // Subtle gradient per tool for fallback previews (when no media)
@@ -82,6 +83,7 @@ const TOOL_GRADIENTS: Record<string, string> = {
   fashion_editorial: "from-rose-500/30 via-fuchsia-500/20 to-purple-500/30",
   ecommerce_batch: "from-stone-400/30 via-zinc-400/20 to-neutral-500/30",
   product_sheet: "from-cyan-500/30 via-sky-500/20 to-blue-500/30",
+  screen_mockup: "from-slate-500/30 via-sky-500/20 to-indigo-500/30",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {

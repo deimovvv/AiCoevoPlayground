@@ -20,6 +20,11 @@ const TOOL_TIPS: Record<string, string[]> = {
     "Elegí el Nº de escenas para condensar un video largo sin cortarlo.",
   ],
   ugc_creator: ["El avatar habla a cámara; la voz se clona con ElevenLabs."],
+  screen_mockup: [
+    "Subí un screenshot limpio y nítido de tu UI (alta resolución).",
+    "Mencioná el dispositivo en la escena: 'celular', 'laptop' o 'tablet'.",
+    "Si la pantalla sale imperfecta, regenerá o subí una UI más nítida.",
+  ],
 };
 
 const GENERIC_TIPS = [
