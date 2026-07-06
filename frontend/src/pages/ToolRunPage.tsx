@@ -6312,6 +6312,8 @@ function StepPanel({
             onInvalidateDownstream={onInvalidateDownstream}
           />
         ) : step.status === "review" ? (
+          <>
+          <UsedInputsStrip config={config} toolId={tool.id} result={step.result} />
           <DoneStep stepId={step.id} result={step.result} audioCache={audioCache} config={config} allSteps={allSteps}
             onUpdateStepResult={onUpdateStepResult}
             onInvalidateDownstream={onInvalidateDownstream}
@@ -6326,6 +6328,7 @@ function StepPanel({
               const arr = (sr.scenes as Array<Array<Record<string, string>>>)[0] || [];
               return arr.map((s, i) => ({ id: s.id || `act_${i+1}`, title: s.title || s.act || `Scene ${i+1}`, script: s.script || s.speech || s.copy || s.text || "", image_prompt: s.image_prompt || "" }));
             }} />
+          </>
         ) : step.status === "done" || step.status === "stale" ? (
           <div className={step.status === "stale" ? "opacity-50" : ""}>
             {step.status === "stale" && (
@@ -6334,6 +6337,7 @@ function StepPanel({
                 <span className="text-[11px] text-fg-faint">Paso anterior cambió — re-generá este paso para aplicar el cambio (apretá &ldquo;Resetear paso&rdquo; arriba o navegá y dale Run).</span>
               </div>
             )}
+            <UsedInputsStrip config={config} toolId={tool.id} result={step.result} />
             <DoneStep stepId={step.id} result={step.result} audioCache={audioCache} config={config} allSteps={allSteps}
               onUpdateStepResult={onUpdateStepResult}
               onInvalidateDownstream={onInvalidateDownstream}
@@ -6871,6 +6875,75 @@ function ActiveStep({
         <p className="text-[13px] text-fg-faint">
           Results will appear here after running
         </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Assets usados → resultado ──────────────────────────────
+// Tira genérica que se muestra arriba del resultado de CUALQUIER tool: los assets que
+// entraron (avatar, producto, prenda, fondo, moodboard, refs) → el output de abajo.
+// Pedido: "cómo se muestran las imágenes debería ser así en todas". screen_mockup tiene
+// su propia tira más rica, así que se saltea. Devuelve null si no hay inputs visuales.
+function resultHasMedia(result: unknown): boolean {
+  if (!result || typeof result !== "object") return false;
+  const o = result as Record<string, unknown>;
+  for (const k of ["images", "slides", "variations", "creatives", "frames"]) {
+    if (Array.isArray(o[k]) && (o[k] as unknown[]).length > 0) return true;
+  }
+  return false;
+}
+
+function UsedInputsStrip({ config, toolId, result }: { config?: ToolConfig; toolId?: string; result?: unknown }) {
+  const { activeBrand } = useBrand();
+  if (!config || toolId === "screen_mockup" || !resultHasMedia(result)) return null;
+
+  type Chip = { key: string; label: string; thumb?: string };
+  const chips: Chip[] = [];
+  const b = activeBrand;
+
+  const avatarIds = [config.selectedAvatarId, ...(config.selectedAvatarIds || [])].filter(Boolean) as string[];
+  for (const id of [...new Set(avatarIds)]) {
+    const a = b?.avatars?.find((x) => x.id === id);
+    if (a) chips.push({ key: `av-${id}`, label: a.name || "Avatar", thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined });
+  }
+  const productIds = [config.selectedProductId, ...(config.selectedProductIds || [])].filter(Boolean) as string[];
+  for (const id of [...new Set(productIds)]) {
+    const p = b?.products?.find((x) => x.id === id);
+    if (p) chips.push({ key: `pr-${id}`, label: p.name || "Producto", thumb: p.imageUrl ? productImageUrl(p.imageUrl) : undefined });
+  }
+  for (const id of config.selectedClothingIds || []) {
+    const c = b?.clothing?.find((x) => x.id === id);
+    if (c) chips.push({ key: `cl-${id}`, label: c.name || "Prenda", thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined });
+  }
+  if (config.selectedBackgroundId) {
+    const bg = b?.backgrounds?.find((x) => x.id === config.selectedBackgroundId);
+    if (bg) chips.push({ key: "bg", label: bg.name || "Fondo", thumb: bg.imageUrl ? backgroundImageUrl(bg.imageUrl) : undefined });
+  }
+  if (config.selectedMoodboardId) {
+    const md = b?.moodboards?.find((x) => x.id === config.selectedMoodboardId);
+    if (md) chips.push({ key: "md", label: md.name || "Moodboard", thumb: md.imageUrl ? moodboardImageUrl(md.imageUrl) : undefined });
+  }
+  (config.referenceImages || []).forEach((f, i) => {
+    try { chips.push({ key: `ref-${i}`, label: "Referencia", thumb: URL.createObjectURL(f) }); } catch { /* ignore */ }
+  });
+
+  if (chips.length === 0) return null;
+
+  return (
+    <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 mb-4">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-faint mb-2">Assets usados</div>
+      <div className="flex items-center gap-2 flex-wrap">
+        {chips.map((c) => (
+          <div key={c.key} className="flex items-center gap-1.5 bg-surface-2 rounded-[var(--radius-sm)] pr-2.5 pl-1 py-1">
+            <div className="w-8 h-8 rounded-[var(--radius-sm)] overflow-hidden bg-surface-0 shrink-0">
+              {c.thumb && <img src={c.thumb} alt={c.label} className="w-full h-full object-cover" />}
+            </div>
+            <span className="text-[11px] text-fg-muted max-w-[120px] truncate">{c.label}</span>
+          </div>
+        ))}
+        <span className="text-[var(--color-brand)] text-[15px] font-semibold px-1">→</span>
+        <span className="text-[11px] text-fg-faint italic">resultado abajo</span>
       </div>
     </div>
   );
