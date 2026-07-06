@@ -100,7 +100,7 @@ export function NewCampaignPage() {
   return (
     <div className="max-w-3xl mx-auto p-6 md:p-8">
       <button onClick={() => navigate("/dashboard/campaigns")} className="flex items-center gap-1.5 text-[12px] text-fg-faint hover:text-fg mb-4 cursor-pointer"><ArrowLeft size={14} /> Campañas</button>
-      <h1 className="text-[24px] font-bold tracking-tight">Nueva campaña</h1>
+      <h1 className="font-display text-[26px] font-semibold tracking-tight">Nueva campaña</h1>
       <p className="text-[12px] text-fg-faint mt-0.5 mb-6">Marca: <span className="text-fg-muted">{b.name}</span></p>
 
       <div className="space-y-6">

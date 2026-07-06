@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=JetBrains+Mono:wght@400;500&display=swap");
 
 /* ============================================================
    Coevo Studio — Design Tokens
@@ -101,6 +101,9 @@
   /* Typography */
   --font-sans: "Inter", "Neue Haas Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Consolas", ui-monospace, monospace;
+  /* Display serif — para titulares (Home, Campañas, headers). Look editorial tipo Pletor.
+     Se usa con la utility `font-display`. UI/body siguen en Inter. */
+  --font-display: "Fraunces", "Playfair Display", Georgia, ui-serif, serif;
 
   /* Radius — bumped up slightly para sentirse más "Pletor-style" (cards con
      esquinas más generosas, sin perder identidad). sm sube de 6→8 para
