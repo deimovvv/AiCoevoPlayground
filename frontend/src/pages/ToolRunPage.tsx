@@ -5749,8 +5749,10 @@ function ConfigPanel({
         )}
 
         {/* Setting / Locación override — compactado: input 1 línea sin el párrafo
-            explicativo (el tooltip cubre el detalle) */}
-        {tool.id !== "content_analyzer" && tool.id !== "avatar_creator" && (
+            explicativo (el tooltip cubre el detalle).
+            screen_mockup: se oculta — "Escena / dispositivo" ya es el único input de escena
+            (Setting era redundante y confundía; pedido explícito de un solo input de texto). */}
+        {tool.id !== "content_analyzer" && tool.id !== "avatar_creator" && tool.id !== "screen_mockup" && (
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-medium text-fg-faint" title="Si la marca tiene un setting cargado (ej: taller, oficina) y querés cambiarlo solo para esta corrida, escribilo acá.">
