@@ -27,6 +27,7 @@ export type Phase = {
 
 export interface Generation {
     id: string;
+    title?: string;
     scriptText: string;
     clipCount: number;
     status: "draft" | "running" | "completed" | "failed";

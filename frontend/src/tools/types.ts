@@ -34,6 +34,11 @@ export interface ToolEntry {
 export interface ToolConfig {
   selectedAvatarId: string | null;
   selectedProductId: string | null;
+  // Multi-select — usados por tools multiAvatar/multiProduct (deuda de tipos 2026-07).
+  selectedAvatarIds?: string[];
+  selectedProductIds?: string[];
+  animationMode?: string;
+  adTemplate?: string;
   selectedClothingIds: string[];
   selectedBackgroundId: string | null;
   selectedMoodboardId: string | null;

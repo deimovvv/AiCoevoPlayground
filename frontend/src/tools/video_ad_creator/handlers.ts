@@ -208,7 +208,7 @@ export const handleBaseImage: StepHandler = async (ctx) => {
 
 export const handleImages: StepHandler = async (ctx) => {
   const { config, getStepResult } = ctx;
-  const scriptData = getStepResult("script") as { frames: Array<{ prompt: string; frame: number; scene_type: string }> } | undefined;
+  const scriptData = getStepResult("script") as { frames: Array<{ prompt: string; frame: number; scene_type: string; script?: string }> } | undefined;
   if (!scriptData?.frames) throw new Error("No storyboard found.");
 
   const baseImage = getStepResult("base_image") as { url: string } | undefined;

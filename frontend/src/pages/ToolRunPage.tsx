@@ -458,6 +458,27 @@ interface ToolConfig {
   // Image model
   imageModel: "nano-banana-2" | "gpt-image-2";
   referenceMode: "style" | "composition";
+  // Campos tool-specific que se accedían sin declarar (deuda de tipos 2026-07). Opcionales
+  // porque solo aplican a ciertas tools. Tipos inferidos del uso/DEFAULT_CONFIG.
+  selectedMoodboardId?: string | null;
+  animationEngine?: string;
+  settingOverride?: string;
+  includeCopy?: boolean;
+  // Avatar Sheet
+  avatarToolMode?: "create" | "poses";
+  avatarPosesSave?: "new" | "replace";
+  avatarViews?: string[];
+  // Product Sheet
+  productSheetMode?: "sheet" | "details";
+  productSheetSave?: string;
+  // Static Ad
+  staticAdBatch?: boolean;
+  staticAdCategory?: string;
+  // Carousel / compose
+  composeMode?: "quick" | "compose";
+  templateColorMode?: "brand" | "template";
+  perSlideTemplates?: File[];
+  overlayTemplate?: string;
 }
 
 const DEFAULT_CONFIG: ToolConfig = {
@@ -5476,7 +5497,7 @@ function ConfigPanel({
           </div>
           {/* Subtítulos: solo para tools de video que SÍ tienen voiceover (UGC, Video Ad).
               Fashion Reel es visual-only — no aplica subtítulos. Schema flag `showSubtitles` */}
-          {tool.category === "video" && schema.showSubtitles !== false && (
+          {tool.category === "video" && (schema as { showSubtitles?: boolean }).showSubtitles !== false && (
             <div className="space-y-1 col-span-2">
               <label className="text-[10px] font-medium text-fg-faint">Subtítulos</label>
               <select

@@ -58,7 +58,7 @@ export const handleSwap: StepHandler = async (ctx) => {
     : await pollVideoSwap(job.job_id);
 
   if (result.status === "failed" || !result.video_url) {
-    throw new Error(result.error || "El video swap falló.");
+    throw new Error((result as { error?: string }).error || "El video swap falló.");
   }
 
   return {
