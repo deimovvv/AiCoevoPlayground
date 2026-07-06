@@ -25,13 +25,14 @@ interface NavItem {
     exact?: boolean;
     icon: React.ReactNode;
     title?: string;
+    tour?: string; // data-tour para el onboarding (Coachmarks)
 }
 
 const PRIMARY_NAV: NavItem[] = [
-    { label: "Inicio", href: "/dashboard", exact: true, icon: <Home size={18} />, title: "Inicio — bienvenida, tools y campañas recientes" },
+    { label: "Inicio", href: "/dashboard", exact: true, icon: <Home size={18} />, title: "Inicio — bienvenida, tools y campañas recientes", tour: "nav-inicio" },
     { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={18} />, title: "Marcas — gestioná tus marcas y su brand kit" },
-    { label: "Campañas", href: "/dashboard/campaigns", icon: <Megaphone size={18} />, title: "Campañas — trabajá contenido por campaña de la marca activa" },
-    { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} />, title: "Generar — tools de generación de contenido" },
+    { label: "Campañas", href: "/dashboard/campaigns", icon: <Megaphone size={18} />, title: "Campañas — trabajá contenido por campaña de la marca activa", tour: "nav-campanas" },
+    { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} />, title: "Generar — tools de generación de contenido", tour: "nav-generar" },
     { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} />, title: "Contenido — biblioteca de generaciones" },
 ];
 
@@ -110,7 +111,7 @@ export function Sidebar() {
                 {PRIMARY_NAV.map((item) => {
                     const active = isActive(item);
                     return (
-                        <Link key={item.label} to={item.href} title={item.title} className={itemCls(active)}>
+                        <Link key={item.label} to={item.href} title={item.title} data-tour={item.tour} className={itemCls(active)}>
                             <span className="shrink-0 flex items-center justify-center w-5">{item.icon}</span>
                             {expanded && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
                         </Link>
@@ -147,7 +148,7 @@ export function Sidebar() {
             <div className="flex-1" />
 
             {/* Active brand chip */}
-            <div className={cn("mb-2 flex", expanded ? "items-center gap-2 px-1" : "justify-center")}>
+            <div data-tour="brand-chip" className={cn("mb-2 flex", expanded ? "items-center gap-2 px-1" : "justify-center")}>
                 {loading ? (
                     <div className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-1 text-fg-muted shrink-0">
                         <Loader2 size={12} className="animate-spin" />
