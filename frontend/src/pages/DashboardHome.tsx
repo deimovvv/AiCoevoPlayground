@@ -44,11 +44,15 @@ export function DashboardHome() {
 
   return (
     <div className="relative max-w-6xl mx-auto p-6 md:p-10">
-      {/* Glow ambiental — profundidad en dark (halo del burgundy detrás del saludo). */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-64 -z-10 opacity-70"
-        style={{ background: "radial-gradient(50% 100% at 20% 0%, rgba(196,88,48,0.14), transparent 70%)" }} />
-      {/* Greeting */}
-      <div className="mb-10">
+      {/* Ambiente rico detrás — le da al glass algo que frostear (warm burgundy + cool). */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] -z-10"
+        style={{ background: "radial-gradient(45% 90% at 12% 0%, rgba(196,88,48,0.22), transparent 65%), radial-gradient(40% 80% at 85% 5%, rgba(120,110,220,0.16), transparent 65%), radial-gradient(60% 60% at 50% 40%, rgba(196,88,48,0.06), transparent 70%)" }} />
+
+      {/* Greeting — panel de glass (frosted) flotando sobre el ambiente. */}
+      <div
+        className="mb-10 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-xl px-6 py-6 md:px-8 md:py-7"
+        style={{ boxShadow: "inset 0 1px 0 var(--glass-sheen), 0 20px 60px -30px rgba(0,0,0,0.6)" }}
+      >
         <p className="text-[13px] text-fg-faint mb-1">Hola 👋</p>
         <h1 className="font-display text-[32px] md:text-[44px] font-semibold tracking-[-0.01em] leading-tight">
           Bienvenido a <span className="italic text-[var(--color-brand)]">Coevo</span>
