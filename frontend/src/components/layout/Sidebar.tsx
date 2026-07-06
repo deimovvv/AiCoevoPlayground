@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
     LayoutGrid, Wand2, FolderOpen, Settings,
-    FlaskConical, Loader2, Moon, Sun, Megaphone, PanelLeft, Home,
+    FlaskConical, Loader2, Moon, Sun, Megaphone, PanelLeft, Home, Compass,
 } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
 import { useTheme } from "../../lib/theme";
@@ -206,6 +206,18 @@ export function Sidebar() {
                                     </Link>
                                 );
                             })}
+                            {/* Ver tour de nuevo — limpia la key del onboarding y recarga
+                                en /dashboard (donde viven los targets del tour). */}
+                            <button
+                                onClick={() => {
+                                    localStorage.removeItem("coevo-tour-dashboard-v1");
+                                    window.location.assign("/dashboard");
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-fg-secondary hover:text-fg hover:bg-[var(--color-surface-1)] transition-colors cursor-pointer"
+                            >
+                                <Compass size={15} />
+                                Ver tour de nuevo
+                            </button>
                         </div>
                     </div>
                 )}
