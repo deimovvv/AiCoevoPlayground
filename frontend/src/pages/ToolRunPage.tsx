@@ -8964,8 +8964,44 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       );
     }
 
+    // Screen Mockup: tira de flujo visual "cómo se usa la UI" — inputs → output,
+    // como los nodos de Pletor. Escena verde (paso previo) + tu UI = resultado.
+    const smSceneUrl = toolId === "screen_mockup"
+      ? (((allSteps.find((s) => s.id === "scene")?.result as { images?: Array<{ url: string }> })?.images || []).find((im) => im.url)?.url)
+      : undefined;
+    const smUiFile = toolId === "screen_mockup" ? config?.referenceImages?.[0] : undefined;
+    const smUiUrl = smUiFile ? URL.createObjectURL(smUiFile) : undefined;
+    const smOutUrl = activeImg?.url || succeeded[0]?.url;
+
     return (
       <div className="space-y-4">
+        {toolId === "screen_mockup" && (smSceneUrl || smUiUrl) && (
+          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-faint mb-2">Cómo se usó tu UI</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {smSceneUrl && (
+                <div className="text-center">
+                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0"><img src={smSceneUrl} alt="escena verde" className="w-full h-full object-cover" /></div>
+                  <div className="text-[9px] text-fg-faint mt-1">Escena (chroma)</div>
+                </div>
+              )}
+              <span className="text-fg-faint text-[15px]">+</span>
+              {smUiUrl && (
+                <div className="text-center">
+                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0"><img src={smUiUrl} alt="tu UI" className="w-full h-full object-contain" /></div>
+                  <div className="text-[9px] text-fg-faint mt-1">Tu UI</div>
+                </div>
+              )}
+              <span className="text-[var(--color-brand)] text-[16px] font-semibold px-1">→</span>
+              {smOutUrl && (
+                <div className="text-center">
+                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-[var(--color-brand)]/50 bg-surface-0"><img src={smOutUrl} alt="resultado" className="w-full h-full object-cover" /></div>
+                  <div className="text-[9px] text-[var(--color-brand)] mt-1">Mockup</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {data.interpretation && (
           <div className="text-[11px] text-fg-muted bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 leading-snug">
             <span className="text-[var(--color-action)] font-medium">Qué entendí:</span> {data.interpretation}
