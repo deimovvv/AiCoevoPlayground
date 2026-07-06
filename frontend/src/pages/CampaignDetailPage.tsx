@@ -8,6 +8,7 @@ import {
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl, lookAndFeelImageUrl,
   type Campaign, type CampaignPiece,
 } from "../lib/api";
+import { imagesUsd, formatCost } from "../lib/pricing";
 import { cn } from "../lib/utils";
 
 const STATUS_LABEL: Record<Campaign["status"], { label: string; cls: string }> = {
@@ -185,13 +186,20 @@ export function CampaignDetailPage() {
       {/* Piezas */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-[16px] font-bold">Piezas {pieces.length > 0 && <span className="text-fg-faint font-normal text-[13px]">· {pieces.length}</span>}</h3>
-        <button
-          onClick={handleGenerate}
-          disabled={generating}
-          className="flex items-center gap-1.5 px-4 h-9 rounded-full bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-[12px] font-semibold hover:opacity-90 disabled:opacity-60 cursor-pointer"
-        >
-          {generating ? <><Loader2 size={13} className="animate-spin" /> Generando {progress.done}/{progress.total}</> : <><Sparkles size={13} /> {pieces.length > 0 ? "Generar más" : "Generar piezas"}</>}
-        </button>
+        <div className="flex items-center gap-2.5">
+          {!generating && (() => {
+            const count = Math.min(campaign.aspectRatios.length * campaign.variationsPerShot, MAX_PIECES_PER_RUN);
+            const cost = formatCost(imagesUsd(count));
+            return <span className="text-[11px] text-fg-faint" title="Estimado — precios ajustables en pricing.ts">{count} img · {cost.label}</span>;
+          })()}
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="flex items-center gap-1.5 px-4 h-9 rounded-full bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-[12px] font-semibold hover:opacity-90 disabled:opacity-60 cursor-pointer"
+          >
+            {generating ? <><Loader2 size={13} className="animate-spin" /> Generando {progress.done}/{progress.total}</> : <><Sparkles size={13} /> {pieces.length > 0 ? "Generar más" : "Generar piezas"}</>}
+          </button>
+        </div>
       </div>
 
       {pieces.length === 0 && !generating ? (
