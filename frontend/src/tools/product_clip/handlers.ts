@@ -16,7 +16,7 @@ const API_BASE = "http://127.0.0.1:8000";
 // ── Script — generate 3-4 frame storyboard ──────────────
 
 export const handleScript: StepHandler = async (ctx) => {
-  const { activeBrand, config, tool } = ctx;
+  const { activeBrand, config } = ctx;
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
 
   const numScenes = config.numVariations || 3;
@@ -100,7 +100,7 @@ export const handleBaseImage: StepHandler = async (ctx) => {
 // ── Images — generate remaining frames from base ────────
 
 export const handleImages: StepHandler = async (ctx) => {
-  const { config, getStepResult, activeBrand } = ctx;
+  const { config, getStepResult } = ctx;
   const scriptData = getStepResult("script") as { frames: Array<{ prompt: string; frame: number; camera: string }> } | undefined;
   if (!scriptData?.frames) throw new Error("No storyboard found.");
 
@@ -202,7 +202,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
 // ── Render — concat segments ────────────────────────────
 
 export const handleRender: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, tool } = ctx;
+  const { getStepResult } = ctx;
   const animateData = getStepResult("animate") as { segments: Array<{ videoUrl: string }> } | undefined;
   if (!animateData?.segments) throw new Error("No animated segments.");
 

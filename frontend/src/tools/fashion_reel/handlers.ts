@@ -469,13 +469,9 @@ export const handleMultishot: StepHandler = async (ctx) => {
   const baseImageResult = getStepResult("base_image") as { url: string } | undefined;
   if (!baseImageResult?.url) throw new Error("Base image not found.");
 
-  const selectedAvatarIds = (cfg.selectedAvatarIds as string[]) || [];
   const selectedProductIds = (cfg.selectedProductIds as string[]) || [];
   const reelMode = (cfg.reelMode as string) || "story";
 
-  const selectedAvatar = selectedAvatarIds.length
-    ? (activeBrand.avatars || []).find((a) => selectedAvatarIds.includes(a.id))
-    : activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
   const selectedProducts = selectedProductIds.length
     ? (activeBrand.products || []).filter((p) => selectedProductIds.includes(p.id))
     : config.selectedProductId ? [(activeBrand.products || []).find((p) => p.id === config.selectedProductId)].filter(Boolean) : [];
@@ -836,8 +832,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
 // ── Render — FFmpeg concat, no subtitles ─────────────────
 
 export const handleRender: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, getScriptScenes, tool } = ctx;
-  const cfg = config as unknown as Record<string, unknown>;
+  const { getStepResult } = ctx;
   // animate result is wrapped after approval (same pattern as multishot) —
   // handle both shapes.
   const rawAnimate = getStepResult("animate") as
@@ -854,13 +849,6 @@ export const handleRender: StepHandler = async (ctx) => {
   if (!videoUrls.length) throw new Error("All animations failed.");
 
   const result = await concatVideos(videoUrls, [], false, "none");
-  const scriptScenes = getScriptScenes();
-  const selectedAvatarIds = (cfg.selectedAvatarIds as string[]) || [];
-  const selectedAvatar = selectedAvatarIds.length
-    ? (activeBrand.avatars || []).find((a) => selectedAvatarIds.includes(a.id))
-    : activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
-  const baseImg = getStepResult("base_image") as { url: string } | undefined;
-  const reelMode = (cfg.reelMode as string) || "story";
 
   // Persistence handled by autoSaveStep in ToolRunPage — no manual saveGeneration here.
 

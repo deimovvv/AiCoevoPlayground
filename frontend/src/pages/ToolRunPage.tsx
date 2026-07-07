@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useSearchParams, Link, useNavigate } from "react-router";
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -28,7 +28,6 @@ import {
   RotateCcw,
   Settings2,
   AlertCircle,
-  Square,
   Pencil,
   Download,
   Zap,
@@ -43,7 +42,7 @@ import {
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl, brandLogoImageUrl,
   type Brand,
   generateCopy, regenerateScene, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen, klingDurationOptions,
-  createFalLipSync, pollFalLipSync, concatVideos, saveGeneration,
+  concatVideos, saveGeneration,
   generateToolPrompt, createKlingVideo, pollKlingVideo,
   createKlingFrameToFrame, createSeedanceReferenceToVideo, pollSeedanceVideo,
   resolveAgentBrief,
@@ -68,7 +67,6 @@ import { AVATAR_VIEWS } from "../tools/avatar_creator";
 import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "../tools/fashion_reel";
 import { PRODUCT_VIEW_CATALOG, DEFAULT_PRODUCT_VIEWS } from "../tools/product_sheet";
 import { EDITORIAL_FRAMINGS, EDITORIAL_LIGHTING, EDITORIAL_VIBES } from "../tools/fashion_editorial";
-import { Collapsible } from "../components/ui/section";
 import { ModelDropdown } from "../components/ui/ModelDropdown";
 import { ComposeOverlay } from "../components/ComposeOverlay";
 import { UGCPlayer } from "../remotion/UGCPlayer";
@@ -76,7 +74,7 @@ import { TOOL_DEFINITIONS } from "../tools/registry";
 import { greenScreenPrompt, compositePrompt, compositeOnPhotoPrompt } from "../tools/screen_mockup";
 import { posterPrompt, subwayScenePrompt, foohCompositePrompt } from "../tools/fooh_subway";
 import { TOOL_EXAMPLES, TOOL_PREVIEW_MEDIA, type ToolExample } from "../lib/toolPreviews";
-import { autoSaveStep, getActiveGenId, setActiveGenId, clearActiveGen } from "../tools/shared/autoSave";
+import { autoSaveStep, setActiveGenId, clearActiveGen } from "../tools/shared/autoSave";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -480,7 +478,7 @@ interface ToolConfig {
   // Campos tool-specific que se accedían sin declarar (deuda de tipos 2026-07). Opcionales
   // porque solo aplican a ciertas tools. Tipos inferidos del uso/DEFAULT_CONFIG.
   selectedMoodboardId?: string | null;
-  animationEngine?: string;
+  animationEngine?: "kling" | "seedance";
   settingOverride?: string;
   includeCopy?: boolean;
   // Avatar Sheet
@@ -489,9 +487,9 @@ interface ToolConfig {
   avatarViews?: string[];
   // Product Sheet
   productSheetMode?: "sheet" | "details";
-  productSheetSave?: string;
+  productSheetSave?: "new" | "replace" | "asset";
   // Static Ad
-  staticAdBatch?: boolean;
+  staticAdBatch?: 1 | 3 | 5 | 10 | "all";
   staticAdCategory?: string;
   // Carousel / compose
   composeMode?: "quick" | "compose";
@@ -737,7 +735,7 @@ export function ToolRunPage() {
   // Flag para que el próximo Generar del usuario SUME una tanda en vez de pisar
   // la sesión actual. Se enciende cuando clickeás "Nueva tanda" desde el panel
   // de resultados.
-  const [newBatchPending, setNewBatchPending] = useState(false);
+  const [, setNewBatchPending] = useState(false);
   const [mockRunning, setMockRunning] = useState(false);
   const [curationSelections, setCurationSelections] = useState<Record<string, string>>({}); // sceneId → variationId
   const [audioCache, setAudioCache] = useState<Record<string, { url: string; blob: Blob }>>({}); // sceneId → {url, blob}
@@ -1061,7 +1059,7 @@ export function ToolRunPage() {
           for (const k of allowedKeys) {
             const v = (h.config as Record<string, unknown>)[k];
             if (v !== undefined && v !== null) {
-              (next as Record<string, unknown>)[k] = v;
+              (next as unknown as Record<string, unknown>)[k] = v;
             }
           }
           // Ensure objective carries the brief if agent left it empty
@@ -1966,7 +1964,6 @@ export function ToolRunPage() {
         if (!curationData) throw new Error("No curated images found. Approve the Multishot step first.");
 
         const scenes = getScriptScenes();
-        const voiceId = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
 
         const heygenAR = config.aspectRatio === "4:5" ? "9:16" : config.aspectRatio;
         const heygenRes = config.resolution === "4K" || config.resolution === "2K" ? "1080p" : "720p";
@@ -2929,6 +2926,7 @@ interface ToolSchema {
   clothingSublabel?: string;
   showBackground: boolean;
   backgroundSublabel?: string;
+  showMoodboard?: boolean;
   showVoice: boolean;
   showTone: boolean;
   showPlatform: boolean;
@@ -3222,7 +3220,7 @@ function ToolBriefBox({ toolId, config, setConfig }: {
           const v = (res.config as Record<string, unknown>)[k];
           if (v !== undefined && v !== null) next[k] = v;
         }
-        return next as ToolConfig;
+        return next as unknown as ToolConfig;
       });
       setResolved({ reasoning: res.reasoning, warnings: res.warnings });
     } catch (e) {
@@ -3306,8 +3304,6 @@ function ConfigPanel({
   tool,
   config,
   setConfig,
-  onStart,
-  onMockPreview,
 }: {
   tool: ToolEntry;
   config: ToolConfig;
@@ -3481,7 +3477,7 @@ function ConfigPanel({
           Antes eran grids de cards grandes (2 cards arriba + 7 cards 3×3 abajo)
           que comían ~300px de altura. Con dropdowns finos ~80px total. */}
       {tool.id === "avatar_creator" && (() => {
-        const cfgStyle = (config as Record<string, unknown>).avatarStyle as string | undefined;
+        const cfgStyle = (config as unknown as Record<string, unknown>).avatarStyle as string | undefined;
         const defaultStyle = config.avatarToolMode === "poses" ? "inherit" : "realistic";
         const currentStyle = cfgStyle || defaultStyle;
         return (
@@ -3511,7 +3507,7 @@ function ConfigPanel({
             <ModelDropdown
               label="Estilo de avatar"
               value={currentStyle}
-              onChange={(next) => setConfig((p) => ({ ...(p as Record<string, unknown>), avatarStyle: next } as typeof p))}
+              onChange={(next) => setConfig((p) => ({ ...p, avatarStyle: next } as unknown as typeof p))}
               options={[
                 { id: "inherit", label: "Heredar referencia", sub: "Sin override — copia el estilo del avatar/foto que pasaste" },
                 { id: "realistic", label: "Realistic", sub: "Photorealistic" },
@@ -3534,7 +3530,7 @@ function ConfigPanel({
               <div className="space-y-1.5">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Vistas a generar</span>
-                  <span className="text-[9px] text-fg-faint italic">{config.avatarViews.length} tildada{config.avatarViews.length === 1 ? "" : "s"}</span>
+                  <span className="text-[9px] text-fg-faint italic">{(config.avatarViews ?? []).length} tildada{(config.avatarViews ?? []).length === 1 ? "" : "s"}</span>
                 </div>
                 {(["body", "face", "extra"] as const).map((group) => {
                   const groupLabel = group === "body" ? "Cuerpo" : group === "face" ? "Cara" : "Extras";
@@ -3544,15 +3540,15 @@ function ConfigPanel({
                       <p className="text-[9px] text-fg-faint uppercase tracking-wider">{groupLabel}</p>
                       <div className="grid grid-cols-2 gap-1">
                         {groupViews.map(([key, v]) => {
-                          const on = config.avatarViews.includes(key);
+                          const on = (config.avatarViews ?? []).includes(key);
                           return (
                             <button
                               key={key}
                               onClick={() => setConfig((p) => ({
                                 ...p,
                                 avatarViews: on
-                                  ? p.avatarViews.filter((x) => x !== key)
-                                  : [...p.avatarViews, key],
+                                  ? (p.avatarViews ?? []).filter((x) => x !== key)
+                                  : [...(p.avatarViews ?? []), key],
                               }))}
                               className={cn(
                                 "px-2 py-1.5 text-[10px] rounded-[var(--radius-sm)] border text-left transition-all cursor-pointer",
@@ -3570,11 +3566,11 @@ function ConfigPanel({
                   );
                 })}
                 <p className="text-[10px] text-fg-faint">
-                  {config.avatarViews.length === 0
+                  {(config.avatarViews ?? []).length === 0
                     ? "Elegí al menos una vista."
-                    : config.avatarViews.length === 1
+                    : (config.avatarViews ?? []).length === 1
                       ? "1 vista única — sale como foto singular, no como sheet."
-                      : `${config.avatarViews.length} vistas — composite side-by-side en fondo blanco.`}
+                      : `${(config.avatarViews ?? []).length} vistas — composite side-by-side en fondo blanco.`}
                 </p>
               </div>
             )}
@@ -4725,7 +4721,7 @@ function ConfigPanel({
 
       {/* Carousel coherence banner — shows which mode the generation will use */}
       {tool.id === "carousel_creator" && activeBrand && (() => {
-        const ds = (activeBrand as Record<string, unknown>).designSystem as Record<string, unknown> | undefined;
+        const ds = (activeBrand as unknown as Record<string, unknown>).designSystem as Record<string, unknown> | undefined;
         const hasTemplate = config.referenceImages.length > 0;
         const hasDesignSystem = !!ds && (
           !!ds.photoStyle || !!ds.composition || !!ds.colorTreatment ||
@@ -5747,7 +5743,7 @@ function ConfigPanel({
                 dentro de cada opción en lugar de abajo como párrafo separado. */}
             <ModelDropdown
               label="Animación"
-              value={config.animationEngine}
+              value={config.animationEngine ?? "kling"}
               onChange={(next) => setConfig((p) => ({ ...p, animationEngine: next as ToolConfig["animationEngine"] }))}
               options={[
                 { id: "kling", label: "Kling V3 Pro", sub: "Anima; las talking pasan por HeyGen Avatar 4" },
@@ -5800,7 +5796,7 @@ function ConfigPanel({
                 <input
                   type="checkbox"
                   checked={(config as unknown as Record<string, unknown>).entryHook === true}
-                  onChange={(e) => setConfig((p) => ({ ...(p as Record<string, unknown>), entryHook: e.target.checked } as typeof p))}
+                  onChange={(e) => setConfig((p) => ({ ...p, entryHook: e.target.checked } as unknown as typeof p))}
                   className="mt-0.5 accent-[var(--color-action)]"
                 />
                 <span className="text-[10px] text-fg-muted leading-snug">
@@ -6009,9 +6005,6 @@ function ConfigPanel({
               };
               const updateVisual = (idx: number, val: string) => {
                 const u = [...scenes]; u[idx] = { ...u[idx], visual: val }; save(u);
-              };
-              const updateShot = (idx: number, val: string) => {
-                const u = [...scenes]; u[idx] = { ...u[idx], shot: val }; save(u);
               };
               const addScene = () => save([...scenes, { script: "", visual: "", shot: "auto" }]);
               const removeScene = (idx: number) => save(scenes.filter((_, i) => i !== idx));
@@ -6996,7 +6989,7 @@ function UsedInputsStrip({ config, toolId, result }: { config?: ToolConfig; tool
 
 // ── Done step ──────────────────────────────────────────────
 
-function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes, config, allSteps = [], onUpdateStepResult, onInvalidateDownstream, toolId, batches, onNewBatch, onDeleteBatch, onUpdateBatchImage }: {
+function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, onInvalidateDownstream, toolId, batches, onNewBatch, onDeleteBatch, onUpdateBatchImage }: {
   stepId: string;
   result?: unknown;
   audioCache?: Record<string, { url: string; blob: Blob }>;
@@ -7024,7 +7017,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   const { activeBrand } = useBrand();
 
   // All hooks MUST be before any conditional returns (React Rules of Hooks)
-  const [showBrief, setShowBrief] = useState(false);
+  const [, setShowBrief] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -7040,11 +7033,10 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
   // going back to multishot/curation.
   const [editingFrameSceneId, setEditingFrameSceneId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState("");
   const [selectedRefIdx, setSelectedRefIdx] = useState<number | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [sceneTypes, setSceneTypes] = useState<Record<string, "talking" | "creative">>({});
+  const [sceneTypes, setSceneTypes] = useState<Record<string, "talking" | "creative" | "lifestyle" | "sensorial" | "product_reveal">>({});
   const [selectedShots, setSelectedShots] = useState<Record<string, string>>({});
   const [activeHeroId, setActiveHeroId] = useState<string | null>(null);
   // Script step: per-scene "regenerate" loading + a version counter to force the
@@ -7843,7 +7835,7 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
             <ScenesBackgroundPicker
               scene={scene}
               backgrounds={activeBrand?.backgrounds || []}
-              globalBackgroundId={config.selectedBackgroundId}
+              globalBackgroundId={config?.selectedBackgroundId}
             />
           </div>
           );
@@ -10492,22 +10484,6 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       }
     };
 
-    // Edit with brand refs for consistency
-    const handleEditCreative = async (creative: typeof data.creatives[0]) => {
-      if (!editText.trim()) return;
-      setEditLoading(true);
-      try {
-        const refs = [creative.url, ...getBrandRefs()];
-        const job = await createImageEdit(refs, editText.trim(), config?.aspectRatio || "9:16", config?.resolution || "1K");
-        const editResult = await pollImageGen(job.request_id);
-        if (editResult.image_url) creative.url = editResult.image_url;
-      } catch { /* silent */ } finally {
-        setEditLoading(false);
-        setEditingId(null);
-        setEditText("");
-      }
-    };
-
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-2">
@@ -10983,7 +10959,6 @@ function SortableShotChip({ id, index, label, title, note, onNoteChange, onRemov
 function AssetSelector({
   label,
   sublabel,
-  emptyText,
   items,
   selectedId,
   selectedIds,
@@ -11447,7 +11422,6 @@ function RoutePanel({ allSteps, config }: { allSteps: StepState[]; config: ToolC
   const isVisualOnly = (() => {
     const script = (analyzeData?.analysis?.estimated_script || "").trim();
     const ct = contentType.toLowerCase();
-    const structure = (analyzeData?.analysis?.structure || "").toLowerCase();
 
     // Truly empty script → visual-only
     if (!script || script.length < 5) return true;
@@ -11544,13 +11518,13 @@ function RoutePanel({ allSteps, config }: { allSteps: StepState[]; config: ToolC
       </div>
 
       {/* Scene preview */}
-      {adaptData?.scenes?.length > 0 && (
+      {(adaptData?.scenes?.length ?? 0) > 0 && (
         <div>
           <p className="text-[11px] font-semibold text-fg-faint uppercase tracking-wider mb-2">
-            Escenas adaptadas ({adaptData.scenes.length})
+            Escenas adaptadas ({adaptData?.scenes?.length ?? 0})
           </p>
           <div className="space-y-2">
-            {(adaptData.scenes as Array<{ frame: number; script: string; imagePrompt: string; sceneType: string }>).map((scene, i) => (
+            {((adaptData?.scenes ?? []) as Array<{ frame: number; script: string; imagePrompt: string; sceneType: string }>).map((scene, i) => (
               <div key={i} className="bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-3 py-2.5">
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="text-[10px] font-bold text-fg-faint w-5 shrink-0">{scene.frame ?? i + 1}</span>
@@ -11632,9 +11606,6 @@ function CurationPanel({
   allSteps,
   curationSelections,
   onSelect,
-  audioCache,
-  onAudioCached,
-  voiceId,
   config,
   onUpdateStepResult,
   onInvalidateDownstream,
@@ -11698,11 +11669,6 @@ function CurationPanel({
     });
   }
 
-  // Local playback state (not generation state)
-  const [playingId, setPlayingId] = useState<string | null>(null);
-  const [generatingId, setGeneratingId] = useState<string | null>(null);
-  const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
-
   // Edit state
   const [editingVar, setEditingVar] = useState<{ sceneId: string; varId: string; url: string } | null>(null);
   const [editPrompt, setEditPrompt] = useState("");
@@ -11740,72 +11706,6 @@ function CurationPanel({
   const allSelected = multishotData.every(
     (scene) => curationSelections[scene.sceneId] || scene.variations.length === 1
   );
-
-  const handlePlayAudio = async (sceneId: string, text: string) => {
-    // If playing this one, stop
-    if (playingId === sceneId) {
-      audioRefs.current[sceneId]?.pause();
-      setPlayingId(null);
-      return;
-    }
-    // Stop any other playing
-    if (playingId) {
-      audioRefs.current[playingId]?.pause();
-      setPlayingId(null);
-    }
-
-    // If cached, replay
-    if (audioCache[sceneId]) {
-      const audio = new Audio(audioCache[sceneId].url);
-      audioRefs.current[sceneId] = audio;
-      audio.onended = () => setPlayingId(null);
-      audio.play();
-      setPlayingId(sceneId);
-      return;
-    }
-
-    // Generate TTS
-    if (!text) {
-      console.warn(`[curation] No script text for scene ${sceneId}, skipping TTS`);
-      return;
-    }
-    setGeneratingId(sceneId);
-    try {
-      console.log(`[curation] Generating TTS for ${sceneId}: "${text.slice(0, 50)}..." voice=${voiceId}`);
-      const resolvedVoiceId = voiceId || activeBrand?.voicePresets?.[0]?.id;
-      const result = await generateTTS({ text, voice_id: resolvedVoiceId });
-      onAudioCached(sceneId, result.audioUrl, result.audioBlob);
-      const audio = new Audio(result.audioUrl);
-      audioRefs.current[sceneId] = audio;
-      audio.onended = () => setPlayingId(null);
-      audio.play();
-      setPlayingId(sceneId);
-    } catch (e) {
-      console.error(`[curation] TTS failed for ${sceneId}:`, e);
-    } finally {
-      setGeneratingId(null);
-    }
-  };
-
-  const handleRegenerateAudio = async (sceneId: string, text: string) => {
-    // Stop if playing
-    audioRefs.current[sceneId]?.pause();
-    setPlayingId(null);
-    // Generate fresh
-    setGeneratingId(sceneId);
-    try {
-      const resolvedVoiceId = voiceId || activeBrand?.voicePresets?.[0]?.id;
-      const result = await generateTTS({ text, voice_id: resolvedVoiceId });
-      onAudioCached(sceneId, result.audioUrl, result.audioBlob);
-      const audio = new Audio(result.audioUrl);
-      audioRefs.current[sceneId] = audio;
-      audio.onended = () => setPlayingId(null);
-      audio.play();
-      setPlayingId(sceneId);
-    } catch { /* silent */ } finally {
-      setGeneratingId(null);
-    }
-  };
 
   const [regenLoading, setRegenLoading] = useState<string | null>(null);
 
@@ -11886,16 +11786,10 @@ function CurationPanel({
       {multishotData.map((scene, sceneIndex) => {
         const selectedId = curationSelections[scene.sceneId];
         const scriptScene = scriptScenes.find((s) => s.id === scene.sceneId);
-        const isGenerating = generatingId === scene.sceneId;
-        const isPlaying = playingId === scene.sceneId;
-        const hasCached = !!audioCache[scene.sceneId];
 
         const sceneType = scene.sceneType ?? "talking";
         const isCreative = sceneType === "creative";
         const isFirstScene = sceneIndex === 0;
-        // synclipsync deprecated — always false. Kept as a constant to avoid touching
-        // downstream conditionals that depended on it.
-        const isSyncLipsync = false;
 
         // Per-scene frame-to-frame state (set by intelligent suggestion, togglable by user)
         const sceneF2F = scene.frameToFrame ?? false;
@@ -12473,35 +12367,6 @@ function CurationPanel({
   );
 }
 
-// ── Sortable wrapper for curation scenes ──────────────────
-
-function SortableSceneWrapper({ id, children }: { id: string; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    position: "relative" as const,
-  };
-  return (
-    <div ref={setNodeRef} style={style}>
-      <div
-        {...attributes}
-        {...listeners}
-        className="absolute left-2 top-3 cursor-grab active:cursor-grabbing text-fg-faint hover:text-fg z-10"
-        title="Drag to reorder"
-      >
-        <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
-          <circle cx="2" cy="2" r="1.5" /><circle cx="8" cy="2" r="1.5" />
-          <circle cx="2" cy="8" r="1.5" /><circle cx="8" cy="8" r="1.5" />
-          <circle cx="2" cy="14" r="1.5" /><circle cx="8" cy="14" r="1.5" />
-        </svg>
-      </div>
-      {children}
-    </div>
-  );
-}
-
 // ── Template Selector (Static Ad) ─────────────────────────
 
 interface AdTemplate {
@@ -12835,114 +12700,6 @@ function TemplateSelector({ selectedId, onSelect }: { selectedId: string; onSele
   );
 }
 
-// ── Carousel Type Selector ────────────────────────────────
-
-interface CarouselType {
-  id: string;
-  name: string;
-  description: string;
-  slides: number;
-  structure: Array<{ role: string; label: string; hint: string }>;
-}
-
-function CarouselTypeSelector({
-  selectedType,
-  numSlides,
-  onSelectType,
-  onChangeSlides,
-}: {
-  selectedType: string;
-  numSlides: number;
-  onSelectType: (id: string) => void;
-  onChangeSlides: (n: number) => void;
-}) {
-  const [types, setTypes] = useState<CarouselType[]>([]);
-
-  useEffect(() => {
-    fetch("http://127.0.0.1:8000/api/tools/carousel-creator/types")
-      .then((r) => r.json())
-      .then((data) => setTypes(data.types || []))
-      .catch(() => {});
-  }, []);
-
-  const selected = types.find((t) => t.id === selectedType);
-
-  return (
-    <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <label className="text-[12px] font-semibold text-fg-secondary">
-          Carousel Type
-          <span className="text-fg-faint font-normal ml-1">({types.length} types)</span>
-        </label>
-        {selectedType && (
-          <button
-            onClick={() => onSelectType("")}
-            className="text-[10px] text-fg-faint hover:text-fg cursor-pointer"
-          >
-            Clear
-          </button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        {types.map((t) => {
-          const isSelected = selectedType === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => {
-                onSelectType(isSelected ? "" : t.id);
-                if (!isSelected) onChangeSlides(t.slides);
-              }}
-              className={cn(
-                "text-left px-2.5 py-2 rounded-[var(--radius-sm)] border transition-all cursor-pointer",
-                isSelected
-                  ? "border-[var(--color-action)] bg-[var(--color-action-muted)]"
-                  : "border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2"
-              )}
-            >
-              <span className="text-[10px] font-semibold text-fg">{t.name}</span>
-              <p className="text-[8px] text-fg-faint leading-tight line-clamp-2 mt-0.5">{t.description}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Slide count */}
-      <div className="flex items-center gap-3 pt-1">
-        <label className="text-[11px] text-fg-muted">Slides:</label>
-        {[3, 4, 5, 6].map((n) => (
-          <button
-            key={n}
-            onClick={() => onChangeSlides(n)}
-            className={cn(
-              "w-7 h-7 rounded-[var(--radius-sm)] text-[11px] font-medium transition-colors cursor-pointer",
-              numSlides === n
-                ? "bg-fg text-[var(--color-canvas)]"
-                : "bg-surface-2 text-fg-muted hover:text-fg"
-            )}
-          >
-            {n}
-          </button>
-        ))}
-      </div>
-
-      {/* Selected type structure preview */}
-      {selected && (
-        <div className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] p-2.5 space-y-1">
-          <span className="text-[9px] font-semibold text-fg-faint uppercase tracking-wider">Slide Structure</span>
-          {selected.structure.map((s, i) => (
-            <div key={i} className="flex items-start gap-2 text-[10px]">
-              <span className="text-fg-faint shrink-0 w-4">{i + 1}.</span>
-              <span className="text-fg font-medium">{s.label}</span>
-              <span className="text-fg-faint">— {s.hint}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Curation Fix Grid ─────────────────────────────────────
 
@@ -13191,7 +12948,7 @@ function UGCConfigPanel({
   setConfig: React.Dispatch<React.SetStateAction<ToolConfig>>;
 }) {
   const activePreset = UGC_PRESETS.find((p) =>
-    Object.entries(p.config).every(([k, v]) => (config as Record<string, unknown>)[k] === v)
+    Object.entries(p.config).every(([k, v]) => (config as unknown as Record<string, unknown>)[k] === v)
   );
 
   const applyPreset = (preset: UGCPreset) => {

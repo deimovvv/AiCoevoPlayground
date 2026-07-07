@@ -7,7 +7,7 @@
 import type { StepHandler } from "../types";
 import {
   generateToolPrompt, createImageEdit, createTextToImage, pollImageGen,
-  generateTTSAndUpload, createKlingVideo, pollKlingVideo,
+  generateTTSAndUpload, pollKlingVideo,
   concatVideos,
 } from "../../lib/api";
 import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstraints";
@@ -28,7 +28,7 @@ export const AD_STYLES = [
 // ── Script — generate storyboard with Gemini ────────────
 
 export const handleScript: StepHandler = async (ctx) => {
-  const { activeBrand, config, tool } = ctx;
+  const { activeBrand, config } = ctx;
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
   const selectedClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
@@ -207,7 +207,7 @@ export const handleBaseImage: StepHandler = async (ctx) => {
 // ── Images — generate frames 2-10 using base as reference ──
 
 export const handleImages: StepHandler = async (ctx) => {
-  const { config, getStepResult } = ctx;
+  const { config, getStepResult, activeBrand } = ctx;
   const scriptData = getStepResult("script") as { frames: Array<{ prompt: string; frame: number; scene_type: string; script?: string }> } | undefined;
   if (!scriptData?.frames) throw new Error("No storyboard found.");
 
@@ -325,7 +325,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
     // USER DIRECTION del usuario tipeada/inspirada en el step images. Si está,
     // se inyecta con marca de prioridad para que Kling la respete sobre la
     // descripción genérica del style.
-    const startFrameData = scriptData.frames.find((f, idx) => idx === i);
+    const startFrameData = scriptData.frames.find((_f, idx) => idx === i);
     const userDirection = startFrameData?.animationHint?.trim()
       ? ` USER DIRECTION (priority): ${startFrameData.animationHint.trim()}.`
       : "";
@@ -358,10 +358,9 @@ export const handleAnimate: StepHandler = async (ctx) => {
 // ── Render — concat all segments + voice + subtitles ────
 
 export const handleRender: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, tool } = ctx;
+  const { config, getStepResult } = ctx;
   const animateData = getStepResult("animate") as { segments: Array<{ videoUrl: string }> } | undefined;
   const scriptData = getStepResult("script") as { frames: Array<{ script: string }> } | undefined;
-  const imageData = getStepResult("images") as { images: Array<{ audioUrl?: string }> } | undefined;
 
   if (!animateData?.segments) throw new Error("No animated segments found.");
 

@@ -15,7 +15,7 @@ import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstra
 // ── Prompt — generates slide copy + image prompts ──────────
 
 const handlePrompt: StepHandler = async (ctx) => {
-  const { activeBrand, config, tool } = ctx;
+  const { activeBrand, config } = ctx;
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
   const logo = activeBrand.logo as { imageUrl: string } | undefined;
@@ -25,7 +25,7 @@ const handlePrompt: StepHandler = async (ctx) => {
   if (config.objective) extraVars.creative_direction = config.objective;
   if (logo) extraVars.logo_info = "Brand logo is available as a reference image.";
 
-  const numSlides = (config as unknown as Record<string, unknown>).numSlides || 5;
+  const numSlides = ((config as unknown as Record<string, unknown>).numSlides as number | undefined) || 5;
   // CRITICAL: Gemini sometimes simplifies output to a single object when N is low.
   // Force the array shape with explicit instructions.
   let userMsg = `Generate a carousel ad with EXACTLY ${numSlides} DIFFERENT slides. Each slide must show different visual content (different angle, subject, scene, or framing) — NOT the same scene repeated.
@@ -113,7 +113,7 @@ If you return fewer than ${numSlides} slides or omit the "slides" array, the req
 // ── Generate All — create all slide images sequentially ────
 
 const handleGenerateAll: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, tool } = ctx;
+  const { activeBrand, config, getStepResult } = ctx;
   let promptResult = getStepResult("prompt") as Record<string, unknown> | undefined;
 
   // Unwrap if still wrapped
@@ -180,7 +180,7 @@ const handleGenerateAll: StepHandler = async (ctx) => {
   // TEMPLATE: visual reference (uploaded ref) → respect layout, vary content per slide
   // DESIGN_SYSTEM: no template but Design System cargado → coherent via shared rules + slide 1 as anchor
   // BASIC: nothing → free generation (worst coherence)
-  const ds = (activeBrand as Record<string, unknown>).designSystem as Record<string, unknown> | undefined;
+  const ds = (activeBrand as unknown as Record<string, unknown>).designSystem as Record<string, unknown> | undefined;
   const hasTemplate = uploadedRefDataUrls.length > 0;
   const hasDesignSystem = !!ds && (
     !!ds.photoStyle || !!ds.composition || !!ds.colorTreatment ||

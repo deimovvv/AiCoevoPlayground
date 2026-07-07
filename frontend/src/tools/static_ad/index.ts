@@ -14,7 +14,7 @@ import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstra
 // ── Prompt — generates copy + image prompt ──────────────
 
 const handlePrompt: StepHandler = async (ctx) => {
-  const { activeBrand, config, tool } = ctx;
+  const { activeBrand, config } = ctx;
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
   const logo = activeBrand.logo as { imageUrl: string } | undefined;
@@ -43,7 +43,6 @@ const handlePrompt: StepHandler = async (ctx) => {
           // Pre-fill obvious placeholders with actual brand/product data
           const brandName = activeBrand.name || "";
           const productName = selectedProduct?.name || "";
-          const productDesc = selectedProduct?.description || "";
           tPrompt = tPrompt
             .replace(/\[YOUR PRODUCT[^\]]*\]/gi, productName || "[YOUR PRODUCT]")
             .replace(/\[BRAND\]/gi, brandName)
@@ -108,7 +107,7 @@ MANDATORY OUTPUT FORMAT:
 // ── Generate All — base image + variations in one step ──
 
 const handleGenerateAll: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, tool } = ctx;
+  const { activeBrand, config, getStepResult } = ctx;
   let promptResult = getStepResult("prompt") as Record<string, unknown> | undefined;
 
   // Robust unwrap: Gemini can return the prompt under various shapes
@@ -288,7 +287,7 @@ const handleGenerateAll: StepHandler = async (ctx) => {
     : finalPrompt;
 
   // Generate base image — route by selected model. Fallback to text-to-image when no refs.
-  const imageModel = (config as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
+  const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
   const baseJob = imageUrls.length === 0
     ? await createTextToImage(promptWithRefs, config.aspectRatio, config.resolution, imageModel)
     : await createImageEdit(imageUrls, promptWithRefs, config.aspectRatio, config.resolution, imageModel);
@@ -316,7 +315,7 @@ const handleGenerateAll: StepHandler = async (ctx) => {
       const chosen = shuffled.slice(0, targetCount);
 
       // Brand palette hex codes — used for color placeholder substitution
-      const dna = (activeBrand as Record<string, unknown>).dna as { colors?: Array<{ hex?: string }> } | undefined;
+      const dna = (activeBrand as unknown as Record<string, unknown>).dna as { colors?: Array<{ hex?: string }> } | undefined;
       const paletteHex = (dna?.colors || []).map((c) => c.hex).filter((h): h is string => !!h && /^#[0-9a-f]{3,8}$/i.test(h));
 
       // Language for any text the image model needs to render

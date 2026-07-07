@@ -12,15 +12,6 @@ import { renderMedia, selectComposition } from "@remotion/renderer";
 import path from "path";
 import fs from "fs";
 
-interface RenderArgs {
-  scenes: Array<{
-    videoUrl: string;
-    scriptText: string;
-    durationInFrames: number;
-  }>;
-  outputPath: string;
-}
-
 async function main() {
   const args = process.argv.slice(2);
   const propsIdx = args.indexOf("--props");

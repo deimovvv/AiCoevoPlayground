@@ -13,7 +13,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import type { Brand } from "../lib/api";
 import {
-  type OverlayTemplate,
   type OverlaySlot,
   OVERLAY_TEMPLATES,
   getTemplate,

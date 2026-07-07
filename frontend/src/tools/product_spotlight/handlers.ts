@@ -115,7 +115,7 @@ export const handleGenerate: StepHandler = async (ctx) => {
 // ── Variations ───────────────────────────────────────────
 
 export const handleVariations: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, tool } = ctx;
+  const { activeBrand, config, getStepResult } = ctx;
   const genResult = getStepResult("generate") as { url: string; prompt: string } | undefined;
   if (!genResult) throw new Error("No base image found.");
 

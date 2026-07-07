@@ -8,7 +8,7 @@ import type { Brand } from "../lib/api";
 
 // ── Pipeline Step Types ──────────────────────────────────
 
-export type StepStatus = "pending" | "active" | "running" | "review" | "done" | "error";
+export type StepStatus = "pending" | "active" | "running" | "review" | "done" | "stale" | "error";
 
 export interface StepState {
   id: string;
@@ -46,7 +46,7 @@ export interface ToolConfig {
   mockupSceneImages?: File[];
   selectedClothingIds: string[];
   selectedBackgroundId: string | null;
-  selectedMoodboardId: string | null;
+  selectedMoodboardId?: string | null;
   selectedVoiceId: string | null;
   objective: string;
   tone: string;
@@ -74,40 +74,40 @@ export interface ToolConfig {
   // How the uploaded Reference Image should be interpreted
   referenceMode: "style" | "composition";
   // Static Ad: include copy/headline overlay or leave clean (editorial mode)
-  includeCopy: boolean;
+  includeCopy?: boolean;
   // Avatar tool: "create" new from brand context | "poses" = generate pose sheet for an existing avatar
-  avatarToolMode: "create" | "poses";
+  avatarToolMode?: "create" | "poses";
   // Avatar tool (poses mode): what to do after generating — "new" saves as new avatar, "replace" overwrites the source avatar
-  avatarPosesSave: "new" | "replace";
+  avatarPosesSave?: "new" | "replace";
   // Avatar tool: vistas que se piden al composite (body_front, face_34, etc.).
   // Vacío → fallback al default histórico (4 vistas mixtas). Ver AVATAR_VIEWS.
-  avatarViews: string[];
+  avatarViews?: string[];
   // Product Sheet tool: "sheet" = multi-view (front/3-4/back/side/top/hero) | "details" = macro close-ups (texture/logo/label/hardware)
-  productSheetMode: "sheet" | "details";
+  productSheetMode?: "sheet" | "details";
   // Product Sheet: what to do with the result on save — "new" creates a new product entry, "replace" overwrites the source product's primary photo, "asset" saves without touching the catalog
-  productSheetSave: "new" | "replace" | "asset";
+  productSheetSave?: "new" | "replace" | "asset";
   // Compose mode (Carousel/Static Ad): "quick" = text in image (fast) | "compose" = clean image + HTML overlay with brand fonts (perfect typography)
-  composeMode: "quick" | "compose";
+  composeMode?: "quick" | "compose";
   // Selected overlay template id when composeMode = "compose"
-  overlayTemplate: string;
+  overlayTemplate?: string;
   // Setting/Location override — when set, OVERRIDES any setting inferred from brand context.
   // Use to break out of a brand's default scenario for a specific generation.
   // Example: brand context says "workshop", but for this run you want "outdoor street, sunset".
-  settingOverride: string;
+  settingOverride?: string;
   // Static Ad: how many ads to generate when batch mode is on
-  staticAdBatch: 1 | 3 | 5 | 10 | "all";
+  staticAdBatch?: 1 | 3 | 5 | 10 | "all";
   // Static Ad batch: optional category filter ("" = all categories)
-  staticAdCategory: string;
+  staticAdCategory?: string;
   // Carousel: when a template is uploaded, decide if colors come from the brand or stay literal from the template
   // "brand" → re-color with brand palette (default — for inspiration templates from other brands)
   // "template" → keep template colors literal (for official brand templates)
-  templateColorMode: "brand" | "template";
+  templateColorMode?: "brand" | "template";
   // Video animation engine — controls how the `animate` step turns scene images into video.
   //   "kling" → Kling V3 Pro image-to-video (single frame as start). Current default.
   //   "seedance" → Seedance 2.0 reference-to-video (multi-ref: avatar + product + clothing + bg).
   //                Better consistency when there are several brand assets to integrate.
   //                Only affects creative/b-roll scenes in UGC (talking scenes still use lipsync).
-  animationEngine: "kling" | "seedance";
+  animationEngine?: "kling" | "seedance";
   // Carousel: optional per-slide template references. When length matches numSlides, the handler
   // uses perSlideTemplates[i] as the unique layout reference for slide i (instead of the same
   // template for all slides). Used by the IG replication flow so each slide follows its
@@ -190,6 +190,9 @@ export interface ToolSchema {
   multiProduct?: boolean;
   /** Show the animation engine selector (Kling vs Seedance). Only for video tools with an `animate` step. */
   showAnimationEngine?: boolean;
+  /** Subtitles selector visibility. Default = true for video tools. Fashion Reel
+   *  no genera subtítulos (es visual-only sin voiceover) → showSubtitles: false. */
+  showSubtitles?: boolean;
   /** Describes what inputs are available and how they affect the output */
   inputsHint?: string;
 }
