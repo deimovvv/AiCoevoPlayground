@@ -106,4 +106,16 @@ export const TOOL_PREVIEW_MEDIA: Record<string, ToolPreview> = {
   avatar_creator: { url: "/previews/avatar.png", type: "image" },
   // Dropeá un mockup que te guste en public/previews/screenmockup.png y se enciende el hero.
   screen_mockup: { url: "/previews/screenmockup.png", type: "image" },
+  // Placeholders branded (reemplazar por outputs reales cuando existan — mismo nombre de archivo).
+  fooh_subway: { url: "/previews/fooh_subway.png", type: "image" },
+  product_sheet: { url: "/previews/product_sheet.png", type: "image" },
+  product_clip: { url: "/previews/product_clip.png", type: "image" },
+  content_analyzer: { url: "/previews/content_analyzer.png", type: "image" },
+  carousel_creator: { url: "/previews/carousel_creator.png", type: "image" },
+  product_spotlight: { url: "/previews/product_spotlight.png", type: "image" },
+  scene_reconstruct: { url: "/previews/scene_reconstruct.png", type: "image" },
+  fashion_editorial: { url: "/previews/fashion_editorial.png", type: "image" },
+  video_swap: { url: "/previews/video_swap.png", type: "image" },
+  ecommerce_batch: { url: "/previews/ecommerce_batch.png", type: "image" },
+  ad_creative_lab: { url: "/previews/ad_creative_lab.png", type: "image" },
 };
