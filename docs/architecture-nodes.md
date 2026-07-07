@@ -78,11 +78,15 @@ La lección del node-canvas NO es "dibujar cablecitos". Es la **arquitectura**:
   editor + poller (como hoy).
 
 ## 4. Fases (incremental — migrar tool-por-tool detrás de un adapter)
-- **Fase 0 — Modelo + registry (sin cambio de UI).** Definir el descriptor de nodo
-  (id, inputs/outputs tipados, schema de params) + un `NODE_REGISTRY`. Envolver los
-  service calls que YA tenemos (`image_gen`, `kling_video`, `tts`, `fal_lipsync`,
-  `video_concat`, `prompt_builder`) como `execute` fns. Cero cambio de comportamiento —
-  solo catalogar primitivas.
+- **Fase 0 — Modelo + registry (sin cambio de UI). ✅ HECHO (2026-07).** Vive en
+  `backend/nodes/`: `types.py` (PortType tipado + ParamSpec + NodeDescriptor con el split
+  descriptor/`execute` de n8n), `registry.py` (`NODE_REGISTRY` + `register`/`get_node`/
+  `list_nodes`), `primitives.py` (7 primitivas envolviendo los services que YA existen:
+  `prompt_assemble`, `nano_image`, `nano_image_edit`, `kling_video`, `voice_tts`,
+  `fal_lipsync`, `video_concat`). Ports tipados (IMAGE/IMAGE[]/VIDEO/AUDIO/TEXT/PROMPT/
+  BRAND_CONTEXT/ANY). Descriptor serializable a JSON (data pura, sin `execute`). Cero
+  cambio de comportamiento: no está cableado a ninguna tool ni a `main.py` todavía — es
+  solo el catálogo. Pendiente inmediato de Fase 1: `GET /api/nodes` (catálogo) + el motor.
 - **Fase 1 — Motor + serialización.** Motor de grafo en el backend (deserializar → topo
   sort → correr pasando outputs tipados). Formato JSON/YAML del grafo. Un runner genérico
   `POST /run`. **Caché por nodo + skip por hash** (el killer feature de ComfyUI: re-run
