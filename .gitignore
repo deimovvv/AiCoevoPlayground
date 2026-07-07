@@ -64,3 +64,4 @@ videoref/
 # Keep empty directories with .gitkeep
 !backend/data/renders/.gitkeep
 !backend/tmp/.gitkeep
+backend/data/backups/
