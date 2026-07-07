@@ -10,7 +10,7 @@
  * to the trailing instructions for hard constraints.
  */
 
-import type { Brand, ToolConfig } from "../../lib/api";
+import type { Brand } from "../../lib/api";
 import type { ToolConfig as Cfg } from "../types";
 
 interface BrandLike {

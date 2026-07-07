@@ -4,7 +4,7 @@ import { createKlingVideo, pollKlingVideo } from "../../lib/api";
 import type { StepHandler } from "../types";
 
 const handleAnimate: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, tool } = ctx;
+  const { getStepResult } = ctx;
   const curationData = getStepResult("curation") as Array<{
     sceneId: string; title: string; selectedUrl: string;
   }> | undefined;
