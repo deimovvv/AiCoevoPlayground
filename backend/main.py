@@ -439,15 +439,21 @@ async def run_graph_endpoint(payload: dict = Body(...)):
     if not graph:
         raise HTTPException(status_code=400, detail="Falta 'graph' en el body.")
 
+    # Validación estructural (typed ports) antes de gastar en jobs.
+    errors = node_system.validate_graph(graph)
+    if errors:
+        raise HTTPException(status_code=400, detail={"message": "Grafo inválido", "errors": errors})
+
     brand = {}
     if payload.get("brand_id"):
         brand = brands.find_brand(brands.load_brands(), payload["brand_id"]) or {}
 
     cache_key = payload.get("cache_key")
     cache = _GRAPH_CACHES.setdefault(cache_key, {}) if cache_key else {}
+    graph_inputs = payload.get("inputs") or {}
 
     try:
-        result = await node_system.run_graph(graph, node_system.NodeContext(brand=brand), cache)
+        result = await node_system.run_graph(graph, node_system.NodeContext(brand=brand), cache, graph_inputs)
     except node_system.GraphError as e:
         raise HTTPException(status_code=400, detail=f"Grafo inválido: {e}")
     except Exception as e:
@@ -460,6 +466,19 @@ async def run_graph_endpoint(payload: dict = Body(...)):
         "order": result["order"],
         "trace": result["trace"],
     }
+
+
+@app.get("/api/tools/{tool_id}/graph")
+def get_tool_graph(tool_id: str):
+    """Devuelve el grafo de una tool si existe (backend/tools/{id}/graph.json) + su validación.
+
+    Fase 2: solo screen_mockup tiene grafo por ahora. El día que una tool corra 100% por el
+    motor, este grafo ES la tool (data, no handlers)."""
+    graph_path = TOOLS_DIR / tool_id / "graph.json"
+    if not graph_path.exists():
+        raise HTTPException(status_code=404, detail=f"La tool '{tool_id}' no tiene grafo (todavía).")
+    graph = json.loads(graph_path.read_text())
+    return {"graph": graph, "errors": node_system.validate_graph(graph)}
 
 
 @app.get("/api/tools/{tool_id}")

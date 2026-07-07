@@ -1,0 +1,27 @@
+{
+  "id": "screen_mockup",
+  "label": "Screen Mockup",
+  "description": "Screen Mockup como GRAFO (Fase 2, ver docs/architecture-nodes.md). Prueba que la tool se puede expresar como data + correr por el motor de nodos, al lado del handler viejo. scene(nano_image, pantalla verde) -> composite(nano_image_edit, encaja la UI en el verde).",
+  "inputs": [
+    { "name": "ui_url", "type": "IMAGE", "description": "El screenshot de la UI del usuario (Fal URL)." },
+    { "name": "scene_prompt", "type": "PROMPT", "description": "Prompt de la escena verde ya compuesto (greenScreenPrompt(escena))." }
+  ],
+  "nodes": [
+    {
+      "id": "scene",
+      "type": "nano_image",
+      "params": { "aspect_ratio": "4:5", "resolution": "2K", "num_images": 1 },
+      "inputs": { "prompt": { "input": "scene_prompt" } }
+    },
+    {
+      "id": "composite",
+      "type": "nano_image_edit",
+      "params": { "aspect_ratio": "4:5", "resolution": "2K", "num_images": 1 },
+      "inputs": {
+        "images": [ { "node": "scene", "port": "image" }, { "input": "ui_url" } ],
+        "prompt": "Image 1 is a photograph of a device with a solid green chroma-key screen. Image 2 is a user-interface screenshot. Replace ONLY the green screen area of the device in image 1 with the EXACT UI from image 2. Fit the UI precisely to the screen shape: correct perspective, rounded corners, edge-to-edge. Keep the UI pixel-faithful (identical layout, colors, text and elements — do not redraw or restyle it). Add subtle, realistic screen glare and reflection ON TOP of the UI. Do NOT change anything else in the photograph — the person, environment, lighting and device frame stay identical. Photorealistic result. Single clean photograph. No added captions, no watermark, no text overlay."
+      }
+    }
+  ],
+  "output": "composite"
+}

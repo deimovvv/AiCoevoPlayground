@@ -95,11 +95,17 @@ La lección del node-canvas NO es "dibujar cablecitos". Es la **arquitectura**:
   NO se re-ejecutan (verificado: cambiar un nodo re-corre SOLO ese nodo). Endpoints en
   `main.py` (aditivos): `GET /api/nodes` (catálogo) + `POST /api/graph/run` (runner, con
   `cache_key` para skip-por-hash entre requests + `brand_id` para el `BRAND_CONTEXT`).
-- **Fase 2 — Una tool como data + renderer stacked genérico.** Elegir la tool lineal más
-  simple (ej. `photo_multishot`), escribirla como grafo JSON, y construir el renderer
-  stacked-steps schema-driven (el inspector de cada nodo se genera del schema;
-  `ImageEditPanel`/asset-pickers se vuelven **widget types** reusables). Camino nuevo
-  funcionando al lado del viejo.
+- **Fase 2 — Una tool como data. 🟡 EN CURSO (2026-07).** `screen_mockup` escrito como
+  grafo JSON (`backend/tools/screen_mockup/graph.json`): `scene` (nano_image, pantalla
+  verde) → `composite` (nano_image_edit, encaja la UI). Corre por el motor nuevo AL LADO
+  del handler viejo (sin migrarlo). El motor se extendió para tools reales: **inputs
+  externos** (`{"input":"ui_url"}` = la UI que sube el usuario en runtime) e **inputs
+  lista mixta** (`images: [ref a scene, input ui_url]`). `validate_graph` chequea typed
+  ports antes de correr. Endpoint `GET /api/tools/{id}/graph`. Verificado end-to-end con
+  execute mockeado (wiring correcto, 0 errores de validación).
+  **Falta para cerrar Fase 2:** el renderer stacked-steps schema-driven (inspector de cada
+  nodo generado del schema; `ImageEditPanel`/asset-pickers como widget types). Es la mitad
+  de front — se hace cuando querramos la UI nueva; el modelo de dato ya está probado.
 - **Fase 3 — Adapter + port tool-por-tool.** Flag por tool: `graph` (nuevo) o `legacy`
   (viejo). Migrar de a una, borrando sus `tool.id === "..."` a medida que pasan. El
   monolito se achica monótonamente; nada se rompe de golpe.
