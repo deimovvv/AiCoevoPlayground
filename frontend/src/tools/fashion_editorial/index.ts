@@ -151,7 +151,7 @@ export const fashionEditorial: ToolDefinition = {
   schema: {
     showAvatar: true, avatarLabel: "Modelo",
     showProduct: true, productLabel: "Producto (opcional)",
-    showClothing: true, clothingLabel: "Prenda", clothingSublabel: "la prenda que lleva la modelo — multi-select para un look completo",
+    showClothing: true, clothingLabel: "Prendas", clothingSublabel: "la prenda que lleva la modelo — multi-select para un look completo",
     showBackground: false,
     showMoodboard: true,
     showReference: true,

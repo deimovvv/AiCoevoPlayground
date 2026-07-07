@@ -95,7 +95,7 @@ export const fashionReel: ToolDefinition = {
     // sumar cartera/lentes está la sección Accesorios. (Feedback usuario.)
     showProduct: false,
     showClothing: true,
-    clothingLabel: "Outfits",
+    clothingLabel: "Prendas",
     clothingSublabel: "multi-select",
     showBackground: true,
     backgroundSublabel: "opcional · si vacío, se infiere",

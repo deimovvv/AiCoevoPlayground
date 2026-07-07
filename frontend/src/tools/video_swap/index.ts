@@ -14,7 +14,7 @@ export const videoSwap: ToolDefinition = {
     showAvatar: false,
     // Product / clothing can be used as the "reference" (new look) if no upload.
     showProduct: true, productLabel: "Producto (referencia del nuevo look)",
-    showClothing: true, clothingLabel: "Prenda (referencia del nuevo look)",
+    showClothing: true, clothingLabel: "Prendas",
     showBackground: false,
     showMoodboard: false,
     showReference: true,

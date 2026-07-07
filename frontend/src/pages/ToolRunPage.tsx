@@ -2965,7 +2965,7 @@ const TOOL_SCHEMAS: Record<string, ToolSchema> = {
   ugc_creator: {
     showAvatar: true, avatarLabel: "Avatar", avatarRequired: true,
     showProduct: true, productLabel: "Product",
-    showClothing: true, clothingLabel: "Clothing", clothingSublabel: "multi-select",
+    showClothing: true, clothingLabel: "Prendas", clothingSublabel: "multi-select",
     showBackground: true, showMoodboard: true,
     showVoice: true, showTone: false, showPlatform: false, showLanguage: true, showVariations: false,
     objectiveLabel: "Brief del Guión",
@@ -5289,7 +5289,7 @@ function ConfigPanel({
           {[
             schema.showAvatar && (schema.avatarLabel || "Avatar"),
             schema.showProduct && (schema.productLabel || "Product"),
-            schema.showClothing && (schema.clothingLabel || "Clothing"),
+            schema.showClothing && (schema.clothingLabel || "Prendas"),
             schema.showBackground && "Background",
             schema.showVoice && "Voice",
             schema.showLanguage && "Language",
@@ -5310,6 +5310,8 @@ function ConfigPanel({
           {tool.id !== "ecommerce_pack" && renderSelectedSummary()}
           {schema.showAvatar && (
             <AssetSelector
+              collapsible
+              defaultCollapsed={(activeBrand.avatars || []).length > 8}
               label={schema.avatarLabel || "Avatar"}
               sublabel={schema.avatarSublabel || ""}
               emptyText="Upload an avatar or add from here"
@@ -5356,6 +5358,8 @@ function ConfigPanel({
           {schema.showProduct && (
             <div className="space-y-2">
               <AssetSelector
+                collapsible
+                defaultCollapsed={(activeBrand.products || []).length > 8}
                 label={schema.productLabel || "Product"}
                 sublabel={schema.productSublabel || (schema.multiProduct ? "multi-select" : "")}
                 emptyText="Upload products in Brand Kit"
@@ -5419,8 +5423,8 @@ function ConfigPanel({
           {schema.showClothing && (
             <AssetSelector
               collapsible
-              defaultCollapsed={tool.id === "ecommerce_pack"}
-              label={schema.clothingLabel || "Clothing"}
+              defaultCollapsed={tool.id === "ecommerce_pack" || (activeBrand.clothing || []).length > 8}
+              label={schema.clothingLabel || "Prendas"}
               sublabel={schema.clothingSublabel || "multi-select"}
               emptyText="Upload clothing items or add from here"
               items={(activeBrand.clothing || []).map((item) => ({
@@ -5461,6 +5465,8 @@ function ConfigPanel({
 
           {schema.showBackground && (
             <AssetSelector
+              collapsible
+              defaultCollapsed={(activeBrand.backgrounds || []).length > 8}
               label="Fondo"
               sublabel={schema.backgroundSublabel || ""}
               emptyText="Upload a background or add from here"
@@ -5489,6 +5495,8 @@ function ConfigPanel({
 
           {schema.showMoodboard && (
             <AssetSelector
+              collapsible
+              defaultCollapsed={(activeBrand.moodboards || []).length > 8}
               label="Moodboard"
               sublabel="visual style reference — one active at a time"
               emptyText="Upload a moodboard (up to 5 per brand)"

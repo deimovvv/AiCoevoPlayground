@@ -428,7 +428,7 @@ export const staticAd: ToolDefinition = {
   schema: {
     showAvatar: true, avatarLabel: "Person",
     showProduct: true, productLabel: "Product",
-    showClothing: true, clothingLabel: "Clothing", clothingSublabel: "multi-select — what the avatar wears",
+    showClothing: true, clothingLabel: "Prendas", clothingSublabel: "multi-select — what the avatar wears",
     showBackground: true,
     showMoodboard: true,
     showReference: true,
