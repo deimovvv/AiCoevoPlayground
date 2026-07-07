@@ -41,6 +41,7 @@ from services import gpt_image_gen
 from services import video_download
 from services import apify_tiktok
 from services import instagram_scraper
+import nodes as node_system  # Fase 1: catálogo de primitivas + motor de grafos (backend/nodes/)
 from services import manual_lab
 from services import asset_matcher
 from services import seedance_video
@@ -398,6 +399,67 @@ def list_tools():
         config = _load_tool_config(entry["id"])
         tools.append({**entry, **(config or {})})
     return {"tools": tools}
+
+
+# ══════════════════════════════════════════════════════════════
+#  Sistema de nodos (Fase 1) — catálogo + runner de grafos
+#  Ver docs/architecture-nodes.md. Aditivo: no toca las tools existentes.
+# ══════════════════════════════════════════════════════════════
+
+# Cachés de grafo en memoria por `cache_key` → habilita el skip-por-hash de ComfyUI
+# entre requests (re-run solo del nodo que cambió). Sin cache_key = corrida fresca.
+_GRAPH_CACHES: Dict[str, dict] = {}
+
+
+@app.get("/api/nodes")
+def list_node_primitives():
+    """Catálogo de primitivas de nodo (data pura, sin `execute`). Lo consumirá el editor."""
+    return {"nodes": node_system.list_nodes()}
+
+
+def _sanitize_for_json(value):
+    """Los outputs pueden traer bytes (audio TTS) → no serializables. Los marcamos."""
+    if isinstance(value, (bytes, bytearray)):
+        return {"__bytes__": len(value)}
+    if isinstance(value, dict):
+        return {k: _sanitize_for_json(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_for_json(v) for v in value]
+    return value
+
+
+@app.post("/api/graph/run")
+async def run_graph_endpoint(payload: dict = Body(...)):
+    """Corre un grafo de nodos en el backend (topo sort → ejecutar → caché por hash).
+
+    Body: { graph: {...}, brand_id?: str, cache_key?: str }
+    Pasá el mismo `cache_key` entre runs para que los nodos sin cambios devuelvan cacheado.
+    """
+    graph = payload.get("graph")
+    if not graph:
+        raise HTTPException(status_code=400, detail="Falta 'graph' en el body.")
+
+    brand = {}
+    if payload.get("brand_id"):
+        brand = brands.find_brand(brands.load_brands(), payload["brand_id"]) or {}
+
+    cache_key = payload.get("cache_key")
+    cache = _GRAPH_CACHES.setdefault(cache_key, {}) if cache_key else {}
+
+    try:
+        result = await node_system.run_graph(graph, node_system.NodeContext(brand=brand), cache)
+    except node_system.GraphError as e:
+        raise HTTPException(status_code=400, detail=f"Grafo inválido: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error corriendo el grafo: {e}")
+
+    # No devolvemos `results` completo (puede ser pesado / bytes) — solo output + trace.
+    return {
+        "output_node": result["output_node"],
+        "output": _sanitize_for_json(result["output"]),
+        "order": result["order"],
+        "trace": result["trace"],
+    }
 
 
 @app.get("/api/tools/{tool_id}")

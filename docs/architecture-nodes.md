@@ -87,10 +87,14 @@ La lección del node-canvas NO es "dibujar cablecitos". Es la **arquitectura**:
   BRAND_CONTEXT/ANY). Descriptor serializable a JSON (data pura, sin `execute`). Cero
   cambio de comportamiento: no está cableado a ninguna tool ni a `main.py` todavía — es
   solo el catálogo. Pendiente inmediato de Fase 1: `GET /api/nodes` (catálogo) + el motor.
-- **Fase 1 — Motor + serialización.** Motor de grafo en el backend (deserializar → topo
-  sort → correr pasando outputs tipados). Formato JSON/YAML del grafo. Un runner genérico
-  `POST /run`. **Caché por nodo + skip por hash** (el killer feature de ComfyUI: re-run
-  solo el nodo que cambió — nativiza nuestra filosofía "curar multishot antes de animar").
+- **Fase 1 — Motor + serialización. ✅ HECHO (2026-07).** `backend/nodes/engine.py`:
+  `run_graph(graph, ctx, cache)` — deserializa → topo sort (Kahn, detecta refs colgadas y
+  ciclos) → corre cada nodo pasando outputs tipados por los edges. Formato JSON del grafo
+  (nodes con `inputs` = ref `{node,port}` o valor estático). **Caché por hash de nodo**:
+  `_hash_node(type+params+inputs)`; en re-run, los nodos sin cambios devuelven cacheado y
+  NO se re-ejecutan (verificado: cambiar un nodo re-corre SOLO ese nodo). Endpoints en
+  `main.py` (aditivos): `GET /api/nodes` (catálogo) + `POST /api/graph/run` (runner, con
+  `cache_key` para skip-por-hash entre requests + `brand_id` para el `BRAND_CONTEXT`).
 - **Fase 2 — Una tool como data + renderer stacked genérico.** Elegir la tool lineal más
   simple (ej. `photo_multishot`), escribirla como grafo JSON, y construir el renderer
   stacked-steps schema-driven (el inspector de cada nodo se genera del schema;
