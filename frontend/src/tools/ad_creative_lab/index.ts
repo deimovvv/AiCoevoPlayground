@@ -14,7 +14,7 @@ export const adCreativeLab: ToolDefinition = {
   schema: {
     showAvatar: true, avatarLabel: "Model / Avatar", avatarSublabel: "optional — include for fashion/lifestyle",
     showProduct: true, productLabel: "Product",
-    showClothing: true, clothingLabel: "Garments", clothingSublabel: "what the model wears",
+    showClothing: true, clothingLabel: "Prendas", clothingSublabel: "what the model wears",
     showBackground: true,
     showMoodboard: true,
     showReference: true,

@@ -31,7 +31,7 @@ export const fashionReels: ToolDefinition = {
   schema: {
     showAvatar: true, avatarLabel: "Model / Avatar", avatarSublabel: "Same model across all looks",
     showProduct: false,
-    showClothing: true, clothingLabel: "Outfits", clothingSublabel: "each outfit = one look (multi-select)",
+    showClothing: true, clothingLabel: "Prendas", clothingSublabel: "each outfit = one look (multi-select)",
     showBackground: true,
     showMoodboard: true,
     showReference: true,

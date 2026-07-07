@@ -39,6 +39,11 @@ export interface ToolConfig {
   selectedProductIds?: string[];
   animationMode?: string;
   adTemplate?: string;
+  // Prompts editables por step (loop tipo Pletor). key = stepId → prompt override.
+  // Vacío/ausente = el handler usa su prompt por defecto. Ver screen_mockup.
+  stepPrompts?: Record<string, string>;
+  // Screen Mockup: foto real de escena provista por el usuario (salta la generación).
+  mockupSceneImages?: File[];
   selectedClothingIds: string[];
   selectedBackgroundId: string | null;
   selectedMoodboardId: string | null;

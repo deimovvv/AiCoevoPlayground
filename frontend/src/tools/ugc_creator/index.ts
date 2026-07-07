@@ -15,7 +15,7 @@ export const ugcCreator: ToolDefinition = {
   schema: {
     showAvatar: true, avatarLabel: "Avatar", avatarSublabel: "Who appears in the video",
     showProduct: true, productLabel: "Product",
-    showClothing: true, clothingLabel: "Clothing", clothingSublabel: "optional, multi-select",
+    showClothing: true, clothingLabel: "Prendas", clothingSublabel: "optional, multi-select",
     showBackground: true,
     showMoodboard: true,
     showReference: true,

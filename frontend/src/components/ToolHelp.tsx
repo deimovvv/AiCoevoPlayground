@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { HelpCircle, X, Check } from "lucide-react";
+import { TOOL_PREVIEW_MEDIA } from "../lib/toolPreviews";
 
 // Tips por tool (opcional). Fallback genérico si el tool no tiene entrada. Data-driven:
 // sumar una tool = agregar (o no) una línea acá. Sin escribir tours a mano.
@@ -23,7 +24,14 @@ const TOOL_TIPS: Record<string, string[]> = {
   screen_mockup: [
     "Subí un screenshot limpio y nítido de tu UI (alta resolución).",
     "Mencioná el dispositivo en la escena: 'celular', 'laptop' o 'tablet'.",
-    "Si la pantalla sale imperfecta, regenerá o subí una UI más nítida.",
+    "Genera en 2 pasos: primero la escena con pantalla verde, después encaja tu UI ahí (por eso sale nítida).",
+    "Cada variación = 2 imágenes internas, así que rinde un poco más lento pero más limpio.",
+  ],
+  fooh_subway: [
+    "Elegí un producto del Brand Kit para que genere el ad — o subí tu propio poster como referencia.",
+    "En el brief describí el vibe del ad Y la estación (ciudad, hora, luz).",
+    "Genera en 3 pasos: poster → estación con billboard verde → encaja el ad en el panel.",
+    "Cada variación arma una estación distinta; el poster se reusa.",
   ],
 };
 
@@ -44,7 +52,9 @@ export function ToolHelpButton({ toolId, name, description, inputs }: {
   inputs: string[];
 }) {
   const [open, setOpen] = useState(false);
+  const [exampleOk, setExampleOk] = useState(true);
   const tips = TOOL_TIPS[toolId] || GENERIC_TIPS;
+  const example = TOOL_PREVIEW_MEDIA[toolId];
 
   return (
     <>
@@ -72,6 +82,21 @@ export function ToolHelpButton({ toolId, name, description, inputs }: {
             </div>
 
             {description && <p className="text-[13px] text-fg-muted leading-relaxed">{description}</p>}
+
+            {/* Ejemplo de output (hero curado) — como el panel de detalle de Pletor.
+                Si el archivo falta/404, se oculta y el modal queda como antes. */}
+            {example && exampleOk && (
+              <div className="mt-4">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-fg-faint">Así se ve</span>
+                <div className="mt-2 rounded-[var(--radius-md)] overflow-hidden border border-edge bg-surface-0">
+                  {example.type === "video" ? (
+                    <video src={example.url} autoPlay muted loop playsInline className="w-full max-h-64 object-cover" onError={() => setExampleOk(false)} />
+                  ) : (
+                    <img src={example.url} alt={`Ejemplo de ${name}`} className="w-full max-h-64 object-cover" onError={() => setExampleOk(false)} />
+                  )}
+                </div>
+              </div>
+            )}
 
             {inputs.length > 0 && (
               <div className="mt-4">

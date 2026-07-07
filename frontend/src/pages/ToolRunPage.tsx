@@ -73,6 +73,9 @@ import { ModelDropdown } from "../components/ui/ModelDropdown";
 import { ComposeOverlay } from "../components/ComposeOverlay";
 import { UGCPlayer } from "../remotion/UGCPlayer";
 import { TOOL_DEFINITIONS } from "../tools/registry";
+import { greenScreenPrompt, compositePrompt, compositeOnPhotoPrompt } from "../tools/screen_mockup";
+import { posterPrompt, subwayScenePrompt, foohCompositePrompt } from "../tools/fooh_subway";
+import { TOOL_EXAMPLES, TOOL_PREVIEW_MEDIA, type ToolExample } from "../lib/toolPreviews";
 import { autoSaveStep, getActiveGenId, setActiveGenId, clearActiveGen } from "../tools/shared/autoSave";
 
 // ── Types ──────────────────────────────────────────────────
@@ -238,6 +241,16 @@ const STEP_META: Record<
     icon: <Camera size={15} />,
     description: "Generá todas las tomas seleccionadas, consistentes entre sí",
   },
+  scene: {
+    label: "Escena base",
+    icon: <ImageIcon size={15} />,
+    description: "Generá la escena con el dispositivo en pantalla verde (chroma) — base para encajar tu UI",
+  },
+  poster: {
+    label: "Poster",
+    icon: <Megaphone size={15} />,
+    description: "Generá el ad/poster desde tu producto — o usá el que subiste",
+  },
 };
 
 const TOOL_ICONS: Record<string, React.ReactNode> = {
@@ -315,6 +328,9 @@ function collectGeneratedMedia(steps: StepState[], batches: BatchEntry[]): Gener
   // Steps en orden inverso → los outputs más nuevos arriba.
   for (let i = steps.length - 1; i >= 0; i--) {
     const st = steps[i];
+    // "scene" (screen_mockup / fooh_subway) y "poster" (fooh_subway) son bases intermedias,
+    // no entregables: no las sumamos al riel de contenido generado (solo el mockup final).
+    if (st.id === "scene" || st.id === "poster") continue;
     const stepLabel = STEP_META[st.id]?.label || st.id;
     const r = st.result;
     if (Array.isArray(r)) {
@@ -363,6 +379,9 @@ interface ToolConfig {
   // Pose reference — body position / framing ONLY (scoped in handlers so it doesn't
   // bleed lighting/scene/style). Separate from referenceImages (which is look&feel).
   poseReference: File[];
+  // Screen Mockup: foto real de escena (device con pantalla) provista por el usuario.
+  // Si está, salteamos la generación de escena verde y componemos la UI directo sobre esta foto.
+  mockupSceneImages?: File[];
   // Video Swap (Beeble SwitchX): the user's source video + how to mask it.
   sourceVideo: File[];
   alphaMode: "auto" | "select" | "fill" | "custom";
@@ -479,6 +498,8 @@ interface ToolConfig {
   templateColorMode?: "brand" | "template";
   perSlideTemplates?: File[];
   overlayTemplate?: string;
+  // Prompts editables por step (loop tipo Pletor). key = stepId → override. Ver screen_mockup.
+  stepPrompts?: Record<string, string>;
 }
 
 const DEFAULT_CONFIG: ToolConfig = {
@@ -705,7 +726,14 @@ export function ToolRunPage() {
   // setLightboxUrl que NO existía en este scope (vivía en ConfigPanel), así que el
   // clic no hacía nada. Estado propio + overlay al final del return.
   const [railLightbox, setRailLightbox] = useState<string | null>(null);
-  const generatedMedia = useMemo(() => collectGeneratedMedia(steps, batches), [steps, batches]);
+  // Historial de corridas previas de esta sesión (se acumula al tocar "Generar otra vez").
+  // Permite re-generar sin Reset destructivo: los outputs viejos siguen en el rail para comparar.
+  const [runHistory, setRunHistory] = useState<GeneratedMedia[]>([]);
+  const generatedMedia = useMemo(() => {
+    const current = collectGeneratedMedia(steps, batches);
+    const seen = new Set(current.map((m) => m.url));
+    return [...current, ...runHistory.filter((m) => !seen.has(m.url))];
+  }, [steps, batches, runHistory]);
   // Flag para que el próximo Generar del usuario SUME una tanda en vez de pisar
   // la sesión actual. Se enciende cuando clickeás "Nueva tanda" desde el panel
   // de resultados.
@@ -2286,6 +2314,23 @@ export function ToolRunPage() {
     setStarted(false);
     setActiveStep(0);
     setSteps((prev) => prev.map((s) => ({ ...s, status: "pending" })));
+    // Reset = empezar de cero: limpiamos también el historial acumulado del rail.
+    setRunHistory([]);
+    setBatches([]);
+  };
+
+  // "Generar otra vez" — re-abre el pipeline SIN perder lo generado: snapshotea la corrida
+  // actual en el historial (queda en el rail para comparar) y desbloquea la config para
+  // ajustar y volver a Generar. A diferencia de Reset, no borra nada. Loop tipo Pletor.
+  const regenerateAgain = () => {
+    setRunHistory((prev) => {
+      const current = collectGeneratedMedia(stepsRef.current, batches);
+      const seen = new Set(prev.map((m) => m.url));
+      return [...current.filter((m) => !seen.has(m.url)), ...prev];
+    });
+    setStarted(false);
+    setActiveStep(0);
+    setSteps((prev) => prev.map((s) => ({ ...s, status: "pending" })));
   };
 
   // Resetea la corrida para la marca nueva: limpia steps, tandas y la config
@@ -2451,7 +2496,7 @@ export function ToolRunPage() {
             const bannerText = mockRunning
               ? "Pipeline corriendo — esperá a que termine para modificar config."
               : started && !isBatchable
-                ? "Pipeline ya ejecutado — para cambiar la config, tocá Reset arriba."
+                ? 'Pipeline ejecutado — tocá "Generar otra vez" abajo para ajustar y re-generar (lo anterior queda en el rail).'
                 : "";
             return (
               <div className="flex-1 overflow-y-auto px-4 py-4 relative">
@@ -2509,9 +2554,37 @@ export function ToolRunPage() {
                   </button>
                 );
               }
+              // Non-batchable + started: si la corrida terminó (hay algo done y nada corriendo),
+              // ofrecemos "Generar otra vez" (re-abre sin perder lo generado). Si sigue corriendo,
+              // el mensaje de siempre.
+              const anyRunning = steps.some((s) => s.status === "running");
+              const anyDone = steps.some((s) => s.status === "done" || s.status === "review");
+              const runComplete = anyDone && !anyRunning;
+              if (runComplete) {
+                return (
+                  <div className="space-y-1.5">
+                    <button
+                      onClick={regenerateAgain}
+                      disabled={!activeBrand}
+                      className={cn(
+                        "w-full flex items-center justify-center gap-2 px-4 py-3 text-[13px] font-bold uppercase tracking-wide rounded-[var(--radius-md)] transition-all cursor-pointer",
+                        activeBrand
+                          ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:brightness-105 shadow-[0_4px_24px_-6px_var(--color-brand-muted)] hover:shadow-[0_6px_32px_-4px_var(--color-brand)]"
+                          : "text-fg-faint bg-surface-2 cursor-not-allowed"
+                      )}
+                      title="Re-abre la config sin borrar lo generado — los resultados quedan en el rail para comparar"
+                    >
+                      <RotateCcw size={14} /> Generar otra vez
+                    </button>
+                    <p className="text-[10px] text-fg-faint text-center leading-snug">
+                      Ajustás y volvés a generar — lo anterior queda en <strong>Contenido generado</strong>. Reset (arriba) empieza de cero.
+                    </p>
+                  </div>
+                );
+              }
               return (
                 <div className="text-[10px] text-fg-faint text-center">
-                  Pipeline corriendo — ajustá la config arriba y usá "Reset" en el header si necesitás re-empezar.
+                  Pipeline corriendo — esperá a que termine.
                 </div>
               );
             })()}
@@ -2601,15 +2674,101 @@ export function ToolRunPage() {
             )}
 
             {!started ? (
-              <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto py-8">
-                <div className="w-12 h-12 rounded-full bg-surface-2 flex items-center justify-center text-fg-muted mb-3">
-                  {TOOL_ICONS[tool.icon] || <Sparkles size={20} />}
-                </div>
-                <h3 className="text-[14px] font-semibold text-fg">Listo para arrancar</h3>
-                <p className="text-[12px] text-fg-muted mt-1.5 leading-relaxed">
-                  Configurá los parámetros en el panel de la izquierda y tocá <strong>Generar</strong>. Cada step del pipeline aparece arriba a medida que avanza.
-                </p>
-              </div>
+              (() => {
+                // Ejemplo por tool (tipo Pletor): inputs → output, apenas entrás. Universal:
+                // si no hay ejemplo curado, se deriva del schema (qué necesita) + el preview
+                // de la card como output. Así TODAS las tools muestran algo, no solo las de mockup.
+                const curated = TOOL_EXAMPLES[tool.id];
+                const media = TOOL_PREVIEW_MEDIA[tool.id];
+                const sc = TOOL_DEFINITIONS[tool.id]?.schema ?? TOOL_SCHEMAS[tool.id] ?? DEFAULT_SCHEMA;
+                const derivedInputs = [
+                  sc.showAvatar && { label: sc.avatarLabel || "Modelo" },
+                  sc.showProduct && { label: sc.productLabel || "Producto" },
+                  sc.showClothing && { label: sc.clothingLabel || "Prendas" },
+                  sc.showBackground && { label: "Fondo" },
+                  sc.showMoodboard && { label: "Moodboard" },
+                  sc.showReference && { label: "Referencia" },
+                  sc.showVoice && { label: "Voz" },
+                  { label: sc.objectiveLabel || "Brief" },
+                ].filter(Boolean) as Array<{ label: string; imageUrl?: string; text?: string }>;
+                const example: ToolExample = curated ?? {
+                  inputs: derivedInputs,
+                  outputUrl: media?.url || "",
+                  outputType: media?.type || "image",
+                };
+                const hasOutput = !!example.outputUrl;
+                const canPrefill = !!(curated && (curated.scene || curated.prefillImageUrl));
+
+                const useExample = async () => {
+                  const updates: Partial<ToolConfig> = {};
+                  if (curated?.scene) updates.objective = curated.scene;
+                  if (curated?.prefillImageUrl) {
+                    try {
+                      const blob = await fetch(curated.prefillImageUrl).then((r) => r.blob());
+                      const name = curated.prefillImageUrl.split("/").pop() || "example.png";
+                      updates.referenceImages = [new File([blob], name, { type: blob.type || "image/png" })];
+                    } catch (e) { console.error("[example] no se pudo precargar la imagen:", e); }
+                  }
+                  setConfig((p) => ({ ...p, ...updates }));
+                };
+                return (
+                  <div className="h-full overflow-y-auto py-8 px-2">
+                    <div className="max-w-xl mx-auto">
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-brand)]">Ejemplo</span>
+                        <span className="h-px flex-1 bg-edge" />
+                        <span className="text-[11px] text-fg-faint">Así funciona esta tool</span>
+                      </div>
+
+                      {/* Flujo: inputs → output */}
+                      <div className="flex items-stretch gap-3">
+                        <div className="flex-1 space-y-2">
+                          <div className="text-[9px] font-semibold uppercase tracking-wider text-fg-faint">Qué necesita</div>
+                          {example.inputs.map((inp, i) => (
+                            <div key={i} className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-2.5">
+                              <div className={cn("text-[11px] font-medium text-fg-secondary", (inp.imageUrl || inp.text) && "mb-1.5")}>{inp.label}</div>
+                              {inp.imageUrl && (
+                                <div className="rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0">
+                                  <img src={inp.imageUrl} alt={inp.label} className="w-full max-h-28 object-cover" />
+                                </div>
+                              )}
+                              {inp.text && <p className="text-[12px] text-fg-muted italic leading-snug">“{inp.text}”</p>}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center text-[var(--color-brand)] text-[20px] font-semibold shrink-0">→</div>
+                        <div className="flex-1">
+                          <div className="text-[9px] font-semibold uppercase tracking-wider text-fg-faint mb-1.5">Resultado</div>
+                          {hasOutput ? (
+                            <div className="rounded-[var(--radius-md)] overflow-hidden border border-[var(--color-brand)]/40 bg-surface-0">
+                              {example.outputType === "video"
+                                ? <video src={example.outputUrl} autoPlay muted loop playsInline className="w-full object-cover" onError={(e) => { (e.currentTarget as HTMLVideoElement).style.display = "none"; }} />
+                                : <img src={example.outputUrl} alt="Ejemplo de resultado" className="w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />}
+                            </div>
+                          ) : (
+                            <div className="rounded-[var(--radius-md)] border border-dashed border-edge bg-surface-1 aspect-[4/5] flex flex-col items-center justify-center text-center px-4">
+                              <div className="w-10 h-10 rounded-full bg-surface-2 flex items-center justify-center text-fg-muted mb-2">{TOOL_ICONS[tool.icon] || <Sparkles size={18} />}</div>
+                              <p className="text-[11px] text-fg-muted leading-snug">Tu resultado aparece acá</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-5 flex items-center justify-center gap-3">
+                        {canPrefill && (
+                          <button
+                            onClick={useExample}
+                            className="flex items-center gap-1.5 px-4 py-2 text-[12px] font-semibold text-[var(--color-action-fg)] bg-[var(--color-action)] rounded-[var(--radius-sm)] hover:opacity-90 cursor-pointer"
+                          >
+                            <Sparkles size={13} /> Usar este ejemplo
+                          </button>
+                        )}
+                        <span className="text-[11px] text-fg-faint">{canPrefill ? "o cargá lo tuyo a la izquierda y tocá Generar" : "Cargá lo tuyo a la izquierda y tocá Generar"}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
             ) : (
               <StepPanel
                 tool={tool}
@@ -2806,7 +2965,7 @@ const TOOL_SCHEMAS: Record<string, ToolSchema> = {
   ugc_creator: {
     showAvatar: true, avatarLabel: "Avatar", avatarRequired: true,
     showProduct: true, productLabel: "Product",
-    showClothing: true, clothingLabel: "Clothing", clothingSublabel: "multi-select",
+    showClothing: true, clothingLabel: "Prendas", clothingSublabel: "multi-select",
     showBackground: true, showMoodboard: true,
     showVoice: true, showTone: false, showPlatform: false, showLanguage: true, showVariations: false,
     objectiveLabel: "Brief del Guión",
@@ -4720,6 +4879,7 @@ function ConfigPanel({
                   : tool.id === "fashion_editorial" ? "Referencia Look & Feel"
                   : tool.id === "product_sheet" ? "Fotos del producto"
                   : tool.id === "screen_mockup" ? "Tu UI / pantalla"
+                  : tool.id === "fooh_subway" ? "Tu ad / poster"
                   : (tool.id === "static_ad" || tool.id === "product_clip") ? "Reference Image"
                   : "Reference Images"}
                 <span className="text-fg-faint font-normal ml-1">
@@ -4731,6 +4891,7 @@ function ConfigPanel({
                     : tool.id === "fashion_editorial" ? "(iluminación/color — se analiza en receta de texto, sin filtrar la escena)"
                     : tool.id === "product_sheet" ? "(subí acá front / back / detail / packaging si no usás un producto del Brand Kit)"
                     : tool.id === "screen_mockup" ? "(screenshot de tu app o software — se muestra en el dispositivo)"
+                    : tool.id === "fooh_subway" ? "(opcional — si ya tenés el ad, subilo y salteamos la generación del poster)"
                     : (tool.id === "static_ad" || tool.id === "product_clip") ? "(style/mood reference)"
                     : "(campaign style references)"}
                 </span>
@@ -4738,7 +4899,21 @@ function ConfigPanel({
               <span className="text-[10px] text-fg-faint">{config.referenceImages.length} uploaded</span>
             </div>
 
-            {config.referenceImages.length > 0 && (
+            {config.referenceImages.length > 0 && (tool.id === "screen_mockup" || tool.id === "fooh_subway") && (
+              // Named slot con preview real — así se lee "acá va TU UI/ad" (ref: nodos de Pletor).
+              <div className="relative rounded-[var(--radius-sm)] overflow-hidden border border-edge group bg-surface-0">
+                <img src={URL.createObjectURL(config.referenceImages[0])} alt="ref" className="w-full max-h-56 object-contain" />
+                <button
+                  onClick={() => setConfig((p) => ({ ...p, referenceImages: [] }))}
+                  className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  title="Quitar"
+                >
+                  <span className="text-white text-[11px]">×</span>
+                </button>
+              </div>
+            )}
+
+            {config.referenceImages.length > 0 && tool.id !== "screen_mockup" && tool.id !== "fooh_subway" && (
               <div className="flex gap-1.5 flex-wrap">
                 {config.referenceImages.map((file, i) => (
                   <div key={i} className="relative w-12 h-12 rounded-[var(--radius-sm)] overflow-hidden border border-edge group shrink-0">
@@ -4761,6 +4936,8 @@ function ConfigPanel({
               <Plus size={11} /> {tool.id === "content_analyzer" ? "Upload video"
                 : tool.id === "carousel_creator" ? "Subir template"
                 : tool.id === "product_sheet" ? "Subir fotos del producto"
+                : tool.id === "screen_mockup" ? (config.referenceImages.length > 0 ? "Reemplazar screenshot" : "Subir screenshot de tu UI")
+                : tool.id === "fooh_subway" ? (config.referenceImages.length > 0 ? "Reemplazar ad" : "Subir tu ad / poster")
                 : (tool.id === "static_ad" || tool.id === "product_clip") ? "Upload reference"
                 : "Add references"}
               <input
@@ -4773,7 +4950,7 @@ function ConfigPanel({
                   if (files.length > 0) {
                     setConfig((p) => ({
                       ...p,
-                      referenceImages: tool.id === "static_ad" || tool.id === "carousel_creator" || tool.id === "screen_mockup" ? [files[0]] : [...p.referenceImages, ...files].slice(0, 10),
+                      referenceImages: tool.id === "static_ad" || tool.id === "carousel_creator" || tool.id === "screen_mockup" || tool.id === "fooh_subway" ? [files[0]] : [...p.referenceImages, ...files].slice(0, 10),
                       // Carousel: when a template is uploaded, default to "composition" — that's the use case
                       referenceMode: tool.id === "carousel_creator" ? "composition" : p.referenceMode,
                     }));
@@ -4797,6 +4974,40 @@ function ConfigPanel({
                 }}
               />
             </label>
+
+            {/* Screen Mockup — foto de escena opcional. Si la subís, salteamos la generación
+                de escena verde y componemos tu UI directo sobre tu foto. */}
+            {tool.id === "screen_mockup" && (() => {
+              const scenePhoto = config.mockupSceneImages?.[0];
+              return (
+                <div className="mt-3 pt-3 border-t border-edge-subtle space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-semibold text-fg-secondary">
+                      Foto de escena <span className="text-fg-faint font-normal">(opcional — traé tu propia foto)</span>
+                    </label>
+                    {scenePhoto && (
+                      <button onClick={() => setConfig((p) => ({ ...p, mockupSceneImages: [] }))} className="text-[9px] text-fg-faint hover:text-fg cursor-pointer">Quitar</button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-fg-faint leading-snug">
+                    Subí una foto real de un device con pantalla y salteamos la escena generada — componemos tu UI directo ahí.
+                  </p>
+                  {scenePhoto && (
+                    <div className="rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0">
+                      <img src={URL.createObjectURL(scenePhoto)} alt="escena" className="w-full max-h-40 object-contain" />
+                    </div>
+                  )}
+                  <label className="flex items-center justify-center gap-1.5 py-2 border border-dashed border-edge hover:border-[var(--color-edge-strong)] hover:bg-surface-2 rounded-[var(--radius-sm)] cursor-pointer text-[10px] text-fg-muted hover:text-fg transition-all">
+                    <Plus size={11} /> {scenePhoto ? "Reemplazar foto de escena" : "Subir foto de escena"}
+                    <input type="file" accept={IMAGE_ACCEPT} className="hidden" onChange={(e) => {
+                      const f = Array.from(e.target.files || [])[0];
+                      if (f) setConfig((p) => ({ ...p, mockupSceneImages: [f] }));
+                      e.target.value = "";
+                    }} />
+                  </label>
+                </div>
+              );
+            })()}
 
             {/* Loading state while classifying */}
             {classifyingRef && tool.id === "static_ad" && (
@@ -5078,7 +5289,7 @@ function ConfigPanel({
           {[
             schema.showAvatar && (schema.avatarLabel || "Avatar"),
             schema.showProduct && (schema.productLabel || "Product"),
-            schema.showClothing && (schema.clothingLabel || "Clothing"),
+            schema.showClothing && (schema.clothingLabel || "Prendas"),
             schema.showBackground && "Background",
             schema.showVoice && "Voice",
             schema.showLanguage && "Language",
@@ -5099,6 +5310,8 @@ function ConfigPanel({
           {tool.id !== "ecommerce_pack" && renderSelectedSummary()}
           {schema.showAvatar && (
             <AssetSelector
+              collapsible
+              defaultCollapsed={(activeBrand.avatars || []).length > 8}
               label={schema.avatarLabel || "Avatar"}
               sublabel={schema.avatarSublabel || ""}
               emptyText="Upload an avatar or add from here"
@@ -5145,6 +5358,8 @@ function ConfigPanel({
           {schema.showProduct && (
             <div className="space-y-2">
               <AssetSelector
+                collapsible
+                defaultCollapsed={(activeBrand.products || []).length > 8}
                 label={schema.productLabel || "Product"}
                 sublabel={schema.productSublabel || (schema.multiProduct ? "multi-select" : "")}
                 emptyText="Upload products in Brand Kit"
@@ -5208,8 +5423,8 @@ function ConfigPanel({
           {schema.showClothing && (
             <AssetSelector
               collapsible
-              defaultCollapsed={tool.id === "ecommerce_pack"}
-              label={schema.clothingLabel || "Clothing"}
+              defaultCollapsed={tool.id === "ecommerce_pack" || (activeBrand.clothing || []).length > 8}
+              label={schema.clothingLabel || "Prendas"}
               sublabel={schema.clothingSublabel || "multi-select"}
               emptyText="Upload clothing items or add from here"
               items={(activeBrand.clothing || []).map((item) => ({
@@ -5250,6 +5465,8 @@ function ConfigPanel({
 
           {schema.showBackground && (
             <AssetSelector
+              collapsible
+              defaultCollapsed={(activeBrand.backgrounds || []).length > 8}
               label="Fondo"
               sublabel={schema.backgroundSublabel || ""}
               emptyText="Upload a background or add from here"
@@ -5278,6 +5495,8 @@ function ConfigPanel({
 
           {schema.showMoodboard && (
             <AssetSelector
+              collapsible
+              defaultCollapsed={(activeBrand.moodboards || []).length > 8}
               label="Moodboard"
               sublabel="visual style reference — one active at a time"
               emptyText="Upload a moodboard (up to 5 per brand)"
@@ -5655,8 +5874,10 @@ function ConfigPanel({
         )}
 
         {/* Setting / Locación override — compactado: input 1 línea sin el párrafo
-            explicativo (el tooltip cubre el detalle) */}
-        {tool.id !== "content_analyzer" && tool.id !== "avatar_creator" && (
+            explicativo (el tooltip cubre el detalle).
+            screen_mockup: se oculta — "Escena / dispositivo" ya es el único input de escena
+            (Setting era redundante y confundía; pedido explícito de un solo input de texto). */}
+        {tool.id !== "content_analyzer" && tool.id !== "avatar_creator" && tool.id !== "screen_mockup" && (
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-medium text-fg-faint" title="Si la marca tiene un setting cargado (ej: taller, oficina) y querés cambiarlo solo para esta corrida, escribilo acá.">
@@ -5680,6 +5901,73 @@ function ConfigPanel({
             />
           </div>
         )}
+
+        {/* Screen Mockup — prompts editables por step (loop tipo Pletor: ver los pasos,
+            tocar el prompt de cada uno, re-correr para ver cómo cambia).
+            Vacío = automático (el paso usa su prompt por defecto). Con texto = tu prompt manda.
+            Para iterar sobre un solo paso: Generá una vez, editá acá, y en el step de arriba
+            usá "Resetear paso" + Run — re-corre ESE paso con el prompt nuevo. */}
+        {(tool.id === "screen_mockup" || tool.id === "fooh_subway") && (() => {
+          const usingPhoto = (config.mockupSceneImages?.length || 0) > 0;
+          const usingPoster = (config.referenceImages?.length || 0) > 0; // fooh: ad propio subido
+          const vibe = config.objective?.trim() || "";
+          const steps: Array<{ key: string; label: string; hint: string; def: string }> = tool.id === "fooh_subway"
+            ? [
+                // Con ad propio subido, el paso poster es passthrough → su prompt no aplica.
+                ...(usingPoster ? [] : [{ key: "poster", label: "Prompt · Poster", hint: "Cómo se genera el ad desde tu producto", def: posterPrompt(vibe, "") }]),
+                { key: "scene", label: "Prompt · Estación", hint: "La estación de metro con billboard verde", def: subwayScenePrompt(vibe) },
+                { key: "composite", label: "Prompt · Componer FOOH", hint: "Cómo se encaja el poster en el billboard", def: foohCompositePrompt },
+              ]
+            : [
+                // Con foto de escena propia, el paso de escena es passthrough → su prompt no aplica.
+                ...(usingPhoto ? [] : [{ key: "scene", label: "Prompt · Escena base", hint: "El device con pantalla verde croma", def: greenScreenPrompt(config.objective?.trim() || "a person using the device in a modern, natural real-world setting") }]),
+                { key: "composite", label: "Prompt · Componer UI", hint: usingPhoto ? "Cómo se encaja tu UI en tu foto" : "Cómo se encaja tu UI en el verde", def: usingPhoto ? compositeOnPhotoPrompt : compositePrompt },
+              ];
+          const sp = config.stepPrompts || {};
+          const setPrompt = (key: string, val: string) =>
+            setConfig((p) => ({ ...p, stepPrompts: { ...(p.stepPrompts || {}), [key]: val } }));
+          return (
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center gap-1.5">
+                <Wand2 size={11} className="text-[var(--color-brand)]" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-faint">Prompts por paso</span>
+                <span className="text-[9px] text-fg-faint italic">— editá y re-corré para ver</span>
+              </div>
+              {steps.map((st) => {
+                const val = sp[st.key] || "";
+                const dirty = val.trim().length > 0;
+                return (
+                  <div key={st.key} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-medium text-fg-secondary" title={st.hint}>
+                        {st.label} <span className="text-fg-faint italic font-normal">{dirty ? "· editado" : "· auto"}</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        {!dirty && (
+                          <button onClick={() => setPrompt(st.key, st.def)} className="text-[9px] text-fg-faint hover:text-fg cursor-pointer" title="Cargar el prompt por defecto para editarlo">
+                            Cargar default
+                          </button>
+                        )}
+                        {dirty && (
+                          <button onClick={() => setPrompt(st.key, "")} className="text-[9px] text-fg-faint hover:text-fg cursor-pointer">
+                            Restablecer
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <textarea
+                      value={val}
+                      onChange={(e) => setPrompt(st.key, e.target.value)}
+                      rows={dirty ? 4 : 2}
+                      placeholder={`Vacío = automático. "Cargar default" para editar desde:\n${st.def.slice(0, 90)}…`}
+                      className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[11px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-none leading-snug font-mono"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {/* Custom Script — per-scene inputs, skip Gemini (UGC only) */}
         {tool.id === "ugc_creator" && (
@@ -6069,6 +6357,8 @@ function StepPanel({
             onInvalidateDownstream={onInvalidateDownstream}
           />
         ) : step.status === "review" ? (
+          <>
+          <UsedInputsStrip config={config} toolId={tool.id} result={step.result} />
           <DoneStep stepId={step.id} result={step.result} audioCache={audioCache} config={config} allSteps={allSteps}
             onUpdateStepResult={onUpdateStepResult}
             onInvalidateDownstream={onInvalidateDownstream}
@@ -6083,6 +6373,7 @@ function StepPanel({
               const arr = (sr.scenes as Array<Array<Record<string, string>>>)[0] || [];
               return arr.map((s, i) => ({ id: s.id || `act_${i+1}`, title: s.title || s.act || `Scene ${i+1}`, script: s.script || s.speech || s.copy || s.text || "", image_prompt: s.image_prompt || "" }));
             }} />
+          </>
         ) : step.status === "done" || step.status === "stale" ? (
           <div className={step.status === "stale" ? "opacity-50" : ""}>
             {step.status === "stale" && (
@@ -6091,6 +6382,7 @@ function StepPanel({
                 <span className="text-[11px] text-fg-faint">Paso anterior cambió — re-generá este paso para aplicar el cambio (apretá &ldquo;Resetear paso&rdquo; arriba o navegá y dale Run).</span>
               </div>
             )}
+            <UsedInputsStrip config={config} toolId={tool.id} result={step.result} />
             <DoneStep stepId={step.id} result={step.result} audioCache={audioCache} config={config} allSteps={allSteps}
               onUpdateStepResult={onUpdateStepResult}
               onInvalidateDownstream={onInvalidateDownstream}
@@ -6633,6 +6925,75 @@ function ActiveStep({
   );
 }
 
+// ── Assets usados → resultado ──────────────────────────────
+// Tira genérica que se muestra arriba del resultado de CUALQUIER tool: los assets que
+// entraron (avatar, producto, prenda, fondo, moodboard, refs) → el output de abajo.
+// Pedido: "cómo se muestran las imágenes debería ser así en todas". screen_mockup tiene
+// su propia tira más rica, así que se saltea. Devuelve null si no hay inputs visuales.
+function resultHasMedia(result: unknown): boolean {
+  if (!result || typeof result !== "object") return false;
+  const o = result as Record<string, unknown>;
+  for (const k of ["images", "slides", "variations", "creatives", "frames"]) {
+    if (Array.isArray(o[k]) && (o[k] as unknown[]).length > 0) return true;
+  }
+  return false;
+}
+
+function UsedInputsStrip({ config, toolId, result }: { config?: ToolConfig; toolId?: string; result?: unknown }) {
+  const { activeBrand } = useBrand();
+  if (!config || toolId === "screen_mockup" || toolId === "fooh_subway" || !resultHasMedia(result)) return null;
+
+  type Chip = { key: string; label: string; thumb?: string };
+  const chips: Chip[] = [];
+  const b = activeBrand;
+
+  const avatarIds = [config.selectedAvatarId, ...(config.selectedAvatarIds || [])].filter(Boolean) as string[];
+  for (const id of [...new Set(avatarIds)]) {
+    const a = b?.avatars?.find((x) => x.id === id);
+    if (a) chips.push({ key: `av-${id}`, label: a.name || "Avatar", thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined });
+  }
+  const productIds = [config.selectedProductId, ...(config.selectedProductIds || [])].filter(Boolean) as string[];
+  for (const id of [...new Set(productIds)]) {
+    const p = b?.products?.find((x) => x.id === id);
+    if (p) chips.push({ key: `pr-${id}`, label: p.name || "Producto", thumb: p.imageUrl ? productImageUrl(p.imageUrl) : undefined });
+  }
+  for (const id of config.selectedClothingIds || []) {
+    const c = b?.clothing?.find((x) => x.id === id);
+    if (c) chips.push({ key: `cl-${id}`, label: c.name || "Prenda", thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined });
+  }
+  if (config.selectedBackgroundId) {
+    const bg = b?.backgrounds?.find((x) => x.id === config.selectedBackgroundId);
+    if (bg) chips.push({ key: "bg", label: bg.name || "Fondo", thumb: bg.imageUrl ? backgroundImageUrl(bg.imageUrl) : undefined });
+  }
+  if (config.selectedMoodboardId) {
+    const md = b?.moodboards?.find((x) => x.id === config.selectedMoodboardId);
+    if (md) chips.push({ key: "md", label: md.name || "Moodboard", thumb: md.imageUrl ? moodboardImageUrl(md.imageUrl) : undefined });
+  }
+  (config.referenceImages || []).forEach((f, i) => {
+    try { chips.push({ key: `ref-${i}`, label: "Referencia", thumb: URL.createObjectURL(f) }); } catch { /* ignore */ }
+  });
+
+  if (chips.length === 0) return null;
+
+  return (
+    <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3 mb-4">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-faint mb-2">Assets usados</div>
+      <div className="flex items-center gap-2 flex-wrap">
+        {chips.map((c) => (
+          <div key={c.key} className="flex items-center gap-1.5 bg-surface-2 rounded-[var(--radius-sm)] pr-2.5 pl-1 py-1">
+            <div className="w-8 h-8 rounded-[var(--radius-sm)] overflow-hidden bg-surface-0 shrink-0">
+              {c.thumb && <img src={c.thumb} alt={c.label} className="w-full h-full object-cover" />}
+            </div>
+            <span className="text-[11px] text-fg-muted max-w-[120px] truncate">{c.label}</span>
+          </div>
+        ))}
+        <span className="text-[var(--color-brand)] text-[15px] font-semibold px-1">→</span>
+        <span className="text-[11px] text-fg-faint italic">resultado abajo</span>
+      </div>
+    </div>
+  );
+}
+
 // ── Done step ──────────────────────────────────────────────
 
 function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes, config, allSteps = [], onUpdateStepResult, onInvalidateDownstream, toolId, batches, onNewBatch, onDeleteBatch, onUpdateBatchImage }: {
@@ -6715,6 +7076,52 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       setEnhancingId(null);
     }
   };
+
+  // ── Screen Mockup: paso "scene" (base con pantalla verde) ──────────
+  // Base intermedia. La mostramos compacta para que se vea el pipeline ejecutándose
+  // (como los nodos de Pletor), pero dejando claro que NO es el entregable.
+  if ((stepId === "scene" || stepId === "poster") && result && typeof result === "object" && "images" in (result as object)) {
+    const sr = result as { images?: Array<{ id: string; url: string; label: string; status?: string }>; source?: string };
+    const scenes = sr.images || [];
+    const ok = scenes.filter((s) => s.url);
+    const fromPhoto = sr.source === "upload";
+    const isFooh = toolId === "fooh_subway";
+    // Mensaje y chip según paso + tool.
+    let msg: React.ReactNode;
+    let chip: string;
+    if (stepId === "poster") {
+      msg = fromPhoto
+        ? <>Usando tu ad ({ok.length}) — se encaja en el billboard de la estación en el paso final.</>
+        : <>Poster listo ({ok.length}) — se encaja en el billboard de la estación en el paso final.</>;
+      chip = fromPhoto ? "Tu ad" : "Poster";
+    } else if (isFooh) {
+      msg = <>Estación lista ({ok.length}) — se encaja el poster en el billboard verde en el paso final.</>;
+      chip = "Estación · chroma";
+    } else {
+      msg = fromPhoto
+        ? <>Usando tu foto de escena ({ok.length}) — se encaja tu UI en su pantalla en el siguiente paso.</>
+        : <>Escena base lista ({ok.length}) — se encaja tu UI en la pantalla verde en el siguiente paso.</>;
+      chip = fromPhoto ? "Tu foto" : "Base · chroma";
+    }
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-[12px] text-fg-muted">
+          <Check size={13} className="text-[var(--color-success)]" />
+          {msg}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {scenes.map((s) => (
+            <div key={s.id} className="relative w-28 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0">
+              {s.url
+                ? <img src={s.url} alt={s.label} className="w-full h-auto object-cover" />
+                : <div className="w-full h-28 flex items-center justify-center text-[10px] text-[var(--color-danger)]">falló</div>}
+              <div className="px-1.5 py-1 text-[9px] text-fg-faint uppercase tracking-wide">{chip}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   // ── Product Sheet: Brief step ────────────────────────────
   // Distinguished from the Avatar brief by the presence of product-specific keys.
@@ -8856,8 +9263,58 @@ function DoneStep({ stepId, result, audioCache: audioCacheProp, getScriptScenes,
       );
     }
 
+    // Tira de flujo visual "inputs → output" tipo nodos de Pletor. Para las tools de la
+    // familia mockup (screen_mockup / fooh_subway): [escena/base] + [UI/poster] → [resultado].
+    const isMockupFamily = toolId === "screen_mockup" || toolId === "fooh_subway";
+    const flowSceneResult = isMockupFamily ? (allSteps.find((s) => s.id === "scene")?.result as { images?: Array<{ url: string }>; source?: string } | undefined) : undefined;
+    const flowSceneUrl = (flowSceneResult?.images || []).find((im) => im.url)?.url;
+    const flowSceneLabel = toolId === "fooh_subway"
+      ? "Estación (chroma)"
+      : (flowSceneResult?.source === "upload" ? "Escena (tu foto)" : "Escena (chroma)");
+    // Segundo input: para screen_mockup = la UI subida; para fooh_subway = el poster (paso 1).
+    let flow2Url: string | undefined;
+    let flow2Label = "";
+    if (toolId === "screen_mockup") {
+      const uiFile = config?.referenceImages?.[0];
+      flow2Url = uiFile ? URL.createObjectURL(uiFile) : undefined;
+      flow2Label = "Tu UI";
+    } else if (toolId === "fooh_subway") {
+      flow2Url = ((allSteps.find((s) => s.id === "poster")?.result as { images?: Array<{ url: string }> } | undefined)?.images || []).find((im) => im.url)?.url;
+      flow2Label = "Poster";
+    }
+    const flowOutUrl = activeImg?.url || succeeded[0]?.url;
+    const flowOutLabel = toolId === "fooh_subway" ? "FOOH" : "Mockup";
+    const flowTitle = toolId === "fooh_subway" ? "Cómo se armó el FOOH" : "Cómo se usó tu UI";
+
     return (
       <div className="space-y-4">
+        {isMockupFamily && (flowSceneUrl || flow2Url) && (
+          <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-faint mb-2">{flowTitle}</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {flowSceneUrl && (
+                <div className="text-center">
+                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0"><img src={flowSceneUrl} alt="escena" className="w-full h-full object-cover" /></div>
+                  <div className="text-[9px] text-fg-faint mt-1">{flowSceneLabel}</div>
+                </div>
+              )}
+              <span className="text-fg-faint text-[15px]">+</span>
+              {flow2Url && (
+                <div className="text-center">
+                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0"><img src={flow2Url} alt={flow2Label} className="w-full h-full object-contain" /></div>
+                  <div className="text-[9px] text-fg-faint mt-1">{flow2Label}</div>
+                </div>
+              )}
+              <span className="text-[var(--color-brand)] text-[16px] font-semibold px-1">→</span>
+              {flowOutUrl && (
+                <div className="text-center">
+                  <div className="w-20 h-20 rounded-[var(--radius-sm)] overflow-hidden border border-[var(--color-brand)]/50 bg-surface-0"><img src={flowOutUrl} alt="resultado" className="w-full h-full object-cover" /></div>
+                  <div className="text-[9px] text-[var(--color-brand)] mt-1">{flowOutLabel}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {data.interpretation && (
           <div className="text-[11px] text-fg-muted bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 leading-snug">
             <span className="text-[var(--color-action)] font-medium">Qué entendí:</span> {data.interpretation}

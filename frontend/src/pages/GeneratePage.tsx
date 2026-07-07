@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { cn } from "../lib/utils";
+import { TOOL_PREVIEW_MEDIA } from "../lib/toolPreviews";
 
 interface ToolEntry {
   id: string;
@@ -37,15 +38,6 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   sparkles: <Sparkles size={18} />,
 };
 
-const TOOL_PREVIEW_MEDIA: Record<string, { url: string; type: "image" | "video" }> = {
-  video_ad_creator: { url: "/previews/videoadcreator.mp4", type: "video" },
-  ugc_creator: { url: "/previews/ugccreator.mp4", type: "video" },
-  fashion_reel: { url: "/previews/agnatesttt.mp4", type: "video" },
-  static_ad: { url: "/previews/staticad.png", type: "image" },
-  ecommerce_pack: { url: "/previews/eccomerce.png", type: "image" },
-  avatar_creator: { url: "/previews/avatar.png", type: "image" },
-};
-
 // Punchy tagline per tool — overrides description on card
 const TOOL_TAGLINES: Record<string, string> = {
   ugc_creator: "Avatars hablando a cámara, listos para publicar",
@@ -64,6 +56,7 @@ const TOOL_TAGLINES: Record<string, string> = {
   ecommerce_batch: "Batch: drop carpeta de outfits + poses, generá todas las fotos de catálogo de una",
   product_sheet: "Sheet del producto: vistas múltiples o close-ups, desde 1-4 fotos",
   screen_mockup: "Tu app/UI en un dispositivo real, en contexto lifestyle",
+  fooh_subway: "Tu ad en un billboard de metro, foto-real (FOOH)",
 };
 
 // Subtle gradient per tool for fallback previews (when no media)
@@ -84,6 +77,7 @@ const TOOL_GRADIENTS: Record<string, string> = {
   ecommerce_batch: "from-stone-400/30 via-zinc-400/20 to-neutral-500/30",
   product_sheet: "from-cyan-500/30 via-sky-500/20 to-blue-500/30",
   screen_mockup: "from-slate-500/30 via-sky-500/20 to-indigo-500/30",
+  fooh_subway: "from-zinc-600/30 via-orange-500/20 to-amber-500/30",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -98,7 +92,7 @@ const USE_CASES: Array<{ key: string; label: string; toolIds: string[] }> = [
   { key: "fashion", label: "Moda & editorial", toolIds: ["fashion_reel", "fashion_editorial"] },
   { key: "ecommerce", label: "Ecommerce & producto", toolIds: ["ecommerce_pack", "ecommerce_batch", "product_sheet", "product_clip", "product_spotlight"] },
   { key: "ugc", label: "UGC & avatares", toolIds: ["ugc_creator", "avatar_creator"] },
-  { key: "ads", label: "Ads & creativos", toolIds: ["video_ad_creator", "static_ad", "ad_creative_lab", "carousel_creator"] },
+  { key: "ads", label: "Ads & creativos", toolIds: ["video_ad_creator", "static_ad", "fooh_subway", "ad_creative_lab", "carousel_creator"] },
   { key: "adapt", label: "Analizar & adaptar", toolIds: ["content_analyzer", "video_swap"] },
 ];
 
@@ -117,15 +111,15 @@ function ToolTile({ tool, disabled, onClick }: { tool: ToolEntry; disabled: bool
         disabled ? "opacity-50 cursor-not-allowed" : "hover:border-[var(--color-brand)]/50 hover:-translate-y-1 cursor-pointer",
       )}
     >
+      {/* Gradiente + inicial siempre de fondo → si el preview falta/404, cae acá elegante. */}
+      <div className={cn("absolute inset-0 bg-gradient-to-br flex items-center justify-center", gradient)}>
+        <span className="text-[38px] font-bold text-white/25">{tool.name[0]}</span>
+      </div>
       {media?.type === "video" ? (
-        <video src={media.url} autoPlay muted loop playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+        <video src={media.url} autoPlay muted loop playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => { (e.currentTarget as HTMLVideoElement).style.display = "none"; }} />
       ) : media?.type === "image" ? (
-        <img src={media.url} alt={tool.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-      ) : (
-        <div className={cn("absolute inset-0 bg-gradient-to-br flex items-center justify-center", gradient)}>
-          <span className="text-[38px] font-bold text-white/25">{tool.name[0]}</span>
-        </div>
-      )}
+        <img src={media.url} alt={tool.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+      ) : null}
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
       <span className="absolute top-2.5 left-2.5 text-[9px] font-semibold uppercase tracking-widest text-white/80 bg-black/40 backdrop-blur px-2 py-0.5 rounded-full">
         {CATEGORY_LABELS[tool.category] || tool.category}
@@ -325,6 +319,7 @@ function ToolCard({
               "absolute inset-0 w-full h-full object-cover transition-opacity duration-300",
               hover ? "opacity-100" : "opacity-80"
             )}
+            onError={(e) => { (e.currentTarget as HTMLVideoElement).style.display = "none"; }}
           />
         )}
         {media?.type === "image" && (
@@ -335,6 +330,7 @@ function ToolCard({
               "absolute inset-0 w-full h-full object-cover transition-transform duration-500",
               hover && !disabled && "scale-105"
             )}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           />
         )}
 

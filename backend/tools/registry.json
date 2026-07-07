@@ -6,7 +6,16 @@
     "description": "Subí tu UI (screenshot) + describí la escena → foto lifestyle con tu app o software mostrándose en un dispositivo real (celular / laptop / tablet), en contexto.",
     "icon": "image",
     "status": "active",
-    "pipeline": ["generate_all"]
+    "pipeline": ["scene", "generate_all"]
+  },
+  {
+    "id": "fooh_subway",
+    "name": "FOOH Subway Ads",
+    "category": "images",
+    "description": "Fake-Out-Of-Home: tu ad en un billboard de una estación de metro, foto-real. Genera el poster desde tu producto (o subí el tuyo), arma la estación y compone el ad en el panel — mockup FOOH publicitario.",
+    "icon": "megaphone",
+    "status": "active",
+    "pipeline": ["poster", "scene", "generate_all"]
   },
   {
     "id": "avatar_creator",

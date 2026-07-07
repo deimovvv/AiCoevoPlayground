@@ -78,20 +78,34 @@ La lección del node-canvas NO es "dibujar cablecitos". Es la **arquitectura**:
   editor + poller (como hoy).
 
 ## 4. Fases (incremental — migrar tool-por-tool detrás de un adapter)
-- **Fase 0 — Modelo + registry (sin cambio de UI).** Definir el descriptor de nodo
-  (id, inputs/outputs tipados, schema de params) + un `NODE_REGISTRY`. Envolver los
-  service calls que YA tenemos (`image_gen`, `kling_video`, `tts`, `fal_lipsync`,
-  `video_concat`, `prompt_builder`) como `execute` fns. Cero cambio de comportamiento —
-  solo catalogar primitivas.
-- **Fase 1 — Motor + serialización.** Motor de grafo en el backend (deserializar → topo
-  sort → correr pasando outputs tipados). Formato JSON/YAML del grafo. Un runner genérico
-  `POST /run`. **Caché por nodo + skip por hash** (el killer feature de ComfyUI: re-run
-  solo el nodo que cambió — nativiza nuestra filosofía "curar multishot antes de animar").
-- **Fase 2 — Una tool como data + renderer stacked genérico.** Elegir la tool lineal más
-  simple (ej. `photo_multishot`), escribirla como grafo JSON, y construir el renderer
-  stacked-steps schema-driven (el inspector de cada nodo se genera del schema;
-  `ImageEditPanel`/asset-pickers se vuelven **widget types** reusables). Camino nuevo
-  funcionando al lado del viejo.
+- **Fase 0 — Modelo + registry (sin cambio de UI). ✅ HECHO (2026-07).** Vive en
+  `backend/nodes/`: `types.py` (PortType tipado + ParamSpec + NodeDescriptor con el split
+  descriptor/`execute` de n8n), `registry.py` (`NODE_REGISTRY` + `register`/`get_node`/
+  `list_nodes`), `primitives.py` (7 primitivas envolviendo los services que YA existen:
+  `prompt_assemble`, `nano_image`, `nano_image_edit`, `kling_video`, `voice_tts`,
+  `fal_lipsync`, `video_concat`). Ports tipados (IMAGE/IMAGE[]/VIDEO/AUDIO/TEXT/PROMPT/
+  BRAND_CONTEXT/ANY). Descriptor serializable a JSON (data pura, sin `execute`). Cero
+  cambio de comportamiento: no está cableado a ninguna tool ni a `main.py` todavía — es
+  solo el catálogo. Pendiente inmediato de Fase 1: `GET /api/nodes` (catálogo) + el motor.
+- **Fase 1 — Motor + serialización. ✅ HECHO (2026-07).** `backend/nodes/engine.py`:
+  `run_graph(graph, ctx, cache)` — deserializa → topo sort (Kahn, detecta refs colgadas y
+  ciclos) → corre cada nodo pasando outputs tipados por los edges. Formato JSON del grafo
+  (nodes con `inputs` = ref `{node,port}` o valor estático). **Caché por hash de nodo**:
+  `_hash_node(type+params+inputs)`; en re-run, los nodos sin cambios devuelven cacheado y
+  NO se re-ejecutan (verificado: cambiar un nodo re-corre SOLO ese nodo). Endpoints en
+  `main.py` (aditivos): `GET /api/nodes` (catálogo) + `POST /api/graph/run` (runner, con
+  `cache_key` para skip-por-hash entre requests + `brand_id` para el `BRAND_CONTEXT`).
+- **Fase 2 — Una tool como data. 🟡 EN CURSO (2026-07).** `screen_mockup` escrito como
+  grafo JSON (`backend/tools/screen_mockup/graph.json`): `scene` (nano_image, pantalla
+  verde) → `composite` (nano_image_edit, encaja la UI). Corre por el motor nuevo AL LADO
+  del handler viejo (sin migrarlo). El motor se extendió para tools reales: **inputs
+  externos** (`{"input":"ui_url"}` = la UI que sube el usuario en runtime) e **inputs
+  lista mixta** (`images: [ref a scene, input ui_url]`). `validate_graph` chequea typed
+  ports antes de correr. Endpoint `GET /api/tools/{id}/graph`. Verificado end-to-end con
+  execute mockeado (wiring correcto, 0 errores de validación).
+  **Falta para cerrar Fase 2:** el renderer stacked-steps schema-driven (inspector de cada
+  nodo generado del schema; `ImageEditPanel`/asset-pickers como widget types). Es la mitad
+  de front — se hace cuando querramos la UI nueva; el modelo de dato ya está probado.
 - **Fase 3 — Adapter + port tool-por-tool.** Flag por tool: `graph` (nuevo) o `legacy`
   (viejo). Migrar de a una, borrando sus `tool.id === "..."` a medida que pasan. El
   monolito se achica monótonamente; nada se rompe de golpe.
