@@ -35,6 +35,10 @@ export const STUDIO_STYLES: Record<string, { label: string; clause: string }> = 
   grey:      { label: "Gris estudio",    clause: "Light grey seamless studio backdrop, soft directional studio lighting with a subtle gradient, premium catalog look." },
   beige:     { label: "Beige cálido",    clause: "Warm beige / cream studio backdrop, soft natural-feeling light, refined editorial e-commerce look." },
   editorial: { label: "Editorial",       clause: "Editorial studio on a neutral backdrop, soft directional key light with gentle controlled shadows, fashion-magazine treatment." },
+  // Receta "elevated ecommerce" dialada en el Lab (Koxis 2026-07): pared texturada + luz de
+  // ventana suave y pareja + grade cálido true-to-color. Mata el look "pegada" del blanco
+  // plano sin irse al editorial dramático (la prenda queda totalmente visible).
+  plaster:   { label: "Pared texturada · luz natural", clause: "Textured warm light-grey plaster wall with subtle natural tonal variation as the background (NOT a seamless studio sweep). Soft, EVEN natural window daylight with gentle direction — well filled, NO deep shadows; the garment stays fully visible and evenly lit with clear fabric detail. Warm, natural, true-to-color grade — bright and clean, never moody, cold or clinical. The model stands close to the wall, grounded on a simple neutral floor. Elevated, realistic, natural e-commerce look — NOT flat high-key studio, NOT dramatic editorial." },
   color:     { label: "Color sólido",    clause: "" },  // el handler arma la clause con ecomStudioColor
   custom:    { label: "Custom",          clause: "" },
 };
@@ -55,6 +59,10 @@ const FABRIC_REALISM = "ULTRA-REALISTIC fabric and garment texture: render the t
 // nitidez de borde a borde para e-commerce; 5500K neutro + setup de 2 luces evita el
 // look plano/CGI. Aportado por el usuario a partir de un prompt de referencia que funcionaba.
 const CAMERA_LIGHTING = "Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Professional studio lighting: soft diffused key light from the front-right at 45°, a large fill light on the opposite side for even commercial illumination, neutral 5500K white balance. Clean editorial e-commerce lighting.";
+// Variante para el preset "plaster" (pared texturada): mismo cuerpo/lente pero luz de
+// ventana natural y cálida en vez de key/fill de estudio neutro — así no pelea con el
+// look warm del backdrop. Sin esto, el 5500K neutro tira la escena de vuelta a estudio.
+const CAMERA_LIGHTING_NATURAL = "Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Soft, even NATURAL window daylight coming gently from one side, well filled so there are no deep shadows and the garment stays fully visible; warm natural white balance (~4800–5200K), realistic natural-light rendering — NOT hard studio key/fill, NOT clinical 5500K neutral. Natural, elevated e-commerce lighting.";
 // Negative prompt — el mayor lever de realismo en Nano Banana. Empuja fuera el look
 // plástico/ilustración/AI y el over-retoque que delata la imagen generada.
 const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, CGI, AI-generated look, plastic or waxy finish, over-retouched airbrushed perfection, oversaturated colors, harsh shadows projected on the backdrop wall.";
@@ -73,6 +81,10 @@ const GARMENT_ORIENTATION = "Wear every garment in its CORRECT orientation, matc
 // Énfasis en piernas / tren inferior al copiar una pose. El fallo #1 de Nano Banana es
 // copiar los brazos pero dejar las piernas en un parado default — este bloque le da a
 // las piernas el mismo peso que a los brazos y lo dice explícitamente.
+// Quiebre de cintura / contrapposto — se appendea a toda pose on-model para que la modelo
+// no quede tiesa y frontal-plana. Pedido (Koxis 2026-07): "que quiebre más la cintura, más natural".
+const POSE_NATURALNESS = "NATURAL WAIST BREAK (avoid stiff, square, evenly-weighted standing): the model clearly shifts weight onto one leg so the hips break and tilt into a soft contrapposto — one hip pushed out and slightly higher, the waist and spine gently S-curved, the shoulders subtly counter-angled to the hips. Effortless, relaxed, editorial-natural stance; never rigid or symmetric-frontal.";
+
 const POSE_FULL_BODY = "Copy the pose of the WHOLE body from head to feet — the LEGS AND LOWER BODY are as important as the arms. Replicate the exact lower-body stance: which leg carries the weight, how much each knee is bent, whether the legs are together / apart / crossed / staggered, and how the feet are planted and angled. The single most common mistake is copying the arms while leaving the legs in a plain straight standing stance — do NOT do that; the legs must match the reference just as precisely as the upper body.";
 
 // Consistencia de fondo entre etapas/shots — el backdrop es el MISMO estudio en todo el
@@ -96,7 +108,7 @@ Add true photographic sharpness and fine detail to skin and fabric, remove any s
 export const POSE_PRESETS: Record<string, { label: string; description: string }> = {
   natural_front: {
     label: "Natural Front",
-    description: "Standing in slight contrapposto, weight on left leg, right hip pushed out subtly. Right hand resting lightly on right hip pocket, left arm hanging naturally at side. Shoulders back and relaxed, chest open. Head facing camera with relaxed, confident expression.",
+    description: "Standing in clear contrapposto, weight firmly on the left leg, right hip pushed out and the waist breaking into a soft S-curve. Right hand resting lightly on right hip pocket, left arm hanging naturally at side. Shoulders back and relaxed, chest open. Head facing camera with relaxed, confident expression.",
   },
   walking: {
     label: "Walking",
@@ -185,11 +197,13 @@ const POLL_FAILED_MSG = "Fal marcó la generación como fallida (probable polít
 function getPoseDescription(presetKey: string | undefined, shotId: string, nth: number): string | null {
   if (!presetKey || presetKey === "upload" || presetKey === "") return null;
   if (CLOSEUP_SHOTS.has(shotId)) return null;
-  if (presetKey === "auto") {
-    const pool = POSE_POOLS[shotId] || POSE_KEYS;
-    return POSE_PRESETS[pool[nth % pool.length]].description;
-  }
-  return POSE_PRESETS[presetKey]?.description || null;
+  const base = presetKey === "auto"
+    ? POSE_PRESETS[(POSE_POOLS[shotId] || POSE_KEYS)[nth % (POSE_POOLS[shotId] || POSE_KEYS).length]].description
+    : POSE_PRESETS[presetKey]?.description || null;
+  if (!base) return null;
+  // Reforzamos el quiebre de cintura en toda pose de pie (las de espalda/caminando ya
+  // implican dinámica, pero el S-curve les suma naturalidad igual).
+  return `${base} ${POSE_NATURALNESS}`;
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -279,7 +293,7 @@ const handleGenerate: StepHandler = async (ctx) => {
     || "";
 
   const avatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId)
-    || (config.selectedAvatarIds?.length ? (activeBrand.avatars || []).find((a) => config.selectedAvatarIds.includes(a.id)) : undefined);
+    || (config.selectedAvatarIds?.length ? (activeBrand.avatars || []).find((a) => (config.selectedAvatarIds || []).includes(a.id)) : undefined);
   const moodboard = (activeBrand.moodboards || []).find((m) => m.id === config.selectedMoodboardId);
 
   const studioKey = (cfg.studioStyle as string) || "white";
@@ -298,6 +312,8 @@ const handleGenerate: StepHandler = async (ctx) => {
   }
   // La sombra de contacto + el aislamiento de fondo van en TODOS los shots.
   const studioClause = `${studioClauseBase} ${GROUNDING_SHADOW} ${BG_ISOLATION} ${BG_CONSISTENCY}`;
+  // El preset "plaster" usa luz de ventana natural; el resto, el estudio neutro de siempre.
+  const cameraLighting = studioKey === "plaster" ? CAMERA_LIGHTING_NATURAL : CAMERA_LIGHTING;
 
   const shots = ((Array.isArray(cfg.ecomShots) && (cfg.ecomShots as string[]).length) ? (cfg.ecomShots as string[]) : DEFAULT_SHOTS)
     .filter((s) => SHOT_CATALOG[s]);
@@ -400,7 +416,7 @@ const handleGenerate: StepHandler = async (ctx) => {
         });
         // Style refs (look&feel + moodboard) opcionales — afinan estética.
         const sr1 = styleRefs(idx1); step1Urls.push(...sr1.urls); step1Desc.push(...sr1.desc);
-        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${CAMERA_LIGHTING} ${IDENTITY_LOCK} ${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
+        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${cameraLighting} ${IDENTITY_LOCK} ${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
         const job1 = await createImageEdit(step1Urls, step1Prompt, config.aspectRatio, config.resolution);
         const res1 = await pollImageGen(job1.request_id);
         const dressedAvatar = res1.image_url || "";
@@ -536,7 +552,7 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
     const poseDesc = !shotPoseUrl ? getPoseDescription(posePreset, sid, inst.nth) : null;
     const presetPoseClause = poseDesc ? ` POSE: ${poseDesc}` : "";
     const identityClause = avatar?.imageUrl ? `${IDENTITY_LOCK} ` : "";
-    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} FRAMING (MANDATORY — defines the crop/zoom): ${shot.framing}${presetPoseClause} ${wardrobe}${CAMERA_LIGHTING} ${identityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} FRAMING (MANDATORY — defines the crop/zoom): ${shot.framing}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution) : await createTextToImage(prompt, config.aspectRatio, config.resolution);
       const res = await pollImageGen(job.request_id);
@@ -600,7 +616,7 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
       // Flat = una prenda específica → su nombre crudo es el nombre de descarga.
       const downloadName = subj.name || primaryGarmentName;
       const id = flatSubjects.length > 1 ? `${sid}__${subj.id}` : sid;
-      const prompt = `Professional e-commerce product packshot of a single garment. ${studioClause} ${shot.framing} Show ONLY this one garment — no other clothing items. ${CAMERA_LIGHTING} ${FABRIC_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+      const prompt = `Professional e-commerce product packshot of a single garment. ${studioClause} ${shot.framing} Show ONLY this one garment — no other clothing items. ${cameraLighting} ${FABRIC_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
       try {
         const job = await createImageEdit(urls, prompt, config.aspectRatio, config.resolution);
         const res = await pollImageGen(job.request_id);
