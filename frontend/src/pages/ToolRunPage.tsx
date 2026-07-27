@@ -5799,6 +5799,16 @@ function ConfigPanel({
                       </button>
                     ))}
                   </div>
+                  {/* Acento — solo cuando Seedance genera la voz (para decirle qué tonada). */}
+                  {cur === "seedance" && (
+                    <input
+                      type="text"
+                      value={(config as unknown as { ugcAccent?: string }).ugcAccent || ""}
+                      onChange={(e) => setConfig((p) => ({ ...(p as Record<string, unknown>), ugcAccent: e.target.value } as typeof p))}
+                      placeholder='Tonada / acento — ej: "porteño", "cuyano", "mexicano neutro"'
+                      className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[11px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
+                    />
+                  )}
                 </div>
               );
             })()}

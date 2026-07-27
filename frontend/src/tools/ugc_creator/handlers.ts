@@ -1276,18 +1276,25 @@ export const handleLipsync: StepHandler = async (ctx) => {
     //   Trae ambiente pero el acento regional suele salir más flojo. Para probar.
     const voiceSource = (config as unknown as Record<string, unknown>).ugcVoiceSource === "seedance"
       ? "seedance" : "elevenlabs";
-    if (voiceSource === "seedance" && falAudioUrl) {
-      // Build refs: curated scene image first (composition anchor) + brand refs (avatar / product / clothing / bg)
+    if (voiceSource === "seedance" && scriptText) {
+      // Seedance NATIVO (test real): NO se pasa el audio de ElevenLabs — Seedance genera
+      // la voz + ambiente desde el TEXTO del guion + el acento indicado. Así no se filtra
+      // la voz de ElevenLabs (el fallo anterior). El paso de voz ElevenLabs igual corre pero
+      // acá se ignora — el video final trae la voz nativa de Seedance.
       const refs = [scene.selectedUrl, ...brandRefUrls].slice(0, 6);
       try {
-        const ACCENT_MATCH = " Match the voice, tone, delivery and ACCENT of the provided reference audio as closely as possible; keep natural ambient room tone.";
-        const seedancePrompt = (scriptScene?.image_prompt
-          ? `${scriptScene.image_prompt}. The character is speaking the provided audio with natural lipsync, expressive face, calm body posture.`
-          : `Person speaking to camera in the same setting and outfit as the reference. Natural lipsync to the audio. Subtle body movement, expressive face.`) + ACCENT_MATCH;
+        const accent = ((config as unknown as Record<string, unknown>).ugcAccent as string || "").trim();
+        const accentClause = accent
+          ? ` The dialogue is spoken in a natural ${accent} Spanish accent (reproduce the accent, intonation and local delivery faithfully).`
+          : "";
+        const sceneClause = scriptScene?.image_prompt
+          ? `${scriptScene.image_prompt}.`
+          : `Person speaking to camera in the same setting and outfit as the reference.`;
+        const seedancePrompt = `${sceneClause} The person speaks to camera, saying exactly: "${scriptText.replace(/"/g, "'")}".${accentClause} Natural realistic lip-sync to their own speech, expressive face, calm body posture, natural ambient room tone.`;
         const job = await createSeedanceReferenceToVideo({
           prompt: seedancePrompt,
           referenceImageUrls: refs,
-          audioUrls: [falAudioUrl],
+          // Sin audioUrls: Seedance genera la voz nativa desde el texto (test de acento real).
           duration: klingDuration,
         });
         const result = job.video_url
