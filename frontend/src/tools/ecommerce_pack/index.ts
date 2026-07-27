@@ -10,14 +10,14 @@
  */
 
 import type { ToolDefinition, StepHandler } from "../types";
-import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys } from "../../lib/api";
+import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, cropImageTop } from "../../lib/api";
 
 // Shot catalog. `onModel` shots feature the model wearing the garment; the rest are
 // product-only packshots. Each entry's `framing` is appended to the studio prompt.
 export const SHOT_CATALOG: Record<string, { label: string; onModel: boolean; framing: string }> = {
   model_front:  { label: "On-model · Frente",  onModel: true,  framing: "Full-body or 3/4-body FRONT view: the model faces the camera straight on, standing naturally, the full garment clearly visible." },
-  model_34:     { label: "On-model · 3/4",      onModel: true,  framing: "3/4 ANGLE view: the model's body turned about 45°, showing the garment's front and side." },
-  model_american: { label: "On-model · Americano", onModel: true, framing: "AMERICAN / medium shot: the bottom edge of the frame CUTS THE BODY at the knee or mid-thigh — the feet, shoes and lower legs are OUT of frame. Framed from roughly mid-thigh up, the model facing the camera, the garment's upper and mid section shown clearly. This is a medium catalog crop — NOT a full-body shot (do not show the whole body or the feet) and NOT a tight close-up." },
+  model_34:     { label: "On-model · 3/4 (ángulo)", onModel: true, framing: "3/4 ANGLE view (this is a ROTATION, not a crop): full-length shot with the model's body turned about 45° to show the garment's front AND side. Keep the framing full-body." },
+  model_american: { label: "On-model · Americano (plano medio)", onModel: true, framing: "AMERICAN / medium shot (this is a CROP, not a rotation): the bottom edge of the frame CUTS THE BODY at roughly mid-thigh — the feet, shoes and lower legs are OUT of frame. Framed from mid-thigh up, the garment's upper and mid section shown clearly. This is a medium catalog crop — NOT a full-body shot (do not show the whole body or the feet) and NOT a tight close-up." },
   model_back:   { label: "On-model · Espalda",  onModel: true,  framing: "BACK view: the model faces FULLY away from the camera, clearly showing the complete back of the garment. By default the head faces away and the face is NOT visible (a clean catalog back shot) — do NOT turn the head back to camera unless the pose says so." },
   model_detail: { label: "On-model · Detalle prenda", onModel: true, framing: "Tight CLOSE-UP on the garment as worn (fabric, texture, print, stitching, logo) — crop to the chest/torso area, no face needed." },
   model_closeup: { label: "On-model · Primer plano", onModel: true, framing: "PORTRAIT close-up showing BOTH the model's FACE and the garment together: head-and-chest crop (roughly from mid-chest up), the face clearly visible, sharp and in focus, looking toward the camera, alongside the top of the garment — neckline, collar, shoulders and the fabric at the chest — plus any worn accessories (earrings, necklace, scarf). This is NOT a face-only beauty headshot: a meaningful part of the garment MUST be in frame." },
@@ -506,7 +506,7 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
       desc.push(`Image ${idx}: SUBJECT — the SOURCE OF TRUTH for WHO the person is, the EXACT garment(s) and accessories they wear, and the studio backdrop + lighting. The output MUST keep this exact person wearing this exact outfit on this exact studio. This is what the shot is OF.`);
       idx++;
       urls.push(instPoseRef);
-      desc.push(`Image ${idx}: POSE + FRAMING REFERENCE — copy ONLY the body posture and the camera framing/crop/zoom from this image${cur.pose ? ` (${cur.pose})` : " (body position, stance, arm/hand placement, head tilt, gaze, and whether it is full-body / mid-thigh / waist-up / close-up)"}. EVERYTHING ELSE in this image is a DECOY and must be COMPLETELY DISCARDED — it must NOT appear in the output: the person's face/hair/skin/identity, ALL their clothing${cur.ignore ? ` (specifically: ${cur.ignore})` : ""}, their accessories, anything they hold, and the background/setting. The person here is only a posing stand-in; take the pose and the crop, nothing else.`);
+      desc.push(`Image ${idx}: POSE REFERENCE — copy ONLY the body posture and the body ORIENTATION (which way the body is turned) from this image${cur.pose ? ` (${cur.pose})` : " (body position, stance, arm/hand placement, head tilt, gaze, and how the body is rotated)"}. Do NOT copy this image's framing/crop/zoom — the CROP is defined by the shot's FRAMING instruction in the prompt, which overrides this image. EVERYTHING ELSE in this image is a DECOY and must be COMPLETELY DISCARDED — it must NOT appear in the output: the person's face/hair/skin/identity, ALL their clothing${cur.ignore ? ` (specifically: ${cur.ignore})` : ""}, their accessories, anything they hold, and the background/setting. The person here is only a posing stand-in; take the posture and orientation, nothing else.`);
       idx++;
       // Avatar como fuente de identidad — DEBE ganar sobre la cara de la pose ref.
       if (avatar?.imageUrl) {
@@ -549,7 +549,8 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
 
 POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
 - The output is a photorealistic e-commerce studio photo of the SUBJECT person wearing their EXACT garment(s) and accessories from the SUBJECT/GARMENT references, on the studio backdrop described above (${studioClause.trim()}).
-- From the POSE + FRAMING REFERENCE, take ONLY the body POSTURE and the camera FRAMING: stance, torso angle, head tilt, gaze, arm and hand positions, LEG AND LOWER-BODY position (weight-bearing leg, knee bend, feet placement and angle — copy the legs as precisely as the arms, do NOT reset them to a plain straight stance), AND the exact framing/crop/zoom (full-body / mid-thigh / waist-up / close-up). CRITICAL — reproduce the EXACT BODY ORIENTATION of the pose reference: if the person is turned to the side (de costado), in 3/4, in full profile or with their back to camera, the output MUST be turned the SAME way and the SAME amount, to the same side. Do NOT default the body to front-facing.${poseCur.pose ? ` The pose to reproduce: ${poseCur.pose}` : ""}
+- From the POSE REFERENCE, take ONLY the body POSTURE and body ORIENTATION: stance, torso angle, head tilt, gaze, arm and hand positions, LEG AND LOWER-BODY position (weight-bearing leg, knee bend, feet placement and angle — copy the legs as precisely as the arms, do NOT reset them to a plain straight stance). CRITICAL — reproduce the EXACT BODY ORIENTATION of the pose reference: if the person is turned to the side (de costado), in 3/4, in full profile or with their back to camera, the output MUST be turned the SAME way and the SAME amount, to the same side. Do NOT default the body to front-facing.${poseCur.pose ? ` The pose to reproduce: ${poseCur.pose}` : ""}
+- The CROP / FRAMING comes from the FRAMING instruction at the TOP of this prompt (MANDATORY), NOT from the pose reference. If the shot is a medium/American crop, CUT the frame at mid-thigh even if the pose reference shows the full body; if it is a close-up, crop tighter. The shot's framing ALWAYS overrides the pose reference's framing.
 - STRICTLY IGNORE everything else in the POSE reference — its clothing, hair, face, skin, accessories, props/objects held, and background are ALL a DECOY and must NOT appear in the output.${poseCur.ignore ? ` Specifically discard: ${poseCur.ignore}.` : ""} The garment the model wears comes ONLY from the GARMENT reference (the real product), never from the pose reference person.
 - ${IDENTITY_LOCK}
 - ${FACE_REALISM}
@@ -566,8 +567,15 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution) : await createTextToImage(prompt, config.aspectRatio, config.resolution);
       const res = await pollImageGen(job.request_id);
-      const url = res.image_url || "";
+      let url = res.image_url || "";
+      // El anchor usa la imagen SIN recortar (consistencia de prenda/estudio); el recorte
+      // es solo para el entregable.
       if (i === 0 && url) anchorUrl = url;
+      // Post-crop determinístico para el americano: Nano Banana tira a cuerpo entero por
+      // más que el prompt pida el corte. Lo recortamos a ~medio muslo garantizado.
+      if (url && sid === "model_american") {
+        url = await cropImageTop(url, 0.65);
+      }
       // Label con nombre(s) de prenda(s) — el usuario quiere que el filename
       // descargado preserve el nombre del archivo original que cargó (ej. si
       // subiste "remera-roja.jpg", el output debería llamarse así, no "frente.png").

@@ -2171,6 +2171,24 @@ export async function analyzePoseReference(imageFile: File): Promise<{ pose_desc
     return res.json();
 }
 
+/** Recorte determinístico desde el top preservando aspect ratio (para garantizar planos
+ *  que Nano Banana ignora, ej. americano). keepTop = fracción de alto a conservar (0.65).
+ *  Fail-open: devuelve la url original si algo falla. */
+export async function cropImageTop(imageUrl: string, keepTop = 0.65): Promise<string> {
+    try {
+        const res = await fetch(`${API_BASE}/api/image/crop`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image_url: imageUrl, keep_top: keepTop }),
+        });
+        if (!res.ok) return imageUrl;
+        const d = await res.json();
+        return d.url || imageUrl;
+    } catch {
+        return imageUrl;
+    }
+}
+
 /** Pose-transfer para Ecommerce Pack: describe la postura + encuadre Y nombra los decoys
  *  (ropa/pelo/props/fondo) a ignorar de la imagen de pose. Fail-open → {pose:"", ignore:""}.
  *  Acepta un dataUrl (las pose refs del ecom viven como dataUrl en config). */
