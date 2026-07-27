@@ -48,6 +48,8 @@ export function ImageEditPanel({
   const [prompt, setPrompt] = useState(defaultPrompt);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Resolución elegible en el edit — arranca con la que pasa el parent, el usuario la cambia.
+  const [editResolution, setEditResolution] = useState(resolution);
   // Los pickers completos del kit arrancan ocultos — arriba mostramos el/los asset(s)
   // seleccionado(s) para comprobar consistencia; "Ver todos" despliega el resto.
   const [showAllAssets, setShowAllAssets] = useState(false);
@@ -111,7 +113,7 @@ export function ImageEditPanel({
         } catch { /* fail-open: seguimos con el texto original */ }
       }
       const refs = [imageUrl, ...selectedRefs, ...uploadedRefs];
-      const job = await createImageEdit(refs, finalPrompt, aspectRatio, resolution);
+      const job = await createImageEdit(refs, finalPrompt, aspectRatio, editResolution);
       const result = await pollImageGen(job.request_id);
       if (result.image_url) {
         onImageUpdated(result.image_url);
@@ -332,6 +334,16 @@ export function ImageEditPanel({
           className="flex-1 h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg placeholder:text-fg-faint outline-none"
           onKeyDown={(e) => e.key === "Enter" && handleApply()}
         />
+        <select
+          value={editResolution}
+          onChange={(e) => setEditResolution(e.target.value)}
+          title="Resolución del resultado"
+          className="h-8 px-2 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[11px] text-fg-muted outline-none cursor-pointer shrink-0"
+        >
+          <option value="1K">1K</option>
+          <option value="2K">2K</option>
+          <option value="4K">4K</option>
+        </select>
         <button
           onClick={handleApply}
           disabled={loading || !prompt.trim()}

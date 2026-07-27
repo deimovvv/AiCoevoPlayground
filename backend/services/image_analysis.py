@@ -903,7 +903,10 @@ async def describe_pose_ref(image_bytes: bytes, mime_type: str = "image/jpeg") -
         '{"pose": "...", "ignore": "..."}\n\n'
         '"pose": one concise paragraph (2-3 sentences) describing ONLY the body posture, stance, '
         "weight distribution, arm/hand positions, head and gaze direction, plus the camera framing "
-        "(full-body / mid-thigh / waist-up / close-up) and angle. Nothing about clothing or looks.\n"
+        "(full-body / mid-thigh / waist-up / close-up) and angle. CRUCIAL — state the BODY ORIENTATION "
+        "relative to the camera: is the person facing the camera front-on, turned to a 3/4 angle, in full "
+        "SIDE PROFILE (de costado), or with their back to the camera — and to WHICH side they are turned "
+        "(their left or right). Be explicit about the rotation and how much. Nothing about clothing or looks.\n"
         '"ignore": a short comma-separated list naming the SPECIFIC things in THIS image that must be '
         "discarded and must NOT appear in the output — name the person's garments WITH their colors "
         "(e.g. 'white asymmetrical top', 'blue jeans'), their hair color/length, any sunglasses/eyewear, "
