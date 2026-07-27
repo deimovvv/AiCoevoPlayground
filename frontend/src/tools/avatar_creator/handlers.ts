@@ -177,6 +177,13 @@ export const handleGenerate: StepHandler = async (ctx) => {
     ? `Single clean photograph on pure white background. Frame:`
     : `Character reference sheet on pure white background. Single seamless image with multiple views of the same person — arrange them side-by-side in one composition:`;
 
+  // Realismo de piel + bajo contraste — SOLO para el estilo "realistic" (cinematic/editorial/
+  // inherit quieren su propio look). Sin esto el avatar nace con piel AI/dura y, como
+  // ecommerce LOCKea la identidad, propaga esa piel. Pedido Koxis 2026-07: piel más real,
+  // menos contraste. El tono/contraste no está lockeado → se arregla en el origen (el avatar).
+  const realismBlock = rawStyle === "realistic"
+    ? "Ultra-photorealistic REAL human skin: visible pores, fine natural texture, subtle realistic imperfections, warm natural skin tone with soft color variation and true subsurface — NO plastic, waxy, airbrushed, doll-like or CGI look. Soft, LOW-CONTRAST lighting: gently lifted shadows (no crushed blacks), controlled highlights (no blown whites), smooth natural tonal gradations on skin — natural, flat, film-like grade, NOT punchy or high-contrast."
+    : "";
   const compositePrompt = [
     sheetHeader,
     viewsLine,
@@ -184,6 +191,7 @@ export const handleGenerate: StepHandler = async (ctx) => {
     `Character: ${characterDesc}.`,
     ``,
     styleLine,
+    realismBlock,
     `Pure white (#FFFFFF) seamless background. Studio lighting, clean and professional.`,
     viewPrompts.length > 1 ? `All views show the EXACT same person with consistent features.` : ``,
     `Hands are empty — no objects, no props, no products, no bags, no phones, nothing held in hands.`,

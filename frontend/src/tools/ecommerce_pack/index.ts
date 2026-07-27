@@ -58,11 +58,15 @@ const FABRIC_REALISM = "ULTRA-REALISTIC fabric and garment texture: render the t
 // Spec de cámara/luz — fija una captura fotográfica concreta (no "render"). f/8 da
 // nitidez de borde a borde para e-commerce; 5500K neutro + setup de 2 luces evita el
 // look plano/CGI. Aportado por el usuario a partir de un prompt de referencia que funcionaba.
-const CAMERA_LIGHTING = "Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Professional studio lighting: soft diffused key light from the front-right at 45°, a large fill light on the opposite side for even commercial illumination, neutral 5500K white balance. Clean editorial e-commerce lighting.";
+// Bajo contraste = el lever #1 de realismo (evita el look duro/AI). Sombras levantadas,
+// altas controladas, transiciones suaves — como el ecommerce/editorial real (COS, Massimo
+// Dutti). Se appendea a AMBOS bloques de luz. Pedido Koxis 2026-07.
+const LOW_CONTRAST_GRADE = "Soft, LOW-CONTRAST tonal range: gently lifted shadows (no crushed blacks), controlled highlights (no blown whites), smooth natural tonal gradations on skin and fabric. Natural, flat, film-like editorial grade — NOT punchy, harsh or high-contrast.";
+const CAMERA_LIGHTING = `Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Professional studio lighting: soft diffused key light from the front-right at 45°, a large fill light on the opposite side for even commercial illumination, neutral 5500K white balance. Clean editorial e-commerce lighting. ${LOW_CONTRAST_GRADE}`;
 // Variante para el preset "plaster" (pared texturada): mismo cuerpo/lente pero luz de
 // ventana natural y cálida en vez de key/fill de estudio neutro — así no pelea con el
 // look warm del backdrop. Sin esto, el 5500K neutro tira la escena de vuelta a estudio.
-const CAMERA_LIGHTING_NATURAL = "Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Soft, even NATURAL window daylight coming gently from one side, well filled so there are no deep shadows and the garment stays fully visible; warm natural white balance (~4800–5200K), realistic natural-light rendering — NOT hard studio key/fill, NOT clinical 5500K neutral. Natural, elevated e-commerce lighting.";
+const CAMERA_LIGHTING_NATURAL = `Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Soft, even NATURAL window daylight coming gently from one side, well filled so there are no deep shadows and the garment stays fully visible; warm natural white balance (~4800–5200K), realistic natural-light rendering — NOT hard studio key/fill, NOT clinical 5500K neutral. Natural, elevated e-commerce lighting. ${LOW_CONTRAST_GRADE}`;
 // Negative prompt — el mayor lever de realismo en Nano Banana. Empuja fuera el look
 // plástico/ilustración/AI y el over-retoque que delata la imagen generada.
 const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, CGI, AI-generated look, plastic or waxy finish, over-retouched airbrushed perfection, oversaturated colors, harsh shadows projected on the backdrop wall.";
