@@ -1243,11 +1243,14 @@ export const handleLipsync: StepHandler = async (ctx) => {
     }
 
     // ── Talking scene: método elegido ─────────────────────
-    // PRIORITY: when animationEngine = "seedance" AND we have audio, route through
-    // Seedance — it handles both the visual generation AND the lipsync in one pass.
-    // Unified engine = better cross-scene consistency (same model = same look across
-    // talking and creative scenes).
-    if (animationEngine === "seedance" && falAudioUrl) {
+    // IMPORTANTE (ver docs/ugc-audio.md): las escenas HABLADAS NO se rutean a Seedance.
+    // Seedance NO preserva el audio — usa la voz de ElevenLabs solo como referencia de
+    // timing y REGENERA la voz con la suya → se pierde la voz/el acento (porteño). Las
+    // escenas habladas SIEMPRE van a HeyGen / Sync.so, que sincronizan a TU audio sin
+    // cambiarlo. Seedance queda solo para escenas CREATIVE (b-roll), donde no hay una voz
+    // específica que preservar. Flag conservado (no borrado) por si el modelo mejora.
+    const USE_SEEDANCE_FOR_TALKING = false; // Seedance regenera la voz — nunca para hablado.
+    if (USE_SEEDANCE_FOR_TALKING && animationEngine === "seedance" && falAudioUrl) {
       // Build refs: curated scene image first (composition anchor) + brand refs (avatar / product / clothing / bg)
       const refs = [scene.selectedUrl, ...brandRefUrls].slice(0, 6);
       try {
