@@ -343,6 +343,32 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   const firstScene = scenes[0];
   if (!firstScene) throw new Error("No script scenes found.");
 
+  // ── Usar la imagen SUBIDA como base (no generar) ──────────────────────────
+  // Pedido: "pasar una imagen y que ESA imagen sea usada para el video, sin generarla".
+  // Si el usuario tildó "usar como base" y subió una imagen, la devolvemos TAL CUAL como
+  // base. La escena 1 (hook hablado) usa la base directa → tu imagen exacta se lip-syncea
+  // con tu voz de ElevenLabs. Sin generación, sin drift.
+  if ((config as unknown as Record<string, unknown>).ugcBaseFromUpload) {
+    const upFiles = (((config as unknown as Record<string, unknown>).referenceImages as File[]) || [])
+      .filter((f) => f && typeof f.type === "string" && f.type.startsWith("image/"));
+    if (upFiles.length > 0) {
+      const dataUrl = await new Promise<string>((resolve) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result as string);
+        r.readAsDataURL(upFiles[0]);
+      });
+      return {
+        result: {
+          url: dataUrl,
+          prompt: "(imagen provista por el usuario — usada tal cual como base, sin generar)",
+          scriptText: firstScene.script,
+          inputs: { avatar: null, product: null, clothing: [], background: null },
+        },
+        needsApproval: true,
+      };
+    }
+  }
+
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
   const selectedBackground = resolveSceneBackground(firstScene, config, activeBrand);

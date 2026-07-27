@@ -5009,6 +5009,22 @@ function ConfigPanel({
               );
             })()}
 
+            {/* UGC — usar la imagen subida COMO BASE (no generar). Tu foto/frame se usa tal
+                cual como la escena hook y el lipsync la anima con tu voz. */}
+            {tool.id === "ugc_creator" && config.referenceImages.length > 0 && (
+              <label className="mt-2 flex items-start gap-2 px-3 py-2 rounded-[var(--radius-sm)] bg-surface-1 border border-edge cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!(config as unknown as { ugcBaseFromUpload?: boolean }).ugcBaseFromUpload}
+                  onChange={(e) => setConfig((p) => ({ ...(p as Record<string, unknown>), ugcBaseFromUpload: e.target.checked } as typeof p))}
+                  className="accent-[var(--color-action)] mt-0.5"
+                />
+                <span className="text-[11px] text-fg-muted leading-snug">
+                  <strong className="text-fg">Usar esta imagen como base</strong> (no generar) — tu foto/frame se usa tal cual como la escena principal y se anima con tu voz. Si está apagado, se usa solo como referencia de pose.
+                </span>
+              </label>
+            )}
+
             {/* Loading state while classifying */}
             {classifyingRef && tool.id === "static_ad" && (
               <div className="mt-2 p-2.5 bg-surface-1 border border-edge rounded-[var(--radius-sm)] flex items-center gap-2">
