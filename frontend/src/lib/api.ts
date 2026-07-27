@@ -2171,6 +2171,22 @@ export async function analyzePoseReference(imageFile: File): Promise<{ pose_desc
     return res.json();
 }
 
+/** Pose-transfer para Ecommerce Pack: describe la postura + encuadre Y nombra los decoys
+ *  (ropa/pelo/props/fondo) a ignorar de la imagen de pose. Fail-open → {pose:"", ignore:""}.
+ *  Acepta un dataUrl (las pose refs del ecom viven como dataUrl en config). */
+export async function analyzePoseRefDecoys(dataUrl: string): Promise<{ pose: string; ignore: string }> {
+    try {
+        const blob = await fetch(dataUrl).then((r) => r.blob());
+        const formData = new FormData();
+        formData.append("image", new File([blob], "pose.png", { type: blob.type || "image/png" }));
+        const res = await fetch(`${API_BASE}/api/analyze/pose-ref`, { method: "POST", body: formData });
+        if (!res.ok) return { pose: "", ignore: "" };
+        return await res.json();
+    } catch {
+        return { pose: "", ignore: "" };
+    }
+}
+
 /** Toma un texto libre del usuario (ej. en español "agarra la cartera con energía")
  *  y devuelve un motion prompt curado en inglés, listo para Kling V3 Pro. La idea es
  *  que el usuario pueda tipear en su idioma natural y el sistema lo traduce/ordena. */

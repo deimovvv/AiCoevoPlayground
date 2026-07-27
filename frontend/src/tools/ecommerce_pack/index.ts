@@ -10,7 +10,7 @@
  */
 
 import type { ToolDefinition, StepHandler } from "../types";
-import { createImageEdit, createTextToImage, pollImageGen } from "../../lib/api";
+import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys } from "../../lib/api";
 
 // Shot catalog. `onModel` shots feature the model wearing the garment; the rest are
 // product-only packshots. Each entry's `framing` is appended to the studio prompt.
@@ -346,6 +346,18 @@ const handleGenerate: StepHandler = async (ctx) => {
   // Mapeo shotId → dataUrl. Tiene PRIORIDAD sobre la pose global (poseUrl).
   const ecomShotPoses = ((cfg.ecomShotPoses as Record<string, string>) || {});
 
+  // Curación de pose refs con Gemini Vision (una vez por ref, cacheado): describe la
+  // postura y NOMBRA los decoys (ropa/pelo/props/fondo) a ignorar. Nombrarlos puntual es
+  // lo que evita que Nano Banana filtre la ropa de la pose ref (validado en el Lab).
+  // Fail-open: si Gemini falla → {pose:"", ignore:""} y el prompt usa su genérico de siempre.
+  const poseRefCuration = new Map<string, { pose: string; ignore: string }>();
+  {
+    const uniquePoseUrls = [...new Set([poseUrl, ...Object.values(ecomShotPoses)].filter(Boolean) as string[])];
+    await Promise.all(uniquePoseUrls.map(async (u) => {
+      poseRefCuration.set(u, await analyzePoseRefDecoys(u));
+    }));
+  }
+
   // Pose preset elegido (texto descriptivo de Gemini Vision-style). Si el
   // usuario subió pose ref imagen, esa gana. Default "auto" = rota entre las 8.
   const posePreset = (cfg.ecomPosePreset as string) || DEFAULT_POSE_PRESET;
@@ -485,22 +497,24 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
       garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT (hero product) — the model WEARS this exact item. ${PIXEL_FIDELITY}`); idx++; });
       accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: STYLING ACCESSORY — the model also wears/has this exact item as part of the complete outfit. ${PIXEL_FIDELITY}`); idx++; });
     } else if (instPoseRef) {
-      // Shot 2+ CON pose ref específica: pose ref como base + anchor de shot 1
-      // + avatar ORIGINAL como segunda fuente de identidad (doble anclaje de cara).
-      urls.push(instPoseRef);
-      desc.push(`Image ${idx}: BASE IMAGE (edit this) — start from this exact image and KEEP its body POSTURE AND its FRAMING: body position, stance, arm/hand placement, head tilt, gaze direction, AND the exact camera framing/crop/zoom (full-body, medium, close, etc.). This base image is the source of truth for the pose AND how the shot is framed — do NOT re-pose and do NOT re-frame. The PERSON shown in this base image is a stand-in: their face, head, hair, skin and identity are IRRELEVANT and MUST be fully replaced by the FACE REPLACEMENT (IDENTITY) reference below. The BACKGROUND / environment / room / floor / wall / lighting color of this base image are ALSO IRRELEVANT and MUST be fully discarded and replaced by the studio backdrop described in the prompt — do NOT keep the pose reference's background. REPLACE all the clothing (top AND bottom), the face/head AND the background as specified below.`);
-      idx++;
+      // Shot 2+ CON pose ref específica. PRIORIDAD INVERTIDA (validado en el Lab): el SUJETO
+      // (persona + prenda + estudio) es el ANCHOR = Image 1 (fuente de verdad), y la pose ref
+      // entra como Image 2 = SOLO postura + encuadre, con los decoys NOMBRADOS a ignorar.
+      // Antes la pose ref era la "base image" (Image 1) y su ropa se filtraba — el fallo #1.
+      const cur = poseRefCuration.get(instPoseRef) || { pose: "", ignore: "" };
       urls.push(anchorUrl);
-      desc.push(`Image ${idx}: WARDROBE + STUDIO SOURCE — the clothing, accessories, studio look and lighting must match THIS image exactly. Apply them to the person in the BASE IMAGE.`);
+      desc.push(`Image ${idx}: SUBJECT — the SOURCE OF TRUTH for WHO the person is, the EXACT garment(s) and accessories they wear, and the studio backdrop + lighting. The output MUST keep this exact person wearing this exact outfit on this exact studio. This is what the shot is OF.`);
+      idx++;
+      urls.push(instPoseRef);
+      desc.push(`Image ${idx}: POSE + FRAMING REFERENCE — copy ONLY the body posture and the camera framing/crop/zoom from this image${cur.pose ? ` (${cur.pose})` : " (body position, stance, arm/hand placement, head tilt, gaze, and whether it is full-body / mid-thigh / waist-up / close-up)"}. EVERYTHING ELSE in this image is a DECOY and must be COMPLETELY DISCARDED — it must NOT appear in the output: the person's face/hair/skin/identity, ALL their clothing${cur.ignore ? ` (specifically: ${cur.ignore})` : ""}, their accessories, anything they hold, and the background/setting. The person here is only a posing stand-in; take the pose and the crop, nothing else.`);
       idx++;
       // Avatar como fuente de identidad — DEBE ganar sobre la cara de la pose ref.
-      // Sin esto, Nano Banana conserva la cara de la persona en la pose ref.
       if (avatar?.imageUrl) {
         urls.push(avatar.imageUrl);
-        desc.push(`Image ${idx}: FACE REPLACEMENT (IDENTITY) — ABSOLUTE HIGHEST PRIORITY. The output face/head/hair MUST be this exact person, overriding whatever face is in the BASE IMAGE. ${IDENTITY_LOCK} ${FACE_REALISM}`);
+        desc.push(`Image ${idx}: FACE REPLACEMENT (IDENTITY) — ABSOLUTE HIGHEST PRIORITY. The output face/head/hair MUST be this exact person, overriding whatever face is in the POSE reference. ${IDENTITY_LOCK} ${FACE_REALISM}`);
         idx++;
       }
-      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT REFERENCE — same exact item. Pixel-perfect. ${PIXEL_FIDELITY}`); idx++; });
+      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT REFERENCE — the model wears THIS exact item (this is the real product, NOT whatever the pose reference person wears). Pixel-perfect. ${PIXEL_FIDELITY}`); idx++; });
       accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: ACCESSORY REFERENCE — same exact complement. ${PIXEL_FIDELITY}`); idx++; });
     } else {
       // Shot 2+ SIN pose ref: anchor del shot 1 + avatar ORIGINAL como refuerzo
@@ -526,25 +540,21 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
     // la pose ref enterrada en medio de los REFERENCE IMAGES y usa una pose default.
     // Reportado: "le pasé una pose y no me la respetó".
     // Cierre del prompt — dos paradigmas distintos según haya pose-anchor o no.
-    // Con pose-anchor: el modelo está EDITANDO la BASE IMAGE, no componiendo.
-    // Sin pose-anchor: composición tradicional con refs.
+    // Cierre para pose-ref (prioridad invertida, estilo Lab): el SUBJECT (Image 1 / anchor)
+    // manda persona + prenda + estudio; de la POSE ref sale SOLO postura + encuadre, y sus
+    // decoys (nombrados por Gemini) se descartan. Reemplaza el viejo paradigma "editá la base".
+    const poseCur = shotPoseUrl ? (poseRefCuration.get(shotPoseUrl) || { pose: "", ignore: "" }) : { pose: "", ignore: "" };
     const poseOverride = shotPoseUrl
       ? `
 
-EDIT INSTRUCTIONS (this is an image edit, not a composition):
-- The output MUST be the BASE IMAGE re-posed body, with these changes:
-  1) ALL the clothing of the person is REPLACED by the WARDROBE REPLACEMENT garment(s) — top AND bottom (trousers/skirt/shorts) AND layers. The trousers/pants/bottoms and top visible in the base image are IRRELEVANT and must NOT survive; every garment comes ONLY from the WARDROBE/GARMENT references.
-  1b) REMOVE any accessory, prop or object in the BASE IMAGE that is NOT one of the provided ACCESSORY references — bag, purse, handbag, backpack, hat, cap, beanie, sunglasses, eyeglasses, scarf, belt, watch, bracelet, rings, necklace, earrings, gloves, phone, cup, bottle, umbrella, chair or anything held or worn. The model carries/wears ONLY the specified garments and accessory references — nothing from the base image's styling survives.
-  2) The face/head/hair is REPLACED by the FACE REPLACEMENT (IDENTITY) reference — this is MANDATORY. Keep ONLY the head position, tilt and gaze from the BASE IMAGE; everything about WHO the face is comes from the FACE REPLACEMENT (IDENTITY) image, NOT from the base image. The base image person is a stand-in and their face must NOT survive into the output.
-  3) Any specified ACCESSORY REPLACEMENT is added/replaced in its natural body location.
-  4) The BACKGROUND / setting is REPLACED by the studio backdrop described at the top of this prompt (${studioClause.trim()}). Completely DISCARD the pose reference's environment — its room, floor, wall, props, colors and ambient lighting tint must NOT appear in the output. The final background is a clean studio backdrop, never the location from the pose reference.
+POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
+- The output is a photorealistic e-commerce studio photo of the SUBJECT person wearing their EXACT garment(s) and accessories from the SUBJECT/GARMENT references, on the studio backdrop described above (${studioClause.trim()}).
+- From the POSE + FRAMING REFERENCE, take ONLY the body POSTURE and the camera FRAMING: stance, torso angle, head tilt, gaze, arm and hand positions, LEG AND LOWER-BODY position (weight-bearing leg, knee bend, feet placement and angle — copy the legs as precisely as the arms, do NOT reset them to a plain straight stance), AND the exact framing/crop/zoom (full-body / mid-thigh / waist-up / close-up).${poseCur.pose ? ` The pose to reproduce: ${poseCur.pose}` : ""}
+- STRICTLY IGNORE everything else in the POSE reference — its clothing, hair, face, skin, accessories, props/objects held, and background are ALL a DECOY and must NOT appear in the output.${poseCur.ignore ? ` Specifically discard: ${poseCur.ignore}.` : ""} The garment the model wears comes ONLY from the GARMENT reference (the real product), never from the pose reference person.
 - ${IDENTITY_LOCK}
 - ${FACE_REALISM}
 - ${GARMENT_ORIENTATION}
-- PRESERVE from the BASE IMAGE ONLY the body POSTURE and the camera FRAMING: pose, stance, torso angle, head tilt, gaze, arm and hand positions, LEG AND LOWER-BODY position (weight-bearing leg, knee bend, feet placement and angle — copy the legs as precisely as the arms, do NOT reset them to a plain straight stance), AND the exact camera framing/crop/zoom/distance (full-body, medium, close, etc.). The base image is the source of truth for the pose AND the framing — do NOT re-pose and do NOT re-frame to a different crop.${faceRequired ? " EXCEPTION: never crop the model's head/face out — if the base image cuts the head off, extend the framing upward so the whole face stays visible." : ""} ${POSE_FULL_BODY}${faceRequired ? ` ${FACE_MUST_STAY}` : ""}
-- Do NOT copy the base image's LIGHTING, shadows, exposure, color cast or background. The base image may have dramatic, directional or harsh shadows on the body — those must NOT appear. The output is lit by the clean studio light described above (soft, even), and the ONLY shadow is a subtle, soft shadow on the FLOOR beneath the feet — never a harsh shadow across the body. The background is ALWAYS the clean studio backdrop from the prompt, never the base image's scene.
-- The garment/accessory reference photos contain models in OTHER poses and OTHER backgrounds — those models, faces, poses and backgrounds are IRRELEVANT. They exist ONLY to define what the clothing/accessory looks like.
-- Treat this like a Photoshop edit on a model cutout: same body POSTURE and same framing/crop as the base image, but re-dressed, re-faced to the IDENTITY person, and placed on the clean studio backdrop.`
+- Do NOT copy the POSE reference's LIGHTING, shadows, exposure or color cast. The output is lit by the clean studio light described above (soft, even); the only shadow is a subtle soft shadow on the FLOOR beneath the feet.${faceRequired ? " Never crop the model's head/face out — if the pose framing cuts the head off, extend the framing upward so the whole face stays visible." : ""} ${POSE_FULL_BODY}${faceRequired ? ` ${FACE_MUST_STAY}` : ""}`
       : "";
     // Si NO hay pose ref imagen, inyectamos un preset textual de pose (rota
     // entre 8 si "auto", o usa la elegida por el user). Eso evita que la

@@ -2693,6 +2693,20 @@ async def analyze_pose_reference(image: UploadFile = File(...)):
         raise HTTPException(status_code=502, detail=str(e))
 
 
+@app.post("/api/analyze/pose-ref")
+async def analyze_pose_ref_decoys(image: UploadFile = File(...)):
+    """Ecommerce Pack pose-transfer: describe la postura + encuadre Y nombra los decoys
+    (ropa/pelo/props/fondo) a ignorar de la imagen de pose. Fail-open: {pose:"", ignore:""}."""
+    if not image_analysis.is_configured():
+        return {"pose": "", "ignore": ""}
+    try:
+        data = await image.read()
+        ct = image.content_type or "image/jpeg"
+        return await image_analysis.describe_pose_ref(data, ct)
+    except Exception:
+        return {"pose": "", "ignore": ""}
+
+
 @app.post("/api/analyze/reference")
 async def analyze_reference_image(image: UploadFile = File(...)):
     """
