@@ -10,14 +10,14 @@
  */
 
 import type { ToolDefinition, StepHandler } from "../types";
-import { createImageEdit, createTextToImage, pollImageGen } from "../../lib/api";
+import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, cropImageTop } from "../../lib/api";
 
 // Shot catalog. `onModel` shots feature the model wearing the garment; the rest are
 // product-only packshots. Each entry's `framing` is appended to the studio prompt.
 export const SHOT_CATALOG: Record<string, { label: string; onModel: boolean; framing: string }> = {
   model_front:  { label: "On-model · Frente",  onModel: true,  framing: "Full-body or 3/4-body FRONT view: the model faces the camera straight on, standing naturally, the full garment clearly visible." },
-  model_34:     { label: "On-model · 3/4",      onModel: true,  framing: "3/4 ANGLE view: the model's body turned about 45°, showing the garment's front and side." },
-  model_american: { label: "On-model · Americano", onModel: true, framing: "AMERICAN / medium shot: the bottom edge of the frame CUTS THE BODY at the knee or mid-thigh — the feet, shoes and lower legs are OUT of frame. Framed from roughly mid-thigh up, the model facing the camera, the garment's upper and mid section shown clearly. This is a medium catalog crop — NOT a full-body shot (do not show the whole body or the feet) and NOT a tight close-up." },
+  model_34:     { label: "On-model · 3/4 (ángulo)", onModel: true, framing: "3/4 ANGLE view (this is a ROTATION, not a crop): full-length shot with the model's body turned about 45° to show the garment's front AND side. Keep the framing full-body." },
+  model_american: { label: "On-model · Americano (plano medio)", onModel: true, framing: "AMERICAN / medium shot (this is a CROP, not a rotation): the bottom edge of the frame CUTS THE BODY at roughly mid-thigh — the feet, shoes and lower legs are OUT of frame. Framed from mid-thigh up, the garment's upper and mid section shown clearly. This is a medium catalog crop — NOT a full-body shot (do not show the whole body or the feet) and NOT a tight close-up." },
   model_back:   { label: "On-model · Espalda",  onModel: true,  framing: "BACK view: the model faces FULLY away from the camera, clearly showing the complete back of the garment. By default the head faces away and the face is NOT visible (a clean catalog back shot) — do NOT turn the head back to camera unless the pose says so." },
   model_detail: { label: "On-model · Detalle prenda", onModel: true, framing: "Tight CLOSE-UP on the garment as worn (fabric, texture, print, stitching, logo) — crop to the chest/torso area, no face needed." },
   model_closeup: { label: "On-model · Primer plano", onModel: true, framing: "PORTRAIT close-up showing BOTH the model's FACE and the garment together: head-and-chest crop (roughly from mid-chest up), the face clearly visible, sharp and in focus, looking toward the camera, alongside the top of the garment — neckline, collar, shoulders and the fabric at the chest — plus any worn accessories (earrings, necklace, scarf). This is NOT a face-only beauty headshot: a meaningful part of the garment MUST be in frame." },
@@ -35,6 +35,10 @@ export const STUDIO_STYLES: Record<string, { label: string; clause: string }> = 
   grey:      { label: "Gris estudio",    clause: "Light grey seamless studio backdrop, soft directional studio lighting with a subtle gradient, premium catalog look." },
   beige:     { label: "Beige cálido",    clause: "Warm beige / cream studio backdrop, soft natural-feeling light, refined editorial e-commerce look." },
   editorial: { label: "Editorial",       clause: "Editorial studio on a neutral backdrop, soft directional key light with gentle controlled shadows, fashion-magazine treatment." },
+  // Receta "elevated ecommerce" dialada en el Lab (Koxis 2026-07): pared texturada + luz de
+  // ventana suave y pareja + grade cálido true-to-color. Mata el look "pegada" del blanco
+  // plano sin irse al editorial dramático (la prenda queda totalmente visible).
+  plaster:   { label: "Pared texturada · luz natural", clause: "Textured warm light-grey plaster wall with subtle natural tonal variation as the background (NOT a seamless studio sweep). Soft, EVEN natural window daylight with gentle direction — well filled, NO deep shadows; the garment stays fully visible and evenly lit with clear fabric detail. Warm, natural, true-to-color grade — bright and clean, never moody, cold or clinical. The model stands close to the wall, grounded on a simple neutral floor. Elevated, realistic, natural e-commerce look — NOT flat high-key studio, NOT dramatic editorial." },
   color:     { label: "Color sólido",    clause: "" },  // el handler arma la clause con ecomStudioColor
   custom:    { label: "Custom",          clause: "" },
 };
@@ -54,7 +58,15 @@ const FABRIC_REALISM = "ULTRA-REALISTIC fabric and garment texture: render the t
 // Spec de cámara/luz — fija una captura fotográfica concreta (no "render"). f/8 da
 // nitidez de borde a borde para e-commerce; 5500K neutro + setup de 2 luces evita el
 // look plano/CGI. Aportado por el usuario a partir de un prompt de referencia que funcionaba.
-const CAMERA_LIGHTING = "Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Professional studio lighting: soft diffused key light from the front-right at 45°, a large fill light on the opposite side for even commercial illumination, neutral 5500K white balance. Clean editorial e-commerce lighting.";
+// Bajo contraste = el lever #1 de realismo (evita el look duro/AI). Sombras levantadas,
+// altas controladas, transiciones suaves — como el ecommerce/editorial real (COS, Massimo
+// Dutti). Se appendea a AMBOS bloques de luz. Pedido Koxis 2026-07.
+const LOW_CONTRAST_GRADE = "Soft, LOW-CONTRAST tonal range: gently lifted shadows (no crushed blacks), controlled highlights (no blown whites), smooth natural tonal gradations on skin and fabric. Natural, flat, film-like editorial grade — NOT punchy, harsh or high-contrast.";
+const CAMERA_LIGHTING = `Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Professional studio lighting: soft diffused key light from the front-right at 45°, a large fill light on the opposite side for even commercial illumination, neutral 5500K white balance. Clean editorial e-commerce lighting. ${LOW_CONTRAST_GRADE}`;
+// Variante para el preset "plaster" (pared texturada): mismo cuerpo/lente pero luz de
+// ventana natural y cálida en vez de key/fill de estudio neutro — así no pelea con el
+// look warm del backdrop. Sin esto, el 5500K neutro tira la escena de vuelta a estudio.
+const CAMERA_LIGHTING_NATURAL = `Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Soft, even NATURAL window daylight coming gently from one side, well filled so there are no deep shadows and the garment stays fully visible; warm natural white balance (~4800–5200K), realistic natural-light rendering — NOT hard studio key/fill, NOT clinical 5500K neutral. Natural, elevated e-commerce lighting. ${LOW_CONTRAST_GRADE}`;
 // Negative prompt — el mayor lever de realismo en Nano Banana. Empuja fuera el look
 // plástico/ilustración/AI y el over-retoque que delata la imagen generada.
 const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, CGI, AI-generated look, plastic or waxy finish, over-retouched airbrushed perfection, oversaturated colors, harsh shadows projected on the backdrop wall.";
@@ -73,6 +85,10 @@ const GARMENT_ORIENTATION = "Wear every garment in its CORRECT orientation, matc
 // Énfasis en piernas / tren inferior al copiar una pose. El fallo #1 de Nano Banana es
 // copiar los brazos pero dejar las piernas en un parado default — este bloque le da a
 // las piernas el mismo peso que a los brazos y lo dice explícitamente.
+// Quiebre de cintura / contrapposto — se appendea a toda pose on-model para que la modelo
+// no quede tiesa y frontal-plana. Pedido (Koxis 2026-07): "que quiebre más la cintura, más natural".
+const POSE_NATURALNESS = "NATURAL WAIST BREAK (avoid stiff, square, evenly-weighted standing): the model clearly shifts weight onto one leg so the hips break and tilt into a soft contrapposto — one hip pushed out and slightly higher, the waist and spine gently S-curved, the shoulders subtly counter-angled to the hips. Effortless, relaxed, editorial-natural stance; never rigid or symmetric-frontal.";
+
 const POSE_FULL_BODY = "Copy the pose of the WHOLE body from head to feet — the LEGS AND LOWER BODY are as important as the arms. Replicate the exact lower-body stance: which leg carries the weight, how much each knee is bent, whether the legs are together / apart / crossed / staggered, and how the feet are planted and angled. The single most common mistake is copying the arms while leaving the legs in a plain straight standing stance — do NOT do that; the legs must match the reference just as precisely as the upper body.";
 
 // Consistencia de fondo entre etapas/shots — el backdrop es el MISMO estudio en todo el
@@ -96,7 +112,7 @@ Add true photographic sharpness and fine detail to skin and fabric, remove any s
 export const POSE_PRESETS: Record<string, { label: string; description: string }> = {
   natural_front: {
     label: "Natural Front",
-    description: "Standing in slight contrapposto, weight on left leg, right hip pushed out subtly. Right hand resting lightly on right hip pocket, left arm hanging naturally at side. Shoulders back and relaxed, chest open. Head facing camera with relaxed, confident expression.",
+    description: "Standing in clear contrapposto, weight firmly on the left leg, right hip pushed out and the waist breaking into a soft S-curve. Right hand resting lightly on right hip pocket, left arm hanging naturally at side. Shoulders back and relaxed, chest open. Head facing camera with relaxed, confident expression.",
   },
   walking: {
     label: "Walking",
@@ -185,11 +201,13 @@ const POLL_FAILED_MSG = "Fal marcó la generación como fallida (probable polít
 function getPoseDescription(presetKey: string | undefined, shotId: string, nth: number): string | null {
   if (!presetKey || presetKey === "upload" || presetKey === "") return null;
   if (CLOSEUP_SHOTS.has(shotId)) return null;
-  if (presetKey === "auto") {
-    const pool = POSE_POOLS[shotId] || POSE_KEYS;
-    return POSE_PRESETS[pool[nth % pool.length]].description;
-  }
-  return POSE_PRESETS[presetKey]?.description || null;
+  const base = presetKey === "auto"
+    ? POSE_PRESETS[(POSE_POOLS[shotId] || POSE_KEYS)[nth % (POSE_POOLS[shotId] || POSE_KEYS).length]].description
+    : POSE_PRESETS[presetKey]?.description || null;
+  if (!base) return null;
+  // Reforzamos el quiebre de cintura en toda pose de pie (las de espalda/caminando ya
+  // implican dinámica, pero el S-curve les suma naturalidad igual).
+  return `${base} ${POSE_NATURALNESS}`;
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -298,6 +316,8 @@ const handleGenerate: StepHandler = async (ctx) => {
   }
   // La sombra de contacto + el aislamiento de fondo van en TODOS los shots.
   const studioClause = `${studioClauseBase} ${GROUNDING_SHADOW} ${BG_ISOLATION} ${BG_CONSISTENCY}`;
+  // El preset "plaster" usa luz de ventana natural; el resto, el estudio neutro de siempre.
+  const cameraLighting = studioKey === "plaster" ? CAMERA_LIGHTING_NATURAL : CAMERA_LIGHTING;
 
   const shots = ((Array.isArray(cfg.ecomShots) && (cfg.ecomShots as string[]).length) ? (cfg.ecomShots as string[]) : DEFAULT_SHOTS)
     .filter((s) => SHOT_CATALOG[s]);
@@ -329,6 +349,18 @@ const handleGenerate: StepHandler = async (ctx) => {
   // dinámica — pose distinta por front/back/detail en lugar de modelo duro.
   // Mapeo shotId → dataUrl. Tiene PRIORIDAD sobre la pose global (poseUrl).
   const ecomShotPoses = ((cfg.ecomShotPoses as Record<string, string>) || {});
+
+  // Curación de pose refs con Gemini Vision (una vez por ref, cacheado): describe la
+  // postura y NOMBRA los decoys (ropa/pelo/props/fondo) a ignorar. Nombrarlos puntual es
+  // lo que evita que Nano Banana filtre la ropa de la pose ref (validado en el Lab).
+  // Fail-open: si Gemini falla → {pose:"", ignore:""} y el prompt usa su genérico de siempre.
+  const poseRefCuration = new Map<string, { pose: string; ignore: string }>();
+  {
+    const uniquePoseUrls = [...new Set([poseUrl, ...Object.values(ecomShotPoses)].filter(Boolean) as string[])];
+    await Promise.all(uniquePoseUrls.map(async (u) => {
+      poseRefCuration.set(u, await analyzePoseRefDecoys(u));
+    }));
+  }
 
   // Pose preset elegido (texto descriptivo de Gemini Vision-style). Si el
   // usuario subió pose ref imagen, esa gana. Default "auto" = rota entre las 8.
@@ -400,7 +432,7 @@ const handleGenerate: StepHandler = async (ctx) => {
         });
         // Style refs (look&feel + moodboard) opcionales — afinan estética.
         const sr1 = styleRefs(idx1); step1Urls.push(...sr1.urls); step1Desc.push(...sr1.desc);
-        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${CAMERA_LIGHTING} ${IDENTITY_LOCK} ${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
+        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${cameraLighting} ${IDENTITY_LOCK} ${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
         const job1 = await createImageEdit(step1Urls, step1Prompt, config.aspectRatio, config.resolution);
         const res1 = await pollImageGen(job1.request_id);
         const dressedAvatar = res1.image_url || "";
@@ -469,22 +501,24 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
       garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT (hero product) — the model WEARS this exact item. ${PIXEL_FIDELITY}`); idx++; });
       accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: STYLING ACCESSORY — the model also wears/has this exact item as part of the complete outfit. ${PIXEL_FIDELITY}`); idx++; });
     } else if (instPoseRef) {
-      // Shot 2+ CON pose ref específica: pose ref como base + anchor de shot 1
-      // + avatar ORIGINAL como segunda fuente de identidad (doble anclaje de cara).
-      urls.push(instPoseRef);
-      desc.push(`Image ${idx}: BASE IMAGE (edit this) — start from this exact image and KEEP its body POSTURE AND its FRAMING: body position, stance, arm/hand placement, head tilt, gaze direction, AND the exact camera framing/crop/zoom (full-body, medium, close, etc.). This base image is the source of truth for the pose AND how the shot is framed — do NOT re-pose and do NOT re-frame. The PERSON shown in this base image is a stand-in: their face, head, hair, skin and identity are IRRELEVANT and MUST be fully replaced by the FACE REPLACEMENT (IDENTITY) reference below. The BACKGROUND / environment / room / floor / wall / lighting color of this base image are ALSO IRRELEVANT and MUST be fully discarded and replaced by the studio backdrop described in the prompt — do NOT keep the pose reference's background. REPLACE all the clothing (top AND bottom), the face/head AND the background as specified below.`);
-      idx++;
+      // Shot 2+ CON pose ref específica. PRIORIDAD INVERTIDA (validado en el Lab): el SUJETO
+      // (persona + prenda + estudio) es el ANCHOR = Image 1 (fuente de verdad), y la pose ref
+      // entra como Image 2 = SOLO postura + encuadre, con los decoys NOMBRADOS a ignorar.
+      // Antes la pose ref era la "base image" (Image 1) y su ropa se filtraba — el fallo #1.
+      const cur = poseRefCuration.get(instPoseRef) || { pose: "", ignore: "" };
       urls.push(anchorUrl);
-      desc.push(`Image ${idx}: WARDROBE + STUDIO SOURCE — the clothing, accessories, studio look and lighting must match THIS image exactly. Apply them to the person in the BASE IMAGE.`);
+      desc.push(`Image ${idx}: SUBJECT — the SOURCE OF TRUTH for WHO the person is, the EXACT garment(s) and accessories they wear, and the studio backdrop + lighting. The output MUST keep this exact person wearing this exact outfit on this exact studio. This is what the shot is OF.`);
+      idx++;
+      urls.push(instPoseRef);
+      desc.push(`Image ${idx}: POSE REFERENCE — copy ONLY the body posture and the body ORIENTATION (which way the body is turned) from this image${cur.pose ? ` (${cur.pose})` : " (body position, stance, arm/hand placement, head tilt, gaze, and how the body is rotated)"}. Do NOT copy this image's framing/crop/zoom — the CROP is defined by the shot's FRAMING instruction in the prompt, which overrides this image. EVERYTHING ELSE in this image is a DECOY and must be COMPLETELY DISCARDED — it must NOT appear in the output: the person's face/hair/skin/identity, ALL their clothing${cur.ignore ? ` (specifically: ${cur.ignore})` : ""}, their accessories, anything they hold, and the background/setting. The person here is only a posing stand-in; take the posture and orientation, nothing else.`);
       idx++;
       // Avatar como fuente de identidad — DEBE ganar sobre la cara de la pose ref.
-      // Sin esto, Nano Banana conserva la cara de la persona en la pose ref.
       if (avatar?.imageUrl) {
         urls.push(avatar.imageUrl);
-        desc.push(`Image ${idx}: FACE REPLACEMENT (IDENTITY) — ABSOLUTE HIGHEST PRIORITY. The output face/head/hair MUST be this exact person, overriding whatever face is in the BASE IMAGE. ${IDENTITY_LOCK} ${FACE_REALISM}`);
+        desc.push(`Image ${idx}: FACE REPLACEMENT (IDENTITY) — ABSOLUTE HIGHEST PRIORITY. The output face/head/hair MUST be this exact person, overriding whatever face is in the POSE reference. ${IDENTITY_LOCK} ${FACE_REALISM}`);
         idx++;
       }
-      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT REFERENCE — same exact item. Pixel-perfect. ${PIXEL_FIDELITY}`); idx++; });
+      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT REFERENCE — the model wears THIS exact item (this is the real product, NOT whatever the pose reference person wears). Pixel-perfect. ${PIXEL_FIDELITY}`); idx++; });
       accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: ACCESSORY REFERENCE — same exact complement. ${PIXEL_FIDELITY}`); idx++; });
     } else {
       // Shot 2+ SIN pose ref: anchor del shot 1 + avatar ORIGINAL como refuerzo
@@ -510,25 +544,22 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
     // la pose ref enterrada en medio de los REFERENCE IMAGES y usa una pose default.
     // Reportado: "le pasé una pose y no me la respetó".
     // Cierre del prompt — dos paradigmas distintos según haya pose-anchor o no.
-    // Con pose-anchor: el modelo está EDITANDO la BASE IMAGE, no componiendo.
-    // Sin pose-anchor: composición tradicional con refs.
+    // Cierre para pose-ref (prioridad invertida, estilo Lab): el SUBJECT (Image 1 / anchor)
+    // manda persona + prenda + estudio; de la POSE ref sale SOLO postura + encuadre, y sus
+    // decoys (nombrados por Gemini) se descartan. Reemplaza el viejo paradigma "editá la base".
+    const poseCur = shotPoseUrl ? (poseRefCuration.get(shotPoseUrl) || { pose: "", ignore: "" }) : { pose: "", ignore: "" };
     const poseOverride = shotPoseUrl
       ? `
 
-EDIT INSTRUCTIONS (this is an image edit, not a composition):
-- The output MUST be the BASE IMAGE re-posed body, with these changes:
-  1) ALL the clothing of the person is REPLACED by the WARDROBE REPLACEMENT garment(s) — top AND bottom (trousers/skirt/shorts) AND layers. The trousers/pants/bottoms and top visible in the base image are IRRELEVANT and must NOT survive; every garment comes ONLY from the WARDROBE/GARMENT references.
-  1b) REMOVE any accessory, prop or object in the BASE IMAGE that is NOT one of the provided ACCESSORY references — bag, purse, handbag, backpack, hat, cap, beanie, sunglasses, eyeglasses, scarf, belt, watch, bracelet, rings, necklace, earrings, gloves, phone, cup, bottle, umbrella, chair or anything held or worn. The model carries/wears ONLY the specified garments and accessory references — nothing from the base image's styling survives.
-  2) The face/head/hair is REPLACED by the FACE REPLACEMENT (IDENTITY) reference — this is MANDATORY. Keep ONLY the head position, tilt and gaze from the BASE IMAGE; everything about WHO the face is comes from the FACE REPLACEMENT (IDENTITY) image, NOT from the base image. The base image person is a stand-in and their face must NOT survive into the output.
-  3) Any specified ACCESSORY REPLACEMENT is added/replaced in its natural body location.
-  4) The BACKGROUND / setting is REPLACED by the studio backdrop described at the top of this prompt (${studioClause.trim()}). Completely DISCARD the pose reference's environment — its room, floor, wall, props, colors and ambient lighting tint must NOT appear in the output. The final background is a clean studio backdrop, never the location from the pose reference.
+POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
+- The output is a photorealistic e-commerce studio photo of the SUBJECT person wearing their EXACT garment(s) and accessories from the SUBJECT/GARMENT references, on the studio backdrop described above (${studioClause.trim()}).
+- From the POSE REFERENCE, take ONLY the body POSTURE and body ORIENTATION: stance, torso angle, head tilt, gaze, arm and hand positions, LEG AND LOWER-BODY position (weight-bearing leg, knee bend, feet placement and angle — copy the legs as precisely as the arms, do NOT reset them to a plain straight stance). CRITICAL — reproduce the EXACT BODY ORIENTATION of the pose reference: if the person is turned to the side (de costado), in 3/4, in full profile or with their back to camera, the output MUST be turned the SAME way and the SAME amount, to the same side. Do NOT default the body to front-facing.${poseCur.pose ? ` The pose to reproduce: ${poseCur.pose}` : ""}
+- The CROP / FRAMING comes from the FRAMING instruction at the TOP of this prompt (MANDATORY), NOT from the pose reference. If the shot is a medium/American crop, CUT the frame at mid-thigh even if the pose reference shows the full body; if it is a close-up, crop tighter. The shot's framing ALWAYS overrides the pose reference's framing.
+- STRICTLY IGNORE everything else in the POSE reference — its clothing, hair, face, skin, accessories, props/objects held, and background are ALL a DECOY and must NOT appear in the output.${poseCur.ignore ? ` Specifically discard: ${poseCur.ignore}.` : ""} The garment the model wears comes ONLY from the GARMENT reference (the real product), never from the pose reference person.
 - ${IDENTITY_LOCK}
 - ${FACE_REALISM}
 - ${GARMENT_ORIENTATION}
-- PRESERVE from the BASE IMAGE ONLY the body POSTURE and the camera FRAMING: pose, stance, torso angle, head tilt, gaze, arm and hand positions, LEG AND LOWER-BODY position (weight-bearing leg, knee bend, feet placement and angle — copy the legs as precisely as the arms, do NOT reset them to a plain straight stance), AND the exact camera framing/crop/zoom/distance (full-body, medium, close, etc.). The base image is the source of truth for the pose AND the framing — do NOT re-pose and do NOT re-frame to a different crop.${faceRequired ? " EXCEPTION: never crop the model's head/face out — if the base image cuts the head off, extend the framing upward so the whole face stays visible." : ""} ${POSE_FULL_BODY}${faceRequired ? ` ${FACE_MUST_STAY}` : ""}
-- Do NOT copy the base image's LIGHTING, shadows, exposure, color cast or background. The base image may have dramatic, directional or harsh shadows on the body — those must NOT appear. The output is lit by the clean studio light described above (soft, even), and the ONLY shadow is a subtle, soft shadow on the FLOOR beneath the feet — never a harsh shadow across the body. The background is ALWAYS the clean studio backdrop from the prompt, never the base image's scene.
-- The garment/accessory reference photos contain models in OTHER poses and OTHER backgrounds — those models, faces, poses and backgrounds are IRRELEVANT. They exist ONLY to define what the clothing/accessory looks like.
-- Treat this like a Photoshop edit on a model cutout: same body POSTURE and same framing/crop as the base image, but re-dressed, re-faced to the IDENTITY person, and placed on the clean studio backdrop.`
+- Do NOT copy the POSE reference's LIGHTING, shadows, exposure or color cast. The output is lit by the clean studio light described above (soft, even); the only shadow is a subtle soft shadow on the FLOOR beneath the feet.${faceRequired ? " Never crop the model's head/face out — if the pose framing cuts the head off, extend the framing upward so the whole face stays visible." : ""} ${POSE_FULL_BODY}${faceRequired ? ` ${FACE_MUST_STAY}` : ""}`
       : "";
     // Si NO hay pose ref imagen, inyectamos un preset textual de pose (rota
     // entre 8 si "auto", o usa la elegida por el user). Eso evita que la
@@ -536,12 +567,19 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
     const poseDesc = !shotPoseUrl ? getPoseDescription(posePreset, sid, inst.nth) : null;
     const presetPoseClause = poseDesc ? ` POSE: ${poseDesc}` : "";
     const identityClause = avatar?.imageUrl ? `${IDENTITY_LOCK} ` : "";
-    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} FRAMING (MANDATORY — defines the crop/zoom): ${shot.framing}${presetPoseClause} ${wardrobe}${CAMERA_LIGHTING} ${identityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} FRAMING (MANDATORY — defines the crop/zoom): ${shot.framing}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution) : await createTextToImage(prompt, config.aspectRatio, config.resolution);
       const res = await pollImageGen(job.request_id);
-      const url = res.image_url || "";
+      let url = res.image_url || "";
+      // El anchor usa la imagen SIN recortar (consistencia de prenda/estudio); el recorte
+      // es solo para el entregable.
       if (i === 0 && url) anchorUrl = url;
+      // Post-crop determinístico para el americano: Nano Banana tira a cuerpo entero por
+      // más que el prompt pida el corte. Lo recortamos a ~medio muslo garantizado.
+      if (url && sid === "model_american") {
+        url = await cropImageTop(url, 0.65);
+      }
       // Label con nombre(s) de prenda(s) — el usuario quiere que el filename
       // descargado preserve el nombre del archivo original que cargó (ej. si
       // subiste "remera-roja.jpg", el output debería llamarse así, no "frente.png").
@@ -600,7 +638,7 @@ EDIT INSTRUCTIONS (this is an image edit, not a composition):
       // Flat = una prenda específica → su nombre crudo es el nombre de descarga.
       const downloadName = subj.name || primaryGarmentName;
       const id = flatSubjects.length > 1 ? `${sid}__${subj.id}` : sid;
-      const prompt = `Professional e-commerce product packshot of a single garment. ${studioClause} ${shot.framing} Show ONLY this one garment — no other clothing items. ${CAMERA_LIGHTING} ${FABRIC_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+      const prompt = `Professional e-commerce product packshot of a single garment. ${studioClause} ${shot.framing} Show ONLY this one garment — no other clothing items. ${cameraLighting} ${FABRIC_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
       try {
         const job = await createImageEdit(urls, prompt, config.aspectRatio, config.resolution);
         const res = await pollImageGen(job.request_id);

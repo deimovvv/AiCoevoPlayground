@@ -2693,6 +2693,50 @@ async def analyze_pose_reference(image: UploadFile = File(...)):
         raise HTTPException(status_code=502, detail=str(e))
 
 
+@app.post("/api/image/crop")
+async def crop_image_top(payload: dict = Body(...)):
+    """Recorte determinístico desde el TOP, preservando el aspect ratio original — para
+    garantizar planos que Nano Banana ignora (ej. americano: cuerpo entero → medio muslo).
+    `keep_top` = fracción de alto a conservar desde arriba (0.65 ≈ americano). Fetch → PIL →
+    re-upload a Fal → {url}. Fail-open: devuelve la url original si algo falla."""
+    url = payload.get("image_url")
+    if not url:
+        raise HTTPException(status_code=400, detail="Falta 'image_url'.")
+    keep = max(0.3, min(1.0, float(payload.get("keep_top", 0.65))))
+    try:
+        from PIL import Image
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.get(url)
+            r.raise_for_status()
+            img_bytes = r.content
+        im = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        w, h = im.size
+        new_w, new_h = int(w * keep), int(h * keep)   # k×k → preserva el aspect original
+        left = (w - new_w) // 2
+        cropped = im.crop((left, 0, left + new_w, new_h))
+        buf = io.BytesIO()
+        cropped.save(buf, "PNG")
+        fal_url = await kling_video.upload_image(buf.getvalue(), "cropped.png", "image/png")
+        return {"url": fal_url}
+    except Exception as e:
+        print(f"[image-crop] fail-open ({e}) — devuelvo original")
+        return {"url": url}
+
+
+@app.post("/api/analyze/pose-ref")
+async def analyze_pose_ref_decoys(image: UploadFile = File(...)):
+    """Ecommerce Pack pose-transfer: describe la postura + encuadre Y nombra los decoys
+    (ropa/pelo/props/fondo) a ignorar de la imagen de pose. Fail-open: {pose:"", ignore:""}."""
+    if not image_analysis.is_configured():
+        return {"pose": "", "ignore": ""}
+    try:
+        data = await image.read()
+        ct = image.content_type or "image/jpeg"
+        return await image_analysis.describe_pose_ref(data, ct)
+    except Exception:
+        return {"pose": "", "ignore": ""}
+
+
 @app.post("/api/analyze/reference")
 async def analyze_reference_image(image: UploadFile = File(...)):
     """

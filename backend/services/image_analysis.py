@@ -890,6 +890,42 @@ Return a single concise paragraph (2-4 sentences) suitable for use as a pose ref
     return await _call_vision(prompt, [(image_bytes, mime_type)])
 
 
+async def describe_pose_ref(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
+    """Para pose-transfer en Ecommerce Pack: describe la POSTURA + encuadre a copiar, y
+    NOMBRA los decoys (ropa, pelo, lentes, joyas, bolsos/props, fondo) que hay que IGNORAR
+    de la imagen de pose. Nombrar el decoy puntual (ej. 'white asymmetrical top') hace que
+    el generador no filtre la ropa de la pose ref — el fallo #1 del pose-transfer.
+    Devuelve {pose, ignore}. Fail-open: {pose:"", ignore:""} si Gemini falla → el prompt
+    cae a su instrucción genérica de siempre."""
+    prompt = (
+        "This image is used ONLY as a POSE + FRAMING reference for fashion product photography. "
+        "Return ONLY a JSON object, no prose:\n"
+        '{"pose": "...", "ignore": "..."}\n\n'
+        '"pose": one concise paragraph (2-3 sentences) describing ONLY the body posture, stance, '
+        "weight distribution, arm/hand positions, head and gaze direction, plus the camera framing "
+        "(full-body / mid-thigh / waist-up / close-up) and angle. CRUCIAL — state the BODY ORIENTATION "
+        "relative to the camera: is the person facing the camera front-on, turned to a 3/4 angle, in full "
+        "SIDE PROFILE (de costado), or with their back to the camera — and to WHICH side they are turned "
+        "(their left or right). Be explicit about the rotation and how much. Nothing about clothing or looks.\n"
+        '"ignore": a short comma-separated list naming the SPECIFIC things in THIS image that must be '
+        "discarded and must NOT appear in the output — name the person's garments WITH their colors "
+        "(e.g. 'white asymmetrical top', 'blue jeans'), their hair color/length, any sunglasses/eyewear, "
+        "jewelry, bag or props they hold, and the background/setting. Be concrete. Omit what isn't present."
+    )
+    try:
+        out = await _call_vision(prompt, [(image_bytes, mime_type)])
+        clean = (out or "").strip()
+        if clean.startswith("```"):
+            clean = clean.strip("`")
+            clean = clean[4:].strip() if clean.lower().startswith("json") else clean
+        s, e = clean.find("{"), clean.rfind("}")
+        data = json.loads(clean[s:e + 1]) if s != -1 and e != -1 and e > s else {}
+        return {"pose": str(data.get("pose", "")).strip(), "ignore": str(data.get("ignore", "")).strip()}
+    except Exception as ex:
+        print(f"[pose-ref] fail-open: {ex}")
+        return {"pose": "", "ignore": ""}
+
+
 async def check_product_consistency(
     generated: tuple[bytes, str],
     references: list[tuple[bytes, str]],
