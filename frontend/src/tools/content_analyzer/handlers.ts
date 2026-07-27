@@ -103,7 +103,7 @@ export const handleMapAssets: StepHandler = async (ctx) => {
 // ── Adapt — use analysis to create content for YOUR brand ──
 
 export const handleAdapt: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, tool } = ctx;
+  const { activeBrand, config, getStepResult } = ctx;
 
   const analyzeData = getStepResult("analyze") as { analysis: Record<string, unknown> } | undefined;
   if (!analyzeData?.analysis) throw new Error("No analysis found.");
@@ -163,14 +163,14 @@ export const handleAdapt: StepHandler = async (ctx) => {
   const selectedAvatars = mappedAvatarIds.length
     ? (activeBrand.avatars || []).filter((a) => mappedAvatarIds.includes(a.id))
     : (config.selectedAvatarIds?.length)
-      ? (activeBrand.avatars || []).filter((a) => config.selectedAvatarIds.includes(a.id))
+      ? (activeBrand.avatars || []).filter((a) => (config.selectedAvatarIds ?? []).includes(a.id))
       : config.selectedAvatarId ? [activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId)].filter(Boolean) : [];
 
   // Resolve mapped product ids across both pools (garment cataloged as product OR clothing).
   const selectedProducts = mappedProductIds.length
     ? mappedProductIds.map(findInEither).filter((x): x is NonNullable<typeof x> => Boolean(x))
     : (config.selectedProductIds?.length)
-      ? (activeBrand.products || []).filter((p) => config.selectedProductIds.includes(p.id))
+      ? (activeBrand.products || []).filter((p) => (config.selectedProductIds ?? []).includes(p.id))
       : config.selectedProductId ? [(activeBrand.products || []).find((p) => p.id === config.selectedProductId)].filter(Boolean) : [];
   // Resolve mapped outfit ids across both pools too.
   const selectedClothing = mappedClothingIds.length
@@ -495,7 +495,7 @@ export const handleRoute: StepHandler = async (ctx) => {
 // ── Generate Batch — create images from adapted prompts ──
 
 export const handleGenerateBatch: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, tool } = ctx;
+  const { activeBrand, config, getStepResult } = ctx;
 
   const adaptData = getStepResult("adapt") as {
     scenes: Array<{ frame: number; imagePrompt: string; script: string; sceneType: string }>;
@@ -504,10 +504,10 @@ export const handleGenerateBatch: StepHandler = async (ctx) => {
 
   // Multi-select: use arrays if available, fallback to single
   const selectedAvatars = (config.selectedAvatarIds?.length)
-    ? (activeBrand.avatars || []).filter((a) => config.selectedAvatarIds.includes(a.id))
+    ? (activeBrand.avatars || []).filter((a) => (config.selectedAvatarIds ?? []).includes(a.id))
     : config.selectedAvatarId ? [activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId)].filter(Boolean) : [];
   const selectedProducts = (config.selectedProductIds?.length)
-    ? (activeBrand.products || []).filter((p) => config.selectedProductIds.includes(p.id))
+    ? (activeBrand.products || []).filter((p) => (config.selectedProductIds ?? []).includes(p.id))
     : config.selectedProductId ? [(activeBrand.products || []).find((p) => p.id === config.selectedProductId)].filter(Boolean) : [];
 
   const referenceUrls: string[] = [];

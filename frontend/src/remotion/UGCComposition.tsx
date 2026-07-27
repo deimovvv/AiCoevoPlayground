@@ -7,10 +7,10 @@ export interface UGCScene {
   durationInFrames: number;
 }
 
-interface UGCCompositionProps {
+type UGCCompositionProps = {
   scenes: UGCScene[];
   fps?: number;
-}
+};
 
 /**
  * Generate subtitle chunks from scenes.

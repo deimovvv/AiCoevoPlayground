@@ -50,8 +50,10 @@ backend/data/voice_lab/
 backend/data/brands.json
 backend/data/renders/*
 backend/data/generations.json
+backend/data/campaigns.json
 backend/data/reviews.json
 backend/data/ig-imports/*
+backend/data/*.before_oom_cleanup
 backend/tmp/*
 
 # Project specific
@@ -64,3 +66,4 @@ videoref/
 # Keep empty directories with .gitkeep
 !backend/data/renders/.gitkeep
 !backend/tmp/.gitkeep
+backend/data/backups/

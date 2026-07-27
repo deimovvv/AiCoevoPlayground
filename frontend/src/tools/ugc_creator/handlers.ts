@@ -175,11 +175,7 @@ export const handleScript: StepHandler = async (ctx) => {
       // Use the AI-extracted visual description (neutral, pixel-accurate) instead of the
       // user-typed product name. User names like "remera azul clarito" bias the model's
       // color decisions when the actual reference image is a different shade.
-      const productDesc = selectedProduct
-        ? `${selectedProduct.description || "the product"} visible in frame — match the reference exactly.`
-        : "";
       const bgDesc = selectedBackground?.description || selectedBackground?.name || "studio setting";
-      const objective = config.objective || "";
 
       // Shot types with descriptions
       const SHOT_MAP: Record<string, string> = {
@@ -317,12 +313,12 @@ export const handleScript: StepHandler = async (ctx) => {
   if (config.notes) notes += `\n${config.notes}`;
 
   // Duration → max words per scene (Spanish: ~2.5 words/second)
-  const totalSeconds = parseInt((config as Record<string, unknown>).videoDuration as string || "30");
+  const totalSeconds = parseInt((config as unknown as Record<string, unknown>).videoDuration as string || "30");
   const numScenes = 4;
   const maxWordsPerScene = Math.round(totalSeconds / numScenes * 2.5);
   notes += `\n\nDURATION CONSTRAINT: The total video must be approximately ${totalSeconds} seconds. Each scene script must be MAXIMUM ${maxWordsPerScene} spoken words. Count words carefully and keep scripts short and punchy. Do NOT exceed this limit.`;
 
-  const ugcMode = (config as Record<string, unknown>).ugcMode as "standard" | "narrative" || "standard";
+  const ugcMode = (config as unknown as Record<string, unknown>).ugcMode as "standard" | "narrative" || "standard";
   const result = await generateCopy(activeBrand.id, {
     productName: selectedProduct?.name || "",
     tone: config.tone as "engaging" | "professional" | "casual" | "funny",
@@ -338,10 +334,36 @@ export const handleScript: StepHandler = async (ctx) => {
 // ── Base Image ───────────────────────────────────────────
 
 export const handleBaseImage: StepHandler = async (ctx) => {
-  const { activeBrand, config, getScriptScenes, setAudioCache } = ctx;
+  const { activeBrand, config, getScriptScenes } = ctx;
   const scenes = getScriptScenes();
   const firstScene = scenes[0];
   if (!firstScene) throw new Error("No script scenes found.");
+
+  // ── Usar la imagen SUBIDA como base (no generar) ──────────────────────────
+  // Pedido: "pasar una imagen y que ESA imagen sea usada para el video, sin generarla".
+  // Si el usuario tildó "usar como base" y subió una imagen, la devolvemos TAL CUAL como
+  // base. La escena 1 (hook hablado) usa la base directa → tu imagen exacta se lip-syncea
+  // con tu voz de ElevenLabs. Sin generación, sin drift.
+  if ((config as unknown as Record<string, unknown>).ugcBaseFromUpload) {
+    const upFiles = (((config as unknown as Record<string, unknown>).referenceImages as File[]) || [])
+      .filter((f) => f && typeof f.type === "string" && f.type.startsWith("image/"));
+    if (upFiles.length > 0) {
+      const dataUrl = await new Promise<string>((resolve) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result as string);
+        r.readAsDataURL(upFiles[0]);
+      });
+      return {
+        result: {
+          url: dataUrl,
+          prompt: "(imagen provista por el usuario — usada tal cual como base, sin generar)",
+          scriptText: firstScene.script,
+          inputs: { avatar: null, product: null, clothing: [], background: null },
+        },
+        needsApproval: true,
+      };
+    }
+  }
 
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
@@ -473,7 +495,7 @@ export const handleBaseImage: StepHandler = async (ctx) => {
 
   // ── Auto-generate entry frame hook if configured ──────
   let entryFrameUrl: string | undefined;
-  const cfgRaw = config as Record<string, unknown>;
+  const cfgRaw = config as unknown as Record<string, unknown>;
   const hookType = (cfgRaw.hookType as string) || "none";
   const hookMode = (cfgRaw.hookMode as string) || "standard";
   const foohPrompt = (cfgRaw.foohPrompt as string) || "";
@@ -569,7 +591,7 @@ export const handleMultishot: StepHandler = async (ctx) => {
     { label: "Mano producto", desc: `Product held up close to camera against clean background, person's hand and wrist visible. Studio-quality lighting, sharp product detail. Shot on 85mm f/2.0.` },
   ];
 
-  const ugcMode = (config as Record<string, unknown>).ugcMode as "standard" | "narrative" || "standard";
+  const ugcMode = (config as unknown as Record<string, unknown>).ugcMode as "standard" | "narrative" || "standard";
   const isNarrativeMode = ugcMode === "narrative";
 
   // Scene 1 = base image directly (always talking — hook scene)
@@ -627,10 +649,10 @@ export const handleMultishot: StepHandler = async (ctx) => {
     scenes.slice(1).map(async (scene, sceneIdx) => {
       const sceneType = sceneTypeMap[scene.id] || "talking";
       const noAvatar = scene._useAvatar === false;
-      const narrativeSceneType = (scene as Record<string, unknown>).narrativeSceneType as string | undefined || sceneType;
+      const narrativeSceneType = (scene as unknown as Record<string, unknown>).narrativeSceneType as string | undefined || sceneType;
       const isProductOnly = productOnlyMap[scene.id] || false;
       const sceneDirection = scene.image_prompt || "";
-      const sceneLocation = (scene as Record<string, unknown>).location as string || "";
+      const sceneLocation = (scene as unknown as Record<string, unknown>).location as string || "";
       const cleanDirection = sceneDirection.replace(/Shot on \d+mm[^.]*\.|Shot from [^.]*\.|product only[^.]*\.|no person[^.]*/gi, "").trim();
 
       // Per-scene background: override base image reference when set specifically
@@ -692,7 +714,7 @@ export const handleMultishot: StepHandler = async (ctx) => {
       // Product appears when: product-only shot, talking scene, last scene (CTA),
       // scene explicitly requests it (_showProduct: true), or visual direction mentions the product.
       // Lifestyle / emotional scenes (park, kitchen activity) should NOT have product forced in.
-      const sceneShowProduct = (scene as Record<string, unknown>)._showProduct as boolean | undefined;
+      const sceneShowProduct = (scene as unknown as Record<string, unknown>)._showProduct as boolean | undefined;
       const productMentionedInDirection = selectedProduct
         ? cleanDirection.toLowerCase().includes(selectedProduct.name.toLowerCase()) ||
           cleanDirection.toLowerCase().includes("product") ||
@@ -727,7 +749,7 @@ export const handleMultishot: StepHandler = async (ctx) => {
           let prompt: string;
 
           const noText = "Single continuous frame. NO split screen, NO collage, NO grid, NO multiple panels, NO text, NO watermarks, NO overlays. ";
-          const styleBlock = getVisualStyle(config as Record<string, unknown>) + " ";
+          const styleBlock = getVisualStyle(config as unknown as Record<string, unknown>) + " ";
 
           // Build reference header so model knows what each reference image is.
           // The LOCATION ANCHOR wording is the Nivel 1 consistency fix — explicitly demands
@@ -825,8 +847,8 @@ export const handleMultishot: StepHandler = async (ctx) => {
   // ── Hook video: generate Kling f2f for scene 1 if entry frame exists ──
   // Run in parallel with f2f analysis so it doesn't block
   const scene1 = multishotResults[0];
-  const hookType = (config as Record<string, unknown>).hookType as string || "none";
-  const hookMode = (config as Record<string, unknown>).hookMode as string || "standard";
+  const hookType = (config as unknown as Record<string, unknown>).hookType as string || "none";
+  const hookMode = (config as unknown as Record<string, unknown>).hookMode as string || "standard";
   // Use entry frame whenever one exists — either from config hookType or manual generation
   if (scene1?.entryFrameUrl) {
     const isFooh = hookMode === "fooh";
@@ -980,7 +1002,7 @@ export const handleVoice: StepHandler = async (ctx) => {
 export const handleLipsync: StepHandler = async (ctx) => {
   const { activeBrand, config, getStepResult, getScriptScenes } = ctx;
 
-  const lipsyncMethod = (config as Record<string, unknown>).lipsyncMethod as "heygen" | "synclipsync" || "heygen";
+  const lipsyncMethod = (config as unknown as Record<string, unknown>).lipsyncMethod as "heygen" | "synclipsync" || "heygen";
 
   // Read selections from multishot approval
   const multishotResult = getStepResult("multishot") as { selections?: Array<{ sceneId: string; title: string; selectedUrl: string }> } | Array<{ sceneId: string; title: string; selectedUrl: string }> | undefined;
@@ -1030,7 +1052,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
   const KLING_MOTION_SUFFIX = " Natural fluid movement, organic motion, single continuous shot, one person only, no split screen, no duplicate frames, photorealistic, subtle camera movement.";
 
   // Hook type for entry frame motion prompt
-  const hookType = (config as Record<string, unknown>).hookType as string || "none";
+  const hookType = (config as unknown as Record<string, unknown>).hookType as string || "none";
 
   // Animation engine — "kling" (default) or "seedance" (multi-reference)
   const animationEngine = ((config as unknown as Record<string, unknown>).animationEngine as "kling" | "seedance") || "kling";
@@ -1242,22 +1264,33 @@ export const handleLipsync: StepHandler = async (ctx) => {
       continue;
     }
 
-    // ── Talking scene: método elegido ─────────────────────
-    // PRIORITY: when animationEngine = "seedance" AND we have audio, route through
-    // Seedance — it handles both the visual generation AND the lipsync in one pass.
-    // Unified engine = better cross-scene consistency (same model = same look across
-    // talking and creative scenes).
-    if (animationEngine === "seedance" && falAudioUrl) {
-      // Build refs: curated scene image first (composition anchor) + brand refs (avatar / product / clothing / bg)
+    // ── Talking scene: fuente de voz elegida (A/B, ver docs/ugc-audio.md) ──
+    // "elevenlabs" (default): la voz de ElevenLabs se PRESERVA → va a HeyGen/Sync, que
+    //   sincronizan a TU audio sin cambiarlo. Mejor acento (porteño), sin ambiente (se
+    //   suma en la mezcla).
+    // "seedance": Seedance GENERA la voz (+ ambiente) usando el audio como ref de timing.
+    //   Trae ambiente pero el acento regional suele salir más flojo. Para probar.
+    const voiceSource = (config as unknown as Record<string, unknown>).ugcVoiceSource === "seedance"
+      ? "seedance" : "elevenlabs";
+    if (voiceSource === "seedance" && scriptText) {
+      // Seedance NATIVO (test real): NO se pasa el audio de ElevenLabs — Seedance genera
+      // la voz + ambiente desde el TEXTO del guion + el acento indicado. Así no se filtra
+      // la voz de ElevenLabs (el fallo anterior). El paso de voz ElevenLabs igual corre pero
+      // acá se ignora — el video final trae la voz nativa de Seedance.
       const refs = [scene.selectedUrl, ...brandRefUrls].slice(0, 6);
       try {
-        const seedancePrompt = scriptScene?.image_prompt
-          ? `${scriptScene.image_prompt}. The character is speaking the provided audio with natural lipsync, expressive face, calm body posture.`
-          : `Person speaking to camera in the same setting and outfit as the reference. Natural lipsync to the audio. Subtle body movement, expressive face.`;
+        const accent = ((config as unknown as Record<string, unknown>).ugcAccent as string || "").trim();
+        const accentClause = accent
+          ? ` The dialogue is spoken in a natural ${accent} Spanish accent (reproduce the accent, intonation and local delivery faithfully).`
+          : "";
+        const sceneClause = scriptScene?.image_prompt
+          ? `${scriptScene.image_prompt}.`
+          : `Person speaking to camera in the same setting and outfit as the reference.`;
+        const seedancePrompt = `${sceneClause} The person speaks to camera, saying exactly: "${scriptText.replace(/"/g, "'")}".${accentClause} Natural realistic lip-sync to their own speech, expressive face, calm body posture, natural ambient room tone.`;
         const job = await createSeedanceReferenceToVideo({
           prompt: seedancePrompt,
           referenceImageUrls: refs,
-          audioUrls: [falAudioUrl],
+          // Sin audioUrls: Seedance genera la voz nativa desde el texto (test de acento real).
           duration: klingDuration,
         });
         const result = job.video_url
@@ -1335,7 +1368,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
 // ── Render (FFmpeg concat + subtitles) ───────────────────
 
 export const handleRender: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, getScriptScenes, tool } = ctx;
+  const { config, getStepResult, getScriptScenes } = ctx;
   const lipsyncData = getStepResult("lipsync") as Array<{
     sceneId: string; title: string; scriptText?: string; videoUrl: string; hookVideoUrl?: string;
   }> | undefined;

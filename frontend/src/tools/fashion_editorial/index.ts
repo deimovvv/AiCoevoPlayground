@@ -41,13 +41,6 @@ export const DEFAULT_FRAMING = "full_body";
 export const DEFAULT_LIGHTING = "dramatic";
 export const DEFAULT_VIBE = "magazine";
 
-function fileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.readAsDataURL(file);
-  });
-}
 
 const handleGenerate: StepHandler = async (ctx) => {
   const { activeBrand, config } = ctx;
@@ -55,7 +48,7 @@ const handleGenerate: StepHandler = async (ctx) => {
 
   // ── Resolve content references ──
   const avatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId)
-    || (config.selectedAvatarIds?.length ? (activeBrand.avatars || []).find((a) => config.selectedAvatarIds.includes(a.id)) : undefined);
+    || (config.selectedAvatarIds?.length ? (activeBrand.avatars || []).find((a) => (config.selectedAvatarIds ?? []).includes(a.id)) : undefined);
   const garments = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const garmentUrls = garments.map((g) => g.imageUrl).filter(Boolean) as string[];

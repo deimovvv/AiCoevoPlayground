@@ -98,7 +98,7 @@ export const handleVisualGuide: StepHandler = async (ctx) => {
 // ── Prompts — generate N creative prompts ─────────────────
 
 export const handlePrompts: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, tool } = ctx;
+  const { activeBrand, config, getStepResult } = ctx;
 
   const visualGuideData = getStepResult("visual_guide") as { visualGuide: string } | undefined;
   if (!visualGuideData?.visualGuide) throw new Error("No visual guide found. Run the Visual Guide step first.");
@@ -204,7 +204,7 @@ export const handlePrompts: StepHandler = async (ctx) => {
 // ── Generate Batch — Nano Banana x N ──────────────────────
 
 export const handleGenerateBatch: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult, tool } = ctx;
+  const { activeBrand, config, getStepResult } = ctx;
 
   const promptsData = getStepResult("prompts") as {
     prompts: Array<{ prompt: string; style: string; angle: string }>;
@@ -231,7 +231,7 @@ export const handleGenerateBatch: StepHandler = async (ctx) => {
     throw new Error("Select at least a product or garments as reference.");
   }
 
-  const imageModel = (config as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
+  const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
 
   // Generate one image per prompt
   const results = await Promise.all(

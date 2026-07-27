@@ -297,7 +297,7 @@ const handleGenerate: StepHandler = async (ctx) => {
     || "";
 
   const avatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId)
-    || (config.selectedAvatarIds?.length ? (activeBrand.avatars || []).find((a) => (config.selectedAvatarIds || []).includes(a.id)) : undefined);
+    || (config.selectedAvatarIds?.length ? (activeBrand.avatars || []).find((a) => (config.selectedAvatarIds ?? []).includes(a.id)) : undefined);
   const moodboard = (activeBrand.moodboards || []).find((m) => m.id === config.selectedMoodboardId);
 
   const studioKey = (cfg.studioStyle as string) || "white";

@@ -157,8 +157,7 @@ function DropZone({
                 accept="image/*"
                 // Letting the OS file picker also accept directories (Chromium-only attr,
                 // gracefully ignored elsewhere). Plain file multi-select keeps working.
-                {...({ webkitdirectory: "" } as Record<string, string>)}
-                directory=""
+                {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
                 className="hidden"
                 onChange={(e) => {
                     const fs = Array.from(e.target.files || []).filter((f) => f.type.startsWith("image/"));
@@ -262,7 +261,7 @@ export function EcommerceBatch() {
         const breakdown = {
             brand: activeBrand?.name || "(sin marca)",
             outfits: outfits.map((o) => ({ name: o.file.name, type: o.type, hero: o.isHero })),
-            canonical: canonicalPoses.map((p) => p.file.name),
+            canonicalNames: canonicalPoses.map((p) => p.file.name),
             lifestyle: lifestylePoses.map((p) => p.file.name),
             lifestyleK,
             ...summary,
