@@ -339,6 +339,32 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   const firstScene = scenes[0];
   if (!firstScene) throw new Error("No script scenes found.");
 
+  // ── Usar la imagen SUBIDA como base (no generar) ──────────────────────────
+  // Pedido: "pasar una imagen y que ESA imagen sea usada para el video, sin generarla".
+  // Si el usuario tildó "usar como base" y subió una imagen, la devolvemos TAL CUAL como
+  // base. La escena 1 (hook hablado) usa la base directa → tu imagen exacta se lip-syncea
+  // con tu voz de ElevenLabs. Sin generación, sin drift.
+  if ((config as unknown as Record<string, unknown>).ugcBaseFromUpload) {
+    const upFiles = (((config as unknown as Record<string, unknown>).referenceImages as File[]) || [])
+      .filter((f) => f && typeof f.type === "string" && f.type.startsWith("image/"));
+    if (upFiles.length > 0) {
+      const dataUrl = await new Promise<string>((resolve) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result as string);
+        r.readAsDataURL(upFiles[0]);
+      });
+      return {
+        result: {
+          url: dataUrl,
+          prompt: "(imagen provista por el usuario — usada tal cual como base, sin generar)",
+          scriptText: firstScene.script,
+          inputs: { avatar: null, product: null, clothing: [], background: null },
+        },
+        needsApproval: true,
+      };
+    }
+  }
+
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
   const selectedBackground = resolveSceneBackground(firstScene, config, activeBrand);
@@ -1238,22 +1264,33 @@ export const handleLipsync: StepHandler = async (ctx) => {
       continue;
     }
 
-    // ── Talking scene: método elegido ─────────────────────
-    // PRIORITY: when animationEngine = "seedance" AND we have audio, route through
-    // Seedance — it handles both the visual generation AND the lipsync in one pass.
-    // Unified engine = better cross-scene consistency (same model = same look across
-    // talking and creative scenes).
-    if (animationEngine === "seedance" && falAudioUrl) {
-      // Build refs: curated scene image first (composition anchor) + brand refs (avatar / product / clothing / bg)
+    // ── Talking scene: fuente de voz elegida (A/B, ver docs/ugc-audio.md) ──
+    // "elevenlabs" (default): la voz de ElevenLabs se PRESERVA → va a HeyGen/Sync, que
+    //   sincronizan a TU audio sin cambiarlo. Mejor acento (porteño), sin ambiente (se
+    //   suma en la mezcla).
+    // "seedance": Seedance GENERA la voz (+ ambiente) usando el audio como ref de timing.
+    //   Trae ambiente pero el acento regional suele salir más flojo. Para probar.
+    const voiceSource = (config as unknown as Record<string, unknown>).ugcVoiceSource === "seedance"
+      ? "seedance" : "elevenlabs";
+    if (voiceSource === "seedance" && scriptText) {
+      // Seedance NATIVO (test real): NO se pasa el audio de ElevenLabs — Seedance genera
+      // la voz + ambiente desde el TEXTO del guion + el acento indicado. Así no se filtra
+      // la voz de ElevenLabs (el fallo anterior). El paso de voz ElevenLabs igual corre pero
+      // acá se ignora — el video final trae la voz nativa de Seedance.
       const refs = [scene.selectedUrl, ...brandRefUrls].slice(0, 6);
       try {
-        const seedancePrompt = scriptScene?.image_prompt
-          ? `${scriptScene.image_prompt}. The character is speaking the provided audio with natural lipsync, expressive face, calm body posture.`
-          : `Person speaking to camera in the same setting and outfit as the reference. Natural lipsync to the audio. Subtle body movement, expressive face.`;
+        const accent = ((config as unknown as Record<string, unknown>).ugcAccent as string || "").trim();
+        const accentClause = accent
+          ? ` The dialogue is spoken in a natural ${accent} Spanish accent (reproduce the accent, intonation and local delivery faithfully).`
+          : "";
+        const sceneClause = scriptScene?.image_prompt
+          ? `${scriptScene.image_prompt}.`
+          : `Person speaking to camera in the same setting and outfit as the reference.`;
+        const seedancePrompt = `${sceneClause} The person speaks to camera, saying exactly: "${scriptText.replace(/"/g, "'")}".${accentClause} Natural realistic lip-sync to their own speech, expressive face, calm body posture, natural ambient room tone.`;
         const job = await createSeedanceReferenceToVideo({
           prompt: seedancePrompt,
           referenceImageUrls: refs,
-          audioUrls: [falAudioUrl],
+          // Sin audioUrls: Seedance genera la voz nativa desde el texto (test de acento real).
           duration: klingDuration,
         });
         const result = job.video_url

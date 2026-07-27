@@ -5005,6 +5005,22 @@ function ConfigPanel({
               );
             })()}
 
+            {/* UGC — usar la imagen subida COMO BASE (no generar). Tu foto/frame se usa tal
+                cual como la escena hook y el lipsync la anima con tu voz. */}
+            {tool.id === "ugc_creator" && config.referenceImages.length > 0 && (
+              <label className="mt-2 flex items-start gap-2 px-3 py-2 rounded-[var(--radius-sm)] bg-surface-1 border border-edge cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!(config as unknown as { ugcBaseFromUpload?: boolean }).ugcBaseFromUpload}
+                  onChange={(e) => setConfig((p) => ({ ...(p as Record<string, unknown>), ugcBaseFromUpload: e.target.checked } as typeof p))}
+                  className="accent-[var(--color-action)] mt-0.5"
+                />
+                <span className="text-[11px] text-fg-muted leading-snug">
+                  <strong className="text-fg">Usar esta imagen como base</strong> (no generar) — tu foto/frame se usa tal cual como la escena principal y se anima con tu voz. Si está apagado, se usa solo como referencia de pose.
+                </span>
+              </label>
+            )}
+
             {/* Loading state while classifying */}
             {classifyingRef && tool.id === "static_ad" && (
               <div className="mt-2 p-2.5 bg-surface-1 border border-edge rounded-[var(--radius-sm)] flex items-center gap-2">
@@ -5746,10 +5762,52 @@ function ConfigPanel({
               value={config.animationEngine ?? "kling"}
               onChange={(next) => setConfig((p) => ({ ...p, animationEngine: next as ToolConfig["animationEngine"] }))}
               options={[
-                { id: "kling", label: "Kling V3 Pro", sub: "Anima; las talking pasan por HeyGen Avatar 4" },
-                { id: "seedance", label: "Seedance 2.0", sub: "Visual + lipsync en un solo modelo, sin HeyGen" },
+                { id: "kling", label: "Kling V3 Pro", sub: "Anima b-roll; la voz sigue la 'Fuente de voz'" },
+                { id: "seedance", label: "Seedance 2.0", sub: "Anima b-roll; la voz sigue la 'Fuente de voz'" },
               ]}
             />
+
+            {/* Fuente de voz (solo UGC) — el A/B del estudio. Las escenas HABLADAS: con
+                "ElevenLabs" se preserva tu voz (HeyGen/Sync, mejor acento, sin ambiente);
+                con "Seedance nativo" la genera Seedance (voz + ambiente, acento más flojo).
+                Ver docs/ugc-audio.md. */}
+            {tool.id === "ugc_creator" && (() => {
+              const cur = (config as unknown as { ugcVoiceSource?: string }).ugcVoiceSource || "elevenlabs";
+              const opts = [
+                { id: "elevenlabs", label: "ElevenLabs", sub: "voz preservada · mejor acento" },
+                { id: "seedance", label: "Seedance nativo", sub: "voz + ambiente · a probar" },
+              ];
+              return (
+                <div className="space-y-1.5 pt-2">
+                  <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Fuente de voz · escenas habladas</span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {opts.map((o) => (
+                      <button
+                        key={o.id}
+                        onClick={() => setConfig((p) => ({ ...(p as Record<string, unknown>), ugcVoiceSource: o.id } as typeof p))}
+                        className={cn(
+                          "px-2.5 py-2 rounded-[var(--radius-sm)] border text-left transition-colors cursor-pointer",
+                          cur === o.id ? "bg-[var(--color-brand-subtle)] border-[var(--color-brand)]" : "bg-surface-0 border-edge hover:border-[var(--color-edge-strong)]",
+                        )}
+                      >
+                        <div className="text-[11px] font-medium text-fg">{o.label}</div>
+                        <div className="text-[9px] text-fg-faint leading-snug">{o.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                  {/* Acento — solo cuando Seedance genera la voz (para decirle qué tonada). */}
+                  {cur === "seedance" && (
+                    <input
+                      type="text"
+                      value={(config as unknown as { ugcAccent?: string }).ugcAccent || ""}
+                      onChange={(e) => setConfig((p) => ({ ...(p as Record<string, unknown>), ugcAccent: e.target.value } as typeof p))}
+                      placeholder='Tonada / acento — ej: "porteño", "cuyano", "mexicano neutro"'
+                      className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[11px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
+                    />
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Duración por clip — co-locada con el motor. Solo Fashion Reel + Kling.
                 Depende del modelo: V3 Pro 3–10s (podés clips cortos de 3s); V2.x 5/10.
