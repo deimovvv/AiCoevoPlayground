@@ -5766,10 +5766,42 @@ function ConfigPanel({
               value={config.animationEngine}
               onChange={(next) => setConfig((p) => ({ ...p, animationEngine: next as ToolConfig["animationEngine"] }))}
               options={[
-                { id: "kling", label: "Kling V3 Pro", sub: "Anima; las talking pasan por HeyGen Avatar 4" },
-                { id: "seedance", label: "Seedance 2.0", sub: "Visual + lipsync en un solo modelo, sin HeyGen" },
+                { id: "kling", label: "Kling V3 Pro", sub: "Anima b-roll; la voz sigue la 'Fuente de voz'" },
+                { id: "seedance", label: "Seedance 2.0", sub: "Anima b-roll; la voz sigue la 'Fuente de voz'" },
               ]}
             />
+
+            {/* Fuente de voz (solo UGC) — el A/B del estudio. Las escenas HABLADAS: con
+                "ElevenLabs" se preserva tu voz (HeyGen/Sync, mejor acento, sin ambiente);
+                con "Seedance nativo" la genera Seedance (voz + ambiente, acento más flojo).
+                Ver docs/ugc-audio.md. */}
+            {tool.id === "ugc_creator" && (() => {
+              const cur = (config as unknown as { ugcVoiceSource?: string }).ugcVoiceSource || "elevenlabs";
+              const opts = [
+                { id: "elevenlabs", label: "ElevenLabs", sub: "voz preservada · mejor acento" },
+                { id: "seedance", label: "Seedance nativo", sub: "voz + ambiente · a probar" },
+              ];
+              return (
+                <div className="space-y-1.5 pt-2">
+                  <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Fuente de voz · escenas habladas</span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {opts.map((o) => (
+                      <button
+                        key={o.id}
+                        onClick={() => setConfig((p) => ({ ...(p as Record<string, unknown>), ugcVoiceSource: o.id } as typeof p))}
+                        className={cn(
+                          "px-2.5 py-2 rounded-[var(--radius-sm)] border text-left transition-colors cursor-pointer",
+                          cur === o.id ? "bg-[var(--color-brand-subtle)] border-[var(--color-brand)]" : "bg-surface-0 border-edge hover:border-[var(--color-edge-strong)]",
+                        )}
+                      >
+                        <div className="text-[11px] font-medium text-fg">{o.label}</div>
+                        <div className="text-[9px] text-fg-faint leading-snug">{o.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Duración por clip — co-locada con el motor. Solo Fashion Reel + Kling.
                 Depende del modelo: V3 Pro 3–10s (podés clips cortos de 3s); V2.x 5/10.

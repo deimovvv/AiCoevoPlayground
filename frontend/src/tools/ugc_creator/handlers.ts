@@ -1268,21 +1268,22 @@ export const handleLipsync: StepHandler = async (ctx) => {
       continue;
     }
 
-    // ── Talking scene: método elegido ─────────────────────
-    // IMPORTANTE (ver docs/ugc-audio.md): las escenas HABLADAS NO se rutean a Seedance.
-    // Seedance NO preserva el audio — usa la voz de ElevenLabs solo como referencia de
-    // timing y REGENERA la voz con la suya → se pierde la voz/el acento (porteño). Las
-    // escenas habladas SIEMPRE van a HeyGen / Sync.so, que sincronizan a TU audio sin
-    // cambiarlo. Seedance queda solo para escenas CREATIVE (b-roll), donde no hay una voz
-    // específica que preservar. Flag conservado (no borrado) por si el modelo mejora.
-    const USE_SEEDANCE_FOR_TALKING = false; // Seedance regenera la voz — nunca para hablado.
-    if (USE_SEEDANCE_FOR_TALKING && animationEngine === "seedance" && falAudioUrl) {
+    // ── Talking scene: fuente de voz elegida (A/B, ver docs/ugc-audio.md) ──
+    // "elevenlabs" (default): la voz de ElevenLabs se PRESERVA → va a HeyGen/Sync, que
+    //   sincronizan a TU audio sin cambiarlo. Mejor acento (porteño), sin ambiente (se
+    //   suma en la mezcla).
+    // "seedance": Seedance GENERA la voz (+ ambiente) usando el audio como ref de timing.
+    //   Trae ambiente pero el acento regional suele salir más flojo. Para probar.
+    const voiceSource = (config as unknown as Record<string, unknown>).ugcVoiceSource === "seedance"
+      ? "seedance" : "elevenlabs";
+    if (voiceSource === "seedance" && falAudioUrl) {
       // Build refs: curated scene image first (composition anchor) + brand refs (avatar / product / clothing / bg)
       const refs = [scene.selectedUrl, ...brandRefUrls].slice(0, 6);
       try {
-        const seedancePrompt = scriptScene?.image_prompt
+        const ACCENT_MATCH = " Match the voice, tone, delivery and ACCENT of the provided reference audio as closely as possible; keep natural ambient room tone.";
+        const seedancePrompt = (scriptScene?.image_prompt
           ? `${scriptScene.image_prompt}. The character is speaking the provided audio with natural lipsync, expressive face, calm body posture.`
-          : `Person speaking to camera in the same setting and outfit as the reference. Natural lipsync to the audio. Subtle body movement, expressive face.`;
+          : `Person speaking to camera in the same setting and outfit as the reference. Natural lipsync to the audio. Subtle body movement, expressive face.`) + ACCENT_MATCH;
         const job = await createSeedanceReferenceToVideo({
           prompt: seedancePrompt,
           referenceImageUrls: refs,
