@@ -23,6 +23,7 @@ AVATARS_DIR = DATA_DIR / "avatars"
 PRODUCTS_DIR = DATA_DIR / "products"
 CLOTHING_DIR = DATA_DIR / "clothing"
 BACKGROUNDS_DIR = DATA_DIR / "backgrounds"
+POSES_DIR = DATA_DIR / "poses"   # librería de poses de referencia por marca (Ecommerce Pack)
 LOGOS_DIR = DATA_DIR / "logos"
 MOODBOARDS_DIR = DATA_DIR / "moodboards"
 LOOKANDFEEL_DIR = DATA_DIR / "lookandfeel"
@@ -34,6 +35,7 @@ AVATARS_DIR.mkdir(exist_ok=True)
 PRODUCTS_DIR.mkdir(exist_ok=True)
 CLOTHING_DIR.mkdir(exist_ok=True)
 BACKGROUNDS_DIR.mkdir(exist_ok=True)
+POSES_DIR.mkdir(exist_ok=True)
 LOGOS_DIR.mkdir(exist_ok=True)
 MOODBOARDS_DIR.mkdir(exist_ok=True)
 LOOKANDFEEL_DIR.mkdir(exist_ok=True)
@@ -74,6 +76,7 @@ SANDBOX_BRAND = {
     "products": [],
     "clothing": [],
     "backgrounds": [],
+    "poses": [],
     "moodboards": [],
     "lookAndFeel": [],
 }
@@ -149,6 +152,10 @@ def get_clothing_dir() -> Path:
 
 def get_backgrounds_dir() -> Path:
     return BACKGROUNDS_DIR
+
+
+def get_poses_dir() -> Path:
+    return POSES_DIR
 
 
 def get_logos_dir() -> Path:

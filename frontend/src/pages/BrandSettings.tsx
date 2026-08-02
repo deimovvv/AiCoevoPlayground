@@ -27,6 +27,7 @@ import {
   UploadCloud,
   Sun,
   ChevronDown,
+  PersonStanding,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
@@ -45,6 +46,9 @@ import {
   uploadBackground,
   deleteBackground,
   updateBackground,
+  uploadPose,
+  deletePose,
+  poseImageUrl,
   uploadMoodboard,
   deleteMoodboard,
   moodboardImageUrl,
@@ -74,7 +78,7 @@ import {
   addProductImage,
   generateTTS,
 } from "../lib/api";
-import type { Avatar, Product, ClothingItem, BackgroundItem, MoodboardItem, LookFeelItem, DesignSystem } from "../lib/api";
+import type { Avatar, Product, ClothingItem, BackgroundItem, MoodboardItem, LookFeelItem, DesignSystem, PoseItem } from "../lib/api";
 import { cn } from "../lib/utils";
 import { PromptsCard } from "../components/PromptsCard";
 import { BusinessCard, BrandSourcesCard, CustomerReviewsCard, CompetitorsCard, BrandHealthCard, SectionHeader, BrandIdentityExportCard } from "../components/BrandLayer";
@@ -111,6 +115,7 @@ const BRAND_NAV: Array<{ id: string; label: string }> = [
   { id: "sec-backgrounds", label: "Fondos" },
   { id: "sec-voices", label: "Voces" },
   { id: "sec-clothing", label: "Prendas" },
+  { id: "sec-poses", label: "Poses" },
   { id: "sec-export", label: "Export" },
 ];
 
@@ -190,6 +195,7 @@ export function BrandSettings() {
         <div id="sec-voices" className="scroll-mt-20"><VoicesCard /></div>
         <div id="sec-clothing" className="scroll-mt-20"><ClothingCard /></div>
         <ClothingCard accessoryMode />
+        <div id="sec-poses" className="scroll-mt-20"><PosesCard /></div>
       </div>
 
       {/* ④ EXTRAS — opcionales, colapsados */}
@@ -2317,6 +2323,171 @@ function BackgroundTile({
           </div>
         )}
       </AssetEditableMeta>
+    </div>
+  );
+}
+
+// ── Poses Card ──────────────────────────────────────────────
+// Librería de poses de referencia de la marca. Se sube una vez acá y se consume
+// desde cualquier tool (Ecommerce Pack, etc.) sin volver a subir. Fuente de verdad:
+// activeBrand.poses (backend: /api/brands/{id}/poses).
+
+function PosesCard() {
+  const { activeBrand, refreshBrands } = useBrand();
+  const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  if (!activeBrand) return null;
+
+  const poses = activeBrand.poses || [];
+
+  const handleUpload = async () => {
+    if (files.length === 0) return;
+    setUploading(true);
+    setError(null);
+    try {
+      for (const f of files) {
+        await uploadPose(activeBrand.id, deriveAssetName(f.name) || "Pose", f);
+      }
+      await refreshBrands();
+      setShowUpload(false);
+      setFiles([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falló la subida");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (itemId: string) => {
+    setDeleting(itemId);
+    try {
+      await deletePose(activeBrand.id, itemId);
+      await refreshBrands();
+    } catch (err) {
+      console.error("Error al eliminar pose:", err);
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  return (
+    <Card
+      icon={<PersonStanding size={16} />}
+      title="Poses"
+      count={poses.length}
+      description="Poses de referencia reutilizables. Subilas una vez y usalas en cualquier tool (Ecommerce Pack, etc.)."
+      collapsible
+      defaultCollapsed
+      action={
+        <button
+          onClick={() => setShowUpload(!showUpload)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium text-fg-muted hover:text-fg bg-surface-1 hover:bg-surface-2 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
+        >
+          <Plus size={12} />
+          Add
+        </button>
+      }
+    >
+      {showUpload && (
+        <div className="mb-4 p-3 bg-surface-0 border border-edge rounded-[var(--radius-sm)] space-y-2.5">
+          <div
+            onClick={() => fileRef.current?.click()}
+            className={cn(
+              "border border-dashed border-edge rounded-[var(--radius-sm)] px-3 py-4 text-center cursor-pointer transition-colors",
+              files.length > 0 ? "border-[var(--color-action)] bg-[var(--color-action-subtle)]" : "hover:border-[var(--color-edge-strong)]"
+            )}
+          >
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => setFiles(Array.from(e.target.files || []))}
+            />
+            {files.length === 1 ? (
+              <span className="text-[12px] text-fg-secondary">{files[0].name}</span>
+            ) : files.length > 1 ? (
+              <span className="text-[12px] text-fg-secondary">{`${files.length} archivos seleccionados`}</span>
+            ) : (
+              <div className="space-y-1">
+                <Upload size={16} className="mx-auto text-fg-faint" />
+                <p className="text-[12px] text-fg-faint">Click para seleccionar poses de referencia</p>
+              </div>
+            )}
+          </div>
+          {error && (
+            <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-error)]">
+              <AlertCircle size={12} /> {error}
+            </div>
+          )}
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => { setShowUpload(false); setFiles([]); setError(null); }}
+              className="px-2.5 py-1.5 text-[12px] text-fg-muted hover:text-fg rounded-[var(--radius-sm)] hover:bg-surface-2 transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleUpload}
+              disabled={uploading || files.length === 0}
+              className="px-3 py-1.5 text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-[var(--radius-sm)] hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+            >
+              {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+              Upload
+            </button>
+          </div>
+        </div>
+      )}
+
+      {poses.length === 0 && !showUpload ? (
+        <EmptyState onClick={() => setShowUpload(true)} label="Subí la primera pose" />
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {poses.map((p) => (
+            <PoseTile
+              key={p.id}
+              item={p}
+              deleting={deleting === p.id}
+              onDelete={() => handleDelete(p.id)}
+            />
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function PoseTile({
+  item,
+  deleting,
+  onDelete,
+}: {
+  item: PoseItem;
+  deleting: boolean;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="group relative rounded-[var(--radius-sm)] bg-surface-2 overflow-hidden">
+      <div className="aspect-[3/4]">
+        <img src={poseImageUrl(item.imageUrl)} alt={item.name} className="w-full h-full object-cover" />
+      </div>
+      <button
+        onClick={onDelete}
+        disabled={deleting}
+        className="absolute top-1.5 right-1.5 p-1.5 rounded-[var(--radius-sm)] bg-black/60 text-white/90 opacity-0 group-hover:opacity-100 hover:bg-black/80 transition-all cursor-pointer disabled:opacity-40"
+        title="Eliminar pose"
+      >
+        {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+      </button>
+      <div className="px-2 py-1.5">
+        <p className="text-[11px] text-fg-secondary truncate" title={item.name}>{item.name}</p>
+      </div>
     </div>
   );
 }

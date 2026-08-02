@@ -45,6 +45,8 @@ import nodes as node_system  # Fase 1: catálogo de primitivas + motor de grafos
 from services import manual_lab
 from services import asset_matcher
 from services import seedance_video
+from services import veo_video
+from services import fal_rembg
 from services import beeble_switchx
 from services.image_utils import normalize_image_bytes, is_image_upload
 
@@ -261,6 +263,7 @@ def convert_heic_legacy():
         ("products", brands.get_products_dir(), "/static/products/"),
         ("clothing", brands.get_clothing_dir(), "/static/clothing/"),
         ("backgrounds", brands.get_backgrounds_dir(), "/static/backgrounds/"),
+        ("poses", brands.get_poses_dir(), "/static/poses/"),
         ("moodboards", brands.get_moodboards_dir(), "/static/moodboards/"),
         ("lookAndFeel", brands.get_lookfeel_dir(), "/static/lookfeel/"),
         ("logos", brands.get_logos_dir(), "/static/logos/"),
@@ -1945,6 +1948,75 @@ def delete_background(brand_id: str, item_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Brand Pose Library API — poses de referencia reutilizables (Ecommerce Pack)
+# ══════════════════════════════════════════════════════════════
+
+app.mount("/static/poses", StaticFiles(directory=str(brands.get_poses_dir())), name="poses")
+
+
+@app.get("/api/brands/{brand_id}/poses")
+def list_poses(brand_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    return {"poses": brand.get("poses", [])}
+
+
+@app.post("/api/brands/{brand_id}/poses")
+async def upload_pose(
+    brand_id: str,
+    name: str = Form(...),
+    image: UploadFile = File(...),
+):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not is_image_upload(image.content_type, image.filename):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    image_data = await image.read()
+    image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)
+    item_id = str(uuid.uuid4())[:8]
+    filename = f"{brand_id}_pose_{item_id}{ext}"
+    filepath = brands.get_poses_dir() / filename
+    with open(filepath, "wb") as f:
+        f.write(image_data)
+
+    item = {
+        "id": item_id,
+        "name": name,
+        "filename": filename,
+        "imageUrl": f"/static/poses/{filename}",
+    }
+    if "poses" not in brand:
+        brand["poses"] = []
+    brand["poses"].append(item)
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.delete("/api/brands/{brand_id}/poses/{item_id}")
+def delete_pose(brand_id: str, item_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((b for b in brand.get("poses", []) if b["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Pose not found")
+    filename = item.get("filename", "")
+    if filename:
+        img_path = brands.get_poses_dir() / filename
+        if img_path.exists() and img_path.is_file():
+            img_path.unlink()
+    brand["poses"] = [b for b in brand["poses"] if b["id"] != item_id]
+    brands.save_brands(all_brands)
+    return {"ok": True}
+
+
+# ══════════════════════════════════════════════════════════════
 #  Brand Moodboard API
 # ══════════════════════════════════════════════════════════════
 
@@ -2723,6 +2795,198 @@ async def crop_image_top(payload: dict = Body(...)):
         return {"url": url}
 
 
+@app.post("/api/image/composite-bg")
+async def composite_bg(payload: dict = Body(...)):
+    """Composite determinístico: recorta el sujeto (BiRefNet) y lo pega sobre el fondo real
+    (seamless), con una sombra de contacto suave bajo los pies. Garantiza fondo 100% consistente
+    sin depender de que Nano lo respete. Fail-open: devuelve la imagen original si algo falla."""
+    image = payload.get("image")
+    background = payload.get("background")            # imagen (dataUrl/URL) — opcional
+    background_color = payload.get("background_color")  # hex sólido "#ededed" — opcional, gana
+    add_shadow = bool(payload.get("add_shadow", True))
+    if not image or (not background and not background_color):
+        raise HTTPException(status_code=400, detail="Faltan 'image' y 'background' o 'background_color'.")
+
+    def _hex_rgb(h: str):
+        h = (h or "#ededed").strip().lstrip("#")
+        if len(h) == 3:
+            h = "".join(c * 2 for c in h)
+        try:
+            return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+        except Exception:
+            return (237, 237, 237)
+
+    try:
+        from PIL import Image as PILImage, ImageOps, ImageDraw, ImageFilter
+
+        async def _to_public_url(src: str) -> str:
+            """BiRefNet necesita URL pública. data:/static/localhost → subir a Fal."""
+            if src.startswith("http") and "localhost" not in src and "127.0.0.1" not in src and "/static/" not in src:
+                return src
+            img_bytes, mime = await _resolve_image_bytes(src)
+            ext = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}.get(mime, ".png")
+            return await kling_video.upload_image(img_bytes, f"src{ext}", mime)
+
+        # 1) Recorte del sujeto (BiRefNet)
+        gen_url = await _to_public_url(image)
+        cutout_url = await fal_rembg.remove_background(gen_url)
+
+        # 2) Descargar cutout (+ fondo imagen si corresponde)
+        async with httpx.AsyncClient(timeout=90, follow_redirects=True) as client:
+            cutout_bytes = (await client.get(cutout_url)).content
+        bg_bytes = None
+        if not background_color and background:
+            bg_bytes, _ = await _resolve_image_bytes(background)
+
+        # 3) Composite con PIL
+        cutout = PILImage.open(io.BytesIO(cutout_bytes)).convert("RGBA")
+        W, H = cutout.size
+        if background_color:
+            # Seamless de estudio SINTÉTICO (no un color plano — eso flotaba). Base = el tono
+            # elegido, con un gradiente vertical sutil (un poco más oscuro arriba, aclarando
+            # hacia el centro-abajo) → da profundidad de infinity-cove sin depender de archivos.
+            base_rgb = _hex_rgb(background_color)
+            dark_rgb = tuple(max(0, c - 16) for c in base_rgb)
+            base_img = PILImage.new("RGB", (W, H), base_rgb)
+            dark_img = PILImage.new("RGB", (W, H), dark_rgb)
+            grad = PILImage.new("L", (W, H), 0)
+            gd = ImageDraw.Draw(grad)
+            for y in range(H):
+                frac = max(0.0, 1.0 - y / (H * 0.55))   # 1 arriba → 0 a ~55% de alto
+                gd.line([(0, y), (W, y)], fill=int(70 * frac))
+            bg = PILImage.composite(dark_img, base_img, grad)
+        else:
+            bg = PILImage.open(io.BytesIO(bg_bytes)).convert("RGB")
+            bg = ImageOps.fit(bg, (W, H), PILImage.LANCZOS)   # cover WxH (center-crop)
+        canvas = bg.convert("RGBA")
+
+        if add_shadow:
+            alpha = cutout.getchannel("A")
+            bbox = alpha.getbbox()
+            # Sombra solo en planos con piso (pies por encima del borde inferior).
+            if bbox and bbox[3] < H - int(0.005 * H):
+                l, t, r, b = bbox
+                # Sombra SUTIL: una sola elipse suave, baja opacidad y MUY difuminada, anclada a
+                # los pies reales (banda inferior de la silueta). Apenas insinúa el apoyo — NO
+                # un bloque oscuro. La clave que pidió el cliente: sutil.
+                band_top = max(t, b - int(0.04 * H))
+                fb = alpha.crop((0, band_top, W, b)).getbbox()
+                fl, fr = (fb[0], fb[2]) if fb else (l, r)
+                fcx = (fl + fr) // 2
+                fw = max(30, fr - fl)
+                # Sombra de contacto SUTIL: chata, pegada a los pies y difundida hacia ATRÁS
+                # (arriba en el frame) + un leve corrimiento lateral. NO hacia adelante/cámara.
+                off = int(fw * 0.15)              # leve corrimiento lateral
+                ew, eh = int(fw * 1.9), max(12, int(0.020 * H))
+                cxs = fcx + off
+                cy = b - int(eh * 0.35)           # centro apenas por detrás del contacto
+                shadow = PILImage.new("RGBA", (W, H), (0, 0, 0, 0))
+                sd = ImageDraw.Draw(shadow)
+                # halo suave amplio + núcleo un poco más presente para que SE NOTE sin ser duro
+                sd.ellipse([cxs - ew // 2, cy - eh // 2, cxs + ew // 2, cy + eh // 2], fill=(0, 0, 0, 70))
+                ew2, eh2 = int(fw * 1.1), max(7, int(0.011 * H))
+                sd.ellipse([cxs - ew2 // 2, b - eh2 // 2, cxs + ew2 // 2, b + eh2 // 2], fill=(0, 0, 0, 115))
+                shadow = shadow.filter(ImageFilter.GaussianBlur(max(9, int(0.016 * W))))
+                canvas = PILImage.alpha_composite(canvas, shadow)
+
+        canvas = PILImage.alpha_composite(canvas, cutout)
+        out = canvas.convert("RGB")
+        buf = io.BytesIO()
+        out.save(buf, "JPEG", quality=95)
+        fal_url = await kling_video.upload_image(buf.getvalue(), "composite.jpg", "image/jpeg")
+        return {"url": fal_url}
+    except Exception as e:
+        print(f"[composite-bg] fail-open ({e}) — devuelvo original")
+        return {"url": image}
+
+
+@app.post("/api/image/repaint-bg")
+async def repaint_bg(payload: dict = Body(...)):
+    """Repinta SOLO el fondo a un color exacto (ej. #ededed) SIN recortar/pegar a la persona
+    (por eso no hay halo) y CONSERVANDO la sombra natural (desplaza el tono del fondo hacia el
+    target manteniendo la variación de luminancia). Fail-open: devuelve la imagen original."""
+    image = payload.get("image")
+    target_hex = payload.get("color") or "#ededed"
+    if not image:
+        raise HTTPException(status_code=400, detail="Falta 'image'.")
+
+    def _hex_rgb(h: str):
+        h = (h or "#ededed").strip().lstrip("#")
+        if len(h) == 3:
+            h = "".join(c * 2 for c in h)
+        try:
+            return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+        except Exception:
+            return (237, 237, 237)
+
+    try:
+        from PIL import Image as PILImage
+
+        # imagen a URL pública para BiRefNet
+        if image.startswith("http") and "localhost" not in image and "127.0.0.1" not in image and "/static/" not in image:
+            gen_url = image
+        else:
+            ib, mime = await _resolve_image_bytes(image)
+            ext = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}.get(mime, ".png")
+            gen_url = await kling_video.upload_image(ib, f"src{ext}", mime)
+
+        cutout_url = await fal_rembg.remove_background(gen_url)   # BiRefNet → alpha = persona
+        async with httpx.AsyncClient(timeout=90, follow_redirects=True) as client:
+            cutout_bytes = (await client.get(cutout_url)).content
+        orig_bytes, _ = await _resolve_image_bytes(gen_url)
+
+        original = PILImage.open(io.BytesIO(orig_bytes)).convert("RGB")
+        cutout = PILImage.open(io.BytesIO(cutout_bytes)).convert("RGBA")
+        if cutout.size != original.size:
+            cutout = cutout.resize(original.size)
+        from PIL import ImageFilter as _IF
+        person_mask = cutout.getchannel("A")   # 255 = persona, 0 = fondo
+        # Erosionar un toque la persona → el shift de fondo cubre el borde exterior del pelo y
+        # no queda un ring del color viejo. Como el shift es chico (gris→gris), no tiñe el pelo.
+        person_mask = person_mask.filter(_IF.MinFilter(5))
+        W, H = original.size
+
+        # Tono base del fondo que generó Nano: promedio de parches de las esquinas SUPERIORES
+        # (siempre fondo plano; la sombra vive abajo, así no la contaminamos).
+        pw, ph = max(4, W // 12), max(4, H // 12)
+        def _avg(box):
+            return original.crop(box).resize((1, 1)).getpixel((0, 0))
+        c1 = _avg((0, 0, pw, ph))
+        c2 = _avg((W - pw, 0, W, ph))
+        base = tuple((c1[i] + c2[i]) // 2 for i in range(3))
+        target = _hex_rgb(target_hex)
+        offset = tuple(target[i] - base[i] for i in range(3))
+
+        # Desplazar TODA la imagen por el offset (mantiene la sombra: un pixel más oscuro que el
+        # base sigue más oscuro que el target por la misma cantidad).
+        ch = list(original.split())
+        for i in range(3):
+            o = offset[i]
+            ch[i] = ch[i].point(lambda p, o=o: max(0, min(255, p + o)))
+        shifted = PILImage.merge("RGB", ch)
+
+        # APLANAR el fondo para que salga CONSISTENTE entre shots. El offset-shift solo iguala
+        # el tono medio, pero preserva toda la variación de luminancia: el glow/vignette que Nano
+        # mete en algunos shots queda MÁS CLARO que el target y sobrevive (centro blanqueado).
+        # Con un min por canal contra el target (ImageChops.darker) bajamos cualquier zona más
+        # clara que #ededed a exactamente #ededed → fondo plano y uniforme, idéntico en todos los
+        # shots. La sombra (más OSCURA que el target) es < target → el min la deja intacta.
+        from PIL import ImageChops as _IC
+        flat = PILImage.new("RGB", original.size, target)
+        flattened_bg = _IC.darker(shifted, flat)
+
+        # Persona = pixeles originales; fondo = aplanado. El borde (mask ~gris) mezcla dos
+        # grises claros → sin fringe.
+        out = PILImage.composite(original, flattened_bg, person_mask)
+        buf = io.BytesIO()
+        out.save(buf, "JPEG", quality=95)
+        fal_url = await kling_video.upload_image(buf.getvalue(), "repaint.jpg", "image/jpeg")
+        return {"url": fal_url}
+    except Exception as e:
+        print(f"[repaint-bg] fail-open ({e}) — devuelvo original")
+        return {"url": image}
+
+
 @app.post("/api/analyze/pose-ref")
 async def analyze_pose_ref_decoys(image: UploadFile = File(...)):
     """Ecommerce Pack pose-transfer: describe la postura + encuadre Y nombra los decoys
@@ -3448,6 +3712,83 @@ async def synclipsync_result(request_id: str):
     try:
         return await fal_synclipsync.get_result(request_id)
     except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Google Veo 3.1 — Image/Text-to-Video con audio nativo
+#  (acepta caras que Seedance bloquea — ver docs/ugc-talking-head-tests.md)
+# ══════════════════════════════════════════════════════════════
+
+class VeoImageToVideoRequest(BaseModel):
+    prompt: str
+    image: Optional[str] = None          # data URL | http(s) | /static/... (None = text-to-video)
+    aspect_ratio: str = "9:16"
+    negative_prompt: Optional[str] = None
+    fast: bool = False                   # usar el modelo fast (más barato/rápido)
+
+
+class VeoPollRequest(BaseModel):
+    operation: str                       # el name de la operación (tiene '/', va en el body)
+
+
+async def _resolve_image_bytes(image: str) -> tuple[bytes, str]:
+    """data: | http(s) | /static/... → (bytes, mime)."""
+    import base64 as _b64
+    if image.startswith("data:"):
+        header, b64 = image.split(",", 1)
+        mime = header.split(":", 1)[1].split(";", 1)[0] if ":" in header else "image/jpeg"
+        return _b64.b64decode(b64), mime
+    url = image
+    if image.startswith("/static/"):
+        url = f"http://127.0.0.1:8000{image}"
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as c:
+        r = await c.get(url)
+    ct = r.headers.get("content-type", "image/jpeg").split(";")[0]
+    return r.content, ct
+
+
+@app.post("/api/veo/image-to-video")
+async def veo_create(req: VeoImageToVideoRequest):
+    """Envía un job Veo 3.1. Devuelve {operation} para pollear con /api/veo/poll."""
+    if not veo_video.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    model = veo_video.FAST_MODEL if req.fast else veo_video.DEFAULT_MODEL
+    try:
+        if req.image:
+            img_bytes, mime = await _resolve_image_bytes(req.image)
+            op = await veo_video.create_image_to_video(
+                req.prompt, img_bytes, image_mime=mime,
+                aspect_ratio=req.aspect_ratio, model=model, negative_prompt=req.negative_prompt,
+            )
+        else:
+            op = await veo_video.create_text_to_video(
+                req.prompt, aspect_ratio=req.aspect_ratio, model=model, negative_prompt=req.negative_prompt,
+            )
+        return {"operation": op}
+    except Exception as e:
+        print(f"[veo] submit error: {e}")
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/api/veo/poll")
+async def veo_poll(req: VeoPollRequest):
+    """Poll de una operación Veo. Al completar, descarga el video, lo guarda en renders
+    y devuelve {status:'completed', video_url:'/static/renders/...'}."""
+    if not veo_video.is_configured():
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    try:
+        st = await veo_video.get_status(req.operation)
+        if st["status"] != "completed":
+            return st
+        # completed → descargar y servir localmente (la Files API pide auth)
+        video_bytes = await veo_video.download_result(req.operation)
+        import uuid as _uuid
+        fname = f"veo_{_uuid.uuid4().hex[:12]}.mp4"
+        (_renders_dir / fname).write_bytes(video_bytes)
+        return {"status": "completed", "video_url": f"/static/renders/{fname}", "error": None}
+    except Exception as e:
+        print(f"[veo] poll error: {e}")
         raise HTTPException(status_code=502, detail=str(e))
 
 

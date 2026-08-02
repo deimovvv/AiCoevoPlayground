@@ -13,6 +13,7 @@ import {
   createSyncLipsync, pollSyncLipsync,
   createKlingVideo, createKlingFrameToFrame, pollKlingVideo,
   createSeedanceReferenceToVideo, pollSeedanceVideo,
+  createVeoVideo, pollVeoVideo,
   overlayAudio,
   concatVideos,
   analyzePoseReference,
@@ -954,6 +955,16 @@ function getAudioDuration(blob: Blob): Promise<number> {
 export const handleVoice: StepHandler = async (ctx) => {
   const { activeBrand, config, getScriptScenes, setAudioCache } = ctx;
   const scenes = getScriptScenes();
+
+  // Motores con VOZ NATIVA (Veo, Seedance nativo) generan la voz DENTRO del video desde
+  // el texto del script → ElevenLabs NO debe correr acá (sería audio generado-y-tirado).
+  // Salteamos el paso y auto-avanzamos al lipsync, que usa el scriptText. Ver handleLipsync.
+  const cfgRec = config as unknown as Record<string, unknown>;
+  const nativeVoiceEngine = cfgRec.animationEngine === "veo" || cfgRec.ugcVoiceSource === "seedance";
+  if (nativeVoiceEngine) {
+    return { result: [], needsApproval: false, autoRunNext: true };
+  }
+
   const voiceId = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
 
   // Voice settings from config — applied to every scene
@@ -1206,8 +1217,12 @@ export const handleLipsync: StepHandler = async (ctx) => {
     if (!scriptText && sceneType !== "creative") continue;
 
     const falAudioUrl = voiceEntry?.falUrl;
-    // Talking scene missing audio = hard error. Creative scenes can proceed without audio.
-    if (!falAudioUrl && sceneType !== "creative") {
+    const cfgRec2 = config as unknown as Record<string, unknown>;
+    const engineForTalk = (cfgRec2.animationEngine as string) || "kling";
+    // Motores de voz nativa (Veo, Seedance nativo) no usan audio ElevenLabs — la voz sale
+    // del script dentro del video. Solo esos NO requieren el audio del paso de Voz.
+    const nativeVoice = engineForTalk === "veo" || cfgRec2.ugcVoiceSource === "seedance";
+    if (!falAudioUrl && sceneType !== "creative" && !nativeVoice) {
       throw new Error(`No audio found for "${scene.title}". Complete the Voice step first.`);
     }
     const klingPrompt = scriptScene?.image_prompt || (scriptText ? `${scriptText} — cinematic, smooth motion` : "Smooth cinematic motion, natural movement");
@@ -1264,19 +1279,55 @@ export const handleLipsync: StepHandler = async (ctx) => {
       continue;
     }
 
-    // ── Talking scene: fuente de voz elegida (A/B, ver docs/ugc-audio.md) ──
+    // ── Talking scene: fuente de voz elegida (A/B/C del estudio, ver docs/ugc-audio.md) ──
     // "elevenlabs" (default): la voz de ElevenLabs se PRESERVA → va a HeyGen/Sync, que
     //   sincronizan a TU audio sin cambiarlo. Mejor acento (porteño), sin ambiente (se
     //   suma en la mezcla).
-    // "seedance": Seedance GENERA la voz (+ ambiente) usando el audio como ref de timing.
-    //   Trae ambiente pero el acento regional suele salir más flojo. Para probar.
-    const voiceSource = (config as unknown as Record<string, unknown>).ugcVoiceSource === "seedance"
-      ? "seedance" : "elevenlabs";
-    if (voiceSource === "seedance" && scriptText) {
-      // Seedance NATIVO (test real): NO se pasa el audio de ElevenLabs — Seedance genera
-      // la voz + ambiente desde el TEXTO del guion + el acento indicado. Así no se filtra
-      // la voz de ElevenLabs (el fallo anterior). El paso de voz ElevenLabs igual corre pero
-      // acá se ignora — el video final trae la voz nativa de Seedance.
+    // "seedance_audio": tu voz de ElevenLabs se PASA a Seedance (audio_urls/@Audio1) →
+    //   Seedance hace lip-sync real a esa voz. Preserva el porteño, Seedance como motor
+    //   de lip-sync. Sin ambiente propio (audio provisto ⇒ generate_audio=false).
+    // "seedance" (nativo): Seedance INVENTA la voz desde el TEXTO del guion. Trae ambiente
+    //   pero el acento regional sale flojo (sesgo inglés) y dispara filtro de contenido.
+    // ── Veo 3.1: talking-head con voz nativa (acepta caras que Seedance bloquea) ──
+    // Genera video + voz en una sola pasada desde la imagen base + el guion en el prompt.
+    // No usa ElevenLabs. Ver docs/ugc-talking-head-tests.md.
+    if (engineForTalk === "veo" && scriptText) {
+      try {
+        const accent = (cfgRec2.ugcAccent as string || "argentino rioplatense").trim();
+        const sceneClause = scriptScene?.image_prompt
+          ? `${scriptScene.image_prompt}.`
+          : "The same person from the image, speaking to camera in the same setting and outfit.";
+        const veoPrompt = `${sceneClause} Authentic vertical selfie video, eye level, handheld. Keep the person's identity, clothes and background exactly as in the image. She looks at the camera and speaks spontaneously, warm and natural, with a ${accent} Spanish accent (not a formal announcer). She says exactly, without changing or adding words: "${scriptText.replace(/"/g, "'")}". Precise lip sync, natural blinking, subtle head movement, very slight handheld motion.`;
+        const { operation } = await createVeoVideo({
+          prompt: veoPrompt,
+          image: scene.selectedUrl,
+          aspectRatio: "9:16",
+        });
+        const result = await pollVeoVideo(operation);
+        if (result.status === "completed" && result.video_url) {
+          const vurl = result.video_url.startsWith("http") ? result.video_url : `http://127.0.0.1:8000${result.video_url}`;
+          lipsyncResults.push({
+            sceneId: scene.sceneId, title: scene.title, scriptText,
+            videoUrl: vurl, hookVideoUrl, imageUrl: scene.selectedUrl, sceneType: "talking",
+          });
+          continue;
+        }
+        throw new Error(`Veo no pudo generar "${scene.title}"${result.error ? `: ${result.error}` : ""}. Reintentá o cambiá el motor.`);
+      } catch (e) {
+        throw e instanceof Error ? e : new Error(String(e));
+      }
+    }
+
+    const rawVoiceSource = (config as unknown as Record<string, unknown>).ugcVoiceSource;
+    const voiceSource = rawVoiceSource === "seedance"
+      ? "seedance"
+      : rawVoiceSource === "seedance_audio"
+        ? "seedance_audio"
+        : "elevenlabs";
+    if ((voiceSource === "seedance" || voiceSource === "seedance_audio") && scriptText) {
+      // Ambos caminos usan reference-to-video con la imagen del avatar como @Image1.
+      // Diferencia: "seedance_audio" adjunta el audio de ElevenLabs (@Audio1, lip-sync real);
+      // "seedance" (nativo) no manda audio y Seedance genera la voz desde el texto + acento.
       const refs = [scene.selectedUrl, ...brandRefUrls].slice(0, 6);
       try {
         const accent = ((config as unknown as Record<string, unknown>).ugcAccent as string || "").trim();
@@ -1286,11 +1337,17 @@ export const handleLipsync: StepHandler = async (ctx) => {
         const sceneClause = scriptScene?.image_prompt
           ? `${scriptScene.image_prompt}.`
           : `Person speaking to camera in the same setting and outfit as the reference.`;
-        const seedancePrompt = `${sceneClause} The person speaks to camera, saying exactly: "${scriptText.replace(/"/g, "'")}".${accentClause} Natural realistic lip-sync to their own speech, expressive face, calm body posture, natural ambient room tone.`;
+        const useProvidedAudio = voiceSource === "seedance_audio" && !!falAudioUrl;
+        const seedancePrompt = useProvidedAudio
+          // Modo B: lip-sync a la voz provista. @Image1 = avatar, @Audio1 = voz ElevenLabs.
+          ? `${sceneClause} @Image1 speaks directly to the camera, lip-synced accurately to the provided audio @Audio1. Expressive natural face, calm body posture, subtle ambient room tone. The spoken words and voice come entirely from @Audio1.`
+          // Modo A (nativo): Seedance inventa la voz desde el texto.
+          : `${sceneClause} The person speaks to camera, saying exactly: "${scriptText.replace(/"/g, "'")}".${accentClause} Natural realistic lip-sync to their own speech, expressive face, calm body posture, natural ambient room tone.`;
         const job = await createSeedanceReferenceToVideo({
           prompt: seedancePrompt,
           referenceImageUrls: refs,
-          // Sin audioUrls: Seedance genera la voz nativa desde el texto (test de acento real).
+          // Modo B pasa el audio de ElevenLabs (lip-sync real); nativo no manda audio.
+          audioUrls: useProvidedAudio ? [falAudioUrl!] : undefined,
           duration: klingDuration,
         });
         const result = job.video_url
@@ -1308,9 +1365,21 @@ export const handleLipsync: StepHandler = async (ctx) => {
           });
           continue;
         }
-        // Fall through to HeyGen on failure
-        console.warn(`[ugc] Seedance lipsync failed for ${scene.title}, falling back to ${lipsyncMethod}`);
+        // Falló Seedance. Solo podemos caer a HeyGen si hay audio ElevenLabs; en modo
+        // nativo no lo hay (el paso de voz se salteó), así que ahí es error explícito
+        // — surfaceando la razón real de Fal (suele ser filtro de contenido).
+        const reason = (result as { error?: string | null }).error;
+        console.warn(`[ugc] Seedance lipsync failed for ${scene.title}: ${reason || "(sin detalle)"}`);
+        if (!falAudioUrl) {
+          throw new Error(
+            reason
+              ? `Seedance falló en "${scene.title}": ${reason}`
+              : `Seedance no pudo generar el video hablado de "${scene.title}". Reintentá, o cambiá "Fuente de voz" a ElevenLabs.`
+          );
+        }
+        console.warn(`[ugc] falling back to ${lipsyncMethod}`);
       } catch (e) {
+        if (!falAudioUrl) throw e instanceof Error ? e : new Error(String(e));
         console.warn(`[ugc] Seedance lipsync error, falling back:`, e);
       }
     }

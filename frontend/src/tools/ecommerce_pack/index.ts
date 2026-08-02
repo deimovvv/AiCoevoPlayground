@@ -10,7 +10,7 @@
  */
 
 import type { ToolDefinition, StepHandler } from "../types";
-import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, cropImageTop } from "../../lib/api";
+import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, cropImageTop, repaintBgToColor } from "../../lib/api";
 
 // Shot catalog. `onModel` shots feature the model wearing the garment; the rest are
 // product-only packshots. Each entry's `framing` is appended to the studio prompt.
@@ -31,7 +31,7 @@ export const DEFAULT_SHOTS = ["model_front", "model_back", "model_detail", "flat
 
 // Studio backdrop presets. "custom" falls back to the Setting Description (objective).
 export const STUDIO_STYLES: Record<string, { label: string; clause: string }> = {
-  white:     { label: "Blanco seamless", clause: "Clean, seamless, pure white cyclorama studio background with a very subtle, soft grey gradient on the floor. Bright, diffused, soft high-key studio lighting like natural overcast daylight. Bright and airy, high-end commercial look. Keep the backdrop WALL clean — no harsh projected shadows on the wall (the soft floor shadow below is intended)." },
+  white:     { label: "Blanco seamless", clause: "STUDIO BACKGROUND COLOR — CRITICAL AND EXACT: the ENTIRE seamless backdrop must be the precise flat color HEX #ededed (RGB 237, 237, 237) — a soft warm-neutral LIGHT GREY. It is NOT white, NOT off-white, NOT ivory, NOT #FFFFFF, NOT #F5F5F5 — it is specifically #ededed light grey. Paint the whole background with this single uniform #ededed value edge to edge: perfectly FLAT and EVEN, NO gradient, NO vertical or corner falloff, NO vignette, NO brighter or whiter zones, NO hotspot, NO visible seams. Meter the exposure so the backdrop stays exactly at #ededed light grey and is NEVER washed out toward white or overexposed. The model sits naturally in this #ededed studio, evenly lit, never pasted or floating, with no harsh projected shadows on the wall." },
   grey:      { label: "Gris estudio",    clause: "Light grey seamless studio backdrop, soft directional studio lighting with a subtle gradient, premium catalog look." },
   beige:     { label: "Beige cálido",    clause: "Warm beige / cream studio backdrop, soft natural-feeling light, refined editorial e-commerce look." },
   editorial: { label: "Editorial",       clause: "Editorial studio on a neutral backdrop, soft directional key light with gentle controlled shadows, fashion-magazine treatment." },
@@ -43,7 +43,11 @@ export const STUDIO_STYLES: Record<string, { label: string; clause: string }> = 
   custom:    { label: "Custom",          clause: "" },
 };
 
-const PIXEL_FIDELITY = "Reproduce the EXACT color, shade, fabric, print, stitching and proportions from the garment reference pixels. Do NOT lighten, darken, restyle or invent details — the garment image is authoritative.";
+// Nota: el fondo default del preset "white" ya NO depende de un archivo (antes fondoUGC.png).
+// El seamless de estudio se genera sintético en el backend (composite-bg, background_color) y
+// la modelo se recorta + compone encima. Ver compositeToSeamless en el handler.
+
+const PIXEL_FIDELITY = "COLOR FIDELITY IS CRITICAL — reproduce the EXACT color of the garment from its reference pixels: the SAME hue, shade, saturation and tone, matched faithfully (a navy stays that exact navy, an olive that exact olive, a beige that exact beige). Do NOT shift, warm, cool, wash out, mute, desaturate, tint, lighten or darken the color — the garment reference is the absolute AUTHORITY on color. Also reproduce the exact fabric, print, stitching, trims and proportions; do NOT restyle or invent details.";
 const NO_TEXT = " Single clean photograph. No text, no watermark, no logo overlay, no graphics, no collage, no split panels.";
 
 // Identidad y realismo — NO NEGOCIABLES en todos los on-model shots.
@@ -52,6 +56,10 @@ const NO_TEXT = " Single clean photograph. No text, no watermark, no logo overla
 // una pose para On Model Detail y no respetó la modelo principal".
 const IDENTITY_LOCK = "IDENTITY LOCK (NON-NEGOTIABLE — top priority over everything else): the person in the output MUST be the EXACT same individual as the IDENTITY reference image. Photographically RECOGNIZABLE as that person: identical face geometry, eyes, eye color, eyebrows, nose shape, mouth/lips, jawline, cheekbones, skin tone, age, freckles/marks, hair color and hairstyle. Do NOT average, idealize, beautify, age, de-age, restyle or swap to any other face. If ANY base image, pose reference, garment photo or accessory photo shows a DIFFERENT person, that person's face, hair and identity are completely IRRELEVANT and MUST be fully discarded and replaced by the IDENTITY reference. The identity must stay perfectly consistent across every shot in the pack.";
 // La cara TIENE que verse ultra realista — pedido explícito del usuario.
+// Detalle/close-up SIN cara en cuadro: igual es la MISMA modelo del resto del pack. Reportado
+// (Koxis): "el detalle salió con otro pelo". El pelo/piel/cuerpo visibles deben matchear.
+const IDENTITY_DETAIL = "SAME MODEL IN DETAIL/CROPPED SHOTS (mandatory): even though the face may be out of frame, this is the EXACT SAME person as every other shot in the pack. Any visible HAIR (exact same color, length, texture and hairstyle), skin tone, hands, body type and skin marks MUST be identical to the identity/anchor. Do NOT change the hair, do NOT generate a different-looking or different-haired person — only the crop changes, the model stays the same.";
+
 const FACE_REALISM = "ULTRA-PHOTOREALISTIC face and skin (CRITICAL): real human skin with visible pores, fine natural texture, subtle realistic imperfections and true-to-life subsurface scattering. Absolutely NO smoothing, NO airbrushing, NO plastic/waxy/doll-like/CGI/3D-render/AI-generated look. Eyes razor-sharp and in focus with natural catchlights and real moisture; natural eyelashes and eyebrows. Skin tones natural and even, no over-saturation. Rendered like a real high-end editorial photograph shot on a full-frame camera with an 85mm prime lens, professional studio lighting, true photographic detail.";
 // La textura de la tela también tiene que verse real (pedido del usuario).
 const FABRIC_REALISM = "ULTRA-REALISTIC fabric and garment texture: render the true weave, knit, grain and material of each garment — visible threads, stitching, seams, hems, ribbing, wrinkles and natural folds where the cloth drapes and creases on the body. Cotton looks like cotton, denim like denim, knit like knit, leather like leather. Accurate sheen/matte response to the studio light, realistic micro-shadows in the folds. NO flat, painted, plastic or over-smoothed fabric; NO invented patterns. Crisp, high-resolution photographic detail across the whole garment.";
@@ -61,23 +69,26 @@ const FABRIC_REALISM = "ULTRA-REALISTIC fabric and garment texture: render the t
 // Bajo contraste = el lever #1 de realismo (evita el look duro/AI). Sombras levantadas,
 // altas controladas, transiciones suaves — como el ecommerce/editorial real (COS, Massimo
 // Dutti). Se appendea a AMBOS bloques de luz. Pedido Koxis 2026-07.
-const LOW_CONTRAST_GRADE = "Soft, LOW-CONTRAST tonal range: gently lifted shadows (no crushed blacks), controlled highlights (no blown whites), smooth natural tonal gradations on skin and fabric. Natural, flat, film-like editorial grade — NOT punchy, harsh or high-contrast.";
-const CAMERA_LIGHTING = `Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Professional studio lighting: soft diffused key light from the front-right at 45°, a large fill light on the opposite side for even commercial illumination, neutral 5500K white balance. Clean editorial e-commerce lighting. ${LOW_CONTRAST_GRADE}`;
+const LOW_CONTRAST_GRADE = "Soft, LOW-CONTRAST tonal range: gently lifted shadows (no crushed blacks), controlled highlights (no blown whites), smooth natural tonal gradations on skin and fabric. Natural, flat, film-like editorial grade — NOT punchy, harsh or high-contrast. IMPORTANT: this low contrast applies to TONE/BRIGHTNESS only — keep every COLOR true, accurate and properly saturated to the garment reference; do NOT desaturate, mute, wash out or colour-shift the garments.";
+const CAMERA_LIGHTING = `Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. SOFT, GENTLE studio lighting that gives SUBTLE three-dimensional volume without ever looking dramatic: a soft broad key light slightly favoring one side, with a generous soft fill, so the face and body get gentle modeling and form — a hint of soft shadow under the jaw, soft tonal falloff wrapping around the body — but are NEVER flat, front-on and dimensionless, and NEVER strongly side-lit, moody or high-contrast. Keep this SAME soft lighting setup and direction CONSISTENT across every shot in the pack (a full-body general shot and a close-up must share the same light). Shadows soft and low-contrast, garment fully visible with its detail readable. Neutral-to-slightly-warm white balance (~5200K). ${LOW_CONTRAST_GRADE}`;
 // Variante para el preset "plaster" (pared texturada): mismo cuerpo/lente pero luz de
 // ventana natural y cálida en vez de key/fill de estudio neutro — así no pelea con el
 // look warm del backdrop. Sin esto, el 5500K neutro tira la escena de vuelta a estudio.
-const CAMERA_LIGHTING_NATURAL = `Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Soft, even NATURAL window daylight coming gently from one side, well filled so there are no deep shadows and the garment stays fully visible; warm natural white balance (~4800–5200K), realistic natural-light rendering — NOT hard studio key/fill, NOT clinical 5500K neutral. Natural, elevated e-commerce lighting. ${LOW_CONTRAST_GRADE}`;
+const CAMERA_LIGHTING_NATURAL = `Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Soft NATURAL window daylight gently favoring one side, giving SUBTLE three-dimensional volume (a hint of soft shadow under the jaw, gentle falloff around the body) — soft-filled so the shadows are never deep, hard or dramatic and the garment stays fully visible, and NEVER flat, even, front-on or dimensionless. Keep the SAME soft light direction CONSISTENT across every shot in the pack. Warm natural white balance (~4800–5200K), realistic natural-light rendering — NOT hard studio key/fill, NOT clinical 5500K neutral. Natural, elevated, dimensional e-commerce lighting. ${LOW_CONTRAST_GRADE}`;
 // Negative prompt — el mayor lever de realismo en Nano Banana. Empuja fuera el look
 // plástico/ilustración/AI y el over-retoque que delata la imagen generada.
-const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, CGI, AI-generated look, plastic or waxy finish, over-retouched airbrushed perfection, oversaturated colors, harsh shadows projected on the backdrop wall.";
+const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, CGI, AI-generated look, plastic or waxy finish, over-retouched airbrushed perfection, garment colors that DRIFT from the reference (washed-out, desaturated, muted, faded, over-saturated, tinted, warmed or cooled — the color must match the garment reference exactly), harsh shadows projected on the backdrop wall, cut-out / pasted-on / composited subject with hard edges, subject that looks stuck onto a flat white background, strong or marked floor shadow gradient, pure clinical #FFFFFF background, FLAT dimensionless front-on lighting with no form or volume, evenly-lit face with no modeling shadow.";
 // Sombra de contacto sutil — aterriza al sujeto (modelo/producto) para que no quede
 // flotando/recortado. Es la sombra de PISO, distinta de la proyectada en la pared
 // (que sí evitamos). Pedido del usuario: las fotos e-commerce siempre deben tenerla.
-const GROUNDING_SHADOW = "GROUND THE SUBJECT with a SUBTLE floor shadow: a faint, soft, diffused contact shadow directly beneath the feet (or the product's base) — like a gentle soft grey gradient on the floor, avoiding harsh lines — so the subject isn't floating. Keep it subtle and natural, NEVER heavy, dark, dramatic or directional. The shadow lives ONLY on the floor under the subject — NEVER cast across the body, garment, face or the backdrop wall.";
+const GROUNDING_SHADOW = "GROUND THE SUBJECT with a SUBTLE, SOFT, REALISTIC contact shadow on the floor where the feet (or product base) meet it — natural and clearly present (so the subject is grounded, never floating), but soft-edged and gentle, gently spreading and fading to one side as real diffused studio light would cast it. NOT harsh, dark, dramatic, hard-edged or high-contrast; NOT a marked grey gradient sweeping across the whole floor. The shadow lives ONLY on the floor around and behind the feet — NEVER across the body, garment, face or the backdrop wall.";
+// Flat / packshot: la prenda está APOYADA (flat-lay / ghost), no de pie — no lleva la
+// contact shadow de pies ni una sombra proyectada. Fondo limpio y parejo, sin sombra.
+const FLAT_NO_SHADOW = "The garment is presented as a clean flat-lay / ghost packshot lying on the surface — it is NOT a standing figure, so it casts NO grounding shadow, NO drop shadow and NO projected shadow. Keep the background perfectly clean, uniform and even, with no shadow, no contact-shadow gradient and no dark falloff anywhere around the garment.";
 // Aislamiento del fondo — los assets (prenda/accesorio/producto) vienen fotografiados
 // sobre SU propia superficie/color, y Nano Banana a veces adopta ese color de fondo.
 // Reportado: "con studio seamless pero accesorios, el fondo toma el color del accesorio".
-const BG_ISOLATION = "The background is ONLY the studio backdrop described above — do NOT adopt any background color, surface, gradient, table or setting from the garment / accessory / product reference photos. Those references are product cutouts on their own surfaces; take ONLY the item itself and completely ignore whatever is behind it.";
+const BG_ISOLATION = "BACKGROUND SOURCE (critical): the output background comes ONLY from the studio backdrop described above (and from the BACKGROUND reference image if one is provided). Do NOT adopt the background from ANY other reference — especially NOT the background behind the person in the IDENTITY / model photo (ignore its wall, studio, color, gradient or setting completely), and NOT the surfaces behind the garment / accessory / product cutouts. From the identity photo take ONLY the person; from the product photos take ONLY the item; the backdrop is never inherited from them.";
 // Orientación de prenda — Nano Banana a veces da vuelta la remera (frente↔espalda).
 // Lock explícito: la prenda se usa como en la foto de referencia.
 const GARMENT_ORIENTATION = "Wear every garment in its CORRECT orientation, matching the garment reference exactly — prints, logos, buttons, zippers, pockets and necklines where they belong. In FRONT and 3/4 shots the front of the garment faces the camera; never reverse, mirror or show a garment's back unless this is explicitly a BACK shot.";
@@ -87,9 +98,18 @@ const GARMENT_ORIENTATION = "Wear every garment in its CORRECT orientation, matc
 // las piernas el mismo peso que a los brazos y lo dice explícitamente.
 // Quiebre de cintura / contrapposto — se appendea a toda pose on-model para que la modelo
 // no quede tiesa y frontal-plana. Pedido (Koxis 2026-07): "que quiebre más la cintura, más natural".
-const POSE_NATURALNESS = "NATURAL WAIST BREAK (avoid stiff, square, evenly-weighted standing): the model clearly shifts weight onto one leg so the hips break and tilt into a soft contrapposto — one hip pushed out and slightly higher, the waist and spine gently S-curved, the shoulders subtly counter-angled to the hips. Effortless, relaxed, editorial-natural stance; never rigid or symmetric-frontal.";
+const POSE_NATURALNESS = "NATURAL, RELAXED STANCE — never stiff, rigid, square, tense, robotic or symmetric-frontal, never like an ID/passport photo. The model clearly shifts weight onto ONE leg (the other knee soft/relaxed) so the hips break naturally with an easy, believable asymmetry, relaxed shoulders and a subtle natural micro-lean; arms and hands fall naturally (a hand may rest lightly in a pocket, at the hip, or loose at the side). Make it GENDER-APPROPRIATE: for a woman, a soft waist break / gentle contrapposto (one hip clearly out, waist softly S-curved); for a MAN, still a clear relaxed weight-shift with a SUBTLE hip break (one hip a touch higher, weight on one leg, a casual lean) — masculine and at ease, just NOT a pronounced feminine S-curve. Either way the body must NOT be square, upright-symmetric or frozen. Effortless, candid, editorial — like a real person standing casually.";
 
 const POSE_FULL_BODY = "Copy the pose of the WHOLE body from head to feet — the LEGS AND LOWER BODY are as important as the arms. Replicate the exact lower-body stance: which leg carries the weight, how much each knee is bent, whether the legs are together / apart / crossed / staggered, and how the feet are planted and angled. The single most common mistake is copying the arms while leaving the legs in a plain straight standing stance — do NOT do that; the legs must match the reference just as precisely as the upper body.";
+
+// Fidelidad de pose como prioridad #1 (pedido Koxis: "afiná para que se acerque más").
+// Nano Banana tiende a "neutralizar" la pose hacia un parado frontal default; esto le exige
+// una copia LITERAL, tipo reenactment, sin suavizar ni simplificar la postura de la ref.
+const POSE_FIDELITY = "POSE FIDELITY IS THE TOP PRIORITY of this generation — treat it like a faithful reenactment / motion-capture of the reference stance. Match the body geometry EXACTLY: every joint angle, the torso lean and rotation, shoulder line, hip tilt, the exact bend of each elbow and knee, hand and finger placement, foot position and where the gaze points. Do NOT soften, average, simplify, tidy up or default the pose back toward a plain symmetric frontal catalog stance. If the reference pose is dynamic, asymmetric, walking, leaning or unusual, reproduce that dynamism precisely — a viewer should recognize it as the SAME pose.";
+
+// La rigidez que se ve NO es la geometría de la pose (esa hay que copiarla EXACTA), es el RENDER
+// de madera/maniquí de Nano. Esto ataca el render: cuerpo vivo, sin tocar la geometría de la pose.
+const POSE_INHABIT = "RENDER the body as a REAL, LIVING person — natural flesh, muscle tone, soft realistic skin and believable weight, so it reads alive and photographed, NOT a wooden, plastic, stiff, frozen or mannequin-like AI copy. Do NOT loosen, soften or alter the pose's geometry itself — keep the exact stance from the reference; only the rendering must look natural and alive, never wooden.";
 
 // Consistencia de fondo entre etapas/shots — el backdrop es el MISMO estudio en todo el
 // pack, sin variación de tono/gradiente/piso de una toma a otra.
@@ -112,7 +132,7 @@ Add true photographic sharpness and fine detail to skin and fabric, remove any s
 export const POSE_PRESETS: Record<string, { label: string; description: string }> = {
   natural_front: {
     label: "Natural Front",
-    description: "Standing in clear contrapposto, weight firmly on the left leg, right hip pushed out and the waist breaking into a soft S-curve. Right hand resting lightly on right hip pocket, left arm hanging naturally at side. Shoulders back and relaxed, chest open. Head facing camera with relaxed, confident expression.",
+    description: "Standing naturally with weight shifted onto one leg (the other knee softly relaxed), a subtle easy asymmetry — for a woman a gentle waist break, for a man a casual grounded weight-shift. One hand resting lightly at the hip/pocket, the other arm hanging naturally at the side. Shoulders relaxed. Head facing camera with a relaxed, confident, effortless expression.",
   },
   walking: {
     label: "Walking",
@@ -154,6 +174,47 @@ export const POSE_PRESETS: Record<string, { label: string; description: string }
     label: "Back · Walking Away",
     description: "Walking away from the camera mid-step, showing the back of the garment in natural motion. Head turned back over the right shoulder with a relaxed glance toward the camera so the face stays visible. Arms swinging naturally, weight shifting forward.",
   },
+
+  // ── FEMENINO · PLANOS AMERICANOS (medium/waist-up) — cool, cancheras, naturales.
+  // Curadas 1×1 de las refs de Koxis (2026-07). Editorial off-duty, nunca tiesas.
+  am_hands_on_hips: { label: "Am · Manos en cintura", description: "Medium shot, framed from mid-thigh up. Both hands resting on the hips/waistband, elbows relaxed out to the sides, weight shifted onto one leg so the hips break naturally. Head dipped slightly, soft cool gaze just off-camera. Effortless, confident, candid-between-shots energy." },
+  am_hand_pocket_cocked: { label: "Am · Mano bolsillo, cadera", description: "Medium shot. One hand slipped into the front pocket, the opposite hip cocked out, the other arm hanging loose and relaxed. Shoulders easy, chin level, casual cool gaze to camera. Unposed street-editorial feel." },
+  am_one_hand_hip: { label: "Am · Una mano a la cadera", description: "Medium shot. One hand resting on the hip, the other arm relaxed at the side, weight clearly on one leg with a soft waist break. Head turned slightly, relaxed confident expression. Elegant and natural." },
+  am_arm_across_lapel: { label: "Am · Brazo cruzado/solapa", description: "Medium shot. One hand in the pocket, the other arm crossing softly over the front of the body to hold the opposite lapel or forearm, shoulders relaxed. Cool composed editorial gaze — refined and understated." },
+  am_hands_pockets_tilt: { label: "Am · Manos bolsillos, tilt", description: "Medium shot. Both hands in the front pockets, shoulders loose and dropped, head tilted gently to one side. Relaxed, oversized, off-duty cool with a soft natural gaze." },
+  am_adjust_neckline: { label: "Am · Ajustando cuello", description: "Medium shot. One hand raised near the collar/neckline as if lightly adjusting it, the other arm relaxed, chin lifted a touch, gaze away. Chic, graceful, in-motion feel." },
+  am_profile_hand_hip: { label: "Am · Perfil, mano cadera", description: "Medium shot, body in soft 3/4-to-profile. One hand on the hip, neck long, weight forward on the front leg, looking down or away with a calm elongated line. Editorial and poised." },
+  am_crossed_soft: { label: "Am · Brazos cruzados suave", description: "Medium shot. Arms loosely folded at the waist (relaxed, not tight), weight on one leg, one foot slightly turned out. Chin a touch up, relaxed direct gaze. Grounded, confident, natural." },
+
+  // ── FEMENINO · PLANOS ENTEROS (full body) — random pero curadas, naturales.
+  fb_walk_stride: { label: "Full · Caminando", description: "Full body, mid-stride walking toward the camera, one leg forward with a soft knee bend and the back foot pushing off. Arms swinging naturally and relaxed, subtle forward lean, candid cool expression — captured in motion." },
+  fb_straight_minimal: { label: "Full · Minimal recta", description: "Full body, standing tall and relaxed facing camera, arms hanging naturally at the sides, feet close together or with one ankle slightly crossed in front. Clean, minimal, quietly confident, soft natural gaze." },
+  fb_hands_pockets_lean: { label: "Full · Manos bolsillos, lean", description: "Full body, both hands tucked in the front pockets, weight shifted onto one leg with a relaxed hip and a gentle lean. Shoulders easy, head slightly tilted, casual off-duty cool." },
+  fb_hand_pocket_relaxed: { label: "Full · Una mano bolsillo", description: "Full body, one hand in the front pocket, the other arm loose at the side, weight on one leg. Relaxed elongated posture, calm natural gaze — effortless catalog cool." },
+  fb_hands_pockets_down: { label: "Full · Manos bolsillos, cabeza baja", description: "Full body, both hands in pockets, head dipped slightly down, weight even but soft. Understated, quietly moody-cool, natural." },
+  fb_wide_relaxed: { label: "Full · Relajada abierta", description: "Full body, standing with feet a touch apart and weight easy, one hand grazing the hip or thigh, the other relaxed. Long natural line, soft confident expression." },
+  fb_wrap_waist: { label: "Full · Manos a la cintura", description: "Full body, hands meeting softly at the waist as if lightly holding or tying the garment, weight on one leg, shoulders relaxed, elongated. Graceful and natural." },
+
+  // ── MASCULINO · PLANOS AMERICANOS — grounded, squared shoulders, casual cool.
+  // SIN waist break, SIN cadera afuera, SIN S-curve (eso lee femenino). Peso firme, postura sólida.
+  amm_hands_pockets: { label: "Am(H) · Manos bolsillos", description: "Medium shot, mid-thigh up. Both hands in the front pockets, shoulders relaxed, weight clearly shifted onto ONE leg with a subtle masculine hip break (one hip a touch higher, the other knee soft) and an easy casual lean. Chin level, calm confident gaze. Relaxed, natural, masculine cool — not stiff or square." },
+  amm_one_hand_pocket: { label: "Am(H) · Una mano bolsillo", description: "Medium shot, mid-thigh up. ONE hand slipped into the front pocket (thumb often left out), the other arm hanging naturally at the side. Weight clearly shifted onto ONE leg with a subtle relaxed hip break and an easy casual lean (the other knee soft) — never square or stiff-frontal. Shoulders relaxed, calm direct gaze. Clean, minimal, effortless menswear." },
+  amm_arms_crossed: { label: "Am(H) · Brazos cruzados", description: "Medium shot. Arms crossed over the chest, loose and relaxed (not tense or puffed), shoulders broad and squared, feet planted. Direct grounded gaze, quietly confident." },
+  amm_hand_pocket_lean: { label: "Am(H) · Mano bolsillo, lean", description: "Medium shot. One hand in the pocket, a slight relaxed lean of the torso, shoulders dropped and easy, weight on one leg. Casual off-duty masculine cool, natural gaze." },
+  amm_adjust_sleeve: { label: "Am(H) · Ajustando manga", description: "Medium shot. One hand adjusting the opposite cuff/sleeve across the front, head dipped slightly toward the hands, shoulders relaxed. Focused, candid, understated." },
+  amm_hand_neck: { label: "Am(H) · Mano a la nuca", description: "Medium shot. One hand raised to the back of the neck/head in a relaxed candid gesture, the other at the side, weight easy. Natural, unposed, cool." },
+  amm_profile_pockets: { label: "Am(H) · Perfil, bolsillos", description: "Medium shot, body in soft 3/4-to-profile. Hands in the front pockets, shoulders squared, weight forward on the front leg, looking off-camera. Grounded, editorial, masculine." },
+  amm_thumbs_pockets: { label: "Am(H) · Pulgares en bolsillos", description: "Medium shot. Thumbs hooked over the edge of the front pockets, fingers relaxed, shoulders broad and easy, solid stance. Confident, casual, grounded." },
+
+  // ── MASCULINO · PLANOS ENTEROS — full body, grounded y natural.
+  fbm_walk: { label: "Full(H) · Caminando", description: "Full body, mid-stride walking toward camera, natural masculine gait — one leg forward with a soft knee bend, back foot pushing off, arms swinging relaxed (or one hand in pocket). Solid, easy, cool in motion." },
+  fbm_straight: { label: "Full(H) · Relajada natural", description: "Full body facing camera, weight clearly shifted onto ONE leg (the other knee soft and relaxed) so the hips break subtly — an easy casual masculine stance with a slight lean, shoulders relaxed. Arms loose at the sides, calm natural direct gaze. Effortless clean menswear — natural, never square, upright-symmetric or stiff." },
+  fbm_hands_pockets: { label: "Full(H) · Manos bolsillos", description: "Full body, both hands tucked in the front pockets (thumbs sometimes out), weight clearly on ONE leg with a subtle relaxed hip break and easy lean, shoulders relaxed. Casual, minimal, masculine cool, calm gaze — not stiff or frontal-square." },
+  fbm_one_pocket: { label: "Full(H) · Una mano bolsillo", description: "Full body facing camera, ONE hand slipped into the front pocket, the other arm hanging naturally at the side, weight clearly shifted onto one leg with a subtle relaxed hip break and casual lean (the other knee soft). Shoulders relaxed, calm direct gaze — the classic effortless menswear pose, natural not rigid." },
+  fbm_back_pockets: { label: "Full(H) · Espalda, manos bolsillos", description: "Full body, back to the camera showing the full back of the garment, both hands relaxed in the front (or back) pockets so the arms don't cover the garment, standing grounded and upright, hair natural. Clean masculine back shot; head faces away, face not needed." },
+  fbm_arms_crossed: { label: "Full(H) · Brazos cruzados", description: "Full body, standing with arms crossed over the chest (relaxed), feet planted shoulder-width, shoulders broad. Grounded, confident, direct." },
+  fbm_lean_relaxed: { label: "Full(H) · Lean relajado", description: "Full body, weight on one leg with a slight relaxed lean, one hand in the pocket, the other loose, shoulders dropped. Casual, cool, masculine." },
+  fbm_hand_neck: { label: "Full(H) · Mano a la nuca", description: "Full body, one hand raised to the back of the neck in a relaxed candid gesture, the other in a pocket or at the side, weight easy. Natural, unposed." },
 };
 
 export const DEFAULT_POSE_PRESET = "auto";
@@ -164,17 +225,39 @@ const POSE_KEYS = Object.keys(POSE_PRESETS);
 // de espalda nunca recibe una pose frontal, los back shots mantienen la cara
 // visible (over-shoulder), y el americano prioriza poses de manos/torso que leen
 // bien en un crop medio. Si un shot no está mapeado, cae al rol completo.
-const POSE_POOLS: Record<string, string[]> = {
-  model_front:    ["natural_front", "hand_in_pocket", "arms_crossed", "hands_in_back_pockets", "looking_down", "walking"],
-  model_34:       ["profile_34", "natural_front", "hand_in_pocket", "arms_crossed"],
-  model_american: ["hand_in_pocket", "arms_crossed", "hands_in_back_pockets", "natural_front", "looking_down"],
+// "auto" rota DENTRO del pool correcto para el encuadre Y el GÉNERO. Las poses femeninas leen
+// mal en un hombre (waist break, cadera) y viceversa → pools separados. El género se elige con
+// un checkbox en el tool (config.ecomGender). Back es neutro (sirve para ambos).
+const POSE_POOLS_FEMALE: Record<string, string[]> = {
+  model_front:    ["fb_straight_minimal", "fb_hands_pockets_lean", "fb_hand_pocket_relaxed", "fb_walk_stride", "fb_hands_pockets_down", "fb_wide_relaxed", "fb_wrap_waist"],
+  model_34:       ["am_profile_hand_hip", "profile_34", "fb_hands_pockets_lean", "fb_hand_pocket_relaxed", "fb_walk_stride"],
+  model_american: ["am_hands_on_hips", "am_hand_pocket_cocked", "am_one_hand_hip", "am_arm_across_lapel", "am_hands_pockets_tilt", "am_adjust_neckline", "am_profile_hand_hip", "am_crossed_soft"],
   model_back:     ["back_clean", "back_over_shoulder", "back_hand_to_neck", "back_walk_away"],
+};
+const POSE_POOLS_MALE: Record<string, string[]> = {
+  model_front:    ["fbm_one_pocket", "fbm_hands_pockets", "fbm_straight", "fbm_walk", "fbm_lean_relaxed", "fbm_arms_crossed", "fbm_hand_neck"],
+  model_34:       ["amm_profile_pockets", "fbm_one_pocket", "fbm_hands_pockets", "fbm_walk"],
+  model_american: ["amm_one_hand_pocket", "amm_hands_pockets", "amm_hand_pocket_lean", "amm_thumbs_pockets", "amm_arms_crossed", "amm_profile_pockets", "amm_adjust_sleeve", "amm_hand_neck"],
+  model_back:     ["fbm_back_pockets", "back_clean", "back_walk_away"],
 };
 
 // Close-ups: NO reciben pose preset. Las poses están escritas "full body in frame",
 // que contradice un crop cerrado. Para estos planos manda el encuadre (la framing
 // clause ya describe el crop y, en primer plano, la cara mirando a cámara).
 const CLOSEUP_SHOTS = new Set(["model_detail", "model_closeup", "model_detail_lower"]);
+
+// Variedad para "On-model · Detalle prenda" (model_detail): rota entre tipos de detalle cool
+// (curados del board de refs de Koxis) en vez de siempre el mismo close-up frontal de pecho.
+// Con "auto" y cantidad >1, cada instancia toma uno distinto. Todos son close-ups (sin cara
+// necesaria), enfocados en la prenda como se usa.
+const DETAIL_FRAMINGS: string[] = [
+  "Tight CLOSE-UP on the garment as worn, cropped to the CHEST / UPPER TORSO — show the fabric, texture, print, neckline, collar and stitching. No face needed.",
+  "CLOSE-UP on the SIDE / shoulder of the garment in soft profile: the shoulder line, sleeve head, side seam and a bit of the neckline, with hair falling naturally. Crop tight to that area, no face needed.",
+  "CLOSE-UP on a FASTENING detail: the model's hands lightly holding or adjusting a button / zip / tie at the front, showing the closure, cuffs and any worn jewelry (ring, bracelet). Crop to the hands and the garment front, no face.",
+  "CLOSE-UP on the WAIST / HIP area from a slight side-back angle: the waistband, belt, pocket and how the garment meets the trousers, one hand resting near the hip. Crop tight to the waist zone, no face.",
+  "CLOSE-UP on the BACK detail of the garment: the back neckline, seam, tie or opening, hair swept to one side, maybe a hand resting on the opposite arm. Crop tight to the upper back, no face.",
+  "CLOSE-UP on a SLEEVE / CUFF detail as worn: the forearm and cuff, the hand relaxed or tucked into a pocket, fabric texture and any trim. Crop to that area, no face.",
+];
 
 // Shots on-model donde la CARA debe quedar en cuadro sí o sí. Si la pose ref viene
 // recortada al cuello/pecho, NO copiamos ese crop — extendemos hacia arriba para no
@@ -198,11 +281,13 @@ const POLL_FAILED_MSG = "Fal marcó la generación como fallida (probable polít
  *    = primera del pool, #2 = segunda, etc. → coherente con el plano y distinta por variante.
  *  - clave específica → esa pose fija (ignora el pool).
  *  - "upload" / "" / undefined → null (caller usa la pose ref imagen si la hay). */
-function getPoseDescription(presetKey: string | undefined, shotId: string, nth: number): string | null {
+function getPoseDescription(presetKey: string | undefined, shotId: string, nth: number, gender: "male" | "female" = "female"): string | null {
   if (!presetKey || presetKey === "upload" || presetKey === "") return null;
   if (CLOSEUP_SHOTS.has(shotId)) return null;
+  const pools = gender === "male" ? POSE_POOLS_MALE : POSE_POOLS_FEMALE;
+  const pool = pools[shotId] || POSE_KEYS;
   const base = presetKey === "auto"
-    ? POSE_PRESETS[(POSE_POOLS[shotId] || POSE_KEYS)[nth % (POSE_POOLS[shotId] || POSE_KEYS).length]].description
+    ? POSE_PRESETS[pool[nth % pool.length]].description
     : POSE_PRESETS[presetKey]?.description || null;
   if (!base) return null;
   // Reforzamos el quiebre de cintura en toda pose de pie (las de espalda/caminando ya
@@ -272,10 +357,25 @@ const handleGenerate: StepHandler = async (ctx) => {
   const garments = allSelectedClothing.filter((c) => !accessoryIds.includes(c.id));
   const accessories = allSelectedClothing.filter((c) => accessoryIds.includes(c.id));
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
+  // PRODUCTO PRINCIPAL (hero): cuál prenda es el foco de la ficha. Si está seteado, los flats
+  // muestran SOLO el hero, el detalle apunta al hero, y el on-model prioriza que se vea bien.
+  // Si no, comportamiento clásico (todo el look). Ver heroFocusClause / flatGarments / detalle.
+  const heroClothingId = (config as unknown as { ecomHeroClothingId?: string }).ecomHeroClothingId || "";
+  const heroGarment = heroClothingId ? garments.find((g) => g.id === heroClothingId) : undefined;
+  const heroFocusClause = heroGarment
+    ? ` HERO PRODUCT — this shot primarily showcases the "${heroGarment.name}": keep it clearly visible, well-framed and in sharp focus; any other garments/accessories are secondary styling and must not steal focus from it.`
+    : "";
   // Para el on-model: usamos TODAS las prendas (productos + accesorios) — el modelo
   // tiene que verse vestido con el outfit completo, no solo el producto principal.
   const garmentUrls = garments.map((g) => g.imageUrl).filter(Boolean);
   const accessoryUrls = accessories.map((a) => a.imageUrl).filter(Boolean);
+  // Foto de ESPALDA de cada garment (extra con label "back"/"espalda"/"atrás"). Se pasa como
+  // ref de garment SOLO en el shot on-model de espalda, para que Nano renderice la parte de
+  // atrás REAL de la prenda en vez de inventarla desde el frente. Reportado: "le subí la foto
+  // de atrás y no la respetó" — el on-model nunca la consumía (solo el flat).
+  const backPhotoOf = (g: { images?: Array<{ imageUrl?: string; label?: string }> }): string | undefined =>
+    (g.images || []).find((im) => im.imageUrl && /back|espalda|atr[aá]s|dorso/.test((im.label || "").toLowerCase()))?.imageUrl || undefined;
+  const garmentBackUrls = garments.map(backPhotoOf).filter((u): u is string => !!u);
   const allOnModelUrls = [...garmentUrls, ...accessoryUrls];
   if (selectedProduct?.imageUrl && allOnModelUrls.length === 0) allOnModelUrls.push(selectedProduct.imageUrl);
   if (allOnModelUrls.length === 0) throw new Error("Elegí al menos una prenda (o un producto) para generar la ficha.");
@@ -301,11 +401,26 @@ const handleGenerate: StepHandler = async (ctx) => {
   const moodboard = (activeBrand.moodboards || []).find((m) => m.id === config.selectedMoodboardId);
 
   const studioKey = (cfg.studioStyle as string) || "white";
+  // Género del modelo (checkbox en el tool) → habilita el set de poses correcto. Default femenino.
+  const ecomGender: "male" | "female" = (cfg.ecomGender as string) === "male" ? "male" : "female";
   // Fondo por FOTO (dataUrl) — gana sobre todo: el modelo se ubica en esa escena.
-  const bgImageUrl = (cfg.ecomBackgroundImage as string) || undefined;
+  const userBgUrl = (cfg.ecomBackgroundImage as string) || undefined;
+  // Default: para el preset "white" sin fondo custom, usamos el seamless real que le gustó a
+  // Koxis (pasado como imagen ref, no como texto). El upload del usuario siempre gana.
+  const usingDefaultBg = !userBgUrl && studioKey === "white";
+  const bgImageUrl = userBgUrl;   // solo el upload del usuario
+  // REPINTADO de fondo (no composite/recorte): Nano genera todo (modelo + fondo gris + sombra
+  // natural), y después repintamos SOLO los píxeles del fondo al #ededed EXACTO — sin recortar
+  // a la persona (sin halo) y conservando la sombra (se desplaza el tono del fondo, no se rellena
+  // plano). Garantiza #ededed idéntico en todos los shots. Solo con el fondo default, on-model.
+  const STUDIO_BG_COLOR = "#ededed";
+  const compositeToSeamless = async (imgUrl: string): Promise<string> =>
+    (usingDefaultBg && imgUrl) ? await repaintBgToColor(imgUrl, STUDIO_BG_COLOR) : imgUrl;
   let studioClauseBase: string;
   if (bgImageUrl) {
-    studioClauseBase = "Place the model in the exact BACKGROUND / setting shown in the BACKGROUND reference image — same scene, surface, colors and lighting. The model stands naturally within that environment.";
+    studioClauseBase = usingDefaultBg
+      ? "Use the EXACT studio backdrop shown in the BACKGROUND reference image — a soft, homogeneous light grey-white seamless studio sweep. Match its exact tone, its subtle natural gradient and its gentle floor sweep; the backdrop is flat and even, never pure #FFFFFF and never blown-out. The model stands ON this seamless studio backdrop, evenly lit and embedded in the same soft light — never cut-out, pasted-on or floating."
+      : "Place the model in the exact BACKGROUND / setting shown in the BACKGROUND reference image — same scene, surface, colors and lighting. The model stands naturally within that environment.";
   } else if (studioKey === "color") {
     const color = ((cfg.ecomStudioColor as string) || "#efefef").trim();
     studioClauseBase = `Seamless solid ${color} studio background — uniform and clean, soft even studio lighting, no gradient and no other objects on the backdrop.`;
@@ -314,8 +429,10 @@ const handleGenerate: StepHandler = async (ctx) => {
   } else {
     studioClauseBase = STUDIO_STYLES[studioKey]?.clause || STUDIO_STYLES.white.clause;
   }
-  // La sombra de contacto + el aislamiento de fondo van en TODOS los shots.
+  // La sombra de contacto + el aislamiento de fondo van en los shots ON-MODEL (la modelo
+  // está de pie). Los flats van APOYADOS → sin grounding shadow (ver studioClauseFlat).
   const studioClause = `${studioClauseBase} ${GROUNDING_SHADOW} ${BG_ISOLATION} ${BG_CONSISTENCY}`;
+  const studioClauseFlat = `${studioClauseBase} ${FLAT_NO_SHADOW} ${BG_ISOLATION} ${BG_CONSISTENCY}`;
   // El preset "plaster" usa luz de ventana natural; el resto, el estudio neutro de siempre.
   const cameraLighting = studioKey === "plaster" ? CAMERA_LIGHTING_NATURAL : CAMERA_LIGHTING;
 
@@ -337,7 +454,7 @@ const handleGenerate: StepHandler = async (ctx) => {
     const urls: string[] = []; const desc: string[] = []; let idx = start;
     if (lookFeelUrl) { urls.push(lookFeelUrl); desc.push(`Image ${idx}: LOOK & FEEL — match this color grading, lighting and overall treatment ONLY. Do NOT copy its content, layout or people.`); idx++; }
     if (moodboard?.imageUrl) { urls.push(moodboard.imageUrl); desc.push(`Image ${idx}: ART DIRECTION moodboard — aesthetic/palette reference ONLY, do not copy literally.`); idx++; }
-    if (bgImageUrl) { urls.push(bgImageUrl); desc.push(`Image ${idx}: BACKGROUND — use THIS exact scene/setting/surface as the background and place the model within it; match its colors and lighting. Do NOT copy any person from this image.`); idx++; }
+    if (bgImageUrl) { urls.push(bgImageUrl); desc.push(`Image ${idx}: BACKGROUND (CRITICAL — this defines the ENTIRE backdrop of the output). The output background MUST BE this exact studio backdrop, reproduced faithfully — same tone, same subtle gradient, same floor sweep and horizon line. Place the model in front of it. Do NOT replace it with a plain flat white, a pure #FFFFFF, or a different/invented studio; do NOT simplify or brighten it away. It contains NO person — copy only the backdrop.`); idx++; }
     return { urls, desc };
   };
 
@@ -393,6 +510,19 @@ const handleGenerate: StepHandler = async (ctx) => {
     const instPoseRef = inst.nth === 0 ? ecomShotPoses[sid] : undefined;
     // Pose ref específica de este shot — si existe, gana sobre la global.
     const shotPoseUrl = instPoseRef || poseUrl;
+    // ¿Es el shot on-model de espalda? Si sí, inyectamos la foto de atrás real de la prenda.
+    const isBackShot = sid === "model_back";
+    // Agrega la(s) foto(s) de espalda de la prenda como ref de garment SOLO en el shot de
+    // espalda. Devuelve el nuevo idx. Sin esto, la parte de atrás de la prenda se inventa.
+    const pushGarmentBacks = (urlArr: string[], descArr: string[], nextIdx: number): number => {
+      if (!isBackShot) return nextIdx;
+      for (const u of garmentBackUrls) {
+        urlArr.push(u);
+        descArr.push(`Image ${nextIdx}: GARMENT BACK VIEW — the ACTUAL back of this same product. This IS a BACK shot: render the garment's back to MATCH this reference exactly (its real pockets, seams, waistband, yoke, wash and colour). Do NOT invent the back from the front view. ${PIXEL_FIDELITY}`);
+        nextIdx++;
+      }
+      return nextIdx;
+    };
 
     // ── 2-step approach cuando hay pose ref + es el shot inicial ──────────
     // Inversión clave (después de probar al revés y fallar):
@@ -433,7 +563,11 @@ const handleGenerate: StepHandler = async (ctx) => {
         // Style refs (look&feel + moodboard) opcionales — afinan estética.
         const sr1 = styleRefs(idx1); step1Urls.push(...sr1.urls); step1Desc.push(...sr1.desc);
         const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${cameraLighting} ${IDENTITY_LOCK} ${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
-        const job1 = await createImageEdit(step1Urls, step1Prompt, config.aspectRatio, config.resolution);
+        // Step 1 es INTERMEDIO (solo alimenta al pose-transfer del step 2, que es el
+        // entregable). No gastamos 4K acá: si el user pidió 4K, el vestir va en 2K y el
+        // step 2 sí en 4K. Ahorra ~mitad del costo/tiempo del 4K sin perder la imagen final.
+        const step1Res = config.resolution === "4K" ? "2K" : config.resolution;
+        const job1 = await createImageEdit(step1Urls, step1Prompt, config.aspectRatio, step1Res);
         const res1 = await pollImageGen(job1.request_id);
         const dressedAvatar = res1.image_url || "";
         if (!dressedAvatar) throw new Error("Step 1 (dressing) returned no image");
@@ -443,18 +577,20 @@ const handleGenerate: StepHandler = async (ctx) => {
         // en la nueva pose. Prompt MUY explícito separando qué viene de cada
         // imagen — el modelo tiende a "agarrar todo" de la pose ref (incluyendo
         // ropa y fondo), por eso enumeramos exhaustivamente qué tomar de cada una.
-        const step2Urls = [dressedAvatar, shotPoseUrl];
-        const step2Prompt = `This is a POSE TRANSFER. Two images:
+        const step2Urls = bgImageUrl ? [dressedAvatar, shotPoseUrl, bgImageUrl] : [dressedAvatar, shotPoseUrl];
+        const step2Prompt = `This is a POSE TRANSFER. ${POSE_FIDELITY} ${POSE_INHABIT}
 
-IMAGE 1 — the source. It contains the person, their identity, their outfit and the studio.
-IMAGE 2 — the pose reference. ONLY a body posture reference. EVERYTHING ELSE in image 2 (clothing, accessories, jewelry, tattoos, piercings, makeup, skin marks, hair, identity, background, lighting, styling) is completely IRRELEVANT and must be IGNORED.
+${bgImageUrl ? "Three images:" : "Two images:"}
+
+IMAGE 1 — the source. It contains the person, their identity and their outfit${bgImageUrl ? "" : " and the studio"}.
+IMAGE 2 — the pose reference. ONLY a body posture reference. EVERYTHING ELSE in image 2 (clothing, accessories, jewelry, tattoos, piercings, makeup, skin marks, hair, identity, background, lighting, styling) is completely IRRELEVANT and must be IGNORED.${bgImageUrl ? "\nIMAGE 3 — the BACKGROUND reference: the EXACT studio backdrop the output must sit on (a soft, homogeneous light grey-white seamless studio sweep with its gentle floor sweep). Reproduce its tone, gradient and floor exactly. It contains NO person." : ""}
 
 TAKE FROM IMAGE 1 (do NOT change any of this):
 - Face, hair, skin tone, head shape, age
 - Skin condition (smooth/clean) — same exact skin as image 1, NO new tattoos, NO new birthmarks, NO new piercings, NO new jewelry that isn't already in image 1
 - Every single garment the person is wearing (top, bottom, layers) — colors, patterns, fabric, fit, cut, length
 - Every accessory that exists in image 1 (scarves, necklaces, bags, belts, hats, shoes, jewelry) — exactly as they appear
-- Background and studio lighting: keep the EXACT studio backdrop from image 1 — same tone, same gradient, same floor. Do NOT introduce, invent or drift to a different background.
+- Background and studio lighting: ${bgImageUrl ? "the studio backdrop MUST be IDENTICAL to IMAGE 3 (the background reference) — same exact tone, same gradient, same floor sweep and horizon position. Do NOT invent a new backdrop or drift from image 3" : "keep the EXACT studio backdrop from image 1 — same tone, same gradient, same floor. Do NOT introduce, invent or drift to a different background"}. The backdrop must stay pixel-consistent across every shot in the pack.
 
 TAKE FROM IMAGE 2 (the body POSTURE AND the framing — image 2 is the source of truth for how the shot looks):
 - Overall body posture: stance, weight distribution, torso lean
@@ -462,7 +598,9 @@ TAKE FROM IMAGE 2 (the body POSTURE AND the framing — image 2 is the source of
 - Arm position and hand placement
 - Torso angle and shoulder position
 - Head tilt, head rotation, gaze direction
-- Camera FRAMING and CROP: match image 2's EXACT zoom and distance. If image 2 is a full-body shot the output is full-body; if it is a waist-up / medium / close shot, the output is cropped the same way. Do NOT re-frame to a different crop.${faceRequired ? " EXCEPTION: never crop the model's head/face out — if image 2 cuts the head off, extend the framing upward so the whole face stays visible." : ""}
+- ${CLOSEUP_SHOTS.has(sid)
+      ? `Camera FRAMING: this is a TIGHT GARMENT CLOSE-UP — ${shot.framing} KEEP this close crop. Take ONLY the body orientation/angle from image 2, NOT its framing; do NOT open the shot to full body.`
+      : `Camera FRAMING and CROP: match image 2's EXACT zoom and distance. If image 2 is a full-body shot the output is full-body; if it is a waist-up / medium / close shot, the output is cropped the same way. Do NOT re-frame to a different crop.${faceRequired ? " EXCEPTION: never crop the model's head/face out — if image 2 cuts the head off, extend the framing upward so the whole face stays visible." : ""}`}
 
 ${POSE_FULL_BODY}${faceRequired ? `\n\n${FACE_MUST_STAY}` : ""}
 
@@ -483,8 +621,9 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
         const job2 = await createImageEdit(step2Urls, step2Prompt, config.aspectRatio, config.resolution);
         const res2 = await pollImageGen(job2.request_id);
         const url2 = res2.image_url || "";
-        if (url2) anchorUrl = url2;
-        generated[inst.key] = { id: inst.key, url: url2, label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: step2Prompt, status: res2.status === "failed" ? "failed" : "done", error: res2.status === "failed" ? (res2.error || POLL_FAILED_MSG) : undefined };
+        if (url2) anchorUrl = url2;   // anchor RAW (contexto para shots siguientes)
+        const deliver2 = url2 ? await compositeToSeamless(url2) : url2;
+        generated[inst.key] = { id: inst.key, url: deliver2, label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: step2Prompt, status: res2.status === "failed" ? "failed" : "done", error: res2.status === "failed" ? (res2.error || POLL_FAILED_MSG) : undefined };
       } catch (e) {
         generated[inst.key] = { id: inst.key, url: "", label: onModelLabelAnchor, downloadName: primaryGarmentName, prompt: "", status: "failed", error: ecomErr(e) };
         console.error(`[ecommerce_pack] ${inst.key} (2-step) failed:`, e);
@@ -499,6 +638,7 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
       // tiende a "promediar" caras cuando el avatar es una ref más entre muchas.
       if (avatar?.imageUrl) { urls.push(avatar.imageUrl); desc.push(`Image ${idx}: IDENTITY (HIGHEST PRIORITY — the person in the output MUST be this exact person) — use this exact face, eyes, eye color, eyebrows, nose, mouth, jawline, skin tone, age, freckles/marks, hair color, hair style, and body proportions. The output face must be photographically RECOGNIZABLE as the same individual. Do NOT generalize, idealize, beautify, age, de-age or stylize the face. IGNORE only their clothing, background and pose.`); idx++; }
       garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT (hero product) — the model WEARS this exact item. ${PIXEL_FIDELITY}`); idx++; });
+      idx = pushGarmentBacks(urls, desc, idx);
       accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: STYLING ACCESSORY — the model also wears/has this exact item as part of the complete outfit. ${PIXEL_FIDELITY}`); idx++; });
     } else if (instPoseRef) {
       // Shot 2+ CON pose ref específica. PRIORIDAD INVERTIDA (validado en el Lab): el SUJETO
@@ -510,7 +650,9 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
       desc.push(`Image ${idx}: SUBJECT — the SOURCE OF TRUTH for WHO the person is, the EXACT garment(s) and accessories they wear, and the studio backdrop + lighting. The output MUST keep this exact person wearing this exact outfit on this exact studio. This is what the shot is OF.`);
       idx++;
       urls.push(instPoseRef);
-      desc.push(`Image ${idx}: POSE REFERENCE — copy ONLY the body posture and the body ORIENTATION (which way the body is turned) from this image${cur.pose ? ` (${cur.pose})` : " (body position, stance, arm/hand placement, head tilt, gaze, and how the body is rotated)"}. Do NOT copy this image's framing/crop/zoom — the CROP is defined by the shot's FRAMING instruction in the prompt, which overrides this image. EVERYTHING ELSE in this image is a DECOY and must be COMPLETELY DISCARDED — it must NOT appear in the output: the person's face/hair/skin/identity, ALL their clothing${cur.ignore ? ` (specifically: ${cur.ignore})` : ""}, their accessories, anything they hold, and the background/setting. The person here is only a posing stand-in; take the posture and orientation, nothing else.`);
+      desc.push(CLOSEUP_SHOTS.has(sid)
+        ? `Image ${idx}: POSE REFERENCE — copy ONLY the body POSTURE and body ORIENTATION (which way the body is turned)${cur.pose ? ` (${cur.pose})` : ""}. This IS a TIGHT GARMENT CLOSE-UP shot: KEEP the close crop defined by this shot's framing — do NOT copy the framing/zoom/distance from this pose image and do NOT open the shot to full body or medium just because the pose image shows more of the body. EVERYTHING ELSE in this image is a DECOY and must be COMPLETELY DISCARDED — the person's face/hair/skin/identity, ALL their clothing${cur.ignore ? ` (specifically: ${cur.ignore})` : ""}, their accessories, anything they hold, and the background/setting. Take posture and orientation only, nothing else.`
+        : `Image ${idx}: POSE REFERENCE — copy the body posture, the body ORIENTATION (which way the body is turned) AND the camera FRAMING/CROP from this image${cur.pose ? ` (${cur.pose})` : " (body position, stance, arm/hand placement, head tilt, gaze, how the body is rotated, and how tightly the shot is cropped)"}. This image is the SOURCE OF TRUTH for the crop/zoom: if it is a medium / waist-up shot, output the same medium crop (do NOT extend to full body). EVERYTHING ELSE in this image is a DECOY and must be COMPLETELY DISCARDED — it must NOT appear in the output: the person's face/hair/skin/identity, ALL their clothing${cur.ignore ? ` (specifically: ${cur.ignore})` : ""}, their accessories, anything they hold, and the background/setting. The person here is only a posing stand-in; take the posture, orientation and framing, nothing else.`);
       idx++;
       // Avatar como fuente de identidad — DEBE ganar sobre la cara de la pose ref.
       if (avatar?.imageUrl) {
@@ -519,6 +661,7 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
         idx++;
       }
       garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT REFERENCE — the model wears THIS exact item (this is the real product, NOT whatever the pose reference person wears). Pixel-perfect. ${PIXEL_FIDELITY}`); idx++; });
+      idx = pushGarmentBacks(urls, desc, idx);
       accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: ACCESSORY REFERENCE — same exact complement. ${PIXEL_FIDELITY}`); idx++; });
     } else {
       // Shot 2+ SIN pose ref: anchor del shot 1 + avatar ORIGINAL como refuerzo
@@ -530,6 +673,7 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
         idx++;
       }
       garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT (hero product) — same exact item. ${PIXEL_FIDELITY}`); idx++; });
+      idx = pushGarmentBacks(urls, desc, idx);
       accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: STYLING ACCESSORY — same exact complement, identical to anchor. ${PIXEL_FIDELITY}`); idx++; });
     }
     const sr = styleRefs(idx); urls.push(...sr.urls); desc.push(...sr.desc);
@@ -548,26 +692,51 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
     // manda persona + prenda + estudio; de la POSE ref sale SOLO postura + encuadre, y sus
     // decoys (nombrados por Gemini) se descartan. Reemplaza el viejo paradigma "editá la base".
     const poseCur = shotPoseUrl ? (poseRefCuration.get(shotPoseUrl) || { pose: "", ignore: "" }) : { pose: "", ignore: "" };
+    // Los shots de detalle/close-up conservan SIEMPRE su encuadre cerrado — la pose ref NO los
+    // abre a cuerpo entero (solo aporta orientación/postura). Ver framingClause abajo.
+    const poseFramesShot = !!shotPoseUrl && !CLOSEUP_SHOTS.has(sid);
     const poseOverride = shotPoseUrl
       ? `
 
 POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
 - The output is a photorealistic e-commerce studio photo of the SUBJECT person wearing their EXACT garment(s) and accessories from the SUBJECT/GARMENT references, on the studio backdrop described above (${studioClause.trim()}).
 - From the POSE REFERENCE, take ONLY the body POSTURE and body ORIENTATION: stance, torso angle, head tilt, gaze, arm and hand positions, LEG AND LOWER-BODY position (weight-bearing leg, knee bend, feet placement and angle — copy the legs as precisely as the arms, do NOT reset them to a plain straight stance). CRITICAL — reproduce the EXACT BODY ORIENTATION of the pose reference: if the person is turned to the side (de costado), in 3/4, in full profile or with their back to camera, the output MUST be turned the SAME way and the SAME amount, to the same side. Do NOT default the body to front-facing.${poseCur.pose ? ` The pose to reproduce: ${poseCur.pose}` : ""}
-- The CROP / FRAMING comes from the FRAMING instruction at the TOP of this prompt (MANDATORY), NOT from the pose reference. If the shot is a medium/American crop, CUT the frame at mid-thigh even if the pose reference shows the full body; if it is a close-up, crop tighter. The shot's framing ALWAYS overrides the pose reference's framing.
+- ${poseFramesShot
+      ? "The CROP / FRAMING comes from the POSE REFERENCE — it is the SOURCE OF TRUTH for the crop/zoom/distance. Reproduce the EXACT framing of the pose reference: if it is a medium / waist-up / American shot, the output is cropped the SAME way (do NOT extend down to full body); if it is full-body, output full-body; if it is tighter, crop tighter. Match the pose reference's zoom and distance precisely." + (faceRequired ? " Only exception: never crop the head/face out — if the pose ref cuts the head off, extend upward just enough to keep the whole face visible." : "")
+      : "The CROP / FRAMING is defined by THIS shot's FRAMING instruction above (a tight garment close-up) — KEEP that close crop. The pose reference contributes ONLY body orientation/angle, NOT the framing: do NOT open the shot to full body just because the pose reference shows more of the body."}
 - STRICTLY IGNORE everything else in the POSE reference — its clothing, hair, face, skin, accessories, props/objects held, and background are ALL a DECOY and must NOT appear in the output.${poseCur.ignore ? ` Specifically discard: ${poseCur.ignore}.` : ""} The garment the model wears comes ONLY from the GARMENT reference (the real product), never from the pose reference person.
 - ${IDENTITY_LOCK}
 - ${FACE_REALISM}
 - ${GARMENT_ORIENTATION}
-- Do NOT copy the POSE reference's LIGHTING, shadows, exposure or color cast. The output is lit by the clean studio light described above (soft, even); the only shadow is a subtle soft shadow on the FLOOR beneath the feet.${faceRequired ? " Never crop the model's head/face out — if the pose framing cuts the head off, extend the framing upward so the whole face stays visible." : ""} ${POSE_FULL_BODY}${faceRequired ? ` ${FACE_MUST_STAY}` : ""}`
+- Do NOT copy the POSE reference's LIGHTING, shadows, exposure or color cast. The output is lit by the clean studio light described above (soft, even); the only shadow is a subtle soft shadow on the FLOOR beneath the feet.${faceRequired ? " Never crop the model's head/face out — if the pose framing cuts the head off, extend the framing upward so the whole face stays visible." : ""} ${POSE_FIDELITY} ${POSE_INHABIT} ${POSE_FULL_BODY}${faceRequired ? ` ${FACE_MUST_STAY}` : ""}`
       : "";
     // Si NO hay pose ref imagen, inyectamos un preset textual de pose (rota
     // entre 8 si "auto", o usa la elegida por el user). Eso evita que la
     // modelo quede dura/estática y le da variedad editorial a la galería.
-    const poseDesc = !shotPoseUrl ? getPoseDescription(posePreset, sid, inst.nth) : null;
+    const poseDesc = !shotPoseUrl ? getPoseDescription(posePreset, sid, inst.nth, ecomGender) : null;
     const presetPoseClause = poseDesc ? ` POSE: ${poseDesc}` : "";
     const identityClause = avatar?.imageUrl ? `${IDENTITY_LOCK} ` : "";
-    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} FRAMING (MANDATORY — defines the crop/zoom): ${shot.framing}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    // Encuadre: si hay pose ref imagen, ELLA manda el crop (pedido Koxis: "la pose es fuente
+    // de verdad, aunque sea un americano; si la ref es plano medio, hacelo plano medio"). Sin
+    // pose ref, manda el framing del preset del shot.
+    // EXCEPCIÓN: los shots de DETALLE/close-up (model_detail, closeup, detail_lower) SIEMPRE
+    // conservan su encuadre cerrado — la pose ref NO debe abrirlos a cuerpo entero. Bug reportado:
+    // "en detalle prenda le pasé una pose y me generó cuerpo entero de perfil".
+    // (poseFramesShot ya está definido arriba, junto al poseOverride.)
+    // "Detalle prenda" con auto y sin pose ref → rota entre los tipos de detalle curados
+    // (side, fastening, waist, back, sleeve…) en vez de siempre el mismo close-up de pecho.
+    const detailFramingBase = (sid === "model_detail" && posePreset === "auto" && !shotPoseUrl)
+      ? DETAIL_FRAMINGS[inst.nth % DETAIL_FRAMINGS.length]
+      : shot.framing;
+    // Si hay hero product y es un detalle, el close-up es DEL hero (no de otra prenda del look).
+    const effectiveFraming = (heroGarment && CLOSEUP_SHOTS.has(sid))
+      ? `${detailFramingBase} Focus this detail specifically on the "${heroGarment.name}" — this close-up is OF that product; crop to its most relevant detail (its own fabric, seam, closure, hem or trim), not another garment in the look.`
+      : detailFramingBase;
+    const framingClause = poseFramesShot
+      ? `FRAMING (MANDATORY — the POSE REFERENCE image is the SOURCE OF TRUTH for the crop/zoom): reproduce the EXACT camera framing, distance and crop of the pose reference. If the pose reference is a medium / waist-up / American shot, the output is cropped the SAME way — do NOT extend down to full body. If it is full-body, output full-body.${faceRequired ? " Only exception: never crop the head/face out — if the pose ref cuts the head, extend upward just enough to keep the whole face visible." : ""}`
+      : `FRAMING (MANDATORY — defines the crop/zoom): ${effectiveFraming}`;
+    const detailIdentityClause = !faceRequired ? `${IDENTITY_DETAIL} ` : "";
+    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${framingClause}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${detailIdentityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${heroFocusClause}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution) : await createTextToImage(prompt, config.aspectRatio, config.resolution);
       const res = await pollImageGen(job.request_id);
@@ -577,9 +746,11 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
       if (i === 0 && url) anchorUrl = url;
       // Post-crop determinístico para el americano: Nano Banana tira a cuerpo entero por
       // más que el prompt pida el corte. Lo recortamos a ~medio muslo garantizado.
-      if (url && sid === "model_american") {
+      if (url && sid === "model_american" && !shotPoseUrl) {
         url = await cropImageTop(url, 0.65);
       }
+      // Composite sobre el seamless real (fondo consistente) — solo con el fondo default.
+      url = await compositeToSeamless(url);
       // Label con nombre(s) de prenda(s) — el usuario quiere que el filename
       // descargado preserve el nombre del archivo original que cargó (ej. si
       // subiste "remera-roja.jpg", el output debería llamarse así, no "frente.png").
@@ -598,8 +769,10 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
   // ── Flat product-only shots — ONE per garment. Cada garment puede tener hasta 3 fotos
   // (main + back + detail); seleccionamos las más relevantes según el shot type para que
   // el modelo entienda mejor el producto. Ej: en flat_back priorizamos la foto de back si existe.
-  const flatSubjects = garments.length
-    ? garments.map((g) => ({ id: g.id, name: g.name, url: g.imageUrl, source: g }))
+  // Con hero seteado, los flats son SOLO del hero (ficha de un producto). Sin hero, todos.
+  const flatGarments = heroGarment ? garments.filter((g) => g.id === heroGarment.id) : garments;
+  const flatSubjects = flatGarments.length
+    ? flatGarments.map((g) => ({ id: g.id, name: g.name, url: g.imageUrl, source: g }))
         .filter((s) => s.url)
     : (selectedProduct?.imageUrl
         ? [{ id: selectedProduct.id, name: selectedProduct.name, url: selectedProduct.imageUrl, source: selectedProduct }]
@@ -638,11 +811,15 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
       // Flat = una prenda específica → su nombre crudo es el nombre de descarga.
       const downloadName = subj.name || primaryGarmentName;
       const id = flatSubjects.length > 1 ? `${sid}__${subj.id}` : sid;
-      const prompt = `Professional e-commerce product packshot of a single garment. ${studioClause} ${shot.framing} Show ONLY this one garment — no other clothing items. ${cameraLighting} ${FABRIC_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+      const prompt = `Professional e-commerce product packshot of a single garment. ${studioClauseFlat} ${shot.framing} Show ONLY this one garment — no other clothing items. ${cameraLighting} ${FABRIC_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
       try {
         const job = await createImageEdit(urls, prompt, config.aspectRatio, config.resolution);
         const res = await pollImageGen(job.request_id);
-        flatImages.push({ sid, id, url: res.image_url || "", label, downloadName, prompt, status: res.status === "failed" ? "failed" : "done", error: res.status === "failed" ? (res.error || POLL_FAILED_MSG) : undefined });
+        // MISMO fondo que los on-model: el flat también pasa por el repintado/aplanado a #ededed
+        // (BiRefNet toma la prenda como foreground, el resto se lleva a #ededed exacto). Sin esto,
+        // el flat quedaba con el fondo crudo de Nano y no matcheaba con las tomas on-model.
+        const flatUrl = await compositeToSeamless(res.image_url || "");
+        flatImages.push({ sid, id, url: flatUrl, label, downloadName, prompt, status: res.status === "failed" ? "failed" : "done", error: res.status === "failed" ? (res.error || POLL_FAILED_MSG) : undefined });
       } catch (e) {
         flatImages.push({ sid, id, url: "", label, downloadName, prompt, status: "failed", error: ecomErr(e) });
         console.error(`[ecommerce_pack] flat ${id} failed:`, e);
