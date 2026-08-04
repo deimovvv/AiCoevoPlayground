@@ -757,10 +757,24 @@ export function ToolRunPage() {
   const [audioCache, setAudioCache] = useState<Record<string, { url: string; blob: Blob }>>({}); // sceneId → {url, blob}
   const [validationError, setValidationError] = useState<string | null>(null);
   const audioCacheRef = useRef<Record<string, { url: string; blob: Blob }>>({});
+  // Contenedor scrolleable del contenido del step. Lo usamos para llevar la vista
+  // al tope cuando entra una tanda nueva (que se prepend-ea arriba) — si no, el
+  // contenido nuevo empuja todo hacia abajo y da la sensación de "se me fue el scroll".
+  const stepScrollRef = useRef<HTMLDivElement>(null);
+  const prevBatchCountRef = useRef(0);
 
   // Keep refs in sync so async callbacks always read latest
   useEffect(() => { stepsRef.current = steps; }, [steps]);
   useEffect(() => { audioCacheRef.current = audioCache; }, [audioCache]);
+  // Al sumarse una tanda nueva (batches crece), la tanda entra ARRIBA del stack.
+  // Sin esto, tu scroll quedaba donde estaba y el contenido saltaba bajo tus pies.
+  // Llevamos el scroll del contenido al tope para que veas la tanda recién generada.
+  useEffect(() => {
+    if (batches.length > prevBatchCountRef.current) {
+      stepScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    prevBatchCountRef.current = batches.length;
+  }, [batches.length]);
   // Reset de tandas al cambiar de tool — evita que entres a otra tool y veas
   // tandas viejas con outputs de la anterior. Scope sigue siendo "una sesión
   // por tool".
@@ -2659,7 +2673,7 @@ export function ToolRunPage() {
           </div>
 
           {/* Step content (scroll independent) */}
-          <div className="flex-1 overflow-y-auto px-5 py-5 min-h-0">
+          <div ref={stepScrollRef} className="flex-1 overflow-y-auto px-5 py-5 min-h-0">
             {/* Agent banner — solo cuando viene de "Crear automáticamente" */}
             {agentInfo && (
               <div className="mb-4 bg-[var(--color-action-muted)] border border-[var(--color-action-muted)] rounded-[var(--radius-md)] p-3 space-y-1.5">
@@ -11773,21 +11787,33 @@ function RoutePanel({ allSteps, config }: { allSteps: StepState[]; config: ToolC
     const mapStepData = mapStep?.result as Record<string, unknown> | undefined;
     const adHocBackgroundDataUrl = mapStepData?.adHocBackgroundDataUrl as string | undefined;
 
-    const key = `handoff_${crypto.randomUUID()}`;
-    sessionStorage.setItem(key, JSON.stringify({
-      from: "content_analyzer",
-      adaptData,
-      analyzeData,
-      contentMode: isVisualOnly ? "visual" : "voiceover",
-      // Prefer map_assets confirmations; fall back to config (legacy path)
-      selectedAvatarIds: mappedAvatars.length > 0 ? mappedAvatars : config.selectedAvatarIds,
-      selectedProductIds: mappedProducts.length > 0 ? mappedProducts : config.selectedProductIds,
-      selectedClothingIds: mappedClothing.length > 0 ? mappedClothing : config.selectedClothingIds,
-      selectedAvatarId: mappedAvatars[0] || config.selectedAvatarId,
-      selectedBackgroundId: mappedBackgrounds[0] || config.selectedBackgroundId,
-      selectedProductId: mappedProducts[0] || config.selectedProductId,
-      adHocBackgroundDataUrl,
-    }));
+    // NB: crypto.randomUUID() only exists in secure contexts (https / localhost).
+    // Accessed via LAN IP over http (vite server.host: true), it's undefined and
+    // used to throw here — silently killing the click so nothing navigated.
+    // Fall back to a plain random key and never let handoff persistence block navigation.
+    const uuid =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+    const key = `handoff_${uuid}`;
+    try {
+      sessionStorage.setItem(key, JSON.stringify({
+        from: "content_analyzer",
+        adaptData,
+        analyzeData,
+        contentMode: isVisualOnly ? "visual" : "voiceover",
+        // Prefer map_assets confirmations; fall back to config (legacy path)
+        selectedAvatarIds: mappedAvatars.length > 0 ? mappedAvatars : config.selectedAvatarIds,
+        selectedProductIds: mappedProducts.length > 0 ? mappedProducts : config.selectedProductIds,
+        selectedClothingIds: mappedClothing.length > 0 ? mappedClothing : config.selectedClothingIds,
+        selectedAvatarId: mappedAvatars[0] || config.selectedAvatarId,
+        selectedBackgroundId: mappedBackgrounds[0] || config.selectedBackgroundId,
+        selectedProductId: mappedProducts[0] || config.selectedProductId,
+        adHocBackgroundDataUrl,
+      }));
+    } catch (e) {
+      console.error("[content_analyzer] handoff persist failed — navigating anyway:", e);
+    }
     navigate(`/dashboard/generate/${targetToolId}?handoff=${key}`);
   };
 
