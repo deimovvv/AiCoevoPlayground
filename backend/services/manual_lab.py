@@ -112,6 +112,11 @@ How {model_name} reads its reference images (follow this exactly):
 How {model_name} responds best — apply this craft when writing the prompt:
 {model_playbook}
 
+EDIT vs BUILD — decide this FIRST, it changes everything:
+- EDITING an existing image (the user wants to change / replace / remove / add / fix / recolor ONE aspect — "cambiá…", "sacá…", "ponele…", "arreglá…", "que sea más…", or Image 1 is a photo or a previous result they clearly want to keep): treat Image 1 as the BASE CANVAS to PRESERVE. Write the prompt as an EDIT that keeps Image 1 IDENTICAL — same composition, subject, faces, framing, COLORS, white balance, exposure, lighting, texture and detail — and changes ONLY the specific thing asked. Explicitly instruct: "keep everything else in Image 1 pixel-identical; do NOT re-render, re-describe or re-grade the untouched areas; do NOT shift color, white balance or exposure." Do NOT write a full photographic scene description in this case — re-describing the whole scene makes the model regenerate everything and drift the color and quality. Keep ONLY the delta (the change), plus the explicit preservation clause.
+- BUILDING a new scene or COMPOSITING references (put A on B, a new background/setting, generate a fresh image from scratch): use the full, rich photographic prompt described below.
+- ALWAYS honor explicit preservation: if the user asks to keep a specific lighting, color, face, pose or background ("respetá la iluminación", "mantené los colores", "no le cambies la cara"), pin it verbatim as a hard, non-negotiable constraint and never alter it. In an edit, anything the user did NOT ask to change must stay identical — above all color, white balance and exposure.
+
 Rules:
 - Reference images by "Image 1", "Image 2", etc. (matching the position they were attached). Replace any [imgN] or [imageN] tokens in the user's text with "Image N".
 - Start with a short "REFERENCE IMAGES:" block listing each image's role (e.g. "Image 1: the woman to feature", "Image 2: the garment to put on her") IF there are references. Skip the block if no references.
@@ -132,7 +137,11 @@ MODEL_REF_RULES = {
         "Every reference image is an EQUAL PEER (supports up to ~14 images) — there is NO fixed 'base' image. "
         "Give each image an explicit role and spell out exactly what to take from each, and how they relate "
         "(e.g. \"keep the person and face from Image 1, put the garment from Image 2 on them, use Image 3 for the background\"). "
-        "It fuses references well, so be concrete about every image's contribution."
+        "It fuses references well, so be concrete about every image's contribution. "
+        "IMPORTANT for EDITS: nano-banana re-renders the WHOLE frame every time (it does not inpaint just one region), "
+        "so when the request is a localized edit, override the peer logic — treat Image 1 as the base canvas to keep "
+        "PIXEL-IDENTICAL, and make the prompt explicitly forbid re-grading or re-rendering the untouched areas "
+        "(otherwise each edit drifts the color and softens detail)."
     ),
     "gpt-image-2": (
         "The FIRST image (Image 1) is the BASE that gets edited — it is preserved with the most fidelity, "

@@ -154,6 +154,7 @@ export interface Brand {
     products?: Product[];
     clothing?: ClothingItem[];
     backgrounds?: BackgroundItem[];
+    poses?: PoseItem[];
     moodboards?: MoodboardItem[];
     lookAndFeel?: LookFeelItem[];
     /** Legacy single-logo (kept for backwards compat). New uploads go to `logos`. */
@@ -1062,6 +1063,46 @@ export function backgroundImageUrl(relativeUrl: string): string {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  Pose Library API — poses de referencia reutilizables por marca (Ecommerce Pack)
+// ══════════════════════════════════════════════════════════════
+
+export interface PoseItem {
+    id: string;
+    name: string;
+    filename: string;
+    imageUrl: string;
+}
+
+export async function listPoses(brandId: string): Promise<PoseItem[]> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/poses`);
+    if (!res.ok) return [];
+    const d = await res.json();
+    return d.poses || [];
+}
+
+export async function uploadPose(brandId: string, name: string, imageFile: File): Promise<PoseItem> {
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("image", imageFile);
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/poses`, { method: "POST", body: formData });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || `Failed to upload pose (${res.status})`);
+    }
+    return res.json();
+}
+
+export async function deletePose(brandId: string, itemId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/poses/${itemId}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("Failed to delete pose");
+}
+
+export function poseImageUrl(relativeUrl: string): string {
+    if (relativeUrl.startsWith("http")) return relativeUrl;
+    return `${API_BASE}${relativeUrl}`;
+}
+
+// ══════════════════════════════════════════════════════════════
 //  Moodboards API
 // ══════════════════════════════════════════════════════════════
 
@@ -1882,6 +1923,67 @@ export async function pollSeedanceVideo(
 }
 
 // ══════════════════════════════════════════════════════════════
+//  Google Veo 3.1 — Image/Text-to-Video con audio nativo.
+//  Acepta caras que Seedance bloquea. Genera voz nativa desde el diálogo del prompt.
+//  El backend descarga el resultado y lo sirve en /static/renders/ (la Files API pide auth).
+// ══════════════════════════════════════════════════════════════
+
+export async function createVeoVideo(opts: {
+    prompt: string;
+    /** data URL | http(s) | /static/... — omitir para text-to-video */
+    image?: string;
+    aspectRatio?: string;
+    negativePrompt?: string;
+    fast?: boolean;
+}): Promise<{ operation: string }> {
+    const res = await fetch(`${API_BASE}/api/veo/image-to-video`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            prompt: opts.prompt,
+            image: opts.image,
+            aspect_ratio: opts.aspectRatio || "9:16",
+            negative_prompt: opts.negativePrompt,
+            fast: opts.fast ?? false,
+        }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Veo failed" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "Veo failed");
+    }
+    return res.json();
+}
+
+/** Poll Veo hasta que el video esté listo (~1-3 min). Devuelve { status, video_url }. */
+export async function pollVeoVideo(
+    operation: string,
+    intervalMs = 8000,
+    maxAttempts = 60,
+): Promise<{ status: string; video_url?: string; error?: string | null }> {
+    let consecutiveErrors = 0;
+    for (let i = 0; i < maxAttempts; i++) {
+        let data: { status: string; video_url?: string; error?: string | null };
+        try {
+            const res = await fetch(`${API_BASE}/api/veo/poll`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ operation }),
+            });
+            if (!res.ok) throw new Error(`Veo poll ${res.status}`);
+            data = await res.json();
+            consecutiveErrors = 0;
+        } catch (e) {
+            if (++consecutiveErrors >= 5) throw e;
+            await new Promise((r) => setTimeout(r, intervalMs));
+            continue;
+        }
+        if (data.status === "completed" || data.status === "failed") return data;
+        await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    throw new Error("Veo video generation timed out");
+}
+
+// ══════════════════════════════════════════════════════════════
 //  Upload-to-Fal — convert a data URL into a public Fal Storage URL.
 //  Fal/Kling rejects long `data:image/...;base64,...` strings with "URL too long",
 //  so any data URL must be re-hosted before being passed as a model input.
@@ -2180,6 +2282,44 @@ export async function cropImageTop(imageUrl: string, keepTop = 0.65): Promise<st
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ image_url: imageUrl, keep_top: keepTop }),
+        });
+        if (!res.ok) return imageUrl;
+        const d = await res.json();
+        return d.url || imageUrl;
+    } catch {
+        return imageUrl;
+    }
+}
+
+/** Composite determinístico de fondo: recorta el sujeto (BiRefNet) y lo pega sobre el fondo
+ *  real (seamless) con sombra de contacto. Garantiza fondo consistente sin depender de Nano.
+ *  Fail-open: devuelve la imagen original si algo falla. */
+export async function compositeOnStudioBg(
+    imageUrl: string,
+    background: { url?: string; color?: string },
+): Promise<string> {
+    try {
+        const res = await fetch(`${API_BASE}/api/image/composite-bg`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image: imageUrl, background: background.url, background_color: background.color }),
+        });
+        if (!res.ok) return imageUrl;
+        const d = await res.json();
+        return d.url || imageUrl;
+    } catch {
+        return imageUrl;
+    }
+}
+
+/** Repinta SOLO el fondo a un color exacto (ej. #ededed) sin recortar la persona (sin halo) y
+ *  conservando la sombra. Fail-open: devuelve la imagen original si algo falla. */
+export async function repaintBgToColor(imageUrl: string, color: string): Promise<string> {
+    try {
+        const res = await fetch(`${API_BASE}/api/image/repaint-bg`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image: imageUrl, color }),
         });
         if (!res.ok) return imageUrl;
         const d = await res.json();

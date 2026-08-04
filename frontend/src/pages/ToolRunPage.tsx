@@ -47,6 +47,7 @@ import {
   createKlingFrameToFrame, createSeedanceReferenceToVideo, pollSeedanceVideo,
   resolveAgentBrief,
   uploadAvatar, uploadClothing, uploadBackground, uploadMoodboard,
+  uploadPose, deletePose, poseImageUrl, addClothingImage,
   deleteClothing, deleteAvatar, deleteProduct, deleteBackground, deleteMoodboard,
   createHeyGenAvatar4, pollHeyGenAvatar4,
   fetchSystemVoices,
@@ -423,6 +424,12 @@ interface ToolConfig {
    *  esa pose. "upload" = el usuario sube imagen ref (pose transfer 2-step).
    *  Por default "auto" para que el catálogo tenga variedad. */
   ecomPosePreset: string;
+  /** Género del modelo (Ecommerce Pack) → habilita el set de poses correcto (femenino/masculino).
+   *  "female" | "male". Default "female". */
+  ecomGender?: string;
+  /** Producto principal (hero) del Ecommerce Pack: id de la prenda que es el foco de la ficha.
+   *  Vacío = todo el look. Con hero: flats solo del hero, detalle sobre el hero, on-model lo prioriza. */
+  ecomHeroClothingId?: string;
   // Clothing items marcados como "solo styling" — accesorios (zapatillas, collar,
   // gorra) que aparecen como ref en on-model shots pero NO generan flats propios.
   // Subset de selectedClothingIds. Reportado: "me pasan también las zapatillas o
@@ -478,7 +485,7 @@ interface ToolConfig {
   // Campos tool-specific que se accedían sin declarar (deuda de tipos 2026-07). Opcionales
   // porque solo aplican a ciertas tools. Tipos inferidos del uso/DEFAULT_CONFIG.
   selectedMoodboardId?: string | null;
-  animationEngine?: "kling" | "seedance";
+  animationEngine?: "kling" | "seedance" | "veo";
   settingOverride?: string;
   includeCopy?: boolean;
   // Avatar Sheet
@@ -554,6 +561,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   ecomShotPoses: {},
   ecomShotCounts: {},
   ecomPosePreset: "auto",
+  ecomGender: "female",
   ecomAccessoryIds: [],
   looksShots: ["general", "detail"],
   looksShotNotes: [],
@@ -3338,6 +3346,8 @@ function ConfigPanel({
   // Lightbox local del ConfigPanel — usado para zoom de pose refs por shot en
   // Ecommerce Pack y cualquier thumb del sidebar que quiera abrir en grande.
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  // Qué shot tiene abierto el picker de poses guardadas (librería de la marca).
+  const [posePickerShot, setPosePickerShot] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSystemVoices().then(setSystemVoices).catch(() => {});
@@ -3864,6 +3874,97 @@ function ConfigPanel({
 
       {tool.id === "ecommerce_pack" && (
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-4">
+          {/* Género del modelo → habilita el set de poses correcto (femenino vs masculino).
+              Una pose femenina en un hombre lee mal, por eso se elige acá. */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Género del modelo · poses</span>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                { id: "female", label: "Mujer", sub: "poses femeninas" },
+                { id: "male", label: "Hombre", sub: "poses masculinas" },
+              ].map((o) => {
+                const cur = (config as unknown as { ecomGender?: string }).ecomGender || "female";
+                return (
+                  <button
+                    key={o.id}
+                    onClick={() => setConfig((p) => ({ ...(p as Record<string, unknown>), ecomGender: o.id } as typeof p))}
+                    className={cn(
+                      "px-2.5 py-2 rounded-[var(--radius-sm)] border text-left transition-colors cursor-pointer",
+                      cur === o.id ? "bg-[var(--color-brand-subtle)] border-[var(--color-brand)]" : "bg-surface-0 border-edge hover:border-[var(--color-edge-strong)]",
+                    )}
+                  >
+                    <div className="text-[11px] font-medium text-fg">{o.label}</div>
+                    <div className="text-[9px] text-fg-faint leading-snug">{o.sub}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Producto principal (hero) — cuál prenda es el foco de la ficha. Solo si hay 2+
+              prendas (con 1 es implícito). Flats solo del hero, detalle sobre el hero, on-model
+              lo prioriza. "Todo el look" = comportamiento clásico. */}
+          {(() => {
+            const garmentItems = (activeBrand?.clothing || [])
+              .filter((c) => config.selectedClothingIds.includes(c.id) && !(config.ecomAccessoryIds || []).includes(c.id));
+            if (garmentItems.length < 2) return null;
+            const cur = (config as unknown as { ecomHeroClothingId?: string }).ecomHeroClothingId || "";
+            return (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Producto principal · foco de la ficha</span>
+                <select
+                  value={cur}
+                  onChange={(e) => setConfig((p) => ({ ...(p as Record<string, unknown>), ecomHeroClothingId: e.target.value } as typeof p))}
+                  className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[11px] text-fg outline-none focus:border-[var(--color-edge-focus)] cursor-pointer"
+                >
+                  <option value="">Todo el look (sin foco)</option>
+                  {garmentItems.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+                <p className="text-[9px] text-fg-faint leading-snug">Flats y detalle se enfocan en esta prenda; el on-model la prioriza. Ideal cuando la ficha es de un solo producto.</p>
+              </div>
+            );
+          })()}
+
+          {/* Librería de poses — subí una vez, reusá sin cargar desde la compu cada vez.
+              Guardadas en los assets de la marca (brand.poses). Se aplican por shot abajo. */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Librería de poses</span>
+              <label className="text-[9px] text-[var(--color-brand)] hover:underline cursor-pointer">
+                + Subir pose
+                <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                  const f = e.target.files?.[0]; if (!f || !activeBrand) return;
+                  try { await uploadPose(activeBrand.id, (f.name.replace(/\.[^.]+$/, "") || "Pose"), f); await refreshBrands(); } catch (err) { console.error(err); }
+                  e.target.value = "";
+                }} />
+              </label>
+            </div>
+            {(activeBrand?.poses || []).length === 0 ? (
+              <p className="text-[9px] text-fg-faint leading-snug">Subí poses de referencia para reusarlas en cualquier shot, sin cargarlas cada vez desde la compu.</p>
+            ) : (
+              <div className="grid grid-cols-6 gap-1.5">
+                {(activeBrand?.poses || []).map((p) => (
+                  <div key={p.id} className="relative group aspect-[3/4] rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-0">
+                    <img
+                      src={poseImageUrl(p.imageUrl)}
+                      alt={p.name}
+                      title={`${p.name} — click para ver en grande`}
+                      onClick={() => setLightboxUrl(poseImageUrl(p.imageUrl))}
+                      className="w-full h-full object-cover cursor-zoom-in"
+                    />
+                    <button
+                      onClick={async (e) => { e.stopPropagation(); if (!activeBrand) return; try { await deletePose(activeBrand.id, p.id); await refreshBrands(); } catch (err) { console.error(err); } }}
+                      className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white text-[10px] leading-none opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer"
+                      title="Borrar pose"
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Studio style — ModelDropdown unificado con el resto de las tools. */}
           <ModelDropdown
             label="Estilo de estudio"
@@ -4016,6 +4117,7 @@ function ConfigPanel({
                             ><X size={12} /></button>
                           </div>
                         ) : (
+                          <>
                           <label className="flex items-center gap-1 px-1.5 h-6 rounded-[var(--radius-sm)] border border-dashed border-edge-strong bg-surface-1 text-[9px] text-fg-muted hover:text-fg cursor-pointer shrink-0" title="Subir imagen de pose para este shot — define la postura Y el encuadre (cuerpo entero / medio / etc.)">
                             <Plus size={10} />
                             Pose
@@ -4035,6 +4137,39 @@ function ConfigPanel({
                               }}
                             />
                           </label>
+                          {(activeBrand?.poses || []).length > 0 && (
+                            <div className="relative shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setPosePickerShot(posePickerShot === id ? null : id)}
+                                className="flex items-center h-6 px-1.5 rounded-[var(--radius-sm)] border border-dashed border-edge-strong bg-surface-1 text-[10px] text-fg-muted hover:text-fg cursor-pointer"
+                                title="Elegir de la librería de poses guardadas"
+                              >📚</button>
+                              {posePickerShot === id && (
+                                <div className="absolute z-20 top-7 right-0 w-52 max-h-56 overflow-auto p-1.5 rounded-[var(--radius-md)] border border-edge bg-surface-1 shadow-lg grid grid-cols-3 gap-1.5">
+                                  {(activeBrand?.poses || []).map((ps) => (
+                                    <button
+                                      key={ps.id}
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          const blob = await fetch(poseImageUrl(ps.imageUrl)).then((r) => r.blob());
+                                          const dataUrl = await new Promise<string>((resolve) => { const rd = new FileReader(); rd.onload = () => resolve(rd.result as string); rd.readAsDataURL(blob); });
+                                          setConfig((p) => ({ ...p, ecomShotPoses: { ...p.ecomShotPoses, [id]: dataUrl } }));
+                                        } catch (err) { console.error(err); }
+                                        setPosePickerShot(null);
+                                      }}
+                                      className="aspect-[3/4] rounded-[var(--radius-sm)] overflow-hidden border border-edge hover:border-[var(--color-brand)] cursor-pointer"
+                                      title={ps.name}
+                                    >
+                                      <img src={poseImageUrl(ps.imageUrl)} alt={ps.name} className="w-full h-full object-cover" />
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          </>
                         )
                       )}
                     </div>
@@ -4047,6 +4182,84 @@ function ConfigPanel({
                 ? "Elegí al menos una toma."
                 : `${config.ecomShots.length} toma${config.ecomShots.length === 1 ? "" : "s"} · usá +/− para variantes · pose ref opcional (aplica a la #1) — si la pasás, la pose define la postura Y el encuadre (no el plano).`}
             </p>
+            {/* Recordatorio de foto de atrás: back / 3-4 / flat-back muestran la espalda o
+                el costado de la prenda. Detectamos si la prenda relevante (hero, o las
+                seleccionadas) ya tiene una foto de atrás cargada; si NO, avisamos fuerte
+                (rojo) — la IA inventaría la espalda a partir del frente. */}
+            {config.ecomShots.some((s) => s === "model_back" || s === "model_34" || s === "flat_back") && (() => {
+              const relevant = (activeBrand?.clothing || []).filter((c) =>
+                config.ecomHeroClothingId
+                  ? c.id === config.ecomHeroClothingId
+                  : config.selectedClothingIds.includes(c.id),
+              );
+              const hasBack = (c: { images?: Array<{ label?: string }> }) =>
+                (c.images || []).some((im) => /back|espalda|atr[aá]s|dorso/.test((im.label || "").toLowerCase()));
+              const missing = relevant.filter((c) => !hasBack(c));
+              // ROJO — hay prendas relevantes sin foto de atrás. Se puede subir acá mismo:
+              // cada prenda faltante trae su propio botón que agrega la foto con label "back"
+              // (el handler la prioriza en los shots de espalda). Al subir → el banner pasa a verde.
+              if (missing.length > 0) {
+                return (
+                  <div className="flex flex-col gap-2 px-2.5 py-2 rounded-[var(--radius-sm)] border border-[var(--color-error)]/50 bg-[var(--color-error)]/10 text-[10px] text-[var(--color-error)] leading-snug">
+                    <div className="flex items-start gap-1.5">
+                      <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                      <span>
+                        Toma de <strong>espalda / costado</strong> elegida, pero falta la{" "}
+                        <strong>foto de atrás</strong>. Subila acá (queda guardada en la prenda como
+                        foto extra "back"). Sin eso, la IA inventa la espalda a partir del frente.
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 pl-[18px]">
+                      {missing.map((c) => (
+                        <label
+                          key={c.id}
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-sm)] border border-[var(--color-error)]/40 bg-[var(--color-error)]/10 hover:bg-[var(--color-error)]/20 cursor-pointer w-fit transition-colors"
+                          title={`Subir la foto de atrás de ${c.name}`}
+                        >
+                          <Plus size={11} />
+                          <span className="font-medium">{c.name}</span>
+                          <span className="opacity-70">· subir foto de atrás</span>
+                          <input
+                            type="file"
+                            accept={IMAGE_ACCEPT}
+                            className="hidden"
+                            onChange={async (e) => {
+                              const f = e.target.files?.[0];
+                              if (!f || !activeBrand) return;
+                              try {
+                                await addClothingImage(activeBrand.id, c.id, f, "back");
+                                await refreshBrands();
+                              } catch (err) { console.error("Error subiendo foto de atrás:", err); }
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              // No hay prendas para verificar (ej. usás Producto en vez de Prendas): recordatorio suave.
+              if (relevant.length === 0) {
+                return (
+                  <div className="flex items-start gap-1.5 px-2.5 py-2 rounded-[var(--radius-sm)] border border-[var(--color-warning-muted,#7a5b1e)] bg-[var(--color-warning-subtle,#2a2113)] text-[10px] text-[var(--color-warning,#e0b050)] leading-snug">
+                    <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                    <span>
+                      Elegiste una toma de <strong>espalda / costado</strong>. Asegurate de tener una{" "}
+                      <strong>foto de atrás</strong> de la prenda (o pasala como pose ref) — si solo hay
+                      frente, la IA la inventa.
+                    </span>
+                  </div>
+                );
+              }
+              // Todo cubierto — confirmación sutil.
+              return (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] text-fg-faint leading-snug">
+                  <Check size={11} className="shrink-0 text-[var(--color-success,#4caf50)]" />
+                  <span>Foto de atrás cargada para las tomas de espalda/costado.</span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* ── Pose preset (texto) ─────────────────────────────────────
@@ -5762,52 +5975,27 @@ function ConfigPanel({
               value={config.animationEngine ?? "kling"}
               onChange={(next) => setConfig((p) => ({ ...p, animationEngine: next as ToolConfig["animationEngine"] }))}
               options={[
-                { id: "kling", label: "Kling V3 Pro", sub: "Anima b-roll; la voz sigue la 'Fuente de voz'" },
-                { id: "seedance", label: "Seedance 2.0", sub: "Anima b-roll; la voz sigue la 'Fuente de voz'" },
+                { id: "kling", label: "Kling V3 Pro", sub: "Anima b-roll; escenas habladas por HeyGen + ElevenLabs" },
+                { id: "seedance", label: "Seedance 2.0", sub: "Anima b-roll; escenas habladas por HeyGen + ElevenLabs" },
+                { id: "veo", label: "Veo 3.1", sub: "Talking-head con voz nativa argentina, todo en uno" },
               ]}
             />
 
-            {/* Fuente de voz (solo UGC) — el A/B del estudio. Las escenas HABLADAS: con
-                "ElevenLabs" se preserva tu voz (HeyGen/Sync, mejor acento, sin ambiente);
-                con "Seedance nativo" la genera Seedance (voz + ambiente, acento más flojo).
-                Ver docs/ugc-audio.md. */}
-            {tool.id === "ugc_creator" && (() => {
-              const cur = (config as unknown as { ugcVoiceSource?: string }).ugcVoiceSource || "elevenlabs";
-              const opts = [
-                { id: "elevenlabs", label: "ElevenLabs", sub: "voz preservada · mejor acento" },
-                { id: "seedance", label: "Seedance nativo", sub: "voz + ambiente · a probar" },
-              ];
-              return (
-                <div className="space-y-1.5 pt-2">
-                  <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Fuente de voz · escenas habladas</span>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {opts.map((o) => (
-                      <button
-                        key={o.id}
-                        onClick={() => setConfig((p) => ({ ...(p as Record<string, unknown>), ugcVoiceSource: o.id } as typeof p))}
-                        className={cn(
-                          "px-2.5 py-2 rounded-[var(--radius-sm)] border text-left transition-colors cursor-pointer",
-                          cur === o.id ? "bg-[var(--color-brand-subtle)] border-[var(--color-brand)]" : "bg-surface-0 border-edge hover:border-[var(--color-edge-strong)]",
-                        )}
-                      >
-                        <div className="text-[11px] font-medium text-fg">{o.label}</div>
-                        <div className="text-[9px] text-fg-faint leading-snug">{o.sub}</div>
-                      </button>
-                    ))}
-                  </div>
-                  {/* Acento — solo cuando Seedance genera la voz (para decirle qué tonada). */}
-                  {cur === "seedance" && (
-                    <input
-                      type="text"
-                      value={(config as unknown as { ugcAccent?: string }).ugcAccent || ""}
-                      onChange={(e) => setConfig((p) => ({ ...(p as Record<string, unknown>), ugcAccent: e.target.value } as typeof p))}
-                      placeholder='Tonada / acento — ej: "porteño", "cuyano", "mexicano neutro"'
-                      className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[11px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
-                    />
-                  )}
-                </div>
-              );
-            })()}
+            {/* Acento — solo con Veo (genera la voz nativa; le decimos qué tonada). Los
+                modos Seedance de voz se sacaron: Seedance bloquea caras. Kling/OmniHuman
+                usan ElevenLabs por default. Ver docs/ugc-talking-head-tests.md. */}
+            {tool.id === "ugc_creator" && config.animationEngine === "veo" && (
+              <div className="space-y-1.5 pt-2">
+                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Acento de la voz (Veo)</span>
+                <input
+                  type="text"
+                  value={(config as unknown as { ugcAccent?: string }).ugcAccent || ""}
+                  onChange={(e) => setConfig((p) => ({ ...(p as Record<string, unknown>), ugcAccent: e.target.value } as typeof p))}
+                  placeholder='ej: "argentino rioplatense", "porteño", "cuyano" (default: argentino)'
+                  className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[11px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)]"
+                />
+              </div>
+            )}
 
             {/* Duración por clip — co-locada con el motor. Solo Fashion Reel + Kling.
                 Depende del modelo: V3 Pro 3–10s (podés clips cortos de 3s); V2.x 5/10.

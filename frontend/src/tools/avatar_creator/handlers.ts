@@ -174,8 +174,8 @@ export const handleGenerate: StepHandler = async (ctx) => {
   // Cuando hay solo 1 vista, no es un "reference sheet" sino una imagen
   // singular — ajustamos el header del prompt para que no confunda.
   const sheetHeader = viewPrompts.length === 1
-    ? `Single clean photograph on pure white background. Frame:`
-    : `Character reference sheet on pure white background. Single seamless image with multiple views of the same person — arrange them side-by-side in one composition:`;
+    ? `Single clean photograph on a soft light grey #ededed seamless studio background. Frame:`
+    : `Character reference sheet on a soft light grey #ededed seamless studio background. Single seamless image with multiple views of the same person — arrange them side-by-side in one composition:`;
 
   // Realismo de piel + bajo contraste — SOLO para el estilo "realistic" (cinematic/editorial/
   // inherit quieren su propio look). Sin esto el avatar nace con piel AI/dura y, como
@@ -192,7 +192,7 @@ export const handleGenerate: StepHandler = async (ctx) => {
     ``,
     styleLine,
     realismBlock,
-    `Pure white (#FFFFFF) seamless background. Studio lighting, clean and professional.`,
+    `Soft, HOMOGENEOUS light grey #ededed seamless studio background — NOT pure white #FFFFFF, even and clean with subtle natural studio depth (a whisper of gradient), like a real infinity cove. Soft professional studio lighting, low contrast.`,
     viewPrompts.length > 1 ? `All views show the EXACT same person with consistent features.` : ``,
     `Hands are empty — no objects, no props, no products, no bags, no phones, nothing held in hands.`,
     // Clothing safeguard — sin esta línea Nano Banana suele sacar modelos en ropa interior

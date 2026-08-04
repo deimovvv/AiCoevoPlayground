@@ -41,7 +41,7 @@ import {
     createImageEdit, createTextToImage, pollImageGen,
     saveGeneration, fetchManualGenerations,
     avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl,
-    moodboardImageUrl, lookAndFeelImageUrl, brandLogoImageUrl,
+    moodboardImageUrl, lookAndFeelImageUrl, brandLogoImageUrl, poseImageUrl,
     enhanceManualPrompt, describeLookAndFeel, describeLookAndFeelUpload, describeConsistencyUpload,
     createKlingVideo, createKlingFrameToFrame, pollKlingVideo, klingDurationOptions,
     createSeedanceReferenceToVideo, pollSeedanceVideo,
@@ -366,7 +366,7 @@ export function ManualLabV2() {
     // Geely" que antes vivía como toggle global en el sidebar.
     type BrandAssetItem = {
         id: string;
-        kind: "avatar" | "product" | "clothing" | "background" | "moodboard" | "lookfeel" | "logo";
+        kind: "avatar" | "product" | "clothing" | "background" | "moodboard" | "lookfeel" | "logo" | "pose";
         name: string;
         imageUrl: string;
         displayUrl: string;
@@ -386,6 +386,7 @@ export function ManualLabV2() {
         push("clothing", activeBrand.clothing || [], clothingImageUrl);
         push("background", activeBrand.backgrounds || [], backgroundImageUrl);
         push("moodboard", activeBrand.moodboards || [], moodboardImageUrl);
+        push("pose", activeBrand.poses || [], poseImageUrl);
         return out;
     }, [activeBrand, isSandbox]);
 
@@ -542,7 +543,7 @@ export function ManualLabV2() {
     }, []);
 
     const addAssetRef = useCallback((
-        kind: "avatar" | "product" | "clothing" | "background" | "moodboard" | "lookfeel" | "logo",
+        kind: "avatar" | "product" | "clothing" | "background" | "moodboard" | "lookfeel" | "logo" | "pose",
         item: { id: string; name: string; imageUrl?: string },
     ) => {
         if (!item.imageUrl) return;
@@ -553,6 +554,7 @@ export function ManualLabV2() {
             kind === "background" ? backgroundImageUrl :
             kind === "moodboard" ? moodboardImageUrl :
             kind === "lookfeel" ? lookAndFeelImageUrl :
+            kind === "pose" ? poseImageUrl :
             brandLogoImageUrl;
         const url = item.imageUrl.startsWith("data:") ? item.imageUrl : resolver(item.imageUrl);
         setRefs((prev) => {
@@ -597,8 +599,9 @@ export function ManualLabV2() {
             const next = prev.filter((r) => r.tag !== tag);
             return next.map((r, i) => ({ ...r, tag: `img${i + 1}` }));
         });
-        // Strip the token from the prompt too.
-        setPrompt((p) => p.replace(new RegExp(`\\[${tag}\\]`, "g"), "").replace(/\s+/g, " ").trim());
+        // OJO: NO borramos la etiqueta [imgN] del prompt. Pedido explícito: si sacás una imagen
+        // normalmente es para REEMPLAZARLA — al volver a subir, la nueva ref toma el mismo tag
+        // (imgN) y la mención sigue aplicando. Borrar el token obligaba a reescribirlo a mano.
     }, []);
 
     const insertRefToken = useCallback((tag: string) => {
@@ -2469,12 +2472,13 @@ function RefCard({ ref_, onRemove, onInsert, onZoom, onReplace }: {
     );
 }
 
-type AssetKind = "avatar" | "product" | "clothing" | "background" | "moodboard" | "lookfeel" | "logo";
+type AssetKind = "avatar" | "product" | "clothing" | "background" | "moodboard" | "lookfeel" | "logo" | "pose";
 const ASSET_TABS: Array<{ id: AssetKind; label: string }> = [
     { id: "avatar", label: "avatar" },
     { id: "product", label: "prod" },
     { id: "clothing", label: "ropa" },
     { id: "background", label: "fondo" },
+    { id: "pose", label: "poses" },
     { id: "moodboard", label: "mood" },
     { id: "lookfeel", label: "L&F" },
     { id: "logo", label: "logo" },
@@ -2493,6 +2497,7 @@ function AssetPickerInline({
         tab === "product" ? (brand.products || []).map((p) => ({ id: p.id, name: p.name, imageUrl: p.imageUrl })) :
         tab === "clothing" ? (brand.clothing || []) :
         tab === "background" ? (brand.backgrounds || []) :
+        tab === "pose" ? (brand.poses || []) :
         tab === "moodboard" ? (brand.moodboards || []) :
         tab === "lookfeel" ? (brand.lookAndFeel || []) :
         [
@@ -2505,6 +2510,7 @@ function AssetPickerInline({
         tab === "product" ? productImageUrl :
         tab === "clothing" ? clothingImageUrl :
         tab === "background" ? backgroundImageUrl :
+        tab === "pose" ? poseImageUrl :
         tab === "moodboard" ? moodboardImageUrl :
         tab === "lookfeel" ? lookAndFeelImageUrl :
         brandLogoImageUrl;
