@@ -77,7 +77,12 @@ const CAMERA_LIGHTING = `Captured as a real photograph on a full-frame camera (S
 const CAMERA_LIGHTING_NATURAL = `Captured as a real photograph on a full-frame camera (Sony A7-class) with an 85mm prime lens at f/8 for edge-to-edge sharpness. Soft NATURAL window daylight gently favoring one side, giving SUBTLE three-dimensional volume (a hint of soft shadow under the jaw, gentle falloff around the body) — soft-filled so the shadows are never deep, hard or dramatic and the garment stays fully visible, and NEVER flat, even, front-on or dimensionless. Keep the SAME soft light direction CONSISTENT across every shot in the pack. Warm natural white balance (~4800–5200K), realistic natural-light rendering — NOT hard studio key/fill, NOT clinical 5500K neutral. Natural, elevated, dimensional e-commerce lighting. ${LOW_CONTRAST_GRADE}`;
 // Negative prompt — el mayor lever de realismo en Nano Banana. Empuja fuera el look
 // plástico/ilustración/AI y el over-retoque que delata la imagen generada.
-const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, CGI, AI-generated look, plastic or waxy finish, over-retouched airbrushed perfection, garment colors that DRIFT from the reference (washed-out, desaturated, muted, faded, over-saturated, tinted, warmed or cooled — the color must match the garment reference exactly), harsh shadows projected on the backdrop wall, cut-out / pasted-on / composited subject with hard edges, subject that looks stuck onto a flat white background, strong or marked floor shadow gradient, pure clinical #FFFFFF background, FLAT dimensionless front-on lighting with no form or volume, evenly-lit face with no modeling shadow.";
+const REALISM_NEGATIVES = "NEGATIVE (must NOT appear): illustration, 3D render, CGI, AI-generated look, plastic or waxy finish, over-retouched airbrushed perfection, garment colors that DRIFT from the reference (washed-out, desaturated, muted, faded, over-saturated, tinted, warmed or cooled — the color must match the garment reference exactly), harsh shadows projected on the backdrop wall, cut-out / pasted-on / composited subject with hard edges, subject that looks stuck onto a flat white background, strong or marked floor shadow gradient, pure clinical #FFFFFF background, FLAT dimensionless front-on lighting with no form or volume, evenly-lit face with no modeling shadow, oversized or enlarged head, bobblehead proportions, head too big for the body, disproportionate head-to-body ratio, dwarfed / foreshortened or too-short body, top-heavy anatomy.";
+// Proporciones humanas — el fix al feedback "cabeza grande / cuerpo desproporcionado".
+// Aparece sobre todo con pose ref: la foto de identidad suele ser un primer plano de cara y,
+// con el prompting fuerte de fidelidad facial + el re-encuadre del pose-transfer, Nano
+// sobre-pesa la cabeza. Este clause fuerza la relación cabeza-cuerpo realista.
+const BODY_PROPORTIONS = "NATURAL HUMAN PROPORTIONS (critical): render a realistic, anatomically correct adult with a normal head-to-body ratio — the head is roughly one-seventh to one-eighth of the full standing height. Do NOT enlarge the head or shrink the body: no oversized/large head, no bobblehead effect, no top-heavy figure, no dwarfed or foreshortened torso and legs. The head must stay in correct proportion to the neck, shoulders, torso, arms and legs; a full-body model must read as a tall, well-proportioned fashion model with long, natural limbs — the face stays perfectly recognizable WITHOUT scaling the head up.";
 // Sombra de contacto sutil — aterriza al sujeto (modelo/producto) para que no quede
 // flotando/recortado. Es la sombra de PISO, distinta de la proyectada en la pared
 // (que sí evitamos). Pedido del usuario: las fotos e-commerce siempre deben tenerla.
@@ -562,7 +567,7 @@ const handleGenerate: StepHandler = async (ctx) => {
         });
         // Style refs (look&feel + moodboard) opcionales — afinan estética.
         const sr1 = styleRefs(idx1); step1Urls.push(...sr1.urls); step1Desc.push(...sr1.desc);
-        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${cameraLighting} ${IDENTITY_LOCK} ${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
+        const step1Prompt = `Professional e-commerce studio fashion photograph. Full-body shot of the IDENTITY person wearing the exact GARMENT(S) and ACCESSORIES from the references. ${studioClause} Clean composition, model facing the camera. ${cameraLighting} ${IDENTITY_LOCK} ${FACE_REALISM} ${BODY_PROPORTIONS} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${step1Desc.join("\n")}`;
         // Step 1 es INTERMEDIO (solo alimenta al pose-transfer del step 2, que es el
         // entregable). No gastamos 4K acá: si el user pidió 4K, el vestir va en 2K y el
         // step 2 sí en 4K. Ahorra ~mitad del costo/tiempo del 4K sin perder la imagen final.
@@ -617,7 +622,7 @@ CRITICAL — do NOT contaminate the output with anything from image 2 that is no
 
 The output person's skin, accessories, jewelry, tattoos, piercings, and clothing must match IMAGE 1 ONLY. If image 1 has no tattoos, the output has no tattoos. If image 1 has no jewelry, the output has no jewelry.
 
-Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, same jewelry, same clothing, same accessories, same face), re-posed to match the body geometry of image 2. The face must stay perfectly recognizable as the person in image 1 — do NOT let image 2's face leak in. ${FACE_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}`;
+Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, same jewelry, same clothing, same accessories, same face), re-posed to match the body geometry of image 2. The face must stay perfectly recognizable as the person in image 1 — do NOT let image 2's face leak in. ${BODY_PROPORTIONS} ${FACE_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}`;
         const job2 = await createImageEdit(step2Urls, step2Prompt, config.aspectRatio, config.resolution);
         const res2 = await pollImageGen(job2.request_id);
         const url2 = res2.image_url || "";
@@ -708,7 +713,8 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
 - ${IDENTITY_LOCK}
 - ${FACE_REALISM}
 - ${GARMENT_ORIENTATION}
-- Do NOT copy the POSE reference's LIGHTING, shadows, exposure or color cast. The output is lit by the clean studio light described above (soft, even); the only shadow is a subtle soft shadow on the FLOOR beneath the feet.${faceRequired ? " Never crop the model's head/face out — if the pose framing cuts the head off, extend the framing upward so the whole face stays visible." : ""} ${POSE_FIDELITY} ${POSE_INHABIT} ${POSE_FULL_BODY}${faceRequired ? ` ${FACE_MUST_STAY}` : ""}`
+- Do NOT copy the POSE reference's LIGHTING, shadows, exposure or color cast. The output is lit by the clean studio light described above (soft, even); the only shadow is a subtle soft shadow on the FLOOR beneath the feet.${faceRequired ? " Never crop the model's head/face out — if the pose framing cuts the head off, extend the framing upward so the whole face stays visible." : ""} ${POSE_FIDELITY} ${POSE_INHABIT} ${POSE_FULL_BODY}${faceRequired ? ` ${FACE_MUST_STAY}` : ""}
+- ${BODY_PROPORTIONS}`
       : "";
     // Si NO hay pose ref imagen, inyectamos un preset textual de pose (rota
     // entre 8 si "auto", o usa la elegida por el user). Eso evita que la
@@ -736,7 +742,7 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
       ? `FRAMING (MANDATORY — the POSE REFERENCE image is the SOURCE OF TRUTH for the crop/zoom): reproduce the EXACT camera framing, distance and crop of the pose reference. If the pose reference is a medium / waist-up / American shot, the output is cropped the SAME way — do NOT extend down to full body. If it is full-body, output full-body.${faceRequired ? " Only exception: never crop the head/face out — if the pose ref cuts the head, extend upward just enough to keep the whole face visible." : ""}`
       : `FRAMING (MANDATORY — defines the crop/zoom): ${effectiveFraming}`;
     const detailIdentityClause = !faceRequired ? `${IDENTITY_DETAIL} ` : "";
-    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${framingClause}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${detailIdentityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${heroFocusClause}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${framingClause}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${detailIdentityClause}${FACE_REALISM} ${BODY_PROPORTIONS} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${heroFocusClause}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution) : await createTextToImage(prompt, config.aspectRatio, config.resolution);
       const res = await pollImageGen(job.request_id);
