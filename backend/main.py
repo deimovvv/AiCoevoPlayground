@@ -47,6 +47,7 @@ from services import asset_matcher
 from services import seedance_video
 from services import veo_video
 from services import fal_rembg
+from services import nanobanana_google
 from services import beeble_switchx
 from services.image_utils import normalize_image_bytes, is_image_upload
 
@@ -4389,6 +4390,17 @@ async def image_gen_edit(
                 aspect_ratio=aspect_ratio,
             )
             prefixed_id = f"gpt2:{request_id}"
+        elif model == "nano-banana-google":
+            # Nano Banana 2 vía Google directo (cuenta Monks). Sincrónico → SYNC:<url>.
+            if not nanobanana_google.is_configured():
+                raise HTTPException(status_code=500, detail="NANOBANANA_API_KEY no configurada")
+            request_id = await nanobanana_google.create_edit(
+                image_urls=resolved_urls,
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+            )
+            prefixed_id = f"gg:{request_id}"
         else:
             request_id = await image_gen.create_edit(
                 image_urls=resolved_urls,
@@ -4433,6 +4445,15 @@ async def image_gen_text_to_image(
                 aspect_ratio=aspect_ratio,
             )
             prefixed_id = f"gpt2:{request_id}"
+        elif model == "nano-banana-google":
+            if not nanobanana_google.is_configured():
+                raise HTTPException(status_code=500, detail="NANOBANANA_API_KEY no configurada")
+            request_id = await nanobanana_google.create_text_to_image(
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+            )
+            prefixed_id = f"gg:{request_id}"
         else:
             request_id = await image_gen.create_text_to_image(
                 prompt=prompt,
@@ -4443,6 +4464,8 @@ async def image_gen_text_to_image(
         if request_id.startswith("SYNC:"):
             return {"request_id": prefixed_id, "status": "completed", "image_url": request_id[5:]}
         return {"request_id": prefixed_id, "status": "pending"}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[t2i] ERROR: {e}")
         raise HTTPException(status_code=502, detail=f"Text-to-image failed: {str(e)}")
@@ -4452,6 +4475,8 @@ def _resolve_image_service(request_id: str):
     """Return (service_module, stripped_request_id) based on prefix."""
     if request_id.startswith("gpt2:"):
         return gpt_image_gen, request_id[len("gpt2:"):]
+    if request_id.startswith("gg:"):
+        return nanobanana_google, request_id[len("gg:"):]
     return image_gen, request_id
 
 

@@ -10,7 +10,7 @@
  */
 
 import type { ToolDefinition, StepHandler } from "../types";
-import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, cropImageTop, repaintBgToColor } from "../../lib/api";
+import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, cropImageTop, repaintBgToColor, type ImageModel } from "../../lib/api";
 
 // Shot catalog. `onModel` shots feature the model wearing the garment; the rest are
 // product-only packshots. Each entry's `framing` is appended to the studio prompt.
@@ -353,6 +353,9 @@ function selectGarmentPhotos(
 const handleGenerate: StepHandler = async (ctx) => {
   const { activeBrand, config } = ctx;
   const cfg = config as unknown as Record<string, unknown>;
+  // Proveedor del modelo de imagen (selector). Default temporal: Nano Banana vía Google
+  // directo (cuenta Monks). "nano-banana-2" = el de siempre por Fal. Ver ecomImageModel.
+  const imageModel = ((cfg.ecomImageModel as string) || "nano-banana-google") as ImageModel;
 
   // Separación productos vs accesorios — el usuario marca cuáles son "Solo styling"
   // (zapatillas, collar, gorra) en la UI. Esos NO generan flats propios pero SÍ
@@ -572,7 +575,7 @@ const handleGenerate: StepHandler = async (ctx) => {
         // entregable). No gastamos 4K acá: si el user pidió 4K, el vestir va en 2K y el
         // step 2 sí en 4K. Ahorra ~mitad del costo/tiempo del 4K sin perder la imagen final.
         const step1Res = config.resolution === "4K" ? "2K" : config.resolution;
-        const job1 = await createImageEdit(step1Urls, step1Prompt, config.aspectRatio, step1Res);
+        const job1 = await createImageEdit(step1Urls, step1Prompt, config.aspectRatio, step1Res, imageModel);
         const res1 = await pollImageGen(job1.request_id);
         const dressedAvatar = res1.image_url || "";
         if (!dressedAvatar) throw new Error("Step 1 (dressing) returned no image");
@@ -623,7 +626,7 @@ CRITICAL — do NOT contaminate the output with anything from image 2 that is no
 The output person's skin, accessories, jewelry, tattoos, piercings, and clothing must match IMAGE 1 ONLY. If image 1 has no tattoos, the output has no tattoos. If image 1 has no jewelry, the output has no jewelry.
 
 Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, same jewelry, same clothing, same accessories, same face), re-posed to match the body geometry of image 2. The face must stay perfectly recognizable as the person in image 1 — do NOT let image 2's face leak in. ${BODY_PROPORTIONS} ${FACE_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}`;
-        const job2 = await createImageEdit(step2Urls, step2Prompt, config.aspectRatio, config.resolution);
+        const job2 = await createImageEdit(step2Urls, step2Prompt, config.aspectRatio, config.resolution, imageModel);
         const res2 = await pollImageGen(job2.request_id);
         const url2 = res2.image_url || "";
         if (url2) anchorUrl = url2;   // anchor RAW (contexto para shots siguientes)
@@ -744,7 +747,7 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
     const detailIdentityClause = !faceRequired ? `${IDENTITY_DETAIL} ` : "";
     const prompt = `Professional e-commerce studio fashion photograph. ${studioClause} ${framingClause}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${detailIdentityClause}${FACE_REALISM} ${BODY_PROPORTIONS} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${heroFocusClause}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
-      const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution) : await createTextToImage(prompt, config.aspectRatio, config.resolution);
+      const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution, imageModel) : await createTextToImage(prompt, config.aspectRatio, config.resolution, imageModel);
       const res = await pollImageGen(job.request_id);
       let url = res.image_url || "";
       // El anchor usa la imagen SIN recortar (consistencia de prenda/estudio); el recorte
@@ -819,7 +822,7 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
       const id = flatSubjects.length > 1 ? `${sid}__${subj.id}` : sid;
       const prompt = `Professional e-commerce product packshot of a single garment. ${studioClauseFlat} ${shot.framing} Show ONLY this one garment — no other clothing items. ${cameraLighting} ${FABRIC_REALISM} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${NO_TEXT}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
       try {
-        const job = await createImageEdit(urls, prompt, config.aspectRatio, config.resolution);
+        const job = await createImageEdit(urls, prompt, config.aspectRatio, config.resolution, imageModel);
         const res = await pollImageGen(job.request_id);
         // MISMO fondo que los on-model: el flat también pasa por el repintado/aplanado a #ededed
         // (BiRefNet toma la prenda como foreground, el resto se lleva a #ededed exacto). Sin esto,

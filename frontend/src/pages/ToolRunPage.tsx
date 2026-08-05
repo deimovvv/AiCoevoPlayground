@@ -427,6 +427,9 @@ interface ToolConfig {
   /** Género del modelo (Ecommerce Pack) → habilita el set de poses correcto (femenino/masculino).
    *  "female" | "male". Default "female". */
   ecomGender?: string;
+  /** Proveedor del modelo de imagen (Ecommerce Pack). "nano-banana-google" (Google directo,
+   *  cuenta Monks — default temporal) | "nano-banana-2" (Fal). */
+  ecomImageModel?: string;
   /** Producto principal (hero) del Ecommerce Pack: id de la prenda que es el foco de la ficha.
    *  Vacío = todo el look. Con hero: flats solo del hero, detalle sobre el hero, on-model lo prioriza. */
   ecomHeroClothingId?: string;
@@ -562,6 +565,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   ecomShotCounts: {},
   ecomPosePreset: "auto",
   ecomGender: "female",
+  ecomImageModel: "nano-banana-google",
   ecomAccessoryIds: [],
   looksShots: ["general", "detail"],
   looksShotNotes: [],
@@ -3964,6 +3968,18 @@ function ConfigPanel({
               </div>
             )}
           </div>
+
+          {/* Proveedor del modelo de imagen — selector temporal (Google directo vs Fal).
+              Default Google (cuenta Monks). El de Fal queda como opción, no se borró nada. */}
+          <ModelDropdown
+            label="Modelo de imagen"
+            value={config.ecomImageModel || "nano-banana-google"}
+            onChange={(next) => setConfig((p) => ({ ...p, ecomImageModel: next }))}
+            options={[
+              { id: "nano-banana-google", label: "Nano Banana (Google)", sub: "Directo · cuenta Monks · default" },
+              { id: "nano-banana-2", label: "Nano Banana 2 (Fal)", sub: "Vía Fal · el de siempre" },
+            ]}
+          />
 
           {/* Studio style — ModelDropdown unificado con el resto de las tools. */}
           <ModelDropdown
