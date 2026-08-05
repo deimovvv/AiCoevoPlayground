@@ -213,7 +213,8 @@ export function ManualLabV2() {
     // Image params
     const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
     const [resolution, setResolution] = useState<Resolution>("2K");
-    const [model, setModel] = useState<ImageModel>("nano-banana-2");
+    // Default temporal: Nano Banana vía Google directo (cuenta Monks). El de Fal queda como opción.
+    const [model, setModel] = useState<ImageModel>("nano-banana-google");
     const [variantCount, setVariantCount] = useState<number>(1);
 
     // Video params — defaults matchean los más usados de v1.
@@ -1265,7 +1266,8 @@ export function ManualLabV2() {
                                     value={model}
                                     onChange={(next) => setModel(next as ImageModel)}
                                     options={[
-                                        { id: "nano-banana-2", label: "Nano Banana 2", sub: "Multi-ref · Gemini" },
+                                        { id: "nano-banana-google", label: "Nano Banana (Google)", sub: "Directo · cuenta Monks" },
+                                        { id: "nano-banana-2", label: "Nano Banana 2 (Fal)", sub: "Multi-ref · vía Fal" },
                                         { id: "gpt-image-2", label: "GPT Image 2", sub: "Base + edit · OpenAI" },
                                     ]}
                                 />

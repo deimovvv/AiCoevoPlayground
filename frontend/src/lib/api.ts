@@ -2232,7 +2232,7 @@ export interface ImageGenStatus {
  * imageUrls: array of image URLs (avatar, product, background)
  * prompt: what to generate
  */
-export type ImageModel = "nano-banana-2" | "gpt-image-2";
+export type ImageModel = "nano-banana-2" | "gpt-image-2" | "nano-banana-google";
 
 export async function createImageEdit(
     imageUrls: string[],
@@ -2454,11 +2454,15 @@ export async function pollImageGen(
     intervalMs = 4000,
     maxAttempts = 90,
 ): Promise<ImageGenStatus> {
-    if (requestId.startsWith("SYNC:")) {
+    // Resultado sincrónico: el id trae "SYNC:<url>" (con o sin prefijo de provider, ej.
+    // "gg:SYNC:..." de nano-banana-google o "gpt2:SYNC:..."). La URL lleva slashes, así que
+    // NO se puede pollear por path (rompe el ruteo → 404); resolvemos acá directo.
+    const syncIdx = requestId.indexOf("SYNC:");
+    if (syncIdx !== -1) {
         const result: ImageGenStatus = {
             request_id: requestId,
             status: "completed",
-            image_url: requestId.slice(5),
+            image_url: requestId.slice(syncIdx + "SYNC:".length),
             error: null,
         };
         onProgress?.(result);
