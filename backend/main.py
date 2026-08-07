@@ -2776,6 +2776,9 @@ async def crop_image_top(payload: dict = Body(...)):
     if not url:
         raise HTTPException(status_code=400, detail="Falta 'image_url'.")
     keep = max(0.3, min(1.0, float(payload.get("keep_top", 0.65))))
+    # anchor: "top" (default, ej. americano recorta pies) | "bottom" (ej. detalle inferior:
+    # conserva de la cintura para abajo, recorta cabeza/torso).
+    anchor = str(payload.get("anchor", "top")).lower()
     try:
         from PIL import Image
         async with httpx.AsyncClient(timeout=60) as client:
@@ -2786,7 +2789,8 @@ async def crop_image_top(payload: dict = Body(...)):
         w, h = im.size
         new_w, new_h = int(w * keep), int(h * keep)   # k×k → preserva el aspect original
         left = (w - new_w) // 2
-        cropped = im.crop((left, 0, left + new_w, new_h))
+        top = (h - new_h) if anchor == "bottom" else 0
+        cropped = im.crop((left, top, left + new_w, top + new_h))
         buf = io.BytesIO()
         cropped.save(buf, "PNG")
         fal_url = await kling_video.upload_image(buf.getvalue(), "cropped.png", "image/png")
@@ -2996,13 +3000,13 @@ async def analyze_pose_ref_decoys(image: UploadFile = File(...)):
     """Ecommerce Pack pose-transfer: describe la postura + encuadre Y nombra los decoys
     (ropa/pelo/props/fondo) a ignorar de la imagen de pose. Fail-open: {pose:"", ignore:""}."""
     if not image_analysis.is_configured():
-        return {"pose": "", "ignore": ""}
+        return {"pose": "", "ignore": "", "framing": ""}
     try:
         data = await image.read()
         ct = image.content_type or "image/jpeg"
         return await image_analysis.describe_pose_ref(data, ct)
     except Exception:
-        return {"pose": "", "ignore": ""}
+        return {"pose": "", "ignore": "", "framing": ""}
 
 
 @app.post("/api/analyze/reference")

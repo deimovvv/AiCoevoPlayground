@@ -900,7 +900,7 @@ async def describe_pose_ref(image_bytes: bytes, mime_type: str = "image/jpeg") -
     prompt = (
         "This image is used ONLY as a POSE + FRAMING reference for fashion product photography. "
         "Return ONLY a JSON object, no prose:\n"
-        '{"pose": "...", "ignore": "..."}\n\n'
+        '{"pose": "...", "ignore": "...", "framing": "..."}\n\n'
         '"pose": a PRECISE, DETAILED description (3-6 sentences) of the EXACT body posture to reproduce, '
         "like a motion-capture / a director giving exact blocking. Cover, specifically: "
         "(1) BODY ORIENTATION relative to the camera — front-on, 3/4 angle, full SIDE PROFILE (de costado) "
@@ -918,7 +918,11 @@ async def describe_pose_ref(image_bytes: bytes, mime_type: str = "image/jpeg") -
         '"ignore": a short comma-separated list naming the SPECIFIC things in THIS image that must be '
         "discarded and must NOT appear in the output — name the person's garments WITH their colors "
         "(e.g. 'white asymmetrical top', 'blue jeans'), their hair color/length, any sunglasses/eyewear, "
-        "jewelry, bag or props they hold, and the background/setting. Be concrete. Omit what isn't present."
+        "jewelry, bag or props they hold, and the background/setting. Be concrete. Omit what isn't present.\n"
+        '"framing": ONE word for how THIS reference image is CROPPED — exactly one of: '
+        '"full" (whole body, head to feet), "knee" (cropped around the knees, American shot), '
+        '"waist_down" (shows ONLY from the waist/hips down to the legs/feet — the torso and head are NOT in the image), '
+        '"waist_up" (waist up / medium), "closeup" (a tight detail crop). Judge by what is ACTUALLY visible in this image.'
     )
     try:
         out = await _call_vision(prompt, [(image_bytes, mime_type)])
@@ -928,10 +932,14 @@ async def describe_pose_ref(image_bytes: bytes, mime_type: str = "image/jpeg") -
             clean = clean[4:].strip() if clean.lower().startswith("json") else clean
         s, e = clean.find("{"), clean.rfind("}")
         data = json.loads(clean[s:e + 1]) if s != -1 and e != -1 and e > s else {}
-        return {"pose": str(data.get("pose", "")).strip(), "ignore": str(data.get("ignore", "")).strip()}
+        return {
+            "pose": str(data.get("pose", "")).strip(),
+            "ignore": str(data.get("ignore", "")).strip(),
+            "framing": str(data.get("framing", "")).strip().lower(),
+        }
     except Exception as ex:
         print(f"[pose-ref] fail-open: {ex}")
-        return {"pose": "", "ignore": ""}
+        return {"pose": "", "ignore": "", "framing": ""}
 
 
 async def check_product_consistency(
