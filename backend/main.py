@@ -2980,8 +2980,11 @@ async def repaint_bg(payload: dict = Body(...)):
         # grises claros → sin fringe.
         out = PILImage.composite(original, flattened_bg, person_mask)
         buf = io.BytesIO()
-        out.save(buf, "JPEG", quality=95)
-        fal_url = await kling_video.upload_image(buf.getvalue(), "repaint.jpg", "image/jpeg")
+        # PNG (lossless): la generación viene en PNG y no queremos meter una recompresión
+        # JPEG encima (ablandaba/artefactaba, sobre todo en 4K). El repintado solo toca el
+        # fondo; la persona debe quedar pixel-idéntica a la original.
+        out.save(buf, "PNG")
+        fal_url = await kling_video.upload_image(buf.getvalue(), "repaint.png", "image/png")
         return {"url": fal_url}
     except Exception as e:
         print(f"[repaint-bg] fail-open ({e}) — devuelvo original")

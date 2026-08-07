@@ -430,6 +430,9 @@ interface ToolConfig {
   /** Proveedor del modelo de imagen (Ecommerce Pack). "nano-banana-google" (Google directo,
    *  cuenta Monks — default temporal) | "nano-banana-2" (Fal). */
   ecomImageModel?: string;
+  /** Pose en 1 paso (Ecommerce Pack): compone identidad+pose+prendas en una sola call en vez
+   *  del 2-pasos (vestir → transferir). Default false (2 pasos). */
+  ecomPoseSinglePass?: boolean;
   /** Producto principal (hero) del Ecommerce Pack: id de la prenda que es el foco de la ficha.
    *  Vacío = todo el look. Con hero: flats solo del hero, detalle sobre el hero, on-model lo prioriza. */
   ecomHeroClothingId?: string;
@@ -566,6 +569,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   ecomPosePreset: "auto",
   ecomGender: "female",
   ecomImageModel: "nano-banana-google",
+  ecomPoseSinglePass: true,   // default 1 paso — más barato (el 2-pasos cuesta el doble)
   ecomAccessoryIds: [],
   looksShots: ["general", "detail"],
   looksShotNotes: [],
@@ -3352,6 +3356,8 @@ function ConfigPanel({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   // Qué shot tiene abierto el picker de poses guardadas (librería de la marca).
   const [posePickerShot, setPosePickerShot] = useState<string | null>(null);
+  // Librería de poses colapsable — el grid de thumbs ocupa mucho; default cerrado. Pedido explícito.
+  const [poseLibOpen, setPoseLibOpen] = useState(false);
 
   useEffect(() => {
     fetchSystemVoices().then(setSystemVoices).catch(() => {});
@@ -3935,17 +3941,28 @@ function ConfigPanel({
               Guardadas en los assets de la marca (brand.poses). Se aplican por shot abajo. */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Librería de poses</span>
+              <button
+                type="button"
+                onClick={() => setPoseLibOpen((v) => !v)}
+                className="flex items-center gap-1 text-[10px] font-semibold text-fg-faint uppercase tracking-widest hover:text-fg cursor-pointer"
+                title={poseLibOpen ? "Ocultar librería" : "Mostrar librería"}
+              >
+                {poseLibOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                Librería de poses
+                {(activeBrand?.poses || []).length > 0 && (
+                  <span className="text-fg-muted normal-case">({(activeBrand?.poses || []).length})</span>
+                )}
+              </button>
               <label className="text-[9px] text-[var(--color-brand)] hover:underline cursor-pointer">
                 + Subir pose
                 <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
                   const f = e.target.files?.[0]; if (!f || !activeBrand) return;
-                  try { await uploadPose(activeBrand.id, (f.name.replace(/\.[^.]+$/, "") || "Pose"), f); await refreshBrands(); } catch (err) { console.error(err); }
+                  try { await uploadPose(activeBrand.id, (f.name.replace(/\.[^.]+$/, "") || "Pose"), f); await refreshBrands(); setPoseLibOpen(true); } catch (err) { console.error(err); }
                   e.target.value = "";
                 }} />
               </label>
             </div>
-            {(activeBrand?.poses || []).length === 0 ? (
+            {poseLibOpen && ((activeBrand?.poses || []).length === 0 ? (
               <p className="text-[9px] text-fg-faint leading-snug">Subí poses de referencia para reusarlas en cualquier shot, sin cargarlas cada vez desde la compu.</p>
             ) : (
               <div className="grid grid-cols-6 gap-1.5">
@@ -3966,7 +3983,7 @@ function ConfigPanel({
                   </div>
                 ))}
               </div>
-            )}
+            ))}
           </div>
 
           {/* Proveedor del modelo de imagen — selector temporal (Google directo vs Fal).
@@ -3980,6 +3997,20 @@ function ConfigPanel({
               { id: "nano-banana-2", label: "Nano Banana 2 (Fal)", sub: "Vía Fal · el de siempre" },
             ]}
           />
+
+          {/* Pose en 1 paso vs 2 pasos — toggle para comparar. 2 pasos (default): viste →
+              transfiere (más consistente/caro). 1 paso: todo en una call (más rápido/barato). */}
+          <label className="flex items-start gap-2 px-2.5 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-0 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!config.ecomPoseSinglePass}
+              onChange={(e) => setConfig((p) => ({ ...p, ecomPoseSinglePass: e.target.checked }))}
+              className="mt-0.5 accent-[var(--color-brand)] cursor-pointer"
+            />
+            <span className="text-[11px] text-fg-muted leading-snug">
+              <strong className="text-fg">Pose en 1 paso</strong> (default — más barato) — compone identidad + pose + prendas en una sola generación. <strong>Destildá</strong> para el 2-pasos (vestir → transferir): más consistente pero cuesta el <strong>doble</strong>. Solo aplica a la toma con pose ref.
+            </span>
+          </label>
 
           {/* Studio style — ModelDropdown unificado con el resto de las tools. */}
           <ModelDropdown
