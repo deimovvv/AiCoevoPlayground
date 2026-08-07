@@ -725,6 +725,12 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
     // manda persona + prenda + estudio; de la POSE ref sale SOLO postura + encuadre, y sus
     // decoys (nombrados por Gemini) se descartan. Reemplaza el viejo paradigma "editá la base".
     const poseCur = shotPoseUrl ? (poseRefCuration.get(shotPoseUrl) || { pose: "", ignore: "" }) : { pose: "", ignore: "" };
+    // Prioridad de pose AL FRENTE del prompt (primacy) — con pose ref, el modelo tiende a
+    // diluirla entre las demás refs (sobre todo en single-pass). Este lead + el poseOverride del
+    // final la martillan por los dos lados. Incluye la descripción granular que sacó Gemini.
+    const posePriorityLead = shotPoseUrl
+      ? `POSE FIDELITY IS THE #1 PRIORITY of this shot (second only to keeping the exact identity): reproduce the POSE REFERENCE's body posture, orientation and every limb placement EXACTLY — a faithful motion-capture of that stance, not an approximation. Do NOT default to a plain symmetric frontal stance.${poseCur.pose ? ` The exact pose to reproduce: ${poseCur.pose}` : ""} `
+      : "";
     // Los shots de detalle/close-up conservan SIEMPRE su encuadre cerrado — la pose ref NO los
     // abre a cuerpo entero (solo aporta orientación/postura). Ver framingClause abajo.
     const poseFramesShot = !!shotPoseUrl && !CLOSEUP_SHOTS.has(sid);
@@ -773,7 +779,7 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
       ? `FRAMING (MANDATORY — the POSE REFERENCE image is the SOURCE OF TRUTH for the crop/zoom): reproduce the EXACT camera framing, distance and crop of the pose reference. If the pose reference is a medium / waist-up / American shot, the output is cropped the SAME way — do NOT extend down to full body. If it is full-body, output full-body.${faceRequired ? " Only exception: never crop the head/face out — if the pose ref cuts the head, extend upward just enough to keep the whole face visible." : ""}`
       : `FRAMING (MANDATORY — defines the crop/zoom): ${effectiveFraming}`;
     const detailIdentityClause = !faceRequired ? `${IDENTITY_DETAIL} ` : "";
-    const prompt = `Professional e-commerce studio fashion photograph. ${BODY_PROPORTIONS} ${NATURAL_ENERGY} ${studioClause} ${framingClause}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${detailIdentityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${heroFocusClause}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    const prompt = `Professional e-commerce studio fashion photograph. ${posePriorityLead}${BODY_PROPORTIONS} ${NATURAL_ENERGY} ${studioClause} ${framingClause}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${detailIdentityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${heroFocusClause}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution, imageModel) : await createTextToImage(prompt, config.aspectRatio, config.resolution, imageModel);
       const res = await pollImageGen(job.request_id);
