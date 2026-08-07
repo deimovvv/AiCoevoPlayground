@@ -2291,6 +2291,23 @@ export async function cropImageTop(imageUrl: string, keepTop = 0.65): Promise<st
     }
 }
 
+/** Recorte determinístico desde ABAJO — conserva la fracción inferior (ej. detalle inferior:
+ *  de la cintura para abajo). Espeja cropImageTop con anchor:"bottom". */
+export async function cropImageBottom(imageUrl: string, keepBottom = 0.6): Promise<string> {
+    try {
+        const res = await fetch(`${API_BASE}/api/image/crop`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ image_url: imageUrl, keep_top: keepBottom, anchor: "bottom" }),
+        });
+        if (!res.ok) return imageUrl;
+        const d = await res.json();
+        return d.url || imageUrl;
+    } catch {
+        return imageUrl;
+    }
+}
+
 /** Composite determinístico de fondo: recorta el sujeto (BiRefNet) y lo pega sobre el fondo
  *  real (seamless) con sombra de contacto. Garantiza fondo consistente sin depender de Nano.
  *  Fail-open: devuelve la imagen original si algo falla. */
@@ -2332,16 +2349,17 @@ export async function repaintBgToColor(imageUrl: string, color: string): Promise
 /** Pose-transfer para Ecommerce Pack: describe la postura + encuadre Y nombra los decoys
  *  (ropa/pelo/props/fondo) a ignorar de la imagen de pose. Fail-open → {pose:"", ignore:""}.
  *  Acepta un dataUrl (las pose refs del ecom viven como dataUrl en config). */
-export async function analyzePoseRefDecoys(dataUrl: string): Promise<{ pose: string; ignore: string }> {
+export async function analyzePoseRefDecoys(dataUrl: string): Promise<{ pose: string; ignore: string; framing: string }> {
     try {
         const blob = await fetch(dataUrl).then((r) => r.blob());
         const formData = new FormData();
         formData.append("image", new File([blob], "pose.png", { type: blob.type || "image/png" }));
         const res = await fetch(`${API_BASE}/api/analyze/pose-ref`, { method: "POST", body: formData });
-        if (!res.ok) return { pose: "", ignore: "" };
-        return await res.json();
+        if (!res.ok) return { pose: "", ignore: "", framing: "" };
+        const d = await res.json();
+        return { pose: d.pose || "", ignore: d.ignore || "", framing: (d.framing || "").toLowerCase() };
     } catch {
-        return { pose: "", ignore: "" };
+        return { pose: "", ignore: "", framing: "" };
     }
 }
 
