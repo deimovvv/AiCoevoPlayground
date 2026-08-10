@@ -4229,6 +4229,17 @@ function ConfigPanel({
                 ? "Elegí al menos una toma."
                 : `${config.ecomShots.length} toma${config.ecomShots.length === 1 ? "" : "s"} · usá +/− para variantes · pose ref opcional (aplica a la #1) — si la pasás, la pose define la postura Y el encuadre (no el plano).`}
             </p>
+            {/* Aviso: "Pose custom" sin pose ref adjunta = hace un frente por defecto (clon de Frente).
+                Su razón de ser es seguir la pose que le pasás, así que sin pose no sirve. */}
+            {config.ecomShots.includes("model_custom") && !config.ecomShotPoses["model_custom"] && (
+              <div className="flex items-start gap-1.5 px-2.5 py-2 rounded-[var(--radius-sm)] border border-[var(--color-warning-muted,#7a5b1e)] bg-[var(--color-warning-subtle,#2a2113)] text-[10px] text-[var(--color-warning,#e0b050)] leading-snug">
+                <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                <span>
+                  <strong>Pose custom</strong> necesita una <strong>pose ref</strong> (el <strong>+ Pose</strong> / 📚 de esa fila).
+                  Sin pose adjunta hace un frente por defecto — te va a salir igual que "Frente".
+                </span>
+              </div>
+            )}
             {/* Recordatorio de foto de atrás: back / 3-4 / flat-back muestran la espalda o
                 el costado de la prenda. Detectamos si la prenda relevante (hero, o las
                 seleccionadas) ya tiene una foto de atrás cargada; si NO, avisamos fuerte

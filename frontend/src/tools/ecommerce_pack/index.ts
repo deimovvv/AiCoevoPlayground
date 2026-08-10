@@ -10,7 +10,7 @@
  */
 
 import type { ToolDefinition, StepHandler } from "../types";
-import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, cropImageTop, cropImageBottom, repaintBgToColor, type ImageModel } from "../../lib/api";
+import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, repaintBgToColor, type ImageModel } from "../../lib/api";
 
 // Shot catalog. `onModel` shots feature the model wearing the garment; the rest are
 // product-only packshots. Each entry's `framing` is appended to the studio prompt.
@@ -792,29 +792,10 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution, imageModel) : await createTextToImage(prompt, config.aspectRatio, config.resolution, imageModel);
       const res = await pollImageGen(job.request_id);
       let url = res.image_url || "";
-      // El anchor usa la imagen SIN recortar (consistencia de prenda/estudio); el recorte
-      // es solo para el entregable.
       if (i === 0 && url) anchorUrl = url;
-      // Post-crop determinístico para el americano: Nano Banana tira a cuerpo entero por
-      // más que el prompt pida el corte. Lo recortamos a ~medio muslo garantizado.
-      if (url && sid === "model_american" && !shotPoseUrl) {
-        url = await cropImageTop(url, 0.8);   // americano = corte a la RODILLA
-      } else if (url && sid === "model_medium" && !shotPoseUrl) {
-        url = await cropImageTop(url, 0.55);  // plano medio = corte a la CINTURA
-      } else if (url && sid === "model_detail_lower") {
-        // Detalle inferior = de la CINTURA para abajo. Determinístico (Nano tira a general
-        // aunque el prompt pida lower-body). Corre SIEMPRE — es closeup, la pose solo orienta.
-        url = await cropImageBottom(url, 0.6);
-      } else if (url && sid === "model_custom" && shotPoseUrl) {
-        // Pose custom: recorta al MISMO encuadre que TU pose ref (Nano igual renderiza cuerpo
-        // entero e ignora el "match crop" del prompt). El encuadre lo detecta Gemini (poseCur.framing).
-        const f = poseCur.framing;
-        if (f === "waist_down") url = await cropImageBottom(url, 0.6);
-        else if (f === "waist_up") url = await cropImageTop(url, 0.55);
-        else if (f === "knee") url = await cropImageTop(url, 0.8);
-        else if (f === "closeup") url = await cropImageTop(url, 0.45);
-        // "full" o desconocido → sin recorte (cuerpo entero)
-      }
+      // SIN post-crop: el encuadre lo resuelve Nano NATIVO desde el prompt + la pose ref pasada
+      // como input (como en el Lab). Recortar tiraba resolución (4K → ~2.4K) y calidad. La
+      // fidelidad de encuadre ahora depende del prompt/framingClause y de la imagen de referencia.
       // Composite sobre el seamless real (fondo consistente) — solo con el fondo default.
       url = await compositeToSeamless(url);
       // Label con nombre(s) de prenda(s) — el usuario quiere que el filename
