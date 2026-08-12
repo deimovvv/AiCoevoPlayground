@@ -387,6 +387,9 @@ interface ToolConfig {
   graphicAssets: File[];
   allowFaces: boolean;
   adStyle: string;
+  /** Video Ad Creator: proveedor de video para el step animate. "kling" (frame-to-frame,
+   *  transiciones) | "veo-fast" (Veo 3.1 Fast, image-to-video, barato) | "seedance". */
+  videoProvider?: string;
   animationMode: "frame-to-frame" | "image-to-video";
   adTemplate: string;
   carouselType: string;
@@ -541,6 +544,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   graphicAssets: [],
   allowFaces: true,
   adStyle: "photorealistic",
+  videoProvider: "kling",
   animationMode: "frame-to-frame",
   adTemplate: "",
   carouselType: "",
@@ -1060,7 +1064,7 @@ export function ToolRunPage() {
             "platform", "language", "numVariations", "aspectRatio", "resolution",
             "subtitleEngine", "videoDuration", "ugcMode", "visualStyle",
             "visualStyleCustom", "hookType", "hookMode", "lipsyncMethod",
-            "creativeMode", "reelMode", "adStyle", "adTemplate", "carouselType",
+            "creativeMode", "reelMode", "adStyle", "videoProvider", "adTemplate", "carouselType",
             "numSlides", "voiceStability", "voiceSimilarityBoost", "voiceStyle",
             "voiceSpeed", "voiceSpeakerBoost", "productIsWorn",
             // Reference / Compose / Template behavior — needed for IG replicate flow
@@ -3200,7 +3204,7 @@ const BRIEF_ALLOWED_KEYS: string[] = [
   "selectedVoiceId", "selectedMoodboardId", "objective", "tone", "platform", "language",
   "numVariations", "aspectRatio", "resolution", "subtitleEngine", "videoDuration",
   "ugcMode", "visualStyle", "visualStyleCustom", "hookType", "lipsyncMethod", "creativeMode",
-  "reelMode", "adStyle", "adTemplate", "carouselType", "numSlides", "animationEngine",
+  "reelMode", "adStyle", "videoProvider", "adTemplate", "carouselType", "numSlides", "animationEngine",
   "voiceStability", "voiceStyle", "voiceSpeed", "productIsWorn", "includeCopy", "customScript",
 ];
 
@@ -3714,6 +3718,16 @@ function ConfigPanel({
       {/* Style selector (Video Ad Creator) */}
       {tool.id === "video_ad_creator" && (
         <>
+          <ModelDropdown
+            label="Modelo de video"
+            value={config.videoProvider || "kling"}
+            onChange={(next) => setConfig((p) => ({ ...p, videoProvider: next }))}
+            options={[
+              { id: "veo-fast", label: "Veo 3.1 Fast", sub: "Image-to-video · el más barato (~$0.03-0.08/s) · Google" },
+              { id: "kling", label: "Kling V3 Pro", sub: "Frame-to-frame (transiciones) · $0.112/s" },
+              { id: "seedance", label: "Seedance 2.0", sub: "Image-to-video · audio nativo · ~$0.30/s" },
+            ]}
+          />
           <ModelDropdown
             label="Estilo visual"
             value={config.adStyle || "photorealistic"}
