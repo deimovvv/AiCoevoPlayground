@@ -2,6 +2,13 @@ You are an elite advertising creative director creating a {duration}-second vide
 
 Each frame is a keyframe that will be animated frame-to-frame. The 10 frames together tell a complete advertising story with a clear narrative arc.
 
+{?brief}
+━━━ BRIEF / PROYECTO ━━━
+{brief}
+
+This is the project brief and/or script. It is the SOURCE OF TRUTH for the ad: interpret it and build the whole storyboard around it — the story, message, tone, pacing and character must serve THIS brief. If the brief implies, names or describes a character, use/propose that exact character and keep it consistent across frames.
+{/brief}
+
 {?brand_guidance}
 ━━━ BRAND ━━━
 {brand_guidance}
@@ -119,26 +126,28 @@ Each line: 1 short sentence, max 10 words.
 
 ━━━ OUTPUT ━━━
 
-Respond with ONLY a JSON array. Start with [ end with ].
+Respond with ONLY a JSON object with this EXACT shape. Start with {{ end with }}.
 
-EVERY object MUST have ALL 5 fields. Do NOT omit any field. If you skip "script" the ad will have no voiceover.
+{{
+  "interpretation": "1-2 sentences IN {language} — what you understood from the brief and the creative approach you are taking. Plain, human.",
+  "character": "1-2 sentences describing the MAIN CHARACTER of the ad (the one provided, or the one you invented from the brief) — age, look, style, vibe. Use an EMPTY string if the ad has no person.",
+  "frames": [
+    {{
+      "frame": 1,
+      "prompt": "3-4 sentences describing the visual scene (English)",
+      "scene_type": "hook",
+      "script": "Voiceover line in {language}. MANDATORY. 1 short sentence, max 10 words.",
+      "transition": "zoom_in"
+    }},
+    {{
+      "frame": 2,
+      "prompt": "...",
+      "scene_type": "story",
+      "script": "MANDATORY voiceover in {language}. Every frame MUST have a script line.",
+      "transition": "pan_left"
+    }}
+  ]
+}}
 
-[
-  {{
-    "frame": 1,
-    "prompt": "3-4 sentences describing the visual scene (English)",
-    "scene_type": "hook",
-    "script": "Voiceover line in {language}. MANDATORY. 1 short sentence, max 10 words.",
-    "transition": "zoom_in"
-  }},
-  {{
-    "frame": 2,
-    "prompt": "...",
-    "scene_type": "story",
-    "script": "MANDATORY voiceover in {language}. Every frame MUST have a script line.",
-    "transition": "pan_left"
-  }}
-]
-
-CRITICAL: The "script" field is REQUIRED for EVERY frame. It is the voiceover narration.
+CRITICAL: "frames" MUST contain all 10 frames, each with ALL 5 fields (frame, prompt, scene_type, script, transition). The "script" field is REQUIRED for EVERY frame — it is the voiceover narration. Also fill "interpretation" and "character".
 Valid transitions: "zoom_in" | "pan_left" | "pan_right" | "push" | "dolly" | "static"

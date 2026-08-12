@@ -48,7 +48,9 @@ export const handleScript: StepHandler = async (ctx) => {
   };
 
   if (selectedProduct?.description) extraVars.product_description = selectedProduct.description;
-  if (config.objective) extraVars.creative_direction = config.objective;
+  // El campo objective ahora es el BRIEF del proyecto — lo pasamos como {brief} (fuente de
+  // verdad del guión) y también como creative_direction para back-compat del template.
+  if (config.objective) { extraVars.brief = config.objective; extraVars.creative_direction = config.objective; }
   if (config.notes) extraVars.user_notes = config.notes;
   if (selectedClothing.length > 0) {
     extraVars.selected_clothing = selectedClothing.map((c) => `- ${c.name}${c.description ? `: ${c.description}` : ""}`).join("\n");
@@ -99,6 +101,19 @@ export const handleScript: StepHandler = async (ctx) => {
 
   const rawFrames = findArray(result);
 
+  // Interpretación del brief + personaje propuesto por Gemini (vienen junto a "frames" en el
+  // objeto). Los surfaceamos en el gate de aprobación del script para que el usuario confirme.
+  let interpretation = "", character = "";
+  try {
+    const raw = typeof result === "string" ? result : JSON.stringify(result);
+    const s = raw.indexOf("{"), e = raw.lastIndexOf("}");
+    if (s !== -1 && e > s) {
+      const obj = JSON.parse(raw.slice(s, e + 1)) as Record<string, unknown>;
+      interpretation = String(obj.interpretation || "");
+      character = String(obj.character || "");
+    }
+  } catch { /* result puede venir como array crudo (shape viejo) — sin interpretación */ }
+
   const frames = rawFrames
     .map((f, i) => {
       // Image prompt — try every possible key
@@ -127,7 +142,7 @@ export const handleScript: StepHandler = async (ctx) => {
 
   if (frames.length === 0) throw new Error(`No frames generated. Raw: ${JSON.stringify(result)?.slice(0, 300)}`);
 
-  return { result: { frames, style: styleLabel, numScenes }, needsApproval: true };
+  return { result: { frames, style: styleLabel, numScenes, interpretation, character }, needsApproval: true };
 };
 
 // ── Base Image — generate frame 1 only ──────────────────

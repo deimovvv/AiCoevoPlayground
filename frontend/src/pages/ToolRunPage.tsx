@@ -7822,6 +7822,22 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
 
     return (
       <div className="space-y-4">
+        {/* Interpretación del brief + personaje propuesto (agente de brief). El usuario revisa
+            acá antes de aprobar el storyboard = confirma la lectura del guión y el personaje. */}
+        {(String(raw.interpretation || "") || String(raw.character || "")) && (
+          <div className="px-3 py-2.5 bg-[var(--color-action-subtle)] border border-[var(--color-action-muted)] rounded-[var(--radius-md)] space-y-1">
+            {String(raw.interpretation || "") && (
+              <p className="text-[11px] text-fg leading-snug">
+                <span className="text-[var(--color-action)] font-medium">Qué entendí del brief:</span> {String(raw.interpretation)}
+              </p>
+            )}
+            {String(raw.character || "") && (
+              <p className="text-[11px] text-fg-muted leading-snug">
+                <span className="text-[var(--color-action)] font-medium">Personaje propuesto:</span> {String(raw.character)}
+              </p>
+            )}
+          </div>
+        )}
         {/* Character context bar */}
         {(ctxAvatar || ctxProduct || activeBrand) && (
           <div className="flex items-center gap-3 px-3 py-2.5 bg-surface-2 border border-edge rounded-[var(--radius-md)]">

@@ -26,8 +26,8 @@ export const videoAdCreator: ToolDefinition = {
     showPlatform: false,
     showLanguage: true,
     showVariations: false,
-    objectiveLabel: "Creative Direction",
-    objectivePlaceholder: "Describe the ad concept. E.g., 'luxury product reveal, dramatic lighting, premium feel' or 'fun casual ad, bright colors, young audience'...",
+    objectiveLabel: "Brief / guión del proyecto",
+    objectivePlaceholder: "Pegá el brief, el guión o de qué se trata el proyecto. La IA lo interpreta, propone el personaje y arma el storyboard alrededor de esto. Ej: 'Lanzamiento de una bebida energética natural para runners; tono fresco y aspiracional; protagonista mujer 28 corriendo al amanecer...'",
     showNotes: false,
   },
   stepHandlers: {
