@@ -10,7 +10,7 @@
  */
 
 import type { ToolDefinition, StepHandler } from "../types";
-import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, repaintBgToColor, type ImageModel } from "../../lib/api";
+import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, cropImageTop, cropImageBottom, repaintBgToColor, type ImageModel } from "../../lib/api";
 
 // Shot catalog. `onModel` shots feature the model wearing the garment; the rest are
 // product-only packshots. Each entry's `framing` is appended to the studio prompt.
@@ -793,9 +793,25 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
       const res = await pollImageGen(job.request_id);
       let url = res.image_url || "";
       if (i === 0 && url) anchorUrl = url;
-      // SIN post-crop: el encuadre lo resuelve Nano NATIVO desde el prompt + la pose ref pasada
-      // como input (como en el Lab). Recortar tiraba resolución (4K → ~2.4K) y calidad. La
-      // fidelidad de encuadre ahora depende del prompt/framingClause y de la imagen de referencia.
+      // CROP determinístico para las tomas de encuadre crítico. Nano ignora el "recortá" del
+      // prompt y tira a cuerpo entero (prompt pesado + ref de identidad de cuerpo entero),
+      // así que el crop es la ÚNICA forma confiable de garantizar el plano. Trade-off: baja
+      // algo la resolución (se puede recuperar con un pase de upscale — pendiente/opcional).
+      if (url && sid === "model_american" && !shotPoseUrl) {
+        url = await cropImageTop(url, 0.8);   // americano = corte a la RODILLA
+      } else if (url && sid === "model_medium" && !shotPoseUrl) {
+        url = await cropImageTop(url, 0.55);  // plano medio = corte a la CINTURA
+      } else if (url && sid === "model_detail_lower") {
+        url = await cropImageBottom(url, 0.6);   // detalle inferior = de la cintura para abajo
+      } else if (url && sid === "model_custom" && shotPoseUrl) {
+        // Pose custom: recorta al MISMO encuadre que la pose ref (detectado por Gemini).
+        const f = poseCur.framing;
+        if (f === "waist_down") url = await cropImageBottom(url, 0.6);
+        else if (f === "waist_up") url = await cropImageTop(url, 0.55);
+        else if (f === "knee") url = await cropImageTop(url, 0.8);
+        else if (f === "closeup") url = await cropImageTop(url, 0.45);
+        // "full" o desconocido → sin recorte (cuerpo entero)
+      }
       // Composite sobre el seamless real (fondo consistente) — solo con el fondo default.
       url = await compositeToSeamless(url);
       // Label con nombre(s) de prenda(s) — el usuario quiere que el filename
