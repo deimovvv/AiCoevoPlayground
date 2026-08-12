@@ -573,7 +573,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   ecomAccessoryIds: [],
   looksShots: ["general", "detail"],
   looksShotNotes: [],
-  locationPreset: "brand",
+  locationPreset: "studio_white",   // default: mismo blanco #ededed que Ecommerce Pack
   locationCustom: "",
   clipDuration: "5",
   reelAccessories: [],
