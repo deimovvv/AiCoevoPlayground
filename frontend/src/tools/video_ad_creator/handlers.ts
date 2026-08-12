@@ -8,6 +8,8 @@ import type { StepHandler } from "../types";
 import {
   generateToolPrompt, createImageEdit, createTextToImage, pollImageGen,
   generateTTSAndUpload, pollKlingVideo,
+  createVeoVideo, pollVeoVideo,
+  createSeedanceReferenceToVideo, pollSeedanceVideo,
   concatVideos,
 } from "../../lib/api";
 import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstraints";
@@ -312,43 +314,59 @@ export const handleAnimate: StepHandler = async (ctx) => {
   if (!imageData?.images || !scriptData?.frames) throw new Error("No images or script found.");
 
   const successfulImages = imageData.images.filter((img) => img.url).sort((a, b) => a.frame - b.frame);
-  if (successfulImages.length < 2) throw new Error("Need at least 2 images to animate.");
+  if (successfulImages.length < 1) throw new Error("Need at least 1 image to animate.");
 
-  // Animate pairs: frame1→frame2, frame2→frame3, etc.
-  const segments = [];
-  for (let i = 0; i < successfulImages.length - 1; i++) {
-    const startImg = successfulImages[i];
-    const endImg = successfulImages[i + 1];
-    // Use the selected style for animation prompt
-    const adStyle = config.adStyle || "photorealistic";
-    const styleLabel = AD_STYLES.find((s) => s.id === adStyle)?.label || adStyle;
-    // USER DIRECTION del usuario tipeada/inspirada en el step images. Si está,
-    // se inyecta con marca de prioridad para que Kling la respete sobre la
-    // descripción genérica del style.
-    const startFrameData = scriptData.frames.find((_f, idx) => idx === i);
-    const userDirection = startFrameData?.animationHint?.trim()
-      ? ` USER DIRECTION (priority): ${startFrameData.animationHint.trim()}.`
-      : "";
-    const animPrompt = `Create a seamless ${styleLabel} animated transition between the first shot and the second shot in a ${styleLabel} animation style with sound effects (no talking).${userDirection}`;
+  const adStyle = config.adStyle || "photorealistic";
+  const styleLabel = AD_STYLES.find((s) => s.id === adStyle)?.label || adStyle;
+  // Selector de modelo de video. "kling" = frame-to-frame (transición entre keyframes);
+  // "veo-fast" / "seedance" = image-to-video (movimiento por keyframe). Default kling
+  // (comportamiento actual). Veo 3.1 Fast = mucho más barato (ver pricing).
+  const videoProvider = (config as unknown as { videoProvider?: string }).videoProvider || "kling";
 
-    try {
-      const requestId = await createKlingFrameToFrame(
-        startImg.url,
-        endImg.url,
-        animPrompt,
-        "4",
-        config.aspectRatio,
-      );
-      const result = await pollKlingVideo(requestId);
-      segments.push({
-        index: i,
-        videoUrl: result.video_url || "",
-        startFrame: startImg.frame,
-        endFrame: endImg.frame,
-        status: result.video_url ? "done" : "failed",
-      });
-    } catch {
-      segments.push({ index: i, videoUrl: "", startFrame: startImg.frame, endFrame: endImg.frame, status: "failed" });
+  // Prompt de animación por segmento — inyecta la USER DIRECTION del step images si existe.
+  const animPromptFor = (i: number, mode: "transition" | "shot"): string => {
+    const fd = scriptData.frames.find((_f, idx) => idx === i);
+    const dir = fd?.animationHint?.trim() ? ` USER DIRECTION (priority): ${fd.animationHint.trim()}.` : "";
+    const subject = mode === "transition" ? "transition between the first shot and the second shot" : "shot with subtle cinematic motion";
+    return `Create a seamless ${styleLabel} animated ${subject} in a ${styleLabel} animation style with sound effects (no talking).${dir}`;
+  };
+
+  const segments: Array<{ index: number; videoUrl: string; startFrame: number; endFrame: number; status: string }> = [];
+
+  if (videoProvider === "kling") {
+    // Kling frame-to-frame: pares frame1→frame2, frame2→frame3, …
+    if (successfulImages.length < 2) throw new Error("Kling (frame-to-frame) needs at least 2 images.");
+    for (let i = 0; i < successfulImages.length - 1; i++) {
+      const startImg = successfulImages[i];
+      const endImg = successfulImages[i + 1];
+      try {
+        const requestId = await createKlingFrameToFrame(startImg.url, endImg.url, animPromptFor(i, "transition"), "4", config.aspectRatio);
+        const result = await pollKlingVideo(requestId);
+        segments.push({ index: i, videoUrl: result.video_url || "", startFrame: startImg.frame, endFrame: endImg.frame, status: result.video_url ? "done" : "failed" });
+      } catch {
+        segments.push({ index: i, videoUrl: "", startFrame: startImg.frame, endFrame: endImg.frame, status: "failed" });
+      }
+    }
+  } else {
+    // Veo 3.1 Fast / Seedance: image-to-video, un segmento por keyframe.
+    for (let i = 0; i < successfulImages.length; i++) {
+      const img = successfulImages[i];
+      try {
+        let videoUrl = "";
+        if (videoProvider === "seedance") {
+          const { request_id } = await createSeedanceReferenceToVideo({ prompt: animPromptFor(i, "shot"), referenceImageUrls: [img.url], aspectRatio: config.aspectRatio, duration: "5" });
+          const result = await pollSeedanceVideo(request_id);
+          videoUrl = result.video_url || "";
+        } else {
+          // veo-fast (default no-kling)
+          const { operation } = await createVeoVideo({ prompt: animPromptFor(i, "shot"), image: img.url, aspectRatio: config.aspectRatio, fast: true });
+          const result = await pollVeoVideo(operation);
+          videoUrl = result.video_url || "";
+        }
+        segments.push({ index: i, videoUrl, startFrame: img.frame, endFrame: img.frame, status: videoUrl ? "done" : "failed" });
+      } catch {
+        segments.push({ index: i, videoUrl: "", startFrame: img.frame, endFrame: img.frame, status: "failed" });
+      }
     }
   }
 
