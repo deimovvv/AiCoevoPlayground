@@ -21,6 +21,9 @@ import {
 } from "../../lib/api";
 import type { KlingModel } from "../../lib/api";
 import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "./index";
+// Reusamos la MISMA cláusula de fondo #ededed que el Ecommerce Pack para que el "estudio
+// blanco" del Fashion Reel matchee exacto (mismo gris cálido claro, no blanco puro).
+import { STUDIO_STYLES } from "../ecommerce_pack";
 
 const VISUAL_STYLE_PROMPTS: Record<string, string> = {
   editorial: "FORMAT: Vertical 9:16, shot on 35mm film look. LIGHTING: soft directional natural light, fashion editorial quality. STYLE: high-fashion, minimal, sophisticated — sharp detail, clean backgrounds.",
@@ -122,7 +125,7 @@ export const handleScript: StepHandler = async (ctx) => {
     // del background no era suficientemente explícito. Los presets fijos resuelven
     // ese caso: tipean texto explícito que Nano Banana SÍ respeta.
     const LOCATION_PRESETS: Record<string, string> = {
-      studio_white: "professional photo studio with seamless infinite WHITE backdrop, even softbox lighting, no shadows on the background, clean fashion catalog aesthetic. NOT a room with white walls — a true cyclorama studio with pure white seamless paper.",
+      studio_white: `professional photo studio with a seamless infinite backdrop, a true cyclorama studio (NOT a room with white walls). ${STUDIO_STYLES.white.clause}`,
       studio_black: "professional photo studio with seamless infinite BLACK backdrop, dramatic side lighting, deep shadows on the background, editorial fashion aesthetic.",
       street: "urban street environment, real outdoor city, golden hour natural light, candid documentary fashion feel.",
       natural: "outdoor natural environment, soft diffused daylight, organic textures, lifestyle fashion feel.",
