@@ -3729,9 +3729,21 @@ function ConfigPanel({
               className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-y leading-snug"
             />
             <p className="text-[10px] text-fg-faint leading-snug">
-              Pegá un <strong>brief suelto</strong> o un <strong>guión escena-por-escena</strong>. Si es guión, se parsea tal cual (diálogo, personajes, locación). Todo lo de abajo es <strong>opcional</strong>.
+              Pegá un <strong>brief suelto</strong> o un <strong>guión escena-por-escena</strong>. Si es guión, se parsea tal cual (diálogo, personajes, locación).
             </p>
           </div>
+
+          {/* Qué pasa al generar — clave: NO necesitás assets, el tool propone y crea los personajes. */}
+          {tool.id === "video_ad_creator" && (
+            <div className="px-3 py-2.5 rounded-[var(--radius-sm)] bg-[color-mix(in_srgb,var(--color-action)_9%,transparent)] border border-[color-mix(in_srgb,var(--color-action)_35%,transparent)] text-[11px] text-fg-muted leading-relaxed space-y-1">
+              <div className="flex items-center gap-1.5 text-fg font-semibold text-[11px]">
+                <Sparkles size={12} className="text-[var(--color-action)]" /> No necesitás cargar assets
+              </div>
+              Al generar, la IA <strong>lee el guión</strong>, identifica los <strong>personajes y locaciones</strong>, y <strong>te propone crearlos</strong>: genera una referencia de cada personaje para que la <strong>confirmes o regeneres</strong> antes de armar las escenas.
+              <br />
+              Las secciones de abajo son <strong>opcionales</strong> — usalas solo si querés <strong>fijar un rostro/producto real</strong> del Brand Kit en vez de que la IA lo invente.
+            </div>
+          )}
 
           <ModelDropdown
             label="Modelo de video"
