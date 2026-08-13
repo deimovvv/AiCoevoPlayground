@@ -145,6 +145,52 @@ export const handleScript: StepHandler = async (ctx) => {
   return { result: { frames, style: styleLabel, numScenes, interpretation, character }, needsApproval: true };
 };
 
+// ── Character — genera el personaje MAESTRO (confirmás antes de las escenas) ──
+// Del `character` que propuso el brief + una referencia opcional (avatar del Brand Kit o
+// imagen subida). Esta imagen se ancla como identidad en base_image + todos los frames →
+// mismo personaje en todas las escenas (el corazón del estilo mascot/UGC).
+
+export const handleCharacter: StepHandler = async (ctx) => {
+  const { activeBrand, config, getStepResult } = ctx;
+  const scriptData = getStepResult("script") as { character?: string } | undefined;
+  const characterDesc = (scriptData?.character || "").trim();
+
+  const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
+
+  // Referencias opcionales del personaje: imágenes subidas (handoff/ref) + avatar del Brand Kit.
+  const refFiles = (config as { referenceImages?: File[] }).referenceImages || [];
+  const uploadedRefDataUrls: string[] = [];
+  for (const file of refFiles.slice(0, 2)) {
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      uploadedRefDataUrls.push(dataUrl);
+    } catch { /* skip */ }
+  }
+  const refs: string[] = [];
+  for (const u of uploadedRefDataUrls) refs.push(u);
+  if (selectedAvatar?.imageUrl) refs.push(selectedAvatar.imageUrl);
+
+  const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
+  const adStyle = config.adStyle || "photorealistic";
+  const styleLabel = AD_STYLES.find((s) => s.id === adStyle)?.label || adStyle;
+
+  const desc = characterDesc || (refs.length ? "the character shown in the reference image(s)" : "the main character of the ad");
+  const prompt = `Master CHARACTER REFERENCE for a ${styleLabel} video ad. A clean, full-figure, front-facing portrait of ${desc}. Neutral light-grey seamless studio background, soft even lighting, sharp and clear, the WHOLE character visible and well framed. This is the DEFINITIVE reference reused to keep the EXACT SAME character (same design, colors, proportions, features) across every scene of the ad.${refs.length ? " Base the character on the reference image(s) provided — keep their identity/design." : ""}`;
+
+  const job = refs.length === 0
+    ? await createTextToImage(prompt, config.aspectRatio, config.resolution, imageModel)
+    : await createImageEdit(refs, prompt, config.aspectRatio, config.resolution, imageModel);
+  const result = await pollImageGen(job.request_id);
+  if (result.status === "failed") throw new Error(result.error || "Character generation failed");
+
+  return { result: { url: result.image_url, description: characterDesc }, needsApproval: true };
+};
+
 // ── Base Image — generate frame 1 only ──────────────────
 
 export const handleBaseImage: StepHandler = async (ctx) => {
@@ -175,9 +221,13 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   }
 
   const referenceUrls: string[] = [];
+  // El PERSONAJE MAESTRO (paso character, confirmado) es la identidad #1 — va primero para
+  // que Nano mantenga el mismo personaje en el frame 1 y en toda la historia.
+  const characterUrl = (getStepResult("character") as { url?: string } | undefined)?.url;
+  if (characterUrl) referenceUrls.push(characterUrl);
   // Order: uploaded refs (user intent) > avatar > clothing > product > background > moodboard
   for (const u of uploadedRefDataUrls) referenceUrls.push(u);
-  if (selectedAvatar?.imageUrl) referenceUrls.push(selectedAvatar.imageUrl);
+  if (selectedAvatar?.imageUrl && selectedAvatar.imageUrl !== characterUrl) referenceUrls.push(selectedAvatar.imageUrl);
   selectedClothing.forEach((c) => { if (c.imageUrl) referenceUrls.push(c.imageUrl); });
   if (selectedProduct?.imageUrl) referenceUrls.push(selectedProduct.imageUrl);
   if (selectedBackground?.imageUrl) referenceUrls.push(selectedBackground.imageUrl);
@@ -238,12 +288,15 @@ export const handleImages: StepHandler = async (ctx) => {
 
   const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
 
+  // Personaje maestro (paso character) — se ancla en CADA frame para consistencia de identidad.
+  const characterUrl = (getStepResult("character") as { url?: string } | undefined)?.url;
+
   let previousFrameUrl = baseImage.url;
   for (const frame of remainingFrames) {
     try {
-      // Use base image (for overall style) + previous frame (for continuity)
-      const refs = [previousFrameUrl, baseImage.url];
-      const prompt = `Same visual style, same character, same product as the reference images. Smooth visual transition from the previous frame. ${frame.prompt}`;
+      // Personaje maestro (identidad) + frame previo (continuidad) + base (estilo). Dedup.
+      const refs = [previousFrameUrl, ...(characterUrl && characterUrl !== baseImage.url ? [characterUrl] : []), baseImage.url];
+      const prompt = `Same EXACT character (identity, design, colors) as the CHARACTER reference, same visual style and product as the reference images. Smooth visual transition from the previous frame. ${frame.prompt}`;
       const job = await createImageEdit(refs, prompt, config.aspectRatio, config.resolution, imageModel);
       const result = await pollImageGen(job.request_id);
       const url = result.image_url || "";

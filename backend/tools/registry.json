@@ -6,7 +6,10 @@
     "description": "Subí tu UI (screenshot) + describí la escena → foto lifestyle con tu app o software mostrándose en un dispositivo real (celular / laptop / tablet), en contexto.",
     "icon": "image",
     "status": "active",
-    "pipeline": ["scene", "generate_all"]
+    "pipeline": [
+      "scene",
+      "generate_all"
+    ]
   },
   {
     "id": "fooh_subway",
@@ -15,7 +18,11 @@
     "description": "Fake-Out-Of-Home: tu ad en un billboard de una estación de metro, foto-real. Genera el poster desde tu producto (o subí el tuyo), arma la estación y compone el ad en el panel — mockup FOOH publicitario.",
     "icon": "megaphone",
     "status": "active",
-    "pipeline": ["poster", "scene", "generate_all"]
+    "pipeline": [
+      "poster",
+      "scene",
+      "generate_all"
+    ]
   },
   {
     "id": "avatar_creator",
@@ -50,7 +57,9 @@
     "description": "Drop a folder of outfits and a folder of poses, then batch-generate the full catalog: every outfit with canonical poses, plus lifestyle poses for the ones you mark as hero.",
     "icon": "shirt",
     "status": "active",
-    "pipeline": ["batch"],
+    "pipeline": [
+      "batch"
+    ],
     "route": "/dashboard/ecommerce-batch"
   },
   {
@@ -107,6 +116,7 @@
     "status": "active",
     "pipeline": [
       "script",
+      "character",
       "base_image",
       "images",
       "voice",
