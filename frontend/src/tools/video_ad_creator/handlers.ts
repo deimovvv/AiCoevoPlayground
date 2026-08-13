@@ -343,10 +343,12 @@ export const handleImages: StepHandler = async (ctx) => {
   let previousFrameUrl = baseImage.url;
   for (const frame of remainingFrames) {
     try {
-      // Personajes de esta escena (identidad) + frame previo (continuidad) + base (estilo). Dedup.
-      const chUrls = charUrlsFor(`${frame.prompt} ${(frame as { speaker?: string }).speaker || ""}`).filter((u) => u !== baseImage.url);
-      const refs = Array.from(new Set([previousFrameUrl, ...chUrls, baseImage.url]));
-      const prompt = `Same EXACT character(s) (identity, design, colors) as the CHARACTER reference image(s), same visual style and product as the references. Smooth visual transition from the previous frame. ${frame.prompt}`;
+      // SOP Fase 7: la escena MASTER (@img1) va PRIMERA y lockea locación/paleta/estilo/luz.
+      // Luego identidad de personaje, y el frame previo al final para continuidad suave (keyframes de video).
+      const chUrls = charUrlsFor(`${frame.prompt} ${(frame as { speaker?: string }).speaker || ""}`)
+        .filter((u) => u !== baseImage.url && u !== previousFrameUrl);
+      const refs = Array.from(new Set([baseImage.url, ...chUrls, previousFrameUrl]));
+      const prompt = `The FIRST reference is the approved MASTER scene — match it EXACTLY: same location and environment, same color palette and saturation, same lighting direction and quality, same visual style/medium. This is a NEW shot within that SAME world, not a different place. Keep the SAME character(s) — identical identity, design, colors — as the character reference(s). Smooth visual continuity with the previous frame (no hard jumps in framing). New shot: ${frame.prompt}`;
       const job = await createImageEdit(refs, prompt, config.aspectRatio, config.resolution, imageModel);
       const result = await pollImageGen(job.request_id);
       const url = result.image_url || "";
