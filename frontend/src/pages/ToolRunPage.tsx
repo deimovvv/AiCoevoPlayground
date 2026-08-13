@@ -5092,8 +5092,9 @@ function ConfigPanel({
         </div>
       )}
 
-      {/* Animation mode selector (Product Clip, Video Ad Creator) */}
-      {(tool.id === "product_clip" || tool.id === "video_ad_creator") && (
+      {/* Animation mode selector (Product Clip). En Video Ad Creator lo define el "Modelo de
+          video" (Kling = frame-to-frame; Veo/Seedance = image-to-video) → acá sería redundante. */}
+      {tool.id === "product_clip" && (
         <ModelDropdown
           label="Modo de animación"
           value={config.animationMode || "frame-to-frame"}

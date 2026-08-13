@@ -58,8 +58,9 @@ export const TOOL_EXAMPLES: Record<string, ToolExample> = {
   },
   video_ad_creator: {
     inputs: [
-      { label: "Producto", text: "el producto a anunciar" },
-      { label: "Brief", text: "dirección creativa del ad" },
+      { label: "Brief / guión", text: "pegá el brief o el guión escena por escena" },
+      { label: "Personaje", text: "opcional — o una referencia; la IA lo propone" },
+      { label: "Estilo", text: "Playmobil, tejido, claymation, foto real…" },
     ],
     outputUrl: "/previews/videoadcreator.mp4",
     outputType: "video",
