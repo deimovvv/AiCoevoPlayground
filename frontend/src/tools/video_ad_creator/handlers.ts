@@ -104,6 +104,7 @@ export const handleScript: StepHandler = async (ctx) => {
   // Interpretación del brief + personaje propuesto por Gemini (vienen junto a "frames" en el
   // objeto). Los surfaceamos en el gate de aprobación del script para que el usuario confirme.
   let interpretation = "", character = "";
+  let characters: Array<{ name: string; description: string }> = [];
   try {
     const raw = typeof result === "string" ? result : JSON.stringify(result);
     const s = raw.indexOf("{"), e = raw.lastIndexOf("}");
@@ -111,6 +112,11 @@ export const handleScript: StepHandler = async (ctx) => {
       const obj = JSON.parse(raw.slice(s, e + 1)) as Record<string, unknown>;
       interpretation = String(obj.interpretation || "");
       character = String(obj.character || "");
+      if (Array.isArray(obj.characters)) {
+        characters = (obj.characters as Array<Record<string, unknown>>)
+          .map((c) => ({ name: String(c.name || "").trim(), description: String(c.description || "").trim() }))
+          .filter((c) => c.name || c.description);
+      }
     }
   } catch { /* result puede venir como array crudo (shape viejo) — sin interpretación */ }
 
@@ -147,7 +153,7 @@ export const handleScript: StepHandler = async (ctx) => {
   if (frames.length === 0) throw new Error(`No frames generated. Raw: ${JSON.stringify(result)?.slice(0, 300)}`);
 
   // numScenes = cantidad real de escenas (variable: guión ingerido = N escenas del guión).
-  return { result: { frames, style: styleLabel, numScenes: frames.length, interpretation, character }, needsApproval: true };
+  return { result: { frames, style: styleLabel, numScenes: frames.length, interpretation, character, characters }, needsApproval: true };
 };
 
 // ── Character — genera el personaje MAESTRO (confirmás antes de las escenas) ──
@@ -157,12 +163,18 @@ export const handleScript: StepHandler = async (ctx) => {
 
 export const handleCharacter: StepHandler = async (ctx) => {
   const { activeBrand, config, getStepResult } = ctx;
-  const scriptData = getStepResult("script") as { character?: string } | undefined;
-  const characterDesc = (scriptData?.character || "").trim();
+  const scriptData = getStepResult("script") as { character?: string; characters?: Array<{ name: string; description: string }> } | undefined;
+
+  // Lista de personajes a generar. Multi-personaje: el guión devuelve `characters` (Pedro,
+  // Mariana, …). Fallback: un solo personaje desde el string `character`.
+  const list = (scriptData?.characters && scriptData.characters.length)
+    ? scriptData.characters
+    : [{ name: "", description: (scriptData?.character || "").trim() }];
 
   const selectedAvatar = activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
 
-  // Referencias opcionales del personaje: imágenes subidas (handoff/ref) + avatar del Brand Kit.
+  // Referencias opcionales: imágenes subidas + avatar del Brand Kit. Se aplican SOLO al PRIMER
+  // personaje (asumimos que la ref es del protagonista) — el resto sale de su descripción.
   const refFiles = (config as { referenceImages?: File[] }).referenceImages || [];
   const uploadedRefDataUrls: string[] = [];
   for (const file of refFiles.slice(0, 2)) {
@@ -176,24 +188,33 @@ export const handleCharacter: StepHandler = async (ctx) => {
       uploadedRefDataUrls.push(dataUrl);
     } catch { /* skip */ }
   }
-  const refs: string[] = [];
-  for (const u of uploadedRefDataUrls) refs.push(u);
-  if (selectedAvatar?.imageUrl) refs.push(selectedAvatar.imageUrl);
+  const protagonistRefs: string[] = [];
+  for (const u of uploadedRefDataUrls) protagonistRefs.push(u);
+  if (selectedAvatar?.imageUrl) protagonistRefs.push(selectedAvatar.imageUrl);
 
   const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
   const adStyle = config.adStyle || "photorealistic";
   const styleLabel = AD_STYLES.find((s) => s.id === adStyle)?.label || adStyle;
 
-  const desc = characterDesc || (refs.length ? "the character shown in the reference image(s)" : "the main character of the ad");
-  const prompt = `Master CHARACTER REFERENCE for a ${styleLabel} video ad. A clean, full-figure, front-facing portrait of ${desc}. Neutral light-grey seamless studio background, soft even lighting, sharp and clear, the WHOLE character visible and well framed. This is the DEFINITIVE reference reused to keep the EXACT SAME character (same design, colors, proportions, features) across every scene of the ad.${refs.length ? " Base the character on the reference image(s) provided — keep their identity/design." : ""}`;
+  const generated: Array<{ name: string; url: string; description: string }> = [];
+  for (let i = 0; i < list.length; i++) {
+    const ch = list[i];
+    const chRefs = i === 0 ? protagonistRefs : [];   // refs solo para el protagonista
+    const desc = ch.description || ch.name || (chRefs.length ? "the character shown in the reference image(s)" : "the main character of the ad");
+    const prompt = `Master CHARACTER REFERENCE${ch.name ? ` of "${ch.name}"` : ""} for a ${styleLabel} video ad. A clean, full-figure, front-facing portrait of ${desc}. Neutral light-grey seamless studio background, soft even lighting, sharp and clear, the WHOLE character visible and well framed. This is the DEFINITIVE reference reused to keep the EXACT SAME character (same design, colors, proportions, features) across every scene.${chRefs.length ? " Base the character on the reference image(s) provided — keep their identity/design." : ""}`;
+    try {
+      const job = chRefs.length === 0
+        ? await createTextToImage(prompt, config.aspectRatio, config.resolution, imageModel)
+        : await createImageEdit(chRefs, prompt, config.aspectRatio, config.resolution, imageModel);
+      const res = await pollImageGen(job.request_id);
+      if (res.image_url) generated.push({ name: ch.name, url: res.image_url, description: ch.description });
+    } catch { /* si un personaje falla, seguimos con los demás */ }
+  }
 
-  const job = refs.length === 0
-    ? await createTextToImage(prompt, config.aspectRatio, config.resolution, imageModel)
-    : await createImageEdit(refs, prompt, config.aspectRatio, config.resolution, imageModel);
-  const result = await pollImageGen(job.request_id);
-  if (result.status === "failed") throw new Error(result.error || "Character generation failed");
+  if (generated.length === 0) throw new Error("Character generation failed");
 
-  return { result: { url: result.image_url, description: characterDesc }, needsApproval: true };
+  // url/description del primero = back-compat (base_image/images anclan a `characters` si existe).
+  return { result: { characters: generated, url: generated[0].url, description: generated[0].description }, needsApproval: true };
 };
 
 // ── Base Image — generate frame 1 only ──────────────────
@@ -226,13 +247,19 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   }
 
   const referenceUrls: string[] = [];
-  // El PERSONAJE MAESTRO (paso character, confirmado) es la identidad #1 — va primero para
-  // que Nano mantenga el mismo personaje en el frame 1 y en toda la historia.
-  const characterUrl = (getStepResult("character") as { url?: string } | undefined)?.url;
-  if (characterUrl) referenceUrls.push(characterUrl);
+  // PERSONAJES MAESTROS (paso character) — anclamos SOLO los que aparecen en este frame (por
+  // nombre en el prompt/speaker). Identidad #1 para que salgan idénticos en toda la historia.
+  const charStep = getStepResult("character") as { characters?: Array<{ name: string; url: string }>; url?: string } | undefined;
+  const allChars = charStep?.characters?.length ? charStep.characters : (charStep?.url ? [{ name: "", url: charStep.url }] : []);
+  const charUrlsFor = (text: string): string[] => {
+    const t = (text || "").toLowerCase();
+    const matched = allChars.filter((c) => c.name && t.includes(c.name.toLowerCase()));
+    return Array.from(new Set((matched.length ? matched : allChars).map((c) => c.url).filter(Boolean))).slice(0, 3);
+  };
+  for (const u of charUrlsFor(`${firstFrame.prompt} ${(firstFrame as { speaker?: string }).speaker || ""}`)) referenceUrls.push(u);
   // Order: uploaded refs (user intent) > avatar > clothing > product > background > moodboard
   for (const u of uploadedRefDataUrls) referenceUrls.push(u);
-  if (selectedAvatar?.imageUrl && selectedAvatar.imageUrl !== characterUrl) referenceUrls.push(selectedAvatar.imageUrl);
+  if (selectedAvatar?.imageUrl && !referenceUrls.includes(selectedAvatar.imageUrl)) referenceUrls.push(selectedAvatar.imageUrl);
   selectedClothing.forEach((c) => { if (c.imageUrl) referenceUrls.push(c.imageUrl); });
   if (selectedProduct?.imageUrl) referenceUrls.push(selectedProduct.imageUrl);
   if (selectedBackground?.imageUrl) referenceUrls.push(selectedBackground.imageUrl);
@@ -293,15 +320,22 @@ export const handleImages: StepHandler = async (ctx) => {
 
   const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
 
-  // Personaje maestro (paso character) — se ancla en CADA frame para consistencia de identidad.
-  const characterUrl = (getStepResult("character") as { url?: string } | undefined)?.url;
+  // Personajes maestros (paso character) — se anclan por frame SOLO los que aparecen en él.
+  const charStep = getStepResult("character") as { characters?: Array<{ name: string; url: string }>; url?: string } | undefined;
+  const allChars = charStep?.characters?.length ? charStep.characters : (charStep?.url ? [{ name: "", url: charStep.url }] : []);
+  const charUrlsFor = (text: string): string[] => {
+    const t = (text || "").toLowerCase();
+    const matched = allChars.filter((c) => c.name && t.includes(c.name.toLowerCase()));
+    return Array.from(new Set((matched.length ? matched : allChars).map((c) => c.url).filter(Boolean))).slice(0, 3);
+  };
 
   let previousFrameUrl = baseImage.url;
   for (const frame of remainingFrames) {
     try {
-      // Personaje maestro (identidad) + frame previo (continuidad) + base (estilo). Dedup.
-      const refs = [previousFrameUrl, ...(characterUrl && characterUrl !== baseImage.url ? [characterUrl] : []), baseImage.url];
-      const prompt = `Same EXACT character (identity, design, colors) as the CHARACTER reference, same visual style and product as the reference images. Smooth visual transition from the previous frame. ${frame.prompt}`;
+      // Personajes de esta escena (identidad) + frame previo (continuidad) + base (estilo). Dedup.
+      const chUrls = charUrlsFor(`${frame.prompt} ${(frame as { speaker?: string }).speaker || ""}`).filter((u) => u !== baseImage.url);
+      const refs = Array.from(new Set([previousFrameUrl, ...chUrls, baseImage.url]));
+      const prompt = `Same EXACT character(s) (identity, design, colors) as the CHARACTER reference image(s), same visual style and product as the references. Smooth visual transition from the previous frame. ${frame.prompt}`;
       const job = await createImageEdit(refs, prompt, config.aspectRatio, config.resolution, imageModel);
       const result = await pollImageGen(job.request_id);
       const url = result.image_url || "";

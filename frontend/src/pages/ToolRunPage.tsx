@@ -8226,24 +8226,28 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
 
   // Base image step — show generated image + inputs used + lightbox + edit
   if (stepId === "character" && result) {
-    const raw = result as { url?: string; description?: string };
+    const raw = result as { url?: string; description?: string; characters?: Array<{ name: string; url: string; description: string }> };
+    const chars = raw.characters?.length ? raw.characters : (raw.url ? [{ name: "", url: raw.url, description: raw.description || "" }] : []);
     return (
       <div className="space-y-3">
-        {raw.description && (
-          <p className="text-[11px] text-fg-muted leading-snug">
-            <span className="text-[var(--color-action)] font-medium">Personaje:</span> {raw.description}
-          </p>
-        )}
-        {raw.url && (
-          <img
-            src={raw.url}
-            alt="Personaje"
-            onClick={() => setLightboxUrl(raw.url!)}
-            className="max-h-[460px] w-auto rounded-[var(--radius-md)] border border-edge object-contain cursor-zoom-in"
-          />
-        )}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {chars.map((c, i) => (
+            <div key={i} className="space-y-1">
+              {c.url && (
+                <img
+                  src={c.url}
+                  alt={c.name || "Personaje"}
+                  onClick={() => setLightboxUrl(c.url)}
+                  className="w-full aspect-[3/4] rounded-[var(--radius-md)] border border-edge object-cover cursor-zoom-in"
+                />
+              )}
+              {c.name && <p className="text-[11px] font-medium text-fg truncate" title={c.name}>{c.name}</p>}
+              {c.description && <p className="text-[10px] text-fg-faint leading-snug line-clamp-2">{c.description}</p>}
+            </div>
+          ))}
+        </div>
         <p className="text-[11px] text-fg-faint leading-snug">
-          Este es el <strong>personaje maestro</strong> — se reusa como identidad en todas las escenas. <strong>Aprobalo</strong> para seguir, o <strong>reseteá el paso</strong> para regenerarlo (podés cambiar el brief o pasar una referencia).
+          {chars.length > 1 ? "Estos son los personajes maestros" : "Este es el personaje maestro"} — se reusan como identidad en las escenas donde aparecen (por nombre). <strong>Aprobá</strong> para seguir, o <strong>reseteá el paso</strong> para regenerar.
         </p>
       </div>
     );

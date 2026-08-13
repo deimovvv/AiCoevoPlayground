@@ -145,7 +145,10 @@ Respond with ONLY a JSON object with this EXACT shape. Start with {{ end with }}
 
 {{
   "interpretation": "1-2 sentences IN {language} — what you understood and the creative approach. Plain, human.",
-  "character": "Describe the MAIN CHARACTER(S) of the ad — age, look, style, vibe. If there are several (e.g. Pedro and his daughter), describe each briefly. Empty string if no person.",
+  "character": "Short summary of the main character(s) — for display. Empty string if no person.",
+  "characters": [
+    {{ "name": "Pedro", "description": "DETAILED, reproducible look: age, face, skin, hair, build, clothing, vibe — enough to draw them identically every time." }}
+  ],
   "frames": [
     {{
       "frame": 1,
@@ -159,5 +162,6 @@ Respond with ONLY a JSON object with this EXACT shape. Start with {{ end with }}
   ]
 }}
 
-CRITICAL: make ONE frame per scene when ingesting a written script (as many as the script has — NOT a fixed 10), or 6-8 frames for a loose brief. Every frame MUST have "prompt", "script" (the dialogue/voiceover), "scene_type", "transition"; fill "speaker" and "location" when known. Preserve ingested dialogue VERBATIM. Also fill "interpretation" and "character".
+CRITICAL: make ONE frame per scene when ingesting a written script (as many as the script has — NOT a fixed 10), or 6-8 frames for a loose brief. Every frame MUST have "prompt", "script" (the dialogue/voiceover), "scene_type", "transition"; fill "speaker" and "location" when known. Preserve ingested dialogue VERBATIM.
+"characters": list EVERY distinct character that appears in the ad (one object per person, with a DETAILED reproducible description). In each frame's "prompt", name the characters present in that scene using the SAME names, so they can be kept identical. Also fill "interpretation" and "character".
 Valid transitions: "zoom_in" | "pan_left" | "pan_right" | "push" | "dolly" | "static"
