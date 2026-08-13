@@ -6981,6 +6981,20 @@ function ActiveStep({
     );
   }
 
+  if (stepId === "character") {
+    return (
+      <div className="space-y-4">
+        <p className="text-[13px] text-fg-muted">
+          Se genera el <strong>personaje maestro</strong> del ad — desde lo que interpretó del brief
+          {selectedAvatar ? " + el avatar que elegiste" : ""}. Es la <strong>identidad definitiva</strong>: se reusa en el frame 1 y en todas las escenas para que el personaje sea el mismo.
+        </p>
+        <p className="text-[12px] text-fg-faint">
+          Revisalo y <strong>aprobalo</strong> (o regeneralo) antes de generar las escenas. Podés pasar una referencia del personaje desde <strong>Referencias</strong> / avatar del Brand Kit.
+        </p>
+      </div>
+    );
+  }
+
   if (stepId === "base_image") {
     return (
       <div className="space-y-4">
@@ -8179,6 +8193,30 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
   }
 
   // Base image step — show generated image + inputs used + lightbox + edit
+  if (stepId === "character" && result) {
+    const raw = result as { url?: string; description?: string };
+    return (
+      <div className="space-y-3">
+        {raw.description && (
+          <p className="text-[11px] text-fg-muted leading-snug">
+            <span className="text-[var(--color-action)] font-medium">Personaje:</span> {raw.description}
+          </p>
+        )}
+        {raw.url && (
+          <img
+            src={raw.url}
+            alt="Personaje"
+            onClick={() => setLightboxUrl(raw.url!)}
+            className="max-h-[460px] w-auto rounded-[var(--radius-md)] border border-edge object-contain cursor-zoom-in"
+          />
+        )}
+        <p className="text-[11px] text-fg-faint leading-snug">
+          Este es el <strong>personaje maestro</strong> — se reusa como identidad en todas las escenas. <strong>Aprobalo</strong> para seguir, o <strong>reseteá el paso</strong> para regenerarlo (podés cambiar el brief o pasar una referencia).
+        </p>
+      </div>
+    );
+  }
+
   if (stepId === "base_image" && result) {
     const img = result as {
       url: string;
