@@ -8750,6 +8750,36 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
   }
 
   // Lip-sync step — show videos + voice controls per scene
+  // Video Ad Creator: lipsync devuelve { segments } (clips con la boca sincronizada). El render
+  // de abajo es el de UGC (array de escenas). Este maneja el formato de segmentos del video ad.
+  if (stepId === "lipsync" && result && typeof result === "object" && "segments" in (result as object)) {
+    const segs = ((result as { segments?: Array<{ index: number; videoUrl: string; lipsyncUrl?: string; startFrame: number; audioUrl?: string }> }).segments) || [];
+    const syncedCount = segs.filter((s) => s.lipsyncUrl).length;
+    return (
+      <div className="space-y-3">
+        <p className="text-[12px] text-fg-muted">
+          <strong>Lip-sync</strong> (Fal Fabric): la voz de cada escena hablada, sincronizada sobre el clip animado. Las escenas sin diálogo (B-roll) pasan tal cual. {syncedCount}/{segs.length} con lip-sync.
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {segs.map((s) => {
+            const url = s.lipsyncUrl || s.videoUrl;
+            return (
+              <div key={s.index} className="space-y-1">
+                {url ? (
+                  <video src={url} controls playsInline className="w-full aspect-[9/16] rounded-[var(--radius-md)] border border-edge object-cover bg-black" />
+                ) : (
+                  <div className="w-full aspect-[9/16] rounded-[var(--radius-md)] border border-dashed border-edge flex items-center justify-center text-[10px] text-fg-faint">falló</div>
+                )}
+                <p className="text-[10px] text-fg-faint">Escena {s.startFrame}{s.lipsyncUrl ? " · lip-sync ✓" : (s.audioUrl ? " · sin sync" : " · B-roll")}</p>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-fg-faint leading-snug"><strong>Aprobá</strong> para renderizar el video final (concat + subtítulos), o <strong>reseteá</strong> para reintentar.</p>
+      </div>
+    );
+  }
+
   if (stepId === "lipsync" && result) {
     const segments = result as Array<{
       sceneId: string;
