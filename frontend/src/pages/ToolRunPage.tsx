@@ -5676,7 +5676,7 @@ function ConfigPanel({
             <div className="space-y-2">
               <AssetSelector
                 collapsible
-                defaultCollapsed={(activeBrand.products || []).length > 8}
+                defaultCollapsed={tool.id === "video_ad_creator" || (activeBrand.products || []).length > 8}
                 label={schema.productLabel || "Product"}
                 sublabel={schema.productSublabel || (schema.multiProduct ? "multi-select" : "")}
                 emptyText="Upload products in Brand Kit"
@@ -5740,7 +5740,7 @@ function ConfigPanel({
           {schema.showClothing && (
             <AssetSelector
               collapsible
-              defaultCollapsed={tool.id === "ecommerce_pack" || (activeBrand.clothing || []).length > 8}
+              defaultCollapsed={tool.id === "ecommerce_pack" || tool.id === "video_ad_creator" || (activeBrand.clothing || []).length > 8}
               label={schema.clothingLabel || "Prendas"}
               sublabel={schema.clothingSublabel || "multi-select"}
               emptyText="Upload clothing items or add from here"
@@ -5783,7 +5783,7 @@ function ConfigPanel({
           {schema.showBackground && (
             <AssetSelector
               collapsible
-              defaultCollapsed={(activeBrand.backgrounds || []).length > 8}
+              defaultCollapsed={tool.id === "video_ad_creator" || (activeBrand.backgrounds || []).length > 8}
               label="Fondo"
               sublabel={schema.backgroundSublabel || ""}
               emptyText="Upload a background or add from here"
@@ -5813,9 +5813,9 @@ function ConfigPanel({
           {schema.showMoodboard && (
             <AssetSelector
               collapsible
-              defaultCollapsed={(activeBrand.moodboards || []).length > 8}
+              defaultCollapsed={tool.id === "video_ad_creator" || (activeBrand.moodboards || []).length > 8}
               label="Moodboard"
-              sublabel="visual style reference — one active at a time"
+              sublabel="referencia de estilo visual — una activa a la vez"
               emptyText="Upload a moodboard (up to 5 per brand)"
               items={(activeBrand.moodboards || []).map((m) => ({
                 id: m.id,
