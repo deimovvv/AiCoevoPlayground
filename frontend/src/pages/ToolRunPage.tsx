@@ -7852,6 +7852,38 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
             )}
           </div>
         )}
+        {/* Voces por personaje — guión ingerido: cada speaker (Pedro/Mariana/…) puede tener su
+            voz de ElevenLabs. Se guarda en el resultado del script (voiceMap). */}
+        {(() => {
+          const frames = (raw.frames as Array<Record<string, unknown>>) || [];
+          const speakers = Array.from(new Set(frames.map((f) => String(f.speaker || "").trim()).filter(Boolean)));
+          const presets = activeBrand?.voicePresets || [];
+          if (speakers.length === 0 || presets.length === 0) return null;
+          const voiceMap = (raw.voiceMap as Record<string, string>) || {};
+          return (
+            <div className="px-3 py-2.5 bg-surface-2 border border-edge rounded-[var(--radius-md)] space-y-2">
+              <p className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Voces por personaje</p>
+              <div className="grid grid-cols-1 gap-1.5">
+                {speakers.map((sp) => (
+                  <div key={sp} className="flex items-center gap-2">
+                    <span className="text-[12px] text-fg w-28 shrink-0 truncate" title={sp}>{sp}</span>
+                    <select
+                      value={voiceMap[sp] || ""}
+                      onChange={(e) => onUpdateStepResult?.("script", { ...(result as Record<string, unknown>), voiceMap: { ...voiceMap, [sp]: e.target.value } })}
+                      className="flex-1 px-2 py-1 text-[11px] bg-surface-0 border border-edge rounded-[var(--radius-sm)] outline-none focus:border-[var(--color-brand)] cursor-pointer"
+                    >
+                      <option value="">Voz por defecto</option>
+                      {presets.map((v) => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-fg-faint leading-snug">Asigná una voz a cada personaje (ej. Pedro → hombre, Mariana → mujer). Se usa al generar la voz de cada escena.</p>
+            </div>
+          );
+        })()}
         {/* Character context bar */}
         {(ctxAvatar || ctxProduct || activeBrand) && (
           <div className="flex items-center gap-3 px-3 py-2.5 bg-surface-2 border border-edge rounded-[var(--radius-md)]">

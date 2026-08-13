@@ -330,16 +330,20 @@ export const handleImages: StepHandler = async (ctx) => {
     ...generatedImages,
   ];
 
-  // Generate audio for each frame
-  const voiceId = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
+  // Generate audio for each frame — voz por personaje (voiceMap[speaker]) o la global.
+  const defaultVoice = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
+  const voiceMap = (scriptData as { voiceMap?: Record<string, string> }).voiceMap || (config as unknown as { voiceMap?: Record<string, string> }).voiceMap || {};
+  const speakerByFrame = new Map(scriptData.frames.map((fr) => [fr.frame, String((fr as { speaker?: string }).speaker || "")]));
   const framesWithAudio = await Promise.all(
     allFrames.map(async (f) => {
-      if (!f.script?.trim() || !voiceId) return { ...f, audioUrl: "" };
+      const speaker = speakerByFrame.get(f.frame) || "";
+      const vId = (speaker && voiceMap[speaker.trim()]) || defaultVoice;
+      if (!f.script?.trim() || !vId) return { ...f, audioUrl: "", speaker };
       try {
-        const { fal_url } = await generateTTSAndUpload({ text: f.script, voice_id: voiceId });
-        return { ...f, audioUrl: fal_url };
+        const { fal_url } = await generateTTSAndUpload({ text: f.script, voice_id: vId });
+        return { ...f, audioUrl: fal_url, speaker };
       } catch {
-        return { ...f, audioUrl: "" };
+        return { ...f, audioUrl: "", speaker };
       }
     })
   );
@@ -351,23 +355,29 @@ export const handleImages: StepHandler = async (ctx) => {
 
 export const handleVoice: StepHandler = async (ctx) => {
   const { activeBrand, config, getStepResult } = ctx;
-  const scriptData = getStepResult("script") as { frames: Array<{ frame: number; script: string }> } | undefined;
+  const scriptData = getStepResult("script") as { frames: Array<{ frame: number; script: string; speaker?: string }>; voiceMap?: Record<string, string> } | undefined;
   if (!scriptData?.frames) throw new Error("No script found.");
 
-  const voiceId = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
-  if (!voiceId) throw new Error("No voice selected. Pick a voice in the form.");
+  // Voz por PERSONAJE: cada speaker (Pedro/Mariana/…) puede tener su voz de ElevenLabs.
+  // El mapa se asigna en el paso Script (voiceMap por speaker); fallback: la voz global.
+  const defaultVoice = config.selectedVoiceId || activeBrand.voicePresets?.[0]?.id;
+  const voiceMap = scriptData.voiceMap || (config as unknown as { voiceMap?: Record<string, string> }).voiceMap || {};
+  const voiceFor = (speaker?: string): string | undefined =>
+    (speaker && voiceMap[speaker.trim()]) || defaultVoice;
+  if (!defaultVoice && Object.keys(voiceMap).length === 0) throw new Error("No voice selected. Pick a voice (or assign voices per character).");
 
   const audioSegments = [];
   for (const frame of scriptData.frames) {
-    if (!frame.script?.trim()) {
-      audioSegments.push({ frame: frame.frame, script: "", audioUrl: "" });
+    const vId = voiceFor(frame.speaker);
+    if (!frame.script?.trim() || !vId) {
+      audioSegments.push({ frame: frame.frame, script: frame.script || "", audioUrl: "", speaker: frame.speaker || "" });
       continue;
     }
     try {
-      const { fal_url } = await generateTTSAndUpload({ text: frame.script, voice_id: voiceId });
-      audioSegments.push({ frame: frame.frame, script: frame.script, audioUrl: fal_url });
+      const { fal_url } = await generateTTSAndUpload({ text: frame.script, voice_id: vId });
+      audioSegments.push({ frame: frame.frame, script: frame.script, audioUrl: fal_url, speaker: frame.speaker || "" });
     } catch {
-      audioSegments.push({ frame: frame.frame, script: frame.script, audioUrl: "" });
+      audioSegments.push({ frame: frame.frame, script: frame.script, audioUrl: "", speaker: frame.speaker || "" });
     }
   }
 
