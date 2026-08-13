@@ -16,15 +16,21 @@ import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstra
 
 // ── Visual styles available ─────────────────────────────
 
-export const AD_STYLES = [
-  { id: "photorealistic", label: "Photorealistic", desc: "Ultra-realistic commercial photography" },
-  { id: "claymation", label: "Claymation", desc: "Stop-motion clay animation style" },
-  { id: "2d_cartoon", label: "2D Cartoon", desc: "Flat illustrated cartoon style" },
-  { id: "3d_render", label: "3D Render", desc: "Clean 3D product visualization" },
-  { id: "cinematic", label: "Cinematic", desc: "Film-like dramatic lighting and composition" },
-  { id: "minimal", label: "Minimal", desc: "Clean, white space, product-focused" },
-  { id: "retro", label: "Retro/Vintage", desc: "Nostalgic film grain, warm tones" },
-  { id: "custom", label: "Custom", desc: "Define your own style in creative direction" },
+// `prompt` = descripción rica del estilo que se inyecta en la generación (no solo el label),
+// para que Nano lo renderice bien. Los artesanales van primero (los que le gustan al cliente).
+export const AD_STYLES: Array<{ id: string; label: string; desc: string; prompt?: string }> = [
+  { id: "playmobil", label: "Playmobil", desc: "Figuras Playmobil de juguete", prompt: "Playmobil toy style: glossy plastic Playmobil figures with their signature simple painted faces, cylindrical bodies, C-shaped hands and molded helmet hair, tiny toy props and playsets, bright saturated toy colours, shot like a real macro photo of a Playmobil diorama with soft toy-photography lighting and shallow depth of field" },
+  { id: "knitted", label: "Tejido / Lana", desc: "Todo tejido a mano (lana/fieltro)", prompt: "everything hand-knitted and needle-felted in wool and yarn: a cozy crochet miniature world with visible wool stitches and fuzzy fiber texture, soft felted characters and knitted scenery, warm handmade craft look, soft natural daylight" },
+  { id: "paper_craft", label: "Papel recortado", desc: "Collage de papel a mano", prompt: "cut-paper collage / layered torn-paper craft: everything built from textured coloured paper layered by hand, visible paper edges and fibers, a handmade papercraft diorama, warm tactile storybook feel, soft even lighting" },
+  { id: "claymation", label: "Claymation", desc: "Stop-motion en arcilla", prompt: "claymation / stop-motion clay style: characters and sets sculpted from modeling clay with visible fingerprints and clay texture, charming Aardman-like look, soft studio lighting" },
+  { id: "3d_render", label: "3D Render (Pixar)", desc: "CGI estilizado tipo Pixar", prompt: "clean stylized 3D render, Pixar/Disney-like, soft global illumination, rounded appealing character design, vibrant but tasteful colours" },
+  { id: "vfx_promo", label: "VFX Promo", desc: "Pulido, VFX + texto animado", prompt: "polished high-energy commercial look with cinematic VFX: glowing particles and light streaks, bold animated gold 3D text overlays, vibrant saturated color grade, dynamic" },
+  { id: "photorealistic", label: "Photorealistic", desc: "Foto real, look comercial", prompt: "ultra-realistic commercial photography, natural lighting, sharp detail, filmic color grade" },
+  { id: "2d_cartoon", label: "2D Cartoon", desc: "Animación 2D plana ilustrada", prompt: "flat 2D illustrated cartoon style, clean vector-like shapes, bold outlines, bright flat colours" },
+  { id: "cinematic", label: "Cinematic", desc: "Fílmico, luz dramática", prompt: "cinematic film look, dramatic directional lighting, shallow depth of field, moody filmic grade, 35mm feel" },
+  { id: "minimal", label: "Minimal", desc: "Limpio, mucho aire", prompt: "clean minimal style, lots of negative space, soft even lighting, muted refined palette, product-focused" },
+  { id: "retro", label: "Retro/Vintage", desc: "Grano de film, tonos cálidos", prompt: "nostalgic retro/vintage look, film grain, warm faded tones, 70s-80s aesthetic" },
+  { id: "custom", label: "Custom", desc: "Definí tu estilo en el brief", prompt: "" },
 ];
 
 // ── Script — generate storyboard with Gemini ────────────
@@ -38,13 +44,15 @@ export const handleScript: StepHandler = async (ctx) => {
   const numScenes = 10;
   const duration = 40;
   const adStyle = config.adStyle || "photorealistic";
-  const styleLabel = AD_STYLES.find((s) => s.id === adStyle)?.label || adStyle;
+  const styleDef = AD_STYLES.find((s) => s.id === adStyle);
+  const styleLabel = styleDef?.label || adStyle;
+  const stylePrompt = styleDef?.prompt || styleLabel;
 
   const extraVars: Record<string, string> = {
     num_scenes: String(numScenes),
     duration: String(duration),
     language: config.language || "es",
-    ad_style: `Style: ${styleLabel}. All frames must be rendered in this style consistently.`,
+    ad_style: `${styleLabel} — ${stylePrompt}. EVERY frame's visual prompt must describe the scene in THIS exact style, consistently. Do NOT drift to photorealism unless the style IS photorealistic.`,
   };
 
   if (selectedProduct?.description) extraVars.product_description = selectedProduct.description;
@@ -194,14 +202,16 @@ export const handleCharacter: StepHandler = async (ctx) => {
 
   const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
   const adStyle = config.adStyle || "photorealistic";
-  const styleLabel = AD_STYLES.find((s) => s.id === adStyle)?.label || adStyle;
+  const styleDef = AD_STYLES.find((s) => s.id === adStyle);
+  const styleLabel = styleDef?.label || adStyle;
+  const stylePrompt = styleDef?.prompt || styleLabel;
 
   const generated: Array<{ name: string; url: string; description: string }> = [];
   for (let i = 0; i < list.length; i++) {
     const ch = list[i];
     const chRefs = i === 0 ? protagonistRefs : [];   // refs solo para el protagonista
     const desc = ch.description || ch.name || (chRefs.length ? "the character shown in the reference image(s)" : "the main character of the ad");
-    const prompt = `Master CHARACTER REFERENCE${ch.name ? ` of "${ch.name}"` : ""} for a ${styleLabel} video ad. A clean, full-figure, front-facing portrait of ${desc}. Neutral light-grey seamless studio background, soft even lighting, sharp and clear, the WHOLE character visible and well framed. This is the DEFINITIVE reference reused to keep the EXACT SAME character (same design, colors, proportions, features) across every scene.${chRefs.length ? " Base the character on the reference image(s) provided — keep their identity/design." : ""}`;
+    const prompt = `Master CHARACTER REFERENCE${ch.name ? ` of "${ch.name}"` : ""} in this style: ${stylePrompt}. A clean, full-figure, front-facing portrait of ${desc}. Neutral light-grey seamless studio background, soft even lighting, sharp and clear, the WHOLE character visible and well framed, rendered fully in the ${styleLabel} style. This is the DEFINITIVE reference reused to keep the EXACT SAME character (same design, colors, proportions, features) across every scene.${chRefs.length ? " Base the character on the reference image(s) provided — keep their identity/design." : ""}`;
     try {
       const job = chRefs.length === 0
         ? await createTextToImage(prompt, config.aspectRatio, config.resolution, imageModel)
