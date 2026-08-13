@@ -15,9 +15,9 @@ import {
 
 export const videoAdCreator: ToolDefinition = {
   schema: {
-    showAvatar: true, avatarLabel: "Character", avatarSublabel: "optional — include talent in the ad",
-    showProduct: true, productLabel: "Product",
-    showClothing: true, clothingLabel: "Prendas", clothingSublabel: "what the character wears",
+    showAvatar: true, avatarLabel: "Personaje", avatarSublabel: "opcional — elegí del Brand Kit o dejá que la IA lo proponga",
+    showProduct: true, productLabel: "Producto", productSublabel: "opcional — si el ad muestra un producto",
+    showClothing: true, clothingLabel: "Prendas", clothingSublabel: "opcional — qué usa el personaje",
     showBackground: true,
     showMoodboard: true,
     showReference: true,
