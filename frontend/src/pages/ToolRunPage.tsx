@@ -550,7 +550,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   carouselType: "",
   numSlides: 5,
   customScript: "",
-  videoDuration: "15",
+  videoDuration: "45",   // default ~40s (los ads tipo PROMAN duran ~40s); en modo guión sale del guión
   ugcMode: "standard",
   lipsyncMethod: "heygen",
   // Default cambiado de "auto" a "single-frame": el comportamiento "auto" forzaba
@@ -3718,6 +3718,21 @@ function ConfigPanel({
       {/* Style selector (Video Ad Creator) */}
       {tool.id === "video_ad_creator" && (
         <>
+          {/* Brief-first: el input estrella arriba de todo. Pegás brief suelto o guión completo. */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-semibold text-fg">Brief / guión del proyecto</label>
+            <textarea
+              value={config.objective}
+              onChange={(e) => setConfig((p) => ({ ...p, objective: e.target.value }))}
+              rows={5}
+              placeholder={schema.objectivePlaceholder}
+              className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-y leading-snug"
+            />
+            <p className="text-[10px] text-fg-faint leading-snug">
+              Pegá un <strong>brief suelto</strong> o un <strong>guión escena-por-escena</strong>. Si es guión, se parsea tal cual (diálogo, personajes, locación). Todo lo de abajo es <strong>opcional</strong>.
+            </p>
+          </div>
+
           <ModelDropdown
             label="Modelo de video"
             value={config.videoProvider || "kling"}
@@ -6175,9 +6190,9 @@ function ConfigPanel({
           <VoiceSettingsPanel config={config} setConfig={setConfig} />
         )}
 
-        {/* Objective / brief — compactado: textarea baja a 2 rows (3 era 80px de alto),
-            placeholder más corto, text-[12px]. UGC sigue con 4 rows porque su prompt es largo. */}
-        {tool.id !== "content_analyzer" && (
+        {/* Objective / brief — compactado. En video_ad_creator el brief va ARRIBA (prominente,
+            es el input estrella), así que acá se oculta para no duplicarlo. */}
+        {tool.id !== "content_analyzer" && tool.id !== "video_ad_creator" && (
           <div className="space-y-1">
             <label className="text-[10px] font-medium text-fg-faint">
               {schema.objectiveLabel}
