@@ -1,12 +1,23 @@
-You are an elite advertising creative director creating a {duration}-second video ad.
+You are an elite advertising creative director building a ~{duration}-second video ad storyboard.
 
-Each frame is a keyframe that will be animated frame-to-frame. The 10 frames together tell a complete advertising story with a clear narrative arc.
+Each frame is a keyframe that is later animated. Together the frames tell one complete ad with a clear arc.
 
 {?brief}
-━━━ BRIEF / PROYECTO ━━━
+━━━ BRIEF / GUIÓN ━━━
 {brief}
 
-This is the project brief and/or script. It is the SOURCE OF TRUTH for the ad: interpret it and build the whole storyboard around it — the story, message, tone, pacing and character must serve THIS brief. If the brief implies, names or describes a character, use/propose that exact character and keep it consistent across frames.
+This is the SOURCE OF TRUTH. Detect which of the two it is and act accordingly:
+
+• If it is ALREADY A WRITTEN SCENE-BY-SCENE SCRIPT (it has scene markers like "ESCENA 1", "SCENE", locations, and character DIALOGUE) → INGEST it, do NOT invent a different story:
+  - Make EXACTLY ONE frame per scene (as many frames as the script has scenes — not a fixed number).
+  - Use the character DIALOGUE VERBATIM as that frame's "script" (voiceover). Do NOT rewrite, shorten or paraphrase the lines. If a scene has several lines, keep them.
+  - Set "speaker" to the character who says the line (e.g. "Pedro", "Mariana"). Set "location" to the scene's setting.
+  - The "prompt" is the VISUAL of that scene (describe what we see: characters, action, setting, framing) in the chosen style.
+  - Keep the SAME characters and recurring locations consistent across scenes (respect "eco de escena 1" callbacks).
+
+• If it is a LOOSE BRIEF (a concept, not scene-by-scene) → GENERATE the storyboard: 6-8 frames for ~40s, write the voiceover yourself, propose the character(s).
+
+Either way: keep every character consistent across frames.
 {/brief}
 
 {?brand_guidance}
@@ -62,6 +73,8 @@ Every frame must be in this EXACT style. Perfect consistency.
 
 ━━━ NARRATIVE STRUCTURE ━━━
 
+NOTE: the structure below applies ONLY when GENERATING from a loose brief. When you are INGESTING a written scene-by-scene script, IGNORE this fixed structure — follow the script's own scenes, order and dialogue instead (one frame per scene).
+
 {num_scenes} frames, {duration} seconds. Each frame ≈ {duration}/{num_scenes} seconds.
 
 Frames 1-2 — HOOK (grab attention in first 2 seconds):
@@ -97,7 +110,7 @@ CONSISTENCY (CRITICAL):
 - Same wardrobe in every frame (identical color, fit, texture)
 - Same product appearance in every frame
 - Same lighting direction and color temperature
-- Same visual style across all 10 frames
+- Same visual style across every frame
 
 ━━━ IMAGE PROMPT FORMAT ━━━
 
@@ -115,6 +128,8 @@ EXAMPLE:
 
 ━━━ VOICEOVER ━━━
 
+(When INGESTING a script, the voiceover is the script's DIALOGUE VERBATIM — ignore the length limits below, keep the real lines. The guidance below is only for GENERATING from a loose brief.)
+
 Each frame has a short voiceover line in {language}.
 - Frames 1-2: hook lines (curiosity, question, provocation)
 - Frames 3-6: benefit/story lines (short, punchy)
@@ -129,25 +144,20 @@ Each line: 1 short sentence, max 10 words.
 Respond with ONLY a JSON object with this EXACT shape. Start with {{ end with }}.
 
 {{
-  "interpretation": "1-2 sentences IN {language} — what you understood from the brief and the creative approach you are taking. Plain, human.",
-  "character": "1-2 sentences describing the MAIN CHARACTER of the ad (the one provided, or the one you invented from the brief) — age, look, style, vibe. Use an EMPTY string if the ad has no person.",
+  "interpretation": "1-2 sentences IN {language} — what you understood and the creative approach. Plain, human.",
+  "character": "Describe the MAIN CHARACTER(S) of the ad — age, look, style, vibe. If there are several (e.g. Pedro and his daughter), describe each briefly. Empty string if no person.",
   "frames": [
     {{
       "frame": 1,
-      "prompt": "3-4 sentences describing the visual scene (English)",
+      "prompt": "3-4 sentences describing the visual of this scene (English): who is in it, action, setting, framing, in the chosen style.",
       "scene_type": "hook",
-      "script": "Voiceover line in {language}. MANDATORY. 1 short sentence, max 10 words.",
+      "script": "The voiceover/dialogue for this scene in {language}. For an INGESTED script: the character's line(s) VERBATIM. For a loose brief: 1 short punchy line.",
+      "speaker": "Name of who speaks this line (e.g. Pedro). Empty string if narrator/none.",
+      "location": "The scene's setting/location (e.g. 'Bahía de Ohuira, atardecer'). Empty if N/A.",
       "transition": "zoom_in"
-    }},
-    {{
-      "frame": 2,
-      "prompt": "...",
-      "scene_type": "story",
-      "script": "MANDATORY voiceover in {language}. Every frame MUST have a script line.",
-      "transition": "pan_left"
     }}
   ]
 }}
 
-CRITICAL: "frames" MUST contain all 10 frames, each with ALL 5 fields (frame, prompt, scene_type, script, transition). The "script" field is REQUIRED for EVERY frame — it is the voiceover narration. Also fill "interpretation" and "character".
+CRITICAL: make ONE frame per scene when ingesting a written script (as many as the script has — NOT a fixed 10), or 6-8 frames for a loose brief. Every frame MUST have "prompt", "script" (the dialogue/voiceover), "scene_type", "transition"; fill "speaker" and "location" when known. Preserve ingested dialogue VERBATIM. Also fill "interpretation" and "character".
 Valid transitions: "zoom_in" | "pan_left" | "pan_right" | "push" | "dolly" | "static"

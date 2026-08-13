@@ -56,7 +56,7 @@ export const handleScript: StepHandler = async (ctx) => {
     extraVars.selected_clothing = selectedClothing.map((c) => `- ${c.name}${c.description ? `: ${c.description}` : ""}`).join("\n");
   }
 
-  let userMsg = `Generate a ${duration}-second video ad storyboard with ${numScenes} frames in ${styleLabel} style.`;
+  let userMsg = `Turn the BRIEF/GUIÓN into a ~${duration}s video ad storyboard in ${styleLabel} style. If the brief is ALREADY a written scene-by-scene script (scene markers + dialogue), INGEST it: one frame per scene, dialogue VERBATIM as the voiceover, extract speaker + location, keep characters consistent. If it is a loose brief, GENERATE ~6-8 frames and write the voiceover yourself.`;
   if (selectedProduct) userMsg += `\nProduct: ${selectedProduct.name}`;
   if (selectedAvatar) {
     userMsg += `\nCharacter: ${selectedAvatar.name}${selectedAvatar.description ? ` — ${selectedAvatar.description}` : ""}`;
@@ -134,6 +134,10 @@ export const handleScript: StepHandler = async (ctx) => {
         prompt,
         scene_type: String(f.scene_type || f.type || f.category || "story"),
         script,
+        // Ingesta de guión: quién habla (para asignar voz por personaje) + locación (para
+        // consistencia de escenario entre escenas que se repiten).
+        speaker: String(f.speaker || f.character || f.who || "").trim(),
+        location: String(f.location || f.setting || f.scene_location || "").trim(),
         transition: String(f.transition || f.movement || f.camera_movement || "fade"),
         time: String(f.time || ""),
       };
@@ -142,7 +146,8 @@ export const handleScript: StepHandler = async (ctx) => {
 
   if (frames.length === 0) throw new Error(`No frames generated. Raw: ${JSON.stringify(result)?.slice(0, 300)}`);
 
-  return { result: { frames, style: styleLabel, numScenes, interpretation, character }, needsApproval: true };
+  // numScenes = cantidad real de escenas (variable: guión ingerido = N escenas del guión).
+  return { result: { frames, style: styleLabel, numScenes: frames.length, interpretation, character }, needsApproval: true };
 };
 
 // ── Character — genera el personaje MAESTRO (confirmás antes de las escenas) ──
