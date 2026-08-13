@@ -3733,13 +3733,17 @@ function ConfigPanel({
             value={config.adStyle || "photorealistic"}
             onChange={(next) => setConfig((p) => ({ ...p, adStyle: next }))}
             options={[
-              { id: "photorealistic", label: "Photorealistic", sub: "Foto realista, look profesional" },
-              { id: "claymation", label: "Claymation", sub: "Stop-motion arcilla" },
+              { id: "playmobil", label: "Playmobil", sub: "Figuras Playmobil de juguete" },
+              { id: "knitted", label: "Tejido / Lana", sub: "Todo tejido a mano (lana/fieltro)" },
+              { id: "paper_craft", label: "Papel recortado", sub: "Collage de papel a mano" },
+              { id: "claymation", label: "Claymation", sub: "Stop-motion en arcilla" },
+              { id: "3d_render", label: "3D Render (Pixar)", sub: "CGI estilizado tipo Pixar" },
+              { id: "vfx_promo", label: "VFX Promo", sub: "Pulido, VFX + texto animado" },
+              { id: "photorealistic", label: "Photorealistic", sub: "Foto real, look comercial" },
               { id: "2d_cartoon", label: "2D Cartoon", sub: "Animación 2D plana" },
-              { id: "3d_render", label: "3D Render", sub: "CGI estilo Pixar" },
-              { id: "cinematic", label: "Cinematic", sub: "Look fílmico con grano + grading" },
+              { id: "cinematic", label: "Cinematic", sub: "Fílmico, luz dramática" },
               { id: "minimal", label: "Minimal", sub: "Limpio, mucho aire negativo" },
-              { id: "retro", label: "Retro", sub: "Estética vintage / 80s-90s" },
+              { id: "retro", label: "Retro", sub: "Vintage, grano de film" },
               { id: "custom", label: "Custom", sub: "Describí tu estilo abajo" },
             ]}
           />
