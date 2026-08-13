@@ -10,7 +10,7 @@
 import type { ToolDefinition } from "../types";
 import {
   handleScript, handleCharacter, handleBaseImage, handleImages,
-  handleVoice, handleAnimate, handleRender,
+  handleVoice, handleAnimate, handleLipsync, handleRender,
 } from "./handlers";
 
 export const videoAdCreator: ToolDefinition = {
@@ -37,8 +37,9 @@ export const videoAdCreator: ToolDefinition = {
     images: handleImages,
     voice: handleVoice,
     animate: handleAnimate,
+    lipsync: handleLipsync,
     render: handleRender,
   },
-  approvalSteps: ["script", "character", "base_image", "images", "voice", "animate"],
+  approvalSteps: ["script", "character", "base_image", "images", "voice", "animate", "lipsync"],
   autoRunSteps: ["images", "voice", "render"],
 };

@@ -10,6 +10,7 @@ import {
   generateTTSAndUpload, pollKlingVideo,
   createVeoVideo, pollVeoVideo,
   createSeedanceReferenceToVideo, pollSeedanceVideo,
+  createFalLipSync, pollFalLipSync,
   concatVideos,
 } from "../../lib/api";
 import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstraints";
@@ -500,16 +501,58 @@ export const handleAnimate: StepHandler = async (ctx) => {
   return { result: { segments }, needsApproval: true };
 };
 
+// ── Lipsync — Fal Fabric: pega la voz de ElevenLabs sobre los clips animados ──
+// Fabric sincroniza labios sobre un VIDEO (por eso va DESPUÉS de animate). Para cada segmento
+// cuya escena tiene diálogo + audio, aplica el lip-sync; las escenas B-roll pasan tal cual.
+
+export const handleLipsync: StepHandler = async (ctx) => {
+  const { getStepResult } = ctx;
+  const animateData = getStepResult("animate") as { segments: Array<{ index: number; videoUrl: string; startFrame: number; endFrame: number; status: string }> } | undefined;
+  if (!animateData?.segments) throw new Error("No hay clips animados. Corré 'animate' primero.");
+
+  // Audio por frame — del paso voice; fallback al audio embebido en images.
+  const voiceData = getStepResult("voice") as { audioSegments?: Array<{ frame: number; audioUrl: string }> } | undefined;
+  const imagesData = getStepResult("images") as { images?: Array<{ frame: number; audioUrl?: string }> } | undefined;
+  const audioByFrame = new Map<number, string>();
+  (voiceData?.audioSegments || []).forEach((a) => { if (a.audioUrl) audioByFrame.set(a.frame, a.audioUrl); });
+  (imagesData?.images || []).forEach((f) => { if (f.audioUrl && !audioByFrame.has(f.frame)) audioByFrame.set(f.frame, f.audioUrl); });
+
+  const segments: Array<{ index: number; videoUrl: string; startFrame: number; endFrame: number; status: string; lipsyncUrl: string; audioUrl: string }> = [];
+  for (const seg of animateData.segments) {
+    const audioUrl = audioByFrame.get(seg.startFrame) || "";
+    // Sin video o sin audio (B-roll / escena sin diálogo) → pasa tal cual.
+    if (!seg.videoUrl || !audioUrl) {
+      segments.push({ ...seg, lipsyncUrl: "", audioUrl });
+      continue;
+    }
+    try {
+      const audioBlob = await fetch(audioUrl).then((r) => r.blob());
+      const created = await createFalLipSync(audioBlob, seg.videoUrl, "cut_off");
+      const finalUrl = created.video_url || (await pollFalLipSync(created.request_id)).video_url || "";
+      segments.push({ ...seg, lipsyncUrl: finalUrl, audioUrl });
+    } catch {
+      segments.push({ ...seg, lipsyncUrl: "", audioUrl });
+    }
+  }
+
+  return { result: { segments }, needsApproval: true };
+};
+
 // ── Render — concat all segments + voice + subtitles ────
 
 export const handleRender: StepHandler = async (ctx) => {
   const { config, getStepResult } = ctx;
+  // Preferimos los segmentos del lip-sync (con la boca sincronizada); fallback a los de animate.
+  const lipsyncData = getStepResult("lipsync") as { segments: Array<{ videoUrl: string; lipsyncUrl?: string }> } | undefined;
   const animateData = getStepResult("animate") as { segments: Array<{ videoUrl: string }> } | undefined;
   const scriptData = getStepResult("script") as { frames: Array<{ script: string }> } | undefined;
 
-  if (!animateData?.segments) throw new Error("No animated segments found.");
+  const sourceSegments = lipsyncData?.segments
+    ? lipsyncData.segments.map((s) => ({ videoUrl: s.lipsyncUrl || s.videoUrl }))
+    : animateData?.segments;
+  if (!sourceSegments) throw new Error("No animated segments found.");
 
-  const videoUrls = animateData.segments.filter((s) => s.videoUrl).map((s) => s.videoUrl);
+  const videoUrls = sourceSegments.filter((s) => s.videoUrl).map((s) => s.videoUrl);
   if (videoUrls.length === 0) throw new Error("No valid video segments.");
 
   const subtitleScripts = scriptData?.frames.map((f) => ({ text: f.script || "" })) || [];

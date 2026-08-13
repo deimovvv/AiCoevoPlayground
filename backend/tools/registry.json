@@ -121,6 +121,7 @@
       "images",
       "voice",
       "animate",
+      "lipsync",
       "render"
     ]
   },
