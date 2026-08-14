@@ -21,7 +21,9 @@ export const videoAdCreator: ToolDefinition = {
     showBackground: true,
     showMoodboard: true,
     showReference: true,
-    showVoice: true,
+    // Voz NO global: se asigna por personaje (auto-sugerida en el paso Script, editable).
+    // Ver handleScript.autoAssignVoices + la UI "Voces por personaje".
+    showVoice: false,
     showTone: false,
     showPlatform: false,
     showLanguage: true,
