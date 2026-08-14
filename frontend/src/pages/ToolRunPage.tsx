@@ -8067,7 +8067,9 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                 {/* Scene type toggle — solo cuando la tool tiene flujo de voiceover */}
                 {!isVisualOnlyTool && (
                   <div className="flex items-center rounded border border-edge overflow-hidden ml-1">
-                    {(["talking", "creative", "lifestyle", "sensorial", "product_reveal"] as AllSceneTypes[]).map((t) => (
+                    {/* Video Ad: guión ingerido → solo Talking/Creative (los 4 subtipos mapean todos
+                        a "creative" igual, así que confunden). El resto de tools mantiene los 5. */}
+                    {((toolId === "video_ad_creator" ? ["talking", "creative"] : ["talking", "creative", "lifestyle", "sensorial", "product_reveal"]) as AllSceneTypes[]).map((t) => (
                       <button
                         key={t}
                         onClick={() => setSceneType(t)}
@@ -10749,6 +10751,21 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
           <span className="text-[13px] font-medium text-fg">
             {successful.length}/{images.length} keyframes generated — review before animating
           </span>
+          {successful.length > 0 && (
+            <button
+              onClick={async () => {
+                const items = [...successful]
+                  .sort((a, b) => a.frame - b.frame)
+                  .map((img) => ({ url: img.url, filename: `escena_${String(img.frame).padStart(2, "0")}.png` }));
+                try { await downloadZip(items, "video_ad_escenas"); }
+                catch (e) { console.error("[video_ad] zip download failed:", e); }
+              }}
+              className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[11px] text-fg-muted hover:text-fg hover:border-[var(--color-edge-focus)] cursor-pointer transition-colors"
+              title="Descargar todas las escenas en orden, en un ZIP"
+            >
+              <Download size={11} /> Descargar todas ({successful.length}) · ZIP
+            </button>
+          )}
         </div>
 
         {/* Horizontal grid of frames */}
