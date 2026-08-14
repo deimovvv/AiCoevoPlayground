@@ -76,7 +76,11 @@ export const handleScript: StepHandler = async (ctx) => {
   const adStyle = config.adStyle || "photorealistic";
   const styleDef = AD_STYLES.find((s) => s.id === adStyle);
   const styleLabel = styleDef?.label || adStyle;
-  const stylePrompt = styleDef?.prompt || styleLabel;
+  // Custom: el usuario describe el estilo en config.notes → ESE texto es la guía de estilo.
+  // Sin esto, "Custom" no le dice nada al modelo y el estilo sale genérico/inconsistente
+  // (aparecía "Custom — Custom" en cada visual).
+  const customText = adStyle === "custom" ? (config.notes || "").trim() : "";
+  const stylePrompt = customText || styleDef?.prompt || styleLabel;
 
   const extraVars: Record<string, string> = {
     num_scenes: String(numScenes),
@@ -89,7 +93,8 @@ export const handleScript: StepHandler = async (ctx) => {
   // El campo objective ahora es el BRIEF del proyecto — lo pasamos como {brief} (fuente de
   // verdad del guión) y también como creative_direction para back-compat del template.
   if (config.objective) { extraVars.brief = config.objective; extraVars.creative_direction = config.objective; }
-  if (config.notes) extraVars.user_notes = config.notes;
+  // Si es Custom, config.notes ES el estilo (arriba) — no lo repetimos como user_notes.
+  if (config.notes && adStyle !== "custom") extraVars.user_notes = config.notes;
   if (selectedClothing.length > 0) {
     extraVars.selected_clothing = selectedClothing.map((c) => `- ${c.name}${c.description ? `: ${c.description}` : ""}`).join("\n");
   }
