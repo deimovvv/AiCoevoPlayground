@@ -36,6 +36,35 @@ export const AD_STYLES: Array<{ id: string; label: string; desc: string; prompt?
 
 // ── Script — generate storyboard with Gemini ────────────
 
+// Auto-asigna una voz del Brand Kit a cada personaje leyendo su descripción (edad/género).
+// Es una SUGERENCIA: el usuario la confirma/cambia en el paso Script. Así el guión "manda"
+// y el form no obliga a elegir una voz global. Match por nombre del preset (Nenita/Mujer/Hombre…).
+function autoAssignVoices(
+  characters: Array<{ name: string; description: string }>,
+  presets: Array<{ id: string; name: string }>,
+): Record<string, string> {
+  if (!characters.length || !presets.length) return {};
+  const byName = (kw: string) => presets.find((p) => p.name.toLowerCase().includes(kw))?.id;
+  const map: Record<string, string> = {};
+  for (const c of characters) {
+    const t = `${c.name} ${c.description}`.toLowerCase();
+    const ageM = t.match(/\b(\d{1,2})\s*años?\b/) || t.match(/\((\d{1,2})\)/);
+    const age = ageM ? parseInt(ageM[1], 10) : null;
+    const isChild = (age !== null && age <= 14) || /\b(niñ[oa]|nen[ae]|chic[oa]|adolescente|peque)\b/.test(t);
+    const isFemale = /\b(niña|nena|mujer|señora|doña|abuela|madre|mam[áa]|hija|chica|biólog|supervisora|gu[íi]a)\b/.test(t);
+    const isMale = /\b(niño|nene|hombre|señor|\bdon\b|abuelo|padre|pap[áa]|hijo|capit[áa]n|ingenier|t[ée]cnic|guardaparque)\b/.test(t);
+    const isOld = (age !== null && age >= 60) || /\b(abuel[oa]|ancian[oa]|viej[oa]|mayor|grande)\b/.test(t);
+    let vid: string | undefined;
+    if (isChild) vid = byName("nen") || byName("niñ") || byName("nena");
+    else if (isFemale && !isMale) vid = byName("mujer");
+    else if (isMale && isOld) vid = byName("grande") || byName("hombre");
+    else if (isMale) vid = presets.find((p) => /hombre/.test(p.name.toLowerCase()) && !/grande/.test(p.name.toLowerCase()))?.id || byName("hombre");
+    else vid = byName("mujer") || byName("hombre");
+    if (vid && c.name) map[c.name] = vid;
+  }
+  return map;
+}
+
 export const handleScript: StepHandler = async (ctx) => {
   const { activeBrand, config } = ctx;
   const selectedProduct = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
@@ -161,8 +190,12 @@ export const handleScript: StepHandler = async (ctx) => {
 
   if (frames.length === 0) throw new Error(`No frames generated. Raw: ${JSON.stringify(result)?.slice(0, 300)}`);
 
+  // Auto-sugerencia de voz por personaje (del Brand Kit). El usuario la confirma/cambia
+  // en el paso Script — reemplaza al selector de voz global del form.
+  const voiceMap = autoAssignVoices(characters, activeBrand.voicePresets || []);
+
   // numScenes = cantidad real de escenas (variable: guión ingerido = N escenas del guión).
-  return { result: { frames, style: styleLabel, numScenes: frames.length, interpretation, character, characters }, needsApproval: true };
+  return { result: { frames, style: styleLabel, numScenes: frames.length, interpretation, character, characters, voiceMap }, needsApproval: true };
 };
 
 // ── Character — genera el personaje MAESTRO (confirmás antes de las escenas) ──
