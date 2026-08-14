@@ -263,6 +263,19 @@ export const handleCharacter: StepHandler = async (ctx) => {
 
 // ── Base Image — generate frame 1 only ──────────────────
 
+// Fondo por escena: solo se ancla una FOTO REAL cuando la escena MUESTRA la planta
+// (verdad visual). El resto de locaciones (bahía, manglar, panga, orilla, centro comunitario…)
+// las imagina la IA desde el prompt + el contexto de marca — NO se fuerza una imagen. El fondo
+// manual del config, si el usuario lo eligió, sigue como override. Ver docs/video-dialogue-pipeline.md.
+const PLANT_SCENE_KW = /(planta|fertilizante|construcci|domo|contenedor|gr[úu]a|torre industrial|f[áa]brica|CERREY|refiner)/i;
+function plantBackgroundUrls(text: string, brand: { backgrounds?: Array<{ name?: string; imageUrl?: string }> }): string[] {
+  if (!PLANT_SCENE_KW.test(text || "")) return [];
+  return (brand.backgrounds || [])
+    .filter((b) => /planta/i.test(b.name || "") && !!b.imageUrl)
+    .slice(0, 2)
+    .map((b) => b.imageUrl as string);
+}
+
 export const handleBaseImage: StepHandler = async (ctx) => {
   const { activeBrand, config, getStepResult, setAudioCache } = ctx;
   const scriptData = getStepResult("script") as { frames: Array<{ prompt: string; frame: number; scene_type: string; script?: string }> } | undefined;
@@ -306,7 +319,11 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   if (selectedAvatar?.imageUrl && !referenceUrls.includes(selectedAvatar.imageUrl)) referenceUrls.push(selectedAvatar.imageUrl);
   selectedClothing.forEach((c) => { if (c.imageUrl) referenceUrls.push(c.imageUrl); });
   if (selectedProduct?.imageUrl) referenceUrls.push(selectedProduct.imageUrl);
-  if (selectedBackground?.imageUrl) referenceUrls.push(selectedBackground.imageUrl);
+  // Fondo por escena (auto): la planta real se ancla SOLO si el frame 1 la muestra.
+  for (const u of plantBackgroundUrls(`${firstFrame.prompt} ${(firstFrame as { location?: string }).location || ""}`, activeBrand)) {
+    if (!referenceUrls.includes(u)) referenceUrls.push(u);
+  }
+  if (selectedBackground?.imageUrl && !referenceUrls.includes(selectedBackground.imageUrl)) referenceUrls.push(selectedBackground.imageUrl);
   if (selectedMoodboard?.imageUrl) referenceUrls.push(selectedMoodboard.imageUrl);
 
   const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
@@ -380,7 +397,9 @@ export const handleImages: StepHandler = async (ctx) => {
       // Luego identidad de personaje, y el frame previo al final para continuidad suave (keyframes de video).
       const chUrls = charUrlsFor(`${frame.prompt} ${(frame as { speaker?: string }).speaker || ""}`)
         .filter((u) => u !== baseImage.url && u !== previousFrameUrl);
-      const refs = Array.from(new Set([baseImage.url, ...chUrls, previousFrameUrl]));
+      // Fondo por escena: si ESTA escena muestra la planta, anclamos la foto real; si no, imaginativo.
+      const plantBg = plantBackgroundUrls(`${frame.prompt} ${(frame as { location?: string }).location || ""}`, activeBrand);
+      const refs = Array.from(new Set([baseImage.url, ...chUrls, ...plantBg, previousFrameUrl]));
       const prompt = `The FIRST reference is the approved MASTER scene — match it EXACTLY: same location and environment, same color palette and saturation, same lighting direction and quality, same visual style/medium. This is a NEW shot within that SAME world, not a different place. Keep the SAME character(s) — identical identity, design, colors — as the character reference(s). Smooth visual continuity with the previous frame (no hard jumps in framing). New shot: ${frame.prompt}`;
       const job = await createImageEdit(refs, prompt, config.aspectRatio, config.resolution, imageModel);
       const result = await pollImageGen(job.request_id);
