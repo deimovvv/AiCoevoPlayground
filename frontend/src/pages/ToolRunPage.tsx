@@ -77,6 +77,24 @@ import { posterPrompt, subwayScenePrompt, foohCompositePrompt } from "../tools/f
 import { TOOL_EXAMPLES, TOOL_PREVIEW_MEDIA, type ToolExample } from "../lib/toolPreviews";
 import { autoSaveStep, setActiveGenId, clearActiveGen } from "../tools/shared/autoSave";
 
+// ── Audio compartido ───────────────────────────────────────
+// Un solo <audio> para toda la página: tocar Play para el que sonaba (no se
+// duplica ni se solapa), y un segundo click sobre el mismo pausa. Reemplaza a
+// los `new Audio(url).play()` sueltos que no se podían parar.
+let _sharedAudio: HTMLAudioElement | null = null;
+let _sharedAudioUrl: string | null = null;
+function toggleAudio(url: string) {
+  if (!url) return;
+  if (_sharedAudio && _sharedAudioUrl === url && !_sharedAudio.paused) {
+    _sharedAudio.pause();
+    return;
+  }
+  if (_sharedAudio) { _sharedAudio.pause(); _sharedAudio.currentTime = 0; }
+  _sharedAudio = new Audio(url);
+  _sharedAudioUrl = url;
+  _sharedAudio.play().catch(() => { /* autoplay/blob puede fallar silenciosamente */ });
+}
+
 // ── Types ──────────────────────────────────────────────────
 
 interface ToolEntry {
@@ -8667,8 +8685,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                 {seg.audioUrl ? (
                   <button
                     onClick={() => {
-                      const audio = new Audio(seg.audioUrl);
-                      audio.play();
+                      toggleAudio(seg.audioUrl!);
                     }}
                     className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 transition-colors cursor-pointer"
                   >
@@ -8709,8 +8726,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                     <>
                       <button
                         onClick={() => {
-                          const audio = new Audio(seg.audioUrl);
-                          audio.play();
+                          toggleAudio(seg.audioUrl!);
                         }}
                         className="flex items-center gap-1 px-2.5 py-1 rounded-[var(--radius-sm)] text-[10px] font-medium bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3 cursor-pointer"
                       >
@@ -10802,7 +10818,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
               )}
               {img.audioUrl && (
                 <button
-                  onClick={() => new Audio(img.audioUrl!).play()}
+                  onClick={() => toggleAudio(img.audioUrl!)}
                   className="flex items-center gap-1 text-[9px] text-fg-faint hover:text-fg cursor-pointer"
                 >
                   <Play size={8} /> Listen
