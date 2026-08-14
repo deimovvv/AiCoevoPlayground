@@ -9,11 +9,11 @@ Each frame is a keyframe that is later animated. Together the frames tell one co
 This is the SOURCE OF TRUTH. Detect which of the two it is and act accordingly:
 
 • If it is ALREADY A WRITTEN SCENE-BY-SCENE SCRIPT (it has scene markers like "ESCENA 1", "SCENE", locations, and character DIALOGUE) → INGEST it, do NOT invent a different story:
-  - Make EXACTLY ONE frame per scene (as many frames as the script has scenes — not a fixed number).
-  - Use the character DIALOGUE VERBATIM as that frame's "script" (voiceover). Do NOT rewrite, shorten or paraphrase the lines. If a scene has several lines, keep them.
-  - Set "speaker" to the character who says the line (e.g. "Pedro", "Mariana"). Set "location" to the scene's setting.
-  - The "prompt" is the VISUAL of that scene (describe what we see: characters, action, setting, framing) in the chosen style.
-  - Keep the SAME characters and recurring locations consistent across scenes (respect "eco de escena 1" callbacks).
+  - Break each scene into ONE FRAME PER SPEAKER TURN (each dialogue line / exchange = its own frame). A scene where two people trade 4 lines → 4 frames. A monologue line → 1 frame. This creates a natural shot-reverse-shot (plano-contraplano) rhythm and AVOIDS one long static image sitting over a long audio. Result: a 40s dialogue script becomes ~8-14 frames, not 3.
+  - Each frame's "script" = ONLY that turn's line(s), VERBATIM. Do NOT merge a whole scene's dialogue into one frame; do NOT rewrite/shorten. Set "speaker" to who says THAT line (e.g. "Pedro", "Mariana").
+  - Frame each turn as a CLOSE-UP or MEDIUM CLOSE-UP of the CURRENT speaker (their face clearly visible), ALTERNATING the angle between speakers (A close-up → reverse to B close-up). Occasionally use a wider 2-shot to (re)establish the scene. Close-ups also make lip-sync work.
+  - The "prompt" is the VISUAL of that shot (who is in frame, action, framing) in the chosen style.
+  - Keep the SAME location, characters, wardrobe and lighting across ALL frames of a scene — only the shot/angle changes per turn. Set "location" to the scene's setting (same for all its turns). Respect "eco de escena 1" callbacks.
 
 • If it is a LOOSE BRIEF (a concept, not scene-by-scene) → GENERATE the storyboard: 6-8 frames for ~40s, write the voiceover yourself, propose the character(s).
 
@@ -73,7 +73,7 @@ Every frame must be in this EXACT style. Perfect consistency.
 
 ━━━ NARRATIVE STRUCTURE ━━━
 
-NOTE: the structure below applies ONLY when GENERATING from a loose brief. When you are INGESTING a written scene-by-scene script, IGNORE this fixed structure — follow the script's own scenes, order and dialogue instead (one frame per scene).
+NOTE: the structure below applies ONLY when GENERATING from a loose brief. When you are INGESTING a written scene-by-scene script, IGNORE this fixed structure — follow the script's own scenes, order and dialogue instead (ONE FRAME PER SPEAKER TURN / plano-contraplano, as described above).
 
 {num_scenes} frames, {duration} seconds. Each frame ≈ {duration}/{num_scenes} seconds.
 
@@ -162,6 +162,6 @@ Respond with ONLY a JSON object with this EXACT shape. Start with {{ end with }}
   ]
 }}
 
-CRITICAL: make ONE frame per scene when ingesting a written script (as many as the script has — NOT a fixed 10), or 6-8 frames for a loose brief. Every frame MUST have "prompt", "script" (the dialogue/voiceover), "scene_type", "transition"; fill "speaker" and "location" when known. Preserve ingested dialogue VERBATIM.
+CRITICAL: when ingesting a written script, make ONE FRAME PER SPEAKER TURN (plano-contraplano close-ups) — a 40s dialogue script becomes ~8-14 frames, NOT one-per-scene and NOT a fixed 10. For a loose brief, 6-8 frames. Every frame MUST have "prompt", "script" (the dialogue/voiceover), "scene_type", "transition"; fill "speaker" and "location" when known. Preserve ingested dialogue VERBATIM.
 "characters": list EVERY distinct character that appears in the ad (one object per person, with a DETAILED reproducible description). In each frame's "prompt", name the characters present in that scene using the SAME names, so they can be kept identical. Also fill "interpretation" and "character".
 Valid transitions: "zoom_in" | "pan_left" | "pan_right" | "push" | "dolly" | "static"
