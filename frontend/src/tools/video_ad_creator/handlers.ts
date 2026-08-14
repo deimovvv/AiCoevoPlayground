@@ -137,7 +137,12 @@ export const handleScript: StepHandler = async (ctx) => {
     return [];
   };
 
-  const rawFrames = findArray(result);
+  // rawFrames: preferimos la clave "frames" del objeto (se setea abajo al parsear obj).
+  // findArray queda como FALLBACK para el shape viejo (array crudo). Bug corregido: antes
+  // findArray agarraba "el primer array que encuentra" y, cuando el guión devolvía
+  // characters ANTES que frames, tomaba los PERSONAJES como si fueran los frames (fichas
+  // de personaje, diálogo vacío).
+  let rawFrames: Array<Record<string, unknown>> = [];
 
   // Interpretación del brief + personaje propuesto por Gemini (vienen junto a "frames" en el
   // objeto). Los surfaceamos en el gate de aprobación del script para que el usuario confirme.
@@ -150,6 +155,8 @@ export const handleScript: StepHandler = async (ctx) => {
       const obj = JSON.parse(raw.slice(s, e + 1)) as Record<string, unknown>;
       interpretation = String(obj.interpretation || "");
       character = String(obj.character || "");
+      // Los frames REALES: la clave "frames" del objeto (no el primer array que aparezca).
+      if (Array.isArray(obj.frames)) rawFrames = obj.frames as Array<Record<string, unknown>>;
       if (Array.isArray(obj.characters)) {
         characters = (obj.characters as Array<Record<string, unknown>>)
           .map((c) => ({ name: String(c.name || "").trim(), description: String(c.description || "").trim() }))
@@ -157,6 +164,9 @@ export const handleScript: StepHandler = async (ctx) => {
       }
     }
   } catch { /* result puede venir como array crudo (shape viejo) — sin interpretación */ }
+
+  // Fallback: shape viejo (array crudo sin objeto {frames}).
+  if (rawFrames.length === 0) rawFrames = findArray(result);
 
   const frames = rawFrames
     .map((f, i) => {
