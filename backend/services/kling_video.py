@@ -141,7 +141,9 @@ async def create_video(
 
     payload = {
         "prompt": prompt or DEFAULT_PROMPT,
-        "start_image_url": image_url,
+        # Kling en Fal exige `image_url` (NO `start_image_url`) — con el campo mal el job
+        # rebota al instante (422 "image_url Field required") y no anima.
+        "image_url": image_url,
         "duration": duration,
         "negative_prompt": negative_prompt or DEFAULT_NEGATIVE,
         "generate_audio": False,  # We'll add audio via lip sync later
