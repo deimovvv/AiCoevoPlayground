@@ -2610,6 +2610,85 @@ export async function pollFalLipSync(
 }
 
 // ══════════════════════════════════════════════════════════════
+//  Talking-character (audio-driven, labios): OmniHuman / Kling Avatar
+//  image + audio → video con boca sincronizada. model: "omnihuman" |
+//  "kling_avatar_std" | "kling_avatar_pro".
+// ══════════════════════════════════════════════════════════════
+
+export async function createTalkingVideo(
+    audioBlob: Blob,
+    imageUrl: string,
+    model: "omnihuman" | "kling_avatar_std" | "kling_avatar_pro" = "omnihuman",
+): Promise<{ request_id: string; status: string; video_url?: string; model: string }> {
+    const fd = new FormData();
+    fd.append("audio", audioBlob, "audio.mp3");
+    fd.append("image_url", imageUrl);
+    fd.append("model", model);
+    const res = await fetch(`${API_BASE}/api/fal/talking`, { method: "POST", body: fd });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Talking video failed (${res.status})`);
+    }
+    return res.json();
+}
+
+export async function pollTalkingVideo(
+    requestId: string,
+    model = "omnihuman",
+    intervalMs = 5000,
+    maxAttempts = 160,
+): Promise<{ video_url: string | null; status: string }> {
+    if (requestId.startsWith("SYNC:")) return { status: "completed", video_url: requestId.slice(5) };
+    const q = `?model=${encodeURIComponent(model)}`;
+    for (let i = 0; i < maxAttempts; i++) {
+        const st = await (await fetch(`${API_BASE}/api/fal/talking/${encodeURIComponent(requestId)}/status${q}`)).json();
+        if (st.status === "completed") {
+            const r = await (await fetch(`${API_BASE}/api/fal/talking/${encodeURIComponent(requestId)}/result${q}`)).json();
+            return { status: "completed", video_url: r.video_url };
+        }
+        if (st.status === "failed") return { status: "failed", video_url: null };
+        await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    throw new Error("Talking video timed out");
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Música de fondo — Lyria 2 (instrumental). mood: alegre|problematica|neutral
+// ══════════════════════════════════════════════════════════════
+
+export async function createMusic(
+    mood: string = "neutral",
+    custom = "",
+    seed?: number,
+): Promise<{ request_id: string; status: string; audio_url?: string }> {
+    const res = await fetch(`${API_BASE}/api/music/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mood, custom, seed }),
+    });
+    if (!res.ok) throw new Error(`Music generation failed (${res.status})`);
+    return res.json();
+}
+
+export async function pollMusic(
+    requestId: string,
+    intervalMs = 5000,
+    maxAttempts = 80,
+): Promise<{ audio_url: string | null; status: string }> {
+    if (requestId.startsWith("SYNC:")) return { status: "completed", audio_url: requestId.slice(5) };
+    for (let i = 0; i < maxAttempts; i++) {
+        const st = await (await fetch(`${API_BASE}/api/music/${encodeURIComponent(requestId)}/status`)).json();
+        if (st.status === "completed") {
+            const r = await (await fetch(`${API_BASE}/api/music/${encodeURIComponent(requestId)}/result`)).json();
+            return { status: "completed", audio_url: r.audio_url };
+        }
+        if (st.status === "failed") return { status: "failed", audio_url: null };
+        await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    throw new Error("Music timed out");
+}
+
+// ══════════════════════════════════════════════════════════════
 //  Prompt Templates & Overrides
 // ══════════════════════════════════════════════════════════════
 
@@ -2759,6 +2838,7 @@ export async function concatVideos(
     scripts?: Array<{ text: string }>,
     addSubtitles: boolean = true,
     subtitleEngine: "auto" | "remotion" | "ffmpeg" | "none" = "auto",
+    backgroundMusicUrl?: string,
 ): Promise<ConcatResult> {
     const res = await fetch(`${API_BASE}/api/video/concat`, {
         method: "POST",
@@ -2768,6 +2848,7 @@ export async function concatVideos(
             scripts: scripts || null,
             add_subtitles: addSubtitles,
             subtitle_engine: subtitleEngine,
+            background_music_url: backgroundMusicUrl || null,
         }),
     });
     if (!res.ok) {

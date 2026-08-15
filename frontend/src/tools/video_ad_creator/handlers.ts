@@ -7,10 +7,12 @@
 import type { StepHandler } from "../types";
 import {
   generateToolPrompt, createImageEdit, createTextToImage, pollImageGen,
-  generateTTSAndUpload, pollKlingVideo,
+  generateTTSAndUpload, pollKlingVideo, createKlingVideo,
   createVeoVideo, pollVeoVideo,
   createSeedanceReferenceToVideo, pollSeedanceVideo,
   createFalLipSync, pollFalLipSync,
+  createTalkingVideo, pollTalkingVideo,
+  createMusic, pollMusic,
   concatVideos,
 } from "../../lib/api";
 import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstraints";
@@ -505,8 +507,9 @@ export const handleVoice: StepHandler = async (ctx) => {
 
 export const handleAnimate: StepHandler = async (ctx) => {
   const { config, getStepResult } = ctx;
-  const scriptData = getStepResult("script") as { frames: Array<{ transition: string; prompt: string; animationHint?: string }> } | undefined;
-  const imageData = getStepResult("images") as { images: Array<{ frame: number; url: string }> } | undefined;
+  const scriptData = getStepResult("script") as { frames: Array<{ frame: number; prompt: string; animationHint?: string; speaker?: string; script?: string }> } | undefined;
+  const imageData = getStepResult("images") as { images: Array<{ frame: number; url: string; audioUrl?: string }> } | undefined;
+  const voiceData = getStepResult("voice") as { audioSegments?: Array<{ frame: number; audioUrl: string }> } | undefined;
 
   if (!imageData?.images || !scriptData?.frames) throw new Error("No images or script found.");
 
@@ -515,55 +518,44 @@ export const handleAnimate: StepHandler = async (ctx) => {
 
   const adStyle = config.adStyle || "photorealistic";
   const styleLabel = AD_STYLES.find((s) => s.id === adStyle)?.label || adStyle;
-  // Selector de modelo de video. "kling" = frame-to-frame (transición entre keyframes);
-  // "veo-fast" / "seedance" = image-to-video (movimiento por keyframe). Default kling
-  // (comportamiento actual). Veo 3.1 Fast = mucho más barato (ver pricing).
-  const videoProvider = (config as unknown as { videoProvider?: string }).videoProvider || "kling";
 
-  // Prompt de animación por segmento — inyecta la USER DIRECTION del step images si existe.
-  const animPromptFor = (i: number, mode: "transition" | "shot"): string => {
-    const fd = scriptData.frames.find((_f, idx) => idx === i);
-    const dir = fd?.animationHint?.trim() ? ` USER DIRECTION (priority): ${fd.animationHint.trim()}.` : "";
-    const subject = mode === "transition" ? "transition between the first shot and the second shot" : "shot with subtle cinematic motion";
-    return `Create a seamless ${styleLabel} animated ${subject} in a ${styleLabel} animation style with sound effects (no talking).${dir}`;
+  // Audio por frame (del paso voice; fallback al embebido en images).
+  const audioByFrame = new Map<number, string>();
+  (voiceData?.audioSegments || []).forEach((a) => { if (a.audioUrl) audioByFrame.set(a.frame, a.audioUrl); });
+  (imageData.images || []).forEach((f) => { if (f.audioUrl && !audioByFrame.has(f.frame)) audioByFrame.set(f.frame, f.audioUrl); });
+  const framesByNum = new Map(scriptData.frames.map((f) => [f.frame, f]));
+
+  // Modelo para tomas con DIÁLOGO (labios). Default OmniHuman; Kling Avatar std es más barato.
+  const talkingModel = ((config as unknown as { talkingModel?: string }).talkingModel as "omnihuman" | "kling_avatar_std" | "kling_avatar_pro") || "omnihuman";
+  const isNarrator = (sp: string) => /^(narrador|voz en off|vo|voice ?over)$/i.test((sp || "").trim());
+  const ambientPrompt = (fd?: { animationHint?: string }) => {
+    const dir = fd?.animationHint?.trim() ? ` USER DIRECTION: ${fd.animationHint.trim()}.` : "";
+    return `Subtle living motion in ${styleLabel} style: gentle parallax, soft ambient movement (water, clouds, light), tiny character idle motion. Keep the exact same art style, colors, characters and composition. Static locked camera, no zoom, no morph, no redraw.${dir}`;
   };
 
-  const segments: Array<{ index: number; videoUrl: string; startFrame: number; endFrame: number; status: string }> = [];
-
-  if (videoProvider === "kling") {
-    // Kling frame-to-frame: pares frame1→frame2, frame2→frame3, …
-    if (successfulImages.length < 2) throw new Error("Kling (frame-to-frame) needs at least 2 images.");
-    for (let i = 0; i < successfulImages.length - 1; i++) {
-      const startImg = successfulImages[i];
-      const endImg = successfulImages[i + 1];
-      try {
-        const requestId = await createKlingFrameToFrame(startImg.url, endImg.url, animPromptFor(i, "transition"), "4", config.aspectRatio);
-        const result = await pollKlingVideo(requestId);
-        segments.push({ index: i, videoUrl: result.video_url || "", startFrame: startImg.frame, endFrame: endImg.frame, status: result.video_url ? "done" : "failed" });
-      } catch {
-        segments.push({ index: i, videoUrl: "", startFrame: startImg.frame, endFrame: endImg.frame, status: "failed" });
+  // UN CLIP POR TOMA (no frame-to-frame). Toma con diálogo de un personaje (audio + speaker que
+  // no sea narrador) → OmniHuman/Kling Avatar (labios, duración = el audio). Ambiente / narrador /
+  // insert → Kling image-to-video (movimiento sutil). Ver docs/video-dialogue-pipeline.md.
+  const segments: Array<{ index: number; videoUrl: string; startFrame: number; endFrame: number; status: string; audioUrl: string; talking: boolean; model: string }> = [];
+  for (let i = 0; i < successfulImages.length; i++) {
+    const img = successfulImages[i];
+    const fd = framesByNum.get(img.frame);
+    const audioUrl = audioByFrame.get(img.frame) || "";
+    const speaker = (fd?.speaker || "").trim();
+    const isTalking = !!audioUrl && !!speaker && !isNarrator(speaker);
+    try {
+      let videoUrl = "";
+      if (isTalking) {
+        const audioBlob = await fetch(audioUrl).then((r) => r.blob());
+        const created = await createTalkingVideo(audioBlob, img.url, talkingModel);
+        videoUrl = created.video_url || (await pollTalkingVideo(created.request_id, created.model)).video_url || "";
+      } else {
+        const kv = await createKlingVideo(img.url, ambientPrompt(fd), "5");
+        videoUrl = kv.video_url || (await pollKlingVideo(kv.request_id)).video_url || "";
       }
-    }
-  } else {
-    // Veo 3.1 Fast / Seedance: image-to-video, un segmento por keyframe.
-    for (let i = 0; i < successfulImages.length; i++) {
-      const img = successfulImages[i];
-      try {
-        let videoUrl = "";
-        if (videoProvider === "seedance") {
-          const { request_id } = await createSeedanceReferenceToVideo({ prompt: animPromptFor(i, "shot"), referenceImageUrls: [img.url], aspectRatio: config.aspectRatio, duration: "5" });
-          const result = await pollSeedanceVideo(request_id);
-          videoUrl = result.video_url || "";
-        } else {
-          // veo-fast (default no-kling)
-          const { operation } = await createVeoVideo({ prompt: animPromptFor(i, "shot"), image: img.url, aspectRatio: config.aspectRatio, fast: true });
-          const result = await pollVeoVideo(operation);
-          videoUrl = result.video_url || "";
-        }
-        segments.push({ index: i, videoUrl, startFrame: img.frame, endFrame: img.frame, status: videoUrl ? "done" : "failed" });
-      } catch {
-        segments.push({ index: i, videoUrl: "", startFrame: img.frame, endFrame: img.frame, status: "failed" });
-      }
+      segments.push({ index: i, videoUrl, startFrame: img.frame, endFrame: img.frame, status: videoUrl ? "done" : "failed", audioUrl, talking: isTalking, model: isTalking ? talkingModel : "kling" });
+    } catch {
+      segments.push({ index: i, videoUrl: "", startFrame: img.frame, endFrame: img.frame, status: "failed", audioUrl, talking: isTalking, model: isTalking ? talkingModel : "kling" });
     }
   }
 
@@ -576,34 +568,13 @@ export const handleAnimate: StepHandler = async (ctx) => {
 
 export const handleLipsync: StepHandler = async (ctx) => {
   const { getStepResult } = ctx;
-  const animateData = getStepResult("animate") as { segments: Array<{ index: number; videoUrl: string; startFrame: number; endFrame: number; status: string }> } | undefined;
+  const animateData = getStepResult("animate") as { segments: Array<{ index: number; videoUrl: string; startFrame: number; endFrame: number; status: string; audioUrl?: string; talking?: boolean; model?: string }> } | undefined;
   if (!animateData?.segments) throw new Error("No hay clips animados. Corré 'animate' primero.");
 
-  // Audio por frame — del paso voice; fallback al audio embebido en images.
-  const voiceData = getStepResult("voice") as { audioSegments?: Array<{ frame: number; audioUrl: string }> } | undefined;
-  const imagesData = getStepResult("images") as { images?: Array<{ frame: number; audioUrl?: string }> } | undefined;
-  const audioByFrame = new Map<number, string>();
-  (voiceData?.audioSegments || []).forEach((a) => { if (a.audioUrl) audioByFrame.set(a.frame, a.audioUrl); });
-  (imagesData?.images || []).forEach((f) => { if (f.audioUrl && !audioByFrame.has(f.frame)) audioByFrame.set(f.frame, f.audioUrl); });
-
-  const segments: Array<{ index: number; videoUrl: string; startFrame: number; endFrame: number; status: string; lipsyncUrl: string; audioUrl: string }> = [];
-  for (const seg of animateData.segments) {
-    const audioUrl = audioByFrame.get(seg.startFrame) || "";
-    // Sin video o sin audio (B-roll / escena sin diálogo) → pasa tal cual.
-    if (!seg.videoUrl || !audioUrl) {
-      segments.push({ ...seg, lipsyncUrl: "", audioUrl });
-      continue;
-    }
-    try {
-      const audioBlob = await fetch(audioUrl).then((r) => r.blob());
-      const created = await createFalLipSync(audioBlob, seg.videoUrl, "cut_off");
-      const finalUrl = created.video_url || (await pollFalLipSync(created.request_id)).video_url || "";
-      segments.push({ ...seg, lipsyncUrl: finalUrl, audioUrl });
-    } catch {
-      segments.push({ ...seg, lipsyncUrl: "", audioUrl });
-    }
-  }
-
+  // PASSTHROUGH: con el nuevo animate, las tomas de diálogo ya vienen con labios sincronizados
+  // y audio embebido (OmniHuman / Kling Avatar, audio-driven). No re-aplicamos sync-lipsync
+  // (que además fallaba sobre estilizado). Mantenemos la estructura para el render.
+  const segments = animateData.segments.map((seg) => ({ ...seg, lipsyncUrl: seg.videoUrl, audioUrl: seg.audioUrl || "" }));
   return { result: { segments }, needsApproval: true };
 };
 
@@ -626,7 +597,18 @@ export const handleRender: StepHandler = async (ctx) => {
 
   const subtitleScripts = scriptData?.frames.map((f) => ({ text: f.script || "" })) || [];
 
-  const result = await concatVideos(videoUrls, subtitleScripts, config.subtitleEngine !== "none", config.subtitleEngine);
+  // Música de fondo (Lyria) con ducking — opcional. mood del config ("alegre"|"problematica"|
+  // "neutral"); "none" la saltea. Si la generación falla, el render sigue sin música.
+  let musicUrl: string | undefined;
+  const musicMood = (config as unknown as { musicMood?: string }).musicMood || "neutral";
+  if (musicMood !== "none") {
+    try {
+      const m = await createMusic(musicMood, "");
+      musicUrl = m.audio_url || (await pollMusic(m.request_id)).audio_url || undefined;
+    } catch { /* música opcional */ }
+  }
+
+  const result = await concatVideos(videoUrls, subtitleScripts, config.subtitleEngine !== "none", config.subtitleEngine, musicUrl);
 
   // Persistence handled by autoSaveStep in ToolRunPage — no manual saveGeneration here.
 
@@ -636,6 +618,7 @@ export const handleRender: StepHandler = async (ctx) => {
       totalDuration: `${result.duration}s`,
       scenes: result.num_segments,
       format: "MP4 / H.264",
+      musicUrl,
     },
   };
 };

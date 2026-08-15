@@ -251,6 +251,7 @@ async def concat_videos(
     scripts: Optional[List[dict]] = None,
     add_subtitles: bool = True,
     subtitle_engine: str = "auto",
+    background_music_url: Optional[str] = None,
 ) -> dict:
     """
     Download, concatenate video segments, and optionally add subtitles.
@@ -452,6 +453,37 @@ async def concat_videos(
             _, stderr = await proc.communicate()
             if proc.returncode != 0:
                 raise RuntimeError(f"FFmpeg re-encode (no-subs) failed: {stderr.decode()[-500:]}")
+
+        # 4.5 Música de fondo (opcional) con ducking — baja bajo la voz. Guardado: si
+        # el mix falla, se mantiene el video sin música (no rompe el render).
+        if background_music_url:
+            try:
+                music_path = work_dir / "music.wav"
+                await download_file(background_music_url, music_path)
+                mixed_path = out_dir / f"final_{uuid.uuid4().hex[:8]}.mp4"
+                if await _has_audio_stream(output_path):
+                    fc = (
+                        "[1:a]volume=0.55,aloop=loop=-1:size=2000000000[mus];"
+                        "[mus][0:a]sidechaincompress=threshold=0.02:ratio=6:attack=15:release=300[duck];"
+                        "[0:a][duck]amix=inputs=2:duration=first:dropout_transition=0[a]"
+                    )
+                    args = ["ffmpeg", "-y", "-i", str(output_path), "-i", str(music_path),
+                            "-filter_complex", fc, "-map", "0:v", "-map", "[a]",
+                            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest",
+                            "-movflags", "+faststart", str(mixed_path)]
+                else:
+                    args = ["ffmpeg", "-y", "-i", str(output_path), "-i", str(music_path),
+                            "-filter_complex", "[1:a]volume=0.35,aloop=loop=-1:size=2000000000[a]",
+                            "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest",
+                            "-movflags", "+faststart", str(mixed_path)]
+                proc = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+                _, stderr = await proc.communicate()
+                if proc.returncode == 0 and mixed_path.exists():
+                    output_path = mixed_path
+                else:
+                    print(f"[video-concat] music mix failed, keeping no-music: {stderr.decode()[-300:]}")
+            except Exception as e:
+                print(f"[video-concat] music mix error (skipping): {e}")
 
         # 5. Get final duration
         duration = await _get_duration(output_path)

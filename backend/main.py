@@ -49,6 +49,9 @@ from services import veo_video
 from services import fal_rembg
 from services import nanobanana_google
 from services import beeble_switchx
+from services import omnihuman        # talking-character audio-driven (labios), v1.5
+from services import kling_avatar     # talking-character audio-driven, económico
+from services import music_gen        # Lyria 2 — música instrumental de fondo
 from services.image_utils import normalize_image_bytes, is_image_upload
 
 # ── Paths ────────────────────────────────────────────────────
@@ -3584,6 +3587,91 @@ async def fal_lipsync_result(request_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Talking-character (audio-driven, labios): OmniHuman v1.5 / Kling AI Avatar
+#  image_url + audio → video con la boca sincronizada. model = omnihuman |
+#  kling_avatar_std | kling_avatar_pro. El clip dura lo que el audio.
+# ══════════════════════════════════════════════════════════════
+
+def _talking_service(model: str):
+    return kling_avatar if (model or "").startswith("kling_avatar") else omnihuman
+
+@app.post("/api/fal/talking")
+async def fal_create_talking(
+    audio: UploadFile = File(...),
+    image_url: str = Form(...),
+    model: str = Form("omnihuman"),
+):
+    if not omnihuman.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    audio_bytes = await audio.read()
+    try:
+        audio_url = await omnihuman.upload_file_v2(audio_bytes, audio.filename or "audio.mp3", "audio/mpeg")
+        if not audio_url:
+            raise Exception("No audio URL from Fal upload")
+        if (model or "").startswith("kling_avatar"):
+            tier = "pro" if model.endswith("pro") else "standard"
+            request_id = await kling_avatar.create_talking_video(image_url, audio_url, tier=tier)
+        else:
+            request_id = await omnihuman.create_talking_video(image_url, audio_url, resolution="720p")
+        if request_id.startswith("SYNC:"):
+            return {"request_id": request_id, "status": "completed", "video_url": request_id[5:], "model": model}
+        return {"request_id": request_id, "status": "pending", "model": model}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Talking-video failed: {str(e)}")
+
+@app.get("/api/fal/talking/{request_id}/status")
+async def fal_talking_status(request_id: str, model: str = "omnihuman"):
+    try:
+        return await _talking_service(model).get_status(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+@app.get("/api/fal/talking/{request_id}/result")
+async def fal_talking_result(request_id: str, model: str = "omnihuman"):
+    try:
+        return await _talking_service(model).get_result(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  Música de fondo — Lyria 2 (instrumental). mood: alegre|problematica|neutral
+# ══════════════════════════════════════════════════════════════
+
+class MusicRequest(BaseModel):
+    mood: str = "neutral"
+    custom: str = ""
+    seed: Optional[int] = None
+
+@app.post("/api/music/generate")
+async def music_generate(req: MusicRequest):
+    if not music_gen.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY not configured")
+    try:
+        prompt = music_gen.build_prompt(req.mood, req.custom)
+        request_id = await music_gen.create_music(prompt, seed=req.seed)
+        if request_id.startswith("SYNC:"):
+            return {"request_id": request_id, "status": "completed", "audio_url": request_id[5:]}
+        return {"request_id": request_id, "status": "pending"}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Music generation failed: {str(e)}")
+
+@app.get("/api/music/{request_id}/status")
+async def music_status(request_id: str):
+    try:
+        return await music_gen.get_status(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+@app.get("/api/music/{request_id}/result")
+async def music_result(request_id: str):
+    try:
+        return await music_gen.get_result(request_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
 #  HeyGen Avatar 4 (via Fal) — Talking Head Video
 # ══════════════════════════════════════════════════════════════
 
@@ -4525,6 +4613,7 @@ class ConcatRequest(BaseModel):
     scripts: Optional[List[dict]] = None  # [{"text": "spoken text"}, ...] per segment
     add_subtitles: bool = True
     subtitle_engine: str = "auto"  # "auto" | "remotion" | "ffmpeg" | "none"
+    background_music_url: Optional[str] = None  # opcional — bed instrumental con ducking
 
 class OverlayAudioRequest(BaseModel):
     video_url: str
@@ -4557,6 +4646,7 @@ async def concat_videos_endpoint(req: ConcatRequest):
             scripts=req.scripts,
             add_subtitles=req.add_subtitles,
             subtitle_engine=req.subtitle_engine,
+            background_music_url=req.background_music_url,
         )
         output_path = result["output_path"]
         filename = os.path.basename(output_path)
