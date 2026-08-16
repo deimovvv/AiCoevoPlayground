@@ -8806,7 +8806,8 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                       const btn = e.currentTarget;
                       btn.textContent = "⏳...";
                       try {
-                        const vid = config?.selectedVoiceId || activeBrand?.voicePresets?.[0]?.id;
+                        // Voz del PERSONAJE (asignada en el paso Script) → fallback a la global.
+                        const vid = (seg as { voiceId?: string }).voiceId || config?.selectedVoiceId || activeBrand?.voicePresets?.[0]?.id;
                         const scriptText = seg.script || seg.text || "";
                         // Single call: generate + upload to Fal — same audio for preview and lipsync
                         const { fal_url } = await generateTTSAndUpload({ text: scriptText, voice_id: vid });
@@ -8818,7 +8819,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                         if (onUpdateStepResult) {
                           onUpdateStepResult("voice", [...segments]);
                         }
-                        new Audio(fal_url).play();
+                        toggleAudio(fal_url);
                       } catch (err) {
                         console.error("[voice regen] failed:", err);
                         btn.textContent = "✗ Error";

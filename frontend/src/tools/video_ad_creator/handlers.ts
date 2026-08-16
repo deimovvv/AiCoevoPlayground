@@ -13,7 +13,7 @@ import {
   createFalLipSync, pollFalLipSync,
   createTalkingVideo, pollTalkingVideo,
   createMusic, pollMusic,
-  concatVideos,
+  concatVideos, overlayAudio,
 } from "../../lib/api";
 import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstraints";
 
@@ -417,7 +417,7 @@ export const handleImages: StepHandler = async (ctx) => {
       // Fondo por escena: si ESTA escena muestra la planta, anclamos la foto real; si no, imaginativo.
       const plantBg = plantBackgroundUrls(`${frame.prompt} ${(frame as { location?: string }).location || ""}`, activeBrand);
       const refs = Array.from(new Set([baseImage.url, ...chUrls, ...plantBg, previousFrameUrl]));
-      const prompt = `The FIRST reference is the approved MASTER scene — match it EXACTLY: same location and environment, same color palette and saturation, same lighting direction and quality, same visual style/medium. This is a NEW shot within that SAME world, not a different place. Keep the SAME character(s) — identical identity, design, colors — as the character reference(s). Smooth visual continuity with the previous frame (no hard jumps in framing). New shot: ${frame.prompt}`;
+      const prompt = `The FIRST reference is the approved MASTER scene — match it EXACTLY: same location and environment, same color palette and saturation, same lighting direction and quality, same visual style/medium. This is a NEW shot within that SAME world, not a different place. Keep the SAME character(s) — identical face, hair, body AND the SAME WARDROBE/OUTFIT as the reference: exact same garments, colors, patterns, fit and accessories. Do NOT change, restyle or recolor the clothing between shots. Smooth visual continuity with the previous frame (no hard jumps in framing). New shot: ${frame.prompt}`;
       const job = await createImageEdit(refs, prompt, config.aspectRatio, config.resolution, imageModel);
       const result = await pollImageGen(job.request_id);
       const url = result.image_url || "";
@@ -486,14 +486,14 @@ export const handleVoice: StepHandler = async (ctx) => {
   for (const frame of scriptData.frames) {
     const vId = voiceFor(frame.speaker);
     if (!frame.script?.trim() || !vId) {
-      audioSegments.push({ frame: frame.frame, script: frame.script || "", audioUrl: "", speaker: frame.speaker || "" });
+      audioSegments.push({ frame: frame.frame, script: frame.script || "", audioUrl: "", speaker: frame.speaker || "", voiceId: vId || "" });
       continue;
     }
     try {
       const { fal_url } = await generateTTSAndUpload({ text: frame.script, voice_id: vId });
-      audioSegments.push({ frame: frame.frame, script: frame.script, audioUrl: fal_url, speaker: frame.speaker || "" });
+      audioSegments.push({ frame: frame.frame, script: frame.script, audioUrl: fal_url, speaker: frame.speaker || "", voiceId: vId });
     } catch {
-      audioSegments.push({ frame: frame.frame, script: frame.script, audioUrl: "", speaker: frame.speaker || "" });
+      audioSegments.push({ frame: frame.frame, script: frame.script, audioUrl: "", speaker: frame.speaker || "", voiceId: vId });
     }
   }
 
@@ -552,6 +552,11 @@ export const handleAnimate: StepHandler = async (ctx) => {
       } else {
         const kv = await createKlingVideo(img.url, ambientPrompt(fd), "5");
         videoUrl = kv.video_url || (await pollKlingVideo(kv.request_id)).video_url || "";
+        // Si la toma de ambiente tiene voz en off (narrador / tagline), la mezclamos sobre
+        // el clip mudo de Kling — si no, el VO no se escucharía en el render.
+        if (videoUrl && audioUrl) {
+          try { videoUrl = (await overlayAudio(videoUrl, audioUrl)).video_url || videoUrl; } catch { /* si falla, queda mudo */ }
+        }
       }
       segments.push({ index: i, videoUrl, startFrame: img.frame, endFrame: img.frame, status: videoUrl ? "done" : "failed", audioUrl, talking: isTalking, model: isTalking ? talkingModel : "kling" });
     } catch {
