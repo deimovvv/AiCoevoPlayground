@@ -54,7 +54,7 @@ Cargado vía API: **brandContext** (cliente, mensaje, tono, estilo por-campaña,
 
 ## Gotchas / pendientes
 - **Consistencia de ROPA**: el master mantiene la cara pero la vestimenta puede driftar entre tomas — falta anclar la ropa.
-- **Editar con referencia**: subir una ref para "corregir ropa" no aplica bien + falta **etiquetar** la ref (a quién refiere, tipo @-mention).
+- **Editar con referencia** ✅ (PR #124): "Aplicar" ahora funciona con **sólo una ref** (antes exigía texto → parecía que no aplicaba) y cada ref subida se **etiqueta** ("¿a qué refiere?"), inyectada como *reference guide* en el prompt (estilo @-mention del Lab).
 - **Costo/tiempo**: ~10 tomas OmniHuman = ~20-25 min de animate. Usar Kling Avatar Std para abaratar.
 - **Dev local**: el backend Coevo corre en **:8001** (el :8000 lo ocupa otra app Flask del usuario); `frontend/src/lib/api.ts` tiene un cambio LOCAL a :8001 que NO se commitea (revertir a :8000 antes de commitear).
 
