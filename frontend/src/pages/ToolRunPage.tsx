@@ -8,6 +8,9 @@ import {
   ChevronRight,
   Check,
   Play,
+  Users,
+  MapPin,
+  MessageSquare,
   Sparkles,
   Video,
   Camera,
@@ -732,6 +735,180 @@ const FALLBACK_TOOLS: Record<string, ToolEntry> = {
   reel_creator: { id: "reel_creator", name: "Reel Creator", category: "video", description: "Create short-form video reels with scenes, music, and subtitles.", icon: "film", status: "coming_soon", pipeline: ["script", "scenes", "music", "subtitles", "render"] },
   bg_remover: { id: "bg_remover", name: "Background Remover", category: "images", description: "Remove background from product photos using AI segmentation.", icon: "eraser", status: "coming_soon", pipeline: ["remove"] },
 };
+
+// ── Video Ad: live script preview ──────────────────────────
+// Parse client-side (gratis, sin API) lo que el usuario pega en el brief para mostrar,
+// antes de generar, QUÉ entendió: personajes, tomas (plano-contraplano = un frame por
+// turno de diálogo), escenas y locación. Heurística, no reemplaza al parseo real de Gemini.
+type ScriptPreview = {
+  isScript: boolean;
+  characters: { name: string; turns: number }[];
+  scenes: number;
+  turns: number;
+  location: string | null;
+  timeline: string[]; // orden de speakers turno-a-turno (para el storyboard)
+};
+
+function parseScriptPreview(raw: string): ScriptPreview | null {
+  const text = (raw || "").trim();
+  if (!text) return null;
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  // "NOMBRE: diálogo" al inicio de línea. Nombre corto (≤4 palabras, ≤28 chars), seguido de ":".
+  const speakerRe = /^([A-Za-zÁÉÍÓÚÜÑñáéíóúü][\wÁÉÍÓÚÜÑñáéíóúü .'-]{0,27}?):\s*\S/;
+  const skipAsSpeaker = /^(escena|scene|toma|plano|secuencia|int|ext|nota|acci[oó]n|voz en off|vo|sfx|m[uú]sica)\b/i;
+  const speakerOrder: string[] = [];
+  const counts = new Map<string, number>();
+  for (const l of lines) {
+    const m = l.match(speakerRe);
+    if (!m) continue;
+    const name = m[1].trim();
+    if (skipAsSpeaker.test(name)) continue;
+    if (name.split(/\s+/).length > 4) continue; // frase con ":" no es un speaker
+    const key = name.toUpperCase();
+    counts.set(key, (counts.get(key) || 0) + 1);
+    speakerOrder.push(key);
+  }
+  const turns = speakerOrder.length;
+
+  // Escenas: líneas que arrancan con marcadores de escena.
+  const sceneRe = /^(escena|scene|int\.?\s|ext\.?\s|secuencia|toma\s*\d)/i;
+  const sceneMarks = lines.filter((l) => sceneRe.test(l)).length;
+
+  // Locación: primer INT./EXT. o "ESCENA — Lugar".
+  let location: string | null = null;
+  for (const l of lines) {
+    const loc =
+      l.match(/^(?:int\.?|ext\.?)\s+(.+?)(?:\s+[-–—]\s+.*)?$/i) ||
+      l.match(/^(?:escena|scene)\s*\d*\s*[-–—:]\s*(.+)$/i);
+    if (loc && loc[1]) { location = loc[1].trim().replace(/[.–—-]+$/, "").slice(0, 44); break; }
+  }
+
+  const isScript = turns >= 2 || sceneMarks >= 1;
+  const characters = [...counts.entries()]
+    .map(([name, t]) => ({ name, turns: t }))
+    .sort((a, b) => b.turns - a.turns);
+  const scenes = sceneMarks || (isScript ? Math.max(1, Math.round(turns / 2)) : 0);
+  return { isScript, characters, scenes, turns, location, timeline: speakerOrder };
+}
+
+function VideoAdLivePreview({ objective }: { objective: string }) {
+  const parsed = parseScriptPreview(objective);
+
+  // Estado vacío — cómo funciona en 3 pasos (sin el video de detergente que confundía).
+  if (!parsed) {
+    const steps = [
+      { n: 1, icon: MessageSquare, t: "Pegá tu guión o brief", d: "Escena por escena o una idea suelta." },
+      { n: 2, icon: Users, t: "La IA propone los personajes", d: "Genera una referencia de cada uno; confirmás o regenerás." },
+      { n: 3, icon: Film, t: "Arma el video", d: "Storyboard, voz por personaje, labios, música y subtítulos." },
+    ];
+    return (
+      <div className="h-full overflow-y-auto py-10 px-6 flex flex-col items-center justify-center">
+        <div className="w-full max-w-md space-y-3">
+          <div className="text-[10px] uppercase tracking-wider text-[var(--color-action)] font-semibold text-center mb-4">Cómo funciona</div>
+          {steps.map((s) => (
+            <div key={s.n} className="flex items-start gap-3 px-4 py-3 rounded-[var(--radius-md)] bg-surface-2 border border-edge">
+              <div className="w-7 h-7 shrink-0 rounded-full bg-[color-mix(in_srgb,var(--color-action)_15%,transparent)] text-[var(--color-action)] flex items-center justify-center">
+                <s.icon size={14} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[12px] font-semibold text-fg">{s.n}. {s.t}</div>
+                <div className="text-[11px] text-fg-muted leading-snug">{s.d}</div>
+              </div>
+            </div>
+          ))}
+          <p className="text-[11px] text-fg-faint text-center pt-2">Pegá el guión a la izquierda — acá vas a ver qué entendió antes de generar.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Brief suelto (no parece guión con diálogo) — la IA va a inventar la estructura.
+  if (!parsed.isScript) {
+    return (
+      <div className="h-full overflow-y-auto py-10 px-6 flex flex-col items-center justify-center">
+        <div className="w-full max-w-md text-center space-y-3">
+          <div className="w-12 h-12 mx-auto rounded-full bg-[color-mix(in_srgb,var(--color-action)_15%,transparent)] text-[var(--color-action)] flex items-center justify-center">
+            <Sparkles size={20} />
+          </div>
+          <div className="text-[13px] font-semibold text-fg">Brief suelto detectado</div>
+          <p className="text-[12px] text-fg-muted leading-snug">
+            No parece un guión con diálogo. Al generar, la IA va a <strong className="text-fg">proponer los personajes</strong>, dividir en <strong className="text-fg">escenas</strong> y armar el storyboard desde tu idea.
+          </p>
+          <p className="text-[11px] text-fg-faint pt-1">Tip: si pegás un guión con líneas <span className="text-fg-muted">NOMBRE: diálogo</span>, vas a ver acá las tomas detectadas.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Guión detectado — mostramos qué entendió + storyboard de tomas (plano-contraplano).
+  const strip = parsed.timeline.slice(0, 14);
+  const stat = (icon: React.ReactNode, value: React.ReactNode, label: string) => (
+    <div className="flex-1 min-w-[84px] px-3 py-2.5 rounded-[var(--radius-md)] bg-surface-2 border border-edge">
+      <div className="flex items-center gap-1.5 text-[var(--color-action)]">{icon}<span className="text-[18px] font-bold leading-none text-fg">{value}</span></div>
+      <div className="text-[10px] text-fg-muted mt-1 uppercase tracking-wide">{label}</div>
+    </div>
+  );
+  return (
+    <div className="h-full overflow-y-auto py-8 px-6">
+      <div className="max-w-lg mx-auto space-y-4">
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-[var(--color-action)] font-semibold">
+          <Check size={12} /> Esto entendí de tu guión
+        </div>
+
+        <div className="flex gap-2 flex-wrap">
+          {stat(<Users size={14} />, parsed.characters.length, "personajes")}
+          {stat(<MessageSquare size={14} />, parsed.turns, "tomas")}
+          {stat(<Film size={14} />, parsed.scenes, "escenas")}
+        </div>
+
+        {parsed.location && (
+          <div className="flex items-center gap-1.5 text-[11px] text-fg-muted">
+            <MapPin size={12} className="text-[var(--color-action)]" /> Locación: <span className="text-fg">{parsed.location}</span>
+          </div>
+        )}
+
+        {parsed.characters.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-semibold text-fg-muted">Personajes</div>
+            <div className="flex gap-1.5 flex-wrap">
+              {parsed.characters.map((c) => (
+                <span key={c.name} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-3 text-[11px] text-fg">
+                  {c.name.charAt(0) + c.name.slice(1).toLowerCase()}
+                  <span className="text-fg-faint">{c.turns} {c.turns === 1 ? "línea" : "líneas"}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <div className="text-[11px] font-semibold text-fg-muted">Storyboard · plano-contraplano</div>
+          <div className="flex gap-1.5 flex-wrap">
+            {strip.map((sp, i) => (
+              <div key={i} className="w-[68px] h-[92px] rounded-[var(--radius-sm)] bg-surface-2 border border-edge flex flex-col items-center justify-center gap-1 px-1">
+                <div className="text-[9px] text-fg-faint">#{i + 1}</div>
+                <div className="w-9 h-9 rounded-full bg-[color-mix(in_srgb,var(--color-action)_18%,transparent)] text-[var(--color-action)] flex items-center justify-center text-[13px] font-bold">
+                  {sp.charAt(0)}
+                </div>
+                <div className="text-[9px] text-fg-muted text-center leading-tight truncate w-full">{sp.charAt(0) + sp.slice(1).toLowerCase()}</div>
+              </div>
+            ))}
+            {parsed.timeline.length > strip.length && (
+              <div className="w-[68px] h-[92px] rounded-[var(--radius-sm)] bg-surface-1 border border-dashed border-edge flex items-center justify-center text-[10px] text-fg-faint">
+                +{parsed.timeline.length - strip.length}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <p className="text-[11px] text-fg-faint leading-snug pt-1">
+          Una toma por turno de diálogo (close-up del que habla, alternando). Al generar, la IA afina esto — es una lectura rápida, no el resultado final.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ── Page Component ─────────────────────────────────────────
 
@@ -2721,6 +2898,9 @@ export function ToolRunPage() {
             )}
 
             {!started ? (
+              tool.id === "video_ad_creator" ? (
+                <VideoAdLivePreview objective={config.objective} />
+              ) : (
               (() => {
                 // Ejemplo por tool (tipo Pletor): inputs → output, apenas entrás. Universal:
                 // si no hay ejemplo curado, se deriva del schema (qué necesita) + el preview
@@ -2816,6 +2996,7 @@ export function ToolRunPage() {
                   </div>
                 );
               })()
+              )
             ) : (
               <StepPanel
                 tool={tool}
@@ -3748,32 +3929,30 @@ function ConfigPanel({
       {/* Style selector (Video Ad Creator) */}
       {tool.id === "video_ad_creator" && (
         <>
-          {/* Brief-first: el input estrella arriba de todo. Pegás brief suelto o guión completo. */}
+          {/* ① Brief — el input estrella, grande y arriba de todo. */}
           <div className="space-y-1.5">
-            <label className="text-[12px] font-semibold text-fg">Brief / guión del proyecto</label>
+            <label className="flex items-center gap-2 text-[13px] font-semibold text-fg">
+              <span className="w-5 h-5 rounded-full bg-[var(--color-action)] text-[var(--color-action-fg)] text-[10px] font-bold flex items-center justify-center">1</span>
+              Pegá tu guión o brief
+            </label>
             <textarea
               value={config.objective}
               onChange={(e) => setConfig((p) => ({ ...p, objective: e.target.value }))}
-              rows={5}
+              rows={8}
               placeholder={schema.objectivePlaceholder}
-              className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-y leading-snug"
+              className="w-full bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-3 py-2.5 text-[13px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-y leading-relaxed"
             />
             <p className="text-[10px] text-fg-faint leading-snug">
-              Pegá un <strong>brief suelto</strong> o un <strong>guión escena-por-escena</strong>. Si es guión, se parsea tal cual (diálogo, personajes, locación).
+              Guión escena-por-escena o una idea suelta. <strong className="text-fg-muted">No necesitás cargar assets:</strong> la IA lee el guión, propone los personajes y te los muestra para confirmar antes de armar las escenas.
             </p>
           </div>
 
-          {/* Qué pasa al generar — clave: NO necesitás assets, el tool propone y crea los personajes. */}
-          {tool.id === "video_ad_creator" && (
-            <div className="px-3 py-2.5 rounded-[var(--radius-sm)] bg-[color-mix(in_srgb,var(--color-action)_9%,transparent)] border border-[color-mix(in_srgb,var(--color-action)_35%,transparent)] text-[11px] text-fg-muted leading-relaxed space-y-1">
-              <div className="flex items-center gap-1.5 text-fg font-semibold text-[11px]">
-                <Sparkles size={12} className="text-[var(--color-action)]" /> No necesitás cargar assets
-              </div>
-              Al generar, la IA <strong>lee el guión</strong>, identifica los <strong>personajes y locaciones</strong>, y <strong>te propone crearlos</strong>: genera una referencia de cada personaje para que la <strong>confirmes o regeneres</strong> antes de armar las escenas.
-              <br />
-              Las secciones de abajo son <strong>opcionales</strong> — usalas solo si querés <strong>fijar un rostro/producto real</strong> del Brand Kit en vez de que la IA lo invente.
+          {/* ② Ajustes — todo visible pero secundario y compacto (regla: no colapsables). */}
+          <div className="pt-1.5 space-y-2.5">
+            <div className="flex items-center gap-2 text-[11px] font-semibold text-fg-muted uppercase tracking-wide">
+              <span className="w-5 h-5 rounded-full bg-surface-3 text-fg-muted text-[10px] font-bold flex items-center justify-center normal-case">2</span>
+              Ajustes <span className="text-fg-faint font-normal normal-case tracking-normal lowercase">· opcional</span>
             </div>
-          )}
 
           <ModelDropdown
             label="Modelo de labios (diálogo)"
@@ -3833,6 +4012,7 @@ function ConfigPanel({
               className="w-full h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] -mt-1"
             />
           )}
+          </div>
         </>
       )}
 
