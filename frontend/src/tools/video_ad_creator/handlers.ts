@@ -600,10 +600,20 @@ export const handleRender: StepHandler = async (ctx) => {
   // Música de fondo (Lyria) con ducking — opcional. mood del config ("alegre"|"problematica"|
   // "neutral"); "none" la saltea. Si la generación falla, el render sigue sin música.
   let musicUrl: string | undefined;
-  const musicMood = (config as unknown as { musicMood?: string }).musicMood || "neutral";
-  if (musicMood !== "none") {
+  const musicMoodRaw = (config as unknown as { musicMood?: string }).musicMood || "auto";
+  const musicPrompt = ((config as unknown as { musicPrompt?: string }).musicPrompt || "").trim();
+  if (musicMoodRaw !== "none") {
+    let mood = musicMoodRaw;
+    // "auto": inferir el mood del guión + interpretación (del contexto de marca).
+    if (mood === "auto") {
+      const interp = String((getStepResult("script") as { interpretation?: string } | undefined)?.interpretation || "");
+      const txt = `${interp} ${(scriptData?.frames || []).map((f) => f.script).join(" ")}`.toLowerCase();
+      mood = /(alegr|celebra|fiesta|feliz|divertid|festej)/.test(txt) ? "alegre"
+        : /(problem|cuida|ambiente|proteg|riesgo|preocup|conflicto|contamin|hered)/.test(txt) ? "problematica"
+        : "neutral";
+    }
     try {
-      const m = await createMusic(musicMood, "");
+      const m = await createMusic(mood, musicPrompt);
       musicUrl = m.audio_url || (await pollMusic(m.request_id)).audio_url || undefined;
     } catch { /* música opcional */ }
   }

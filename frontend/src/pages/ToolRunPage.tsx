@@ -408,6 +408,12 @@ interface ToolConfig {
   /** Video Ad Creator: proveedor de video para el step animate. "kling" (frame-to-frame,
    *  transiciones) | "veo-fast" (Veo 3.1 Fast, image-to-video, barato) | "seedance". */
   videoProvider?: string;
+  /** Video Ad: modelo de labios para tomas con diálogo. omnihuman | kling_avatar_std | kling_avatar_pro */
+  talkingModel?: string;
+  /** Video Ad: música de fondo. "auto" (del contexto) | alegre | problematica | neutral | none */
+  musicMood?: string;
+  /** Video Ad: prompt custom de música (pisa el mood si está). */
+  musicPrompt?: string;
   animationMode: "frame-to-frame" | "image-to-video";
   adTemplate: string;
   carouselType: string;
@@ -563,6 +569,9 @@ const DEFAULT_CONFIG: ToolConfig = {
   allowFaces: true,
   adStyle: "photorealistic",
   videoProvider: "kling",
+  talkingModel: "omnihuman",
+  musicMood: "auto",
+  musicPrompt: "",
   animationMode: "frame-to-frame",
   adTemplate: "",
   carouselType: "",
@@ -1082,7 +1091,7 @@ export function ToolRunPage() {
             "platform", "language", "numVariations", "aspectRatio", "resolution",
             "subtitleEngine", "videoDuration", "ugcMode", "visualStyle",
             "visualStyleCustom", "hookType", "hookMode", "lipsyncMethod",
-            "creativeMode", "reelMode", "adStyle", "videoProvider", "adTemplate", "carouselType",
+            "creativeMode", "reelMode", "adStyle", "videoProvider", "talkingModel", "musicMood", "musicPrompt", "adTemplate", "carouselType",
             "numSlides", "voiceStability", "voiceSimilarityBoost", "voiceStyle",
             "voiceSpeed", "voiceSpeakerBoost", "productIsWorn",
             // Reference / Compose / Template behavior — needed for IG replicate flow
@@ -3222,7 +3231,7 @@ const BRIEF_ALLOWED_KEYS: string[] = [
   "selectedVoiceId", "selectedMoodboardId", "objective", "tone", "platform", "language",
   "numVariations", "aspectRatio", "resolution", "subtitleEngine", "videoDuration",
   "ugcMode", "visualStyle", "visualStyleCustom", "hookType", "lipsyncMethod", "creativeMode",
-  "reelMode", "adStyle", "videoProvider", "adTemplate", "carouselType", "numSlides", "animationEngine",
+  "reelMode", "adStyle", "videoProvider", "talkingModel", "musicMood", "musicPrompt", "adTemplate", "carouselType", "numSlides", "animationEngine",
   "voiceStability", "voiceStyle", "voiceSpeed", "productIsWorn", "includeCopy", "customScript",
 ];
 
@@ -3764,15 +3773,16 @@ function ConfigPanel({
           )}
 
           <ModelDropdown
-            label="Modelo de video"
-            value={config.videoProvider || "kling"}
-            onChange={(next) => setConfig((p) => ({ ...p, videoProvider: next }))}
+            label="Modelo de labios (diálogo)"
+            value={config.talkingModel || "omnihuman"}
+            onChange={(next) => setConfig((p) => ({ ...p, talkingModel: next }))}
             options={[
-              { id: "veo-fast", label: "Veo 3.1 Fast", sub: "Image-to-video · el más barato (~$0.03-0.08/s) · Google" },
-              { id: "kling", label: "Kling V3 Pro", sub: "Frame-to-frame (transiciones) · $0.112/s" },
-              { id: "seedance", label: "Seedance 2.0", sub: "Image-to-video · audio nativo · ~$0.30/s" },
+              { id: "omnihuman", label: "OmniHuman v1.5", sub: "Labios sobre cualquier estilo · $0.16/s" },
+              { id: "kling_avatar_std", label: "Kling Avatar Std", sub: "Igual, más barato · $0.056/s" },
+              { id: "kling_avatar_pro", label: "Kling Avatar Pro", sub: "Más calidad · $0.115/s" },
             ]}
           />
+          {/* Las tomas SIN diálogo (ambiente/insert/narrador) se animan con Kling image-to-video. */}
           <ModelDropdown
             label="Estilo visual"
             value={config.adStyle || "photorealistic"}
@@ -3797,6 +3807,26 @@ function ConfigPanel({
               value={config.notes}
               onChange={(e) => setConfig((p) => ({ ...p, notes: e.target.value }))}
               placeholder="Describí tu estilo custom. Ej: 'ilustración en acuarela, tonos pastel, texturas dibujadas a mano'..."
+              className="w-full h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] -mt-1"
+            />
+          )}
+          <ModelDropdown
+            label="Música de fondo"
+            value={config.musicMood || "auto"}
+            onChange={(next) => setConfig((p) => ({ ...p, musicMood: next }))}
+            options={[
+              { id: "auto", label: "Auto (del contexto)", sub: "La IA interpreta el mood del guión / marca" },
+              { id: "alegre", label: "Alegre (mexicana)", sub: "Guitarras, trompeta, mariachi suave" },
+              { id: "problematica", label: "Reflexiva (underscore)", sub: "Piano + cuerdas, tipo podcast" },
+              { id: "neutral", label: "Neutral", sub: "Bed instrumental cálido" },
+              { id: "none", label: "Sin música", sub: "Sin pista de fondo" },
+            ]}
+          />
+          {config.musicMood !== "none" && (
+            <input
+              value={config.musicPrompt || ""}
+              onChange={(e) => setConfig((p) => ({ ...p, musicPrompt: e.target.value }))}
+              placeholder="(opcional) prompt de música — ej: 'norteño acústico, tempo lento, sin voces'"
               className="w-full h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] -mt-1"
             />
           )}
@@ -6073,10 +6103,10 @@ function ConfigPanel({
                 onChange={(e) => setConfig((p) => ({ ...p, subtitleEngine: e.target.value as ToolConfig["subtitleEngine"] }))}
                 className="w-full h-7 px-1.5 rounded-[var(--radius-sm)] border border-edge bg-surface-2 text-[11px] text-fg outline-none focus:border-[var(--color-edge-focus)]"
               >
-                <option value="auto">Auto (best available)</option>
-                <option value="remotion">Remotion (animated)</option>
-                <option value="ffmpeg">FFmpeg (simple)</option>
-                <option value="none">No subtitles</option>
+                <option value="ffmpeg">Con subtítulos (FFmpeg)</option>
+                <option value="remotion">Con subtítulos (animados / Remotion)</option>
+                <option value="auto">Auto (mejor disponible)</option>
+                <option value="none">Sin subtítulos</option>
               </select>
             </div>
           )}
