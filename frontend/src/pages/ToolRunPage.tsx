@@ -426,6 +426,8 @@ interface ToolConfig {
   visualStyle: "iphone" | "cinematic" | "studio" | "custom" | "editorial";
   visualStyleCustom: string;
   reelMode: "story" | "looks";
+  /** Fashion Reel: intensidad de movimiento de la animación. sutil | medio | dinamico */
+  motionIntensity?: "sutil" | "medio" | "dinamico";
   // Scene Reconstruct — imagen original (dataUrl) + assets reales (dataUrls de upload)
   // + ids de assets de marca (productos/prendas del Brand Kit, resueltos en el handler).
   sceneOriginal: string;
@@ -588,6 +590,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   visualStyle: "iphone",
   visualStyleCustom: "",
   reelMode: "story",
+  motionIntensity: "medio",
   sceneOriginal: "",
   sceneAssets: [],
   sceneBrandAssetIds: [],
@@ -1091,7 +1094,7 @@ export function ToolRunPage() {
             "platform", "language", "numVariations", "aspectRatio", "resolution",
             "subtitleEngine", "videoDuration", "ugcMode", "visualStyle",
             "visualStyleCustom", "hookType", "hookMode", "lipsyncMethod",
-            "creativeMode", "reelMode", "adStyle", "videoProvider", "talkingModel", "musicMood", "musicPrompt", "adTemplate", "carouselType",
+            "creativeMode", "reelMode", "motionIntensity", "adStyle", "videoProvider", "talkingModel", "musicMood", "musicPrompt", "adTemplate", "carouselType",
             "numSlides", "voiceStability", "voiceSimilarityBoost", "voiceStyle",
             "voiceSpeed", "voiceSpeakerBoost", "productIsWorn",
             // Reference / Compose / Template behavior — needed for IG replicate flow
@@ -3231,7 +3234,7 @@ const BRIEF_ALLOWED_KEYS: string[] = [
   "selectedVoiceId", "selectedMoodboardId", "objective", "tone", "platform", "language",
   "numVariations", "aspectRatio", "resolution", "subtitleEngine", "videoDuration",
   "ugcMode", "visualStyle", "visualStyleCustom", "hookType", "lipsyncMethod", "creativeMode",
-  "reelMode", "adStyle", "videoProvider", "talkingModel", "musicMood", "musicPrompt", "adTemplate", "carouselType", "numSlides", "animationEngine",
+  "reelMode", "motionIntensity", "adStyle", "videoProvider", "talkingModel", "musicMood", "musicPrompt", "adTemplate", "carouselType", "numSlides", "animationEngine",
   "voiceStability", "voiceStyle", "voiceSpeed", "productIsWorn", "includeCopy", "customScript",
 ];
 
@@ -4791,6 +4794,32 @@ function ConfigPanel({
                     className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-edge bg-surface-0 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-brand)] resize-none leading-snug"
                   />
                 )}
+              </div>
+
+              {/* Intensidad de movimiento de la animación (Sutil / Medio / Dinámico). */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-medium text-fg-muted">Intensidad de movimiento</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: "sutil" as const, label: "Sutil", desc: "Micro-movimientos, casi estático (para looks calmos)" },
+                    { id: "medio" as const, label: "Medio", desc: "Cámara y cuerpo se mueven con gracia" },
+                    { id: "dinamico" as const, label: "Dinámico", desc: "Editorial: cámara, tela y cuerpo con energía — la cara siempre en cuadro" },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      title={m.desc}
+                      onClick={() => setConfig((c) => ({ ...c, motionIntensity: m.id }))}
+                      className={cn(
+                        "px-2 py-1.5 rounded-[var(--radius-sm)] border text-[10px] cursor-pointer transition-colors text-center leading-tight",
+                        (config.motionIntensity || "medio") === m.id
+                          ? "bg-[var(--color-brand-subtle)] border-[var(--color-brand)] text-fg"
+                          : "bg-surface-0 border-edge text-fg-muted hover:text-fg",
+                      )}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Secuencia de planos por outfit — orden ARRASTRABLE. `looksShots` es un

@@ -724,6 +724,19 @@ export const handleAnimate: StepHandler = async (ctx) => {
   // movimiento. Reportado: "los prompts de animación son siempre los mismos".
   const shotSeen: Record<string, number> = {};
 
+  // Intensidad de movimiento (Sutil / Medio / Dinámico). "sutil" = como antes (micro-movimientos,
+  // arranca por la variante más quieta). "medio"/"dinamico" appendean una cláusula de energía al
+  // prompt Y sesgan la selección de variante para NO arrancar por la más estática. La cara SIEMPRE
+  // queda en cuadro (regla face-anchor). Reportado: "el motion queda siempre igual / muy quieto".
+  const motionIntensity = ((cfg.motionIntensity as string) || "medio").toLowerCase();
+  const intensityBias = motionIntensity === "sutil" ? 0 : motionIntensity === "medio" ? 1 : 2;
+  const intensityClause =
+    motionIntensity === "dinamico"
+      ? " Make the motion noticeably DYNAMIC and editorial: a confident camera move (orbit / dolly / reframe), flowing hair and fabric, expressive body motion with a subtle step or turn — energetic, but the face stays clearly in frame the whole time."
+      : motionIntensity === "medio"
+        ? " Add a clear but graceful camera move and natural body motion — a smooth push-in or gentle orbit, soft hair and fabric movement. Face stays in frame."
+        : "";
+
   for (let i = 0; i < framesToAnimate.length; i++) {
     const frame = framesToAnimate[i];
     // Debug: log para cada frame qué rama va a tomar (entry hook / seedance / f2f / single).
@@ -746,7 +759,8 @@ export const handleAnimate: StepHandler = async (ctx) => {
         const nth = shotSeen[frame.shotId] || 0;
         shotSeen[frame.shotId] = nth + 1;
         const variants = meta.motionVariants?.length ? meta.motionVariants : [meta.motion];
-        shotMotion = variants[nth % variants.length];
+        // El bias por intensidad evita arrancar siempre por la variante más quieta (index 0).
+        shotMotion = variants[(nth + intensityBias) % variants.length];
       }
     }
     // USER DIRECTION — la instrucción que el usuario tipeó en curación. Si está,
@@ -756,11 +770,11 @@ export const handleAnimate: StepHandler = async (ctx) => {
     const userDirection = frame.animationHint
       ? ` USER DIRECTION (priority): ${frame.animationHint}.`
       : "";
-    const motionPrompt = shotMotion
+    const motionPrompt = (shotMotion
       ? `${shotMotion} ${frame.note ? `Context: ${frame.note}.` : ""}${userDirection} Vertical 9:16.`
       : frame.note
         ? `Fashion model: ${frame.note}.${userDirection} Smooth, natural, confident movement. Vertical 9:16.`
-        : `Fashion model subtle natural movement — slight sway, confident pose, hair movement.${userDirection} Vertical 9:16.`;
+        : `Fashion model subtle natural movement — slight sway, confident pose, hair movement.${userDirection} Vertical 9:16.`) + intensityClause;
 
     try {
       let videoUrl = "";
