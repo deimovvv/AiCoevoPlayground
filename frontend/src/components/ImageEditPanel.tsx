@@ -75,11 +75,17 @@ export function ImageEditPanel({
   // Refs subidas al toque (dataURLs) — para cuando faltó algo (un accesorio, el producto)
   // y lo querés meter sin tenerlo en el Brand Kit. El backend convierte el dataURL a Fal URL.
   const [uploadedRefs, setUploadedRefs] = useState<string[]>([]);
+  // Etiqueta por ref subida (a quién/qué refiere: "la ropa de Renata", "el producto"…).
+  // Se inyecta en el prompt para que el modelo entienda para qué es cada referencia.
+  const [uploadedRefLabels, setUploadedRefLabels] = useState<string[]>([]);
 
   const addUploadedFiles = (files: File[]) => {
     files.filter((f) => f.type.startsWith("image/")).forEach((f) => {
       const r = new FileReader();
-      r.onload = () => setUploadedRefs((prev) => [...prev, r.result as string]);
+      r.onload = () => {
+        setUploadedRefs((prev) => [...prev, r.result as string]);
+        setUploadedRefLabels((prev) => [...prev, ""]);
+      };
       r.readAsDataURL(f);
     });
   };
@@ -99,18 +105,41 @@ export function ImageEditPanel({
   };
 
   const handleApply = async () => {
-    if (!prompt.trim()) return;
+    const hasRefs = selectedRefs.length > 0 || uploadedRefs.length > 0;
+    // Se puede aplicar con SOLO una referencia (sin texto): antes hacía no-op y parecía
+    // que el botón "no aplicaba". Si hay ref pero no hay prompt, generamos la instrucción.
+    if (!prompt.trim() && !hasRefs) return;
     setLoading(true);
     setError(null);
     try {
       // Si el texto parece español, lo traducimos/afilamos a inglés (fail-open: si falla,
       // el backend devuelve el original). Los atajos ya escriben inglés → no se tocan.
       let finalPrompt = prompt.trim();
-      if (looksSpanish(finalPrompt)) {
+      if (finalPrompt && looksSpanish(finalPrompt)) {
         try {
           const { refined } = await refineEditInstruction(finalPrompt);
           if (refined && refined.trim()) finalPrompt = refined.trim();
         } catch { /* fail-open: seguimos con el texto original */ }
+      }
+      // Guía de referencias: numeramos las refs subidas y sumamos su etiqueta para que el
+      // modelo sepa a qué corresponde cada una ("[ref 2] = la ropa de la mujer").
+      const labeled = uploadedRefs
+        .map((_, i) => uploadedRefLabels[i]?.trim())
+        .filter(Boolean);
+      if (labeled.length) {
+        const guide = uploadedRefs
+          .map((_, i) => {
+            const lbl = uploadedRefLabels[i]?.trim();
+            return lbl ? `reference image #${i + 1} = ${lbl}` : null;
+          })
+          .filter(Boolean)
+          .join("; ");
+        finalPrompt = finalPrompt
+          ? `${finalPrompt}\n\nReference guide: ${guide}. Use each reference for the element it describes; keep everything else identical to the source image.`
+          : `Update the source image using the provided references — ${guide}. Match each reference exactly (garments, colors, patterns, shapes, details) for the element it describes, and keep everything else in the image identical.`;
+      } else if (!finalPrompt) {
+        // Hay ref(s) sin etiqueta ni texto: instrucción genérica de incorporar la referencia.
+        finalPrompt = "Update the source image to match the provided reference image(s) — apply the referenced element (clothing, product or detail) exactly: same colors, patterns, shapes and details. Keep the rest of the image identical.";
       }
       const refs = [imageUrl, ...selectedRefs, ...uploadedRefs];
       const job = await createImageEdit(refs, finalPrompt, aspectRatio, editResolution);
@@ -150,19 +179,35 @@ export function ImageEditPanel({
             />
           </label>
           {uploadedRefs.length > 0 && (
-            <span className="text-[9px] text-fg-faint">{uploadedRefs.length} subida{uploadedRefs.length === 1 ? "" : "s"} — se usan en el cambio</span>
+            <span className="text-[9px] text-fg-faint">{uploadedRefs.length} subida{uploadedRefs.length === 1 ? "" : "s"} — etiquetá a qué refiere cada una</span>
           )}
         </div>
         {uploadedRefs.length > 0 && (
-          <div className="flex gap-1.5 flex-wrap">
+          <div className="flex gap-2 flex-wrap">
             {uploadedRefs.map((url, i) => (
-              <div key={i} className="relative group/up">
-                <img src={url} alt={`ref ${i + 1}`} className="w-12 h-12 rounded object-cover border-2 border-[var(--color-action)]" />
-                <button
-                  onClick={() => setUploadedRefs((prev) => prev.filter((_, j) => j !== i))}
-                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-black/80 hover:bg-red-500 text-white flex items-center justify-center cursor-pointer"
-                  title="Quitar"
-                ><X size={9} /></button>
+              <div key={i} className="flex flex-col gap-1 w-[88px]">
+                <div className="relative group/up">
+                  <img src={url} alt={`ref ${i + 1}`} className="w-full h-16 rounded object-cover border-2 border-[var(--color-action)]" />
+                  <span className="absolute bottom-0.5 left-0.5 text-[8px] px-1 rounded bg-black/70 text-white">ref #{i + 1}</span>
+                  <button
+                    onClick={() => {
+                      setUploadedRefs((prev) => prev.filter((_, j) => j !== i));
+                      setUploadedRefLabels((prev) => prev.filter((_, j) => j !== i));
+                    }}
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-black/80 hover:bg-red-500 text-white flex items-center justify-center cursor-pointer"
+                    title="Quitar"
+                  ><X size={9} /></button>
+                </div>
+                <input
+                  type="text"
+                  value={uploadedRefLabels[i] || ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setUploadedRefLabels((prev) => prev.map((l, j) => (j === i ? v : l)));
+                  }}
+                  placeholder="¿a qué refiere?"
+                  className="w-full text-[9px] px-1.5 py-1 rounded-[var(--radius-sm)] bg-surface-3 border border-edge text-fg placeholder:text-fg-faint focus:border-[var(--color-action)] outline-none"
+                />
               </div>
             ))}
           </div>
@@ -346,10 +391,10 @@ export function ImageEditPanel({
         </select>
         <button
           onClick={handleApply}
-          disabled={loading || !prompt.trim()}
+          disabled={loading || (!prompt.trim() && selectedRefs.length === 0 && uploadedRefs.length === 0)}
           className={cn(
             "flex items-center gap-1.5 px-4 py-2 text-[11px] font-medium rounded-[var(--radius-sm)] transition-colors",
-            !loading && prompt.trim()
+            !loading && (prompt.trim() || selectedRefs.length > 0 || uploadedRefs.length > 0)
               ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 cursor-pointer"
               : "text-fg-faint bg-surface-1 cursor-not-allowed"
           )}
