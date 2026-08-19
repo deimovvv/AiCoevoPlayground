@@ -935,6 +935,8 @@ export function ToolRunPage() {
   const stepsRef = useRef<StepState[]>([]);
   const [activeStep, setActiveStep] = useState(0);
   const [started, setStarted] = useState(false);
+  // Visor (lightbox) para las imágenes de calce — tocar la miniatura la muestra grande.
+  const [calcePreview, setCalcePreview] = useState<string | null>(null);
   // Marca a la que pertenece la corrida actual (id + nombre). Se captura cuando la
   // corrida arranca; si después cambiás de marca, el banner de mismatch avisa que
   // el contenido/config de abajo siguen siendo de ESTA marca, no de la nueva.
@@ -4377,7 +4379,7 @@ function ConfigPanel({
                     <span className="text-[10px] text-fg-muted">{label}</span>
                     {val ? (
                       <div className="relative w-full">
-                        <img src={val} alt={label} className="w-full h-24 rounded object-cover border-2 border-[var(--color-brand)]" />
+                        <img src={val} alt={label} onClick={() => setCalcePreview(val)} className="w-full h-24 rounded object-cover border-2 border-[var(--color-brand)] cursor-zoom-in" title="Tocar para ver grande" />
                         <button onClick={() => setConfig((p) => ({ ...p, [key]: "" }))} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-black/80 hover:bg-red-500 text-white flex items-center justify-center cursor-pointer" title="Quitar"><X size={9} /></button>
                       </div>
                     ) : (
@@ -4409,6 +4411,14 @@ function ConfigPanel({
               </label>
             )}
           </div>
+
+          {/* Visor de calce — overlay a pantalla completa al tocar una miniatura. */}
+          {calcePreview && (
+            <div onClick={() => setCalcePreview(null)} className="fixed inset-0 z-[9999] bg-black/85 flex items-center justify-center p-6 cursor-zoom-out">
+              <img src={calcePreview} alt="calce" className="max-w-full max-h-full rounded-lg object-contain" />
+              <button onClick={() => setCalcePreview(null)} className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/15 hover:bg-white/30 text-white flex items-center justify-center cursor-pointer" title="Cerrar"><X size={18} /></button>
+            </div>
+          )}
 
           {/* Shot selection — para cada shot on-model tildado se puede sumar una
               pose ref one-off. El handler la usa como ref específica de ese shot. */}

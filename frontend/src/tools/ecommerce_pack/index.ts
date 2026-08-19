@@ -515,6 +515,14 @@ const handleGenerate: StepHandler = async (ctx) => {
   const calceTopUrl = rawCalceTop ? (calceDesaturate ? await desaturateDataUrl(rawCalceTop) : rawCalceTop) : undefined;
   const calceBottomUrl = rawCalceBottom ? (calceDesaturate ? await desaturateDataUrl(rawCalceBottom) : rawCalceBottom) : undefined;
 
+  // LOOK COMPLETO: cuando hay varias prendas (o un collage con varios ítems) reforzamos que el
+  // modelo use TODAS — que no se coma prendas/accesorios del look. Extra relevante con calce
+  // (el usuario sube el collage entero como prenda). No aplica si hay hero product (foco puntual).
+  const totalGarmentRefs = garmentUrls.length + accessoryUrls.length;
+  const completeLookClause = (!heroGarment && (totalGarmentRefs >= 2 || calceTopUrl || calceBottomUrl))
+    ? ` COMPLETE OUTFIT — the model must wear EVERY garment and accessory shown in the GARMENT reference image(s) as one full coordinated look. If a reference shows several items together (a flat-lay / collage of a whole outfit), reproduce ALL of them on the model — do NOT omit, drop, merge or simplify any garment or accessory. Every piece of the look must be present and pixel-accurate.`
+    : "";
+
   // Style refs (look&feel + moodboard) appended after the content refs, numbered from `start`.
   const styleRefs = (start: number): { urls: string[]; desc: string[] } => {
     const urls: string[] = []; const desc: string[] = []; let idx = start;
@@ -827,7 +835,7 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
     // La toma "Pose custom" (model_custom) sigue la pose ref EXACTA (sin naturalizar); el resto,
     // energía natural. Es la toma dedicada a "seguí la pose tal cual la paso".
     const naturalOrStrict = (sid === "model_custom" && shotPoseUrl) ? STRICT_POSE : NATURAL_ENERGY;
-    const prompt = `Professional e-commerce studio fashion photograph. ${posePriorityLead}${BODY_PROPORTIONS} ${naturalOrStrict} ${studioClause} ${framingClause}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${detailIdentityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${heroFocusClause}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    const prompt = `Professional e-commerce studio fashion photograph. ${posePriorityLead}${BODY_PROPORTIONS} ${naturalOrStrict} ${studioClause} ${framingClause}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${detailIdentityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${heroFocusClause}${completeLookClause}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution, imageModel) : await createTextToImage(prompt, config.aspectRatio, config.resolution, imageModel);
       const res = await pollImageGen(job.request_id);
