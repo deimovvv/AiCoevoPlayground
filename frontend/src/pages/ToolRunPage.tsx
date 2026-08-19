@@ -480,6 +480,9 @@ interface ToolConfig {
   ecomCalceTop?: string;
   ecomCalceBottom?: string;
   ecomCalceDesaturate?: boolean;
+  // Detalles a respetar (texto libre): aclaraciones de detalles del collage que el modelo
+  // suele "limpiar" (botón, puños, largo, tapeta…). Se AGREGA al prompt en todas las tomas.
+  ecomDetails?: string;
   // Fashion Reel — Looks mode: shots seleccionados por outfit (general / detail / etc.)
   // Cantidad por shot: un shot puede repetirse N veces para generar varias escenas
   // del mismo plano (ej. 2 planos generales del mismo outfit). El array contiene
@@ -618,6 +621,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   ecomCalceTop: "",
   ecomCalceBottom: "",
   ecomCalceDesaturate: true,   // B&N por default: el calce es solo caída, no color
+  ecomDetails: "",
   looksShots: ["general", "detail"],
   looksShotNotes: [],
   locationPreset: "studio_white",   // default: mismo blanco #ededed que Ecommerce Pack
@@ -4410,6 +4414,20 @@ function ConfigPanel({
                 Mandar el calce en B&amp;N (recomendado — evita que copie el color)
               </label>
             )}
+          </div>
+
+          {/* Detalles a respetar — texto libre que se AGREGA al prompt de todas las tomas.
+              Para forzar detalles del collage que el modelo suele limpiar (botón, largo, puños…). */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Detalles a respetar (del collage · opcional)</span>
+            <textarea
+              value={config.ecomDetails || ""}
+              onChange={(e) => setConfig((p) => ({ ...p, ecomDetails: e.target.value }))}
+              rows={3}
+              placeholder={"Detalles que el modelo suele comerse. Ej: 'el pantalón es largo y tiene botón al frente' · 'la camisa tiene puños azules' · 'los mocasines con borla'..."}
+              className="w-full bg-surface-0 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-brand)] resize-y leading-snug"
+            />
+            <p className="text-[10px] text-fg-faint leading-snug">Se suma a lo que ya se pasa (prendas, calce, etc.) — no lo reemplaza. Nombrá la prenda y el detalle.</p>
           </div>
 
           {/* Visor de calce — overlay a pantalla completa al tocar una miniatura. */}
