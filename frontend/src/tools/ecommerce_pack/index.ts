@@ -326,6 +326,33 @@ function fileToDataUrl(file: File): Promise<string> {
 }
 
 /**
+ * Desatura (pasa a B&N) un data URL vía canvas. Se usa para las refs de CALCE: si el
+ * calce no tiene color, el modelo no tiene color que copiar → toma solo la caída/silueta
+ * y el color/diseño sale sí o sí de las prendas del collage. Fail-open: si algo falla,
+ * devuelve el data URL original.
+ */
+function desaturateDataUrl(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) { resolve(dataUrl); return; }
+          ctx.filter = "grayscale(1)";
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL("image/png"));
+        } catch { resolve(dataUrl); }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    } catch { resolve(dataUrl); }
+  });
+}
+
+/**
  * Selecciona las fotos relevantes de una prenda según el tipo de shot que se está
  * generando. Cada prenda puede tener hasta 3 fotos (main + back + detail).
  *
@@ -478,9 +505,22 @@ const handleGenerate: StepHandler = async (ctx) => {
   let poseUrl: string | undefined;
   for (const f of poseFiles.slice(0, 1)) poseUrl = await fileToDataUrl(f);
 
+  // CALCE (fit reference, experimental — branch experiment/calce-input). Fotos de cómo CAE
+  // la prenda superior/inferior en el cuerpo. Se toma SOLO la caída/silueta; el color/diseño
+  // real sale de las prendas del collage. Con ecomCalceDesaturate (default) el calce va en B&N
+  // para que no haya color que copiar. Se inyecta en styleRefs → llega a TODAS las tomas.
+  const calceDesaturate = cfg.ecomCalceDesaturate !== false;
+  const rawCalceTop = (cfg.ecomCalceTop as string) || "";
+  const rawCalceBottom = (cfg.ecomCalceBottom as string) || "";
+  const calceTopUrl = rawCalceTop ? (calceDesaturate ? await desaturateDataUrl(rawCalceTop) : rawCalceTop) : undefined;
+  const calceBottomUrl = rawCalceBottom ? (calceDesaturate ? await desaturateDataUrl(rawCalceBottom) : rawCalceBottom) : undefined;
+
   // Style refs (look&feel + moodboard) appended after the content refs, numbered from `start`.
   const styleRefs = (start: number): { urls: string[]; desc: string[] } => {
     const urls: string[] = []; const desc: string[] = []; let idx = start;
+    // CALCE primero (queda cerca de las refs de prenda): SOLO caída, el color se ignora.
+    if (calceTopUrl) { urls.push(calceTopUrl); desc.push(`Image ${idx}: FIT REFERENCE — UPPER garment (top). Use this ONLY to copy how the TOP garment FITS and DRAPES on the body: its length, how the shoulders sit, the sleeve fall, the neckline behaviour, how loose or fitted it is and how the fabric hangs. IGNORE its colour, print and fabric COMPLETELY — this is a different colourway and is NOT the real product. The top's real colour, print and design come ONLY from the GARMENT reference(s). Do NOT copy any colour, tone, print or logo from this image; take ONLY the fit, drape and silhouette.`); idx++; }
+    if (calceBottomUrl) { urls.push(calceBottomUrl); desc.push(`Image ${idx}: FIT REFERENCE — LOWER garment (bottom). Use this ONLY for how the BOTTOM garment FITS and DRAPES: the rise, the length, the leg width, the break and how it falls. IGNORE its colour and fabric COMPLETELY — different colourway, NOT the real product. The bottom's real colour and design come ONLY from the GARMENT reference(s). Do NOT copy any colour from this image; take ONLY the fit, drape and silhouette.`); idx++; }
     if (lookFeelUrl) { urls.push(lookFeelUrl); desc.push(`Image ${idx}: LOOK & FEEL — match this color grading, lighting and overall treatment ONLY. Do NOT copy its content, layout or people.`); idx++; }
     if (moodboard?.imageUrl) { urls.push(moodboard.imageUrl); desc.push(`Image ${idx}: ART DIRECTION moodboard — aesthetic/palette reference ONLY, do not copy literally.`); idx++; }
     if (bgImageUrl) { urls.push(bgImageUrl); desc.push(`Image ${idx}: BACKGROUND (CRITICAL — this defines the ENTIRE backdrop of the output). The output background MUST BE this exact studio backdrop, reproduced faithfully — same tone, same subtle gradient, same floor sweep and horizon line. Place the model in front of it. Do NOT replace it with a plain flat white, a pure #FFFFFF, or a different/invented studio; do NOT simplify or brighten it away. It contains NO person — copy only the backdrop.`); idx++; }

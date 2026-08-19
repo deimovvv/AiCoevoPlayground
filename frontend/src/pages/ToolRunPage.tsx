@@ -473,6 +473,13 @@ interface ToolConfig {
   // Subset de selectedClothingIds. Reportado: "me pasan también las zapatillas o
   // un collar, no necesito foto de producto de eso".
   ecomAccessoryIds: string[];
+  // CALCE (fit reference, experimental): fotos de cómo CAE la prenda superior/inferior en
+  // el cuerpo. El color/diseño real sale del collage/prenda; del calce se toma SOLO la
+  // caída/silueta (el color se ignora). data URL. `ecomCalceDesaturate` = mandar el calce en
+  // B&N para que el modelo no pueda copiar color. Ver docs / branch experiment/calce-input.
+  ecomCalceTop?: string;
+  ecomCalceBottom?: string;
+  ecomCalceDesaturate?: boolean;
   // Fashion Reel — Looks mode: shots seleccionados por outfit (general / detail / etc.)
   // Cantidad por shot: un shot puede repetirse N veces para generar varias escenas
   // del mismo plano (ej. 2 planos generales del mismo outfit). El array contiene
@@ -608,6 +615,9 @@ const DEFAULT_CONFIG: ToolConfig = {
   ecomImageModel: "nano-banana-google",
   ecomPoseSinglePass: true,   // default 1 paso — más barato (el 2-pasos cuesta el doble)
   ecomAccessoryIds: [],
+  ecomCalceTop: "",
+  ecomCalceBottom: "",
+  ecomCalceDesaturate: true,   // B&N por default: el calce es solo caída, no color
   looksShots: ["general", "detail"],
   looksShotNotes: [],
   locationPreset: "studio_white",   // default: mismo blanco #ededed que Ecommerce Pack
@@ -4348,6 +4358,54 @@ function ConfigPanel({
                     e.target.value = "";
                   }}
                 />
+              </label>
+            )}
+          </div>
+
+          {/* CALCE (fit reference, experimental — branch experiment/calce-input).
+              El color/diseño sale de las prendas; del calce se toma SOLO la caída. */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Calce (cómo cae · opcional)</span>
+            <p className="text-[10px] text-fg-faint leading-snug -mt-0.5">
+              Foto de cómo calza la prenda en un cuerpo. Se usa <strong className="text-fg-muted">solo la caída/silueta</strong> — el color y el diseño salen de las prendas del collage, no del calce.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {([["ecomCalceTop", "Calce arriba (superior)"], ["ecomCalceBottom", "Calce abajo (inferior)"]] as const).map(([key, label]) => {
+                const val = (config[key] as string) || "";
+                return (
+                  <div key={key} className="space-y-1">
+                    <span className="text-[10px] text-fg-muted">{label}</span>
+                    {val ? (
+                      <div className="relative w-full">
+                        <img src={val} alt={label} className="w-full h-24 rounded object-cover border-2 border-[var(--color-brand)]" />
+                        <button onClick={() => setConfig((p) => ({ ...p, [key]: "" }))} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-black/80 hover:bg-red-500 text-white flex items-center justify-center cursor-pointer" title="Quitar"><X size={9} /></button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center justify-center gap-1.5 h-24 rounded-[var(--radius-sm)] border border-dashed border-edge hover:border-[var(--color-brand)] cursor-pointer text-[10px] text-fg-muted hover:text-fg">
+                        <Plus size={12} /> Subir
+                        <input
+                          type="file"
+                          accept={IMAGE_ACCEPT}
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            const r = new FileReader();
+                            r.onload = () => setConfig((p) => ({ ...p, [key]: r.result as string }));
+                            r.readAsDataURL(f);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {(config.ecomCalceTop || config.ecomCalceBottom) && (
+              <label className="flex items-center gap-1.5 text-[10px] text-fg-muted cursor-pointer">
+                <input type="checkbox" checked={config.ecomCalceDesaturate ?? true} onChange={(e) => setConfig((p) => ({ ...p, ecomCalceDesaturate: e.target.checked }))} className="accent-[var(--color-action)]" />
+                Mandar el calce en B&amp;N (recomendado — evita que copie el color)
               </label>
             )}
           </div>
