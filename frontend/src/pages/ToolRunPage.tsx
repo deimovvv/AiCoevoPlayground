@@ -939,8 +939,6 @@ export function ToolRunPage() {
   const stepsRef = useRef<StepState[]>([]);
   const [activeStep, setActiveStep] = useState(0);
   const [started, setStarted] = useState(false);
-  // Visor (lightbox) para las imágenes de calce — tocar la miniatura la muestra grande.
-  const [calcePreview, setCalcePreview] = useState<string | null>(null);
   // Marca a la que pertenece la corrida actual (id + nombre). Se captura cuando la
   // corrida arranca; si después cambiás de marca, el banner de mismatch avisa que
   // el contenido/config de abajo siguen siendo de ESTA marca, no de la nueva.
@@ -3565,6 +3563,8 @@ function ConfigPanel({
     ? { ...baseSchema, showAvatar: true, avatarRequired: true }
     : baseSchema;
   const [systemVoices, setSystemVoices] = useState<Array<{ id: string; name: string; language: string }>>([]);
+  // Visor (lightbox) para las imágenes de calce — tocar la miniatura la muestra grande.
+  const [calcePreview, setCalcePreview] = useState<string | null>(null);
   // Upload state para la sección Accesorios (ecommerce_pack). Cuando el usuario
   // sube un archivo, va directo via uploadClothing con tag "accessory" y queda
   // auto-marcado en ecomAccessoryIds + selectedClothingIds para que el handler
