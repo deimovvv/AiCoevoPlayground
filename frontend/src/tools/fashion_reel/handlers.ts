@@ -26,6 +26,7 @@ import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "./index";
 // script se arma acá y no pasa por el prompt de Gemini, así que la marca no entraba por
 // ningún lado. Ver docs/decisions-log.md 2026-08.
 import { buildBrandContext } from "../shared/brandConstraints";
+import type { BrandFieldKey } from "../shared/brandConstraints";
 // Reusamos la MISMA cláusula de fondo #ededed que el Ecommerce Pack para que el "estudio
 // blanco" del Fashion Reel matchee exacto (mismo gris cálido claro, no blanco puro).
 import { STUDIO_STYLES } from "../ecommerce_pack";
@@ -65,6 +66,30 @@ const getLookSignature = (cfg: Record<string, unknown>): string => {
     return `LOOK & FEEL (replicate the source video's cinematic DNA): ${sig}${extras.length ? " " + extras.join(" ") : ""}`;
   }
   return "";
+};
+
+
+/**
+ * Qué partes de la dirección de arte NO inyectar, porque el usuario ya lo decidió en esta
+ * corrida. Sin esto la marca te pisa lo que pediste — reportado por el usuario antes de
+ * que pasara: "si yo quiero el fondo estudio, no necesito dirección de arte".
+ *
+ *  · Elegiste escenario (preset, texto libre o background del kit) → fuera `preferred_locations`
+ *  · Elegiste modelo del Brand Kit → fuera `casting` (la cara la manda la foto, no un texto)
+ *  · Escribiste un Style Reference → fuera `photoStyle` y `lighting` (tu referencia manda)
+ */
+const brandFieldsToSkip = (cfg: Record<string, unknown>, config: { selectedBackgroundId?: string | null; selectedAvatarId?: string | null }): BrandFieldKey[] => {
+  const skip: BrandFieldKey[] = [];
+  const presetKey = (cfg.locationPreset as string) || "brand";
+  const hasExplicitSetting =
+    presetKey !== "brand" ||
+    !!((cfg.settingOverride as string) || "").trim() ||
+    !!(cfg.adHocBackgroundUrl as string) ||
+    !!config.selectedBackgroundId;
+  if (hasExplicitSetting) skip.push("ds.preferred_locations");
+  if (config.selectedAvatarId || ((cfg.selectedAvatarIds as string[]) || []).length > 0) skip.push("ds.casting");
+  if (((cfg.styleRef as string) || "").trim()) skip.push("ds.photoStyle", "ds.lighting");
+  return skip;
 };
 
 const NO_TEXT_SUFFIX = " Single continuous frame. NO split screen, NO collage, NO grid, NO text, NO watermarks, NO overlays.";
@@ -413,7 +438,7 @@ export const handleBaseImage: StepHandler = async (ctx) => {
     : "";
 
   const lookSignature = getLookSignature(cfg);
-  const brandContextBlock = buildBrandContext(activeBrand, "fashion_reel");
+  const brandContextBlock = buildBrandContext(activeBrand, "fashion_reel", brandFieldsToSkip(cfg, config));
   let prompt = firstScene.image_prompt;
   if (refDescriptions.length > 0) prompt = `${roleHierarchy}${wardrobeOverride}REFERENCE IMAGES:\n${refDescriptions.join("\n")}\n\n${prompt}`;
   if (lookSignature) prompt = `${lookSignature}\n\n${prompt}`;
@@ -588,7 +613,7 @@ export const handleMultishot: StepHandler = async (ctx) => {
 
     const fullRefDesc = (anchorHeader + restDesc).trim();
     const lookSignature = getLookSignature(cfg);
-    const brandContextBlock = buildBrandContext(activeBrand, "fashion_reel");
+    const brandContextBlock = buildBrandContext(activeBrand, "fashion_reel", brandFieldsToSkip(cfg, config));
     const variations: Array<{ id: string; url: string; label: string; prompt: string }> = [];
 
     for (let v = 0; v < 2; v++) {

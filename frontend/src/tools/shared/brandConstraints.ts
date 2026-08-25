@@ -175,9 +175,21 @@ function getField(brand: BrandContextBrand, key: BrandFieldKey): string | string
  * Build a tool-specific brand context block to prepend to image prompts.
  * Returns an empty string if there's nothing relevant.
  */
-export function buildBrandContext(brand: BrandContextBrand | undefined, toolId: string): string {
+export function buildBrandContext(
+  brand: BrandContextBrand | undefined,
+  toolId: string,
+  /**
+   * Campos a EXCLUIR porque el usuario ya decidió eso explícitamente en esta corrida.
+   *
+   * Regla de precedencia: lo elegido en la corrida le gana al default de la marca. Sin
+   * esto, un "Setting: estudio blanco (LOCKED)" arriba del prompt terminaba peleando con
+   * un "Preferred locations: calle urbana" al final — y el final pesa más. El resultado
+   * era que la marca te pisaba lo que pediste.
+   */
+  exclude: BrandFieldKey[] = [],
+): string {
   if (!brand) return "";
-  const keys = TOOL_BRAND_FIELDS[toolId] || [];
+  const keys = (TOOL_BRAND_FIELDS[toolId] || []).filter((k) => !exclude.includes(k));
   const lines: string[] = [];
 
   for (const key of keys) {
