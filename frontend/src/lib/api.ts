@@ -707,6 +707,44 @@ export async function setGenerationPublished(generationId: string, published: bo
     return res.json();
 }
 
+/**
+ * Feedback loop — devoluciones del cliente → reglas de dirección de arte.
+ * Ver backend/services/feedback_loop.py. `proposeArtDirectionRules` NO escribe nada;
+ * escribir es `applyArtDirectionRule`, y lo dispara el usuario.
+ */
+export interface ArtRuleProposal {
+    field: string;
+    rule: string;
+    evidence: string[];
+    reasoning: string;
+}
+
+export interface FeedbackInsight {
+    proposals: ArtRuleProposal[];
+    feedbackCount: number;
+    /** Por qué no hay propuestas, cuando no las hay. */
+    skipped: string | null;
+}
+
+export async function proposeArtDirectionRules(brandId: string): Promise<FeedbackInsight> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/feedback-insight`, { method: "POST" });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Error" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo analizar el feedback");
+    }
+    return res.json();
+}
+
+export async function applyArtDirectionRule(brandId: string, field: string, rule: string): Promise<{ brand: Brand }> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/art-direction/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, rule }),
+    });
+    if (!res.ok) throw new Error("No se pudo aplicar la regla");
+    return res.json();
+}
+
 export async function listReviews(): Promise<ReviewData[]> {
     const res = await fetch(`${API_BASE}/api/reviews`);
     if (!res.ok) return [];

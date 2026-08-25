@@ -21,6 +21,11 @@ import {
 } from "../../lib/api";
 import type { KlingModel } from "../../lib/api";
 import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "./index";
+// La dirección de arte de la marca (casting, luz, locaciones, movimiento) estaba
+// DECLARADA para fashion_reel en TOOL_BRAND_FIELDS pero nunca se leía: en Looks mode el
+// script se arma acá y no pasa por el prompt de Gemini, así que la marca no entraba por
+// ningún lado. Ver docs/decisions-log.md 2026-08.
+import { buildBrandContext } from "../shared/brandConstraints";
 // Reusamos la MISMA cláusula de fondo #ededed que el Ecommerce Pack para que el "estudio
 // blanco" del Fashion Reel matchee exacto (mismo gris cálido claro, no blanco puro).
 import { STUDIO_STYLES } from "../ecommerce_pack";
@@ -408,10 +413,11 @@ export const handleBaseImage: StepHandler = async (ctx) => {
     : "";
 
   const lookSignature = getLookSignature(cfg);
+  const brandContextBlock = buildBrandContext(activeBrand, "fashion_reel");
   let prompt = firstScene.image_prompt;
   if (refDescriptions.length > 0) prompt = `${roleHierarchy}${wardrobeOverride}REFERENCE IMAGES:\n${refDescriptions.join("\n")}\n\n${prompt}`;
   if (lookSignature) prompt = `${lookSignature}\n\n${prompt}`;
-  prompt += ` ${stylePrompt}${NO_TEXT_SUFFIX}`;
+  prompt += `${brandContextBlock} ${stylePrompt}${NO_TEXT_SUFFIX}`;
 
   const job = imageUrls.length > 0
     ? await createImageEdit(imageUrls, prompt, config.aspectRatio, config.resolution)
@@ -582,6 +588,7 @@ export const handleMultishot: StepHandler = async (ctx) => {
 
     const fullRefDesc = (anchorHeader + restDesc).trim();
     const lookSignature = getLookSignature(cfg);
+    const brandContextBlock = buildBrandContext(activeBrand, "fashion_reel");
     const variations: Array<{ id: string; url: string; label: string; prompt: string }> = [];
 
     for (let v = 0; v < 2; v++) {
@@ -589,7 +596,7 @@ export const handleMultishot: StepHandler = async (ctx) => {
       let prompt = scene.image_prompt;
       if (fullRefDesc) prompt = `REFERENCE IMAGES:\n${fullRefDesc}\n\n${prompt}`;
       if (lookSignature) prompt = `${lookSignature}\n\n${prompt}`;
-      prompt += ` ${varHint.desc} ${stylePrompt}${NO_TEXT_SUFFIX}`;
+      prompt += `${brandContextBlock} ${varHint.desc} ${stylePrompt}${NO_TEXT_SUFFIX}`;
 
       try {
         const job = refUrls.length > 0
@@ -728,6 +735,11 @@ export const handleAnimate: StepHandler = async (ctx) => {
   // arranca por la variante más quieta). "medio"/"dinamico" appendean una cláusula de energía al
   // prompt Y sesgan la selección de variante para NO arrancar por la más estática. La cara SIEMPRE
   // queda en cuadro (regla face-anchor). Reportado: "el motion queda siempre igual / muy quieto".
+  // Reglas de movimiento de la marca. Es el campo que el loop de feedback escribe cuando
+  // el cliente se queja del movimiento — si no entra acá, aceptar la regla no cambia nada.
+  const brandMotionRules = ((activeBrand.designSystem?.motion_rules as string) || "").trim();
+  const brandMotionClause = brandMotionRules ? ` BRAND MOTION RULES (mandatory): ${brandMotionRules}` : "";
+
   const motionIntensity = ((cfg.motionIntensity as string) || "medio").toLowerCase();
   const intensityBias = motionIntensity === "sutil" ? 0 : motionIntensity === "medio" ? 1 : 2;
   const intensityClause =
@@ -774,7 +786,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
       ? `${shotMotion} ${frame.note ? `Context: ${frame.note}.` : ""}${userDirection} Vertical 9:16.`
       : frame.note
         ? `Fashion model: ${frame.note}.${userDirection} Smooth, natural, confident movement. Vertical 9:16.`
-        : `Fashion model subtle natural movement — slight sway, confident pose, hair movement.${userDirection} Vertical 9:16.`) + intensityClause;
+        : `Fashion model subtle natural movement — slight sway, confident pose, hair movement.${userDirection} Vertical 9:16.`) + intensityClause + brandMotionClause;
 
     try {
       let videoUrl = "";

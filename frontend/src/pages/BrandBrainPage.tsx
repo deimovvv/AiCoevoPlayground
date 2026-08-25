@@ -17,10 +17,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { MessageSquareWarning, ArrowUpRight, Loader2 } from "lucide-react";
+import { MessageSquareWarning, ArrowUpRight, Loader2, Sparkles, Check, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
-import { listReviews, fetchGenerations } from "../lib/api";
-import type { ReviewData, Generation } from "../lib/api";
+import { listReviews, fetchGenerations, proposeArtDirectionRules, applyArtDirectionRule } from "../lib/api";
+import type { ReviewData, Generation, ArtRuleProposal, FeedbackInsight } from "../lib/api";
 import { formatUsd } from "../lib/pricing";
 
 /** Los campos de dirección de arte, en el orden en que importan al generar. */
@@ -43,10 +43,14 @@ function asText(v: unknown): string {
 }
 
 export function BrandBrainPage() {
-    const { activeBrand } = useBrand();
+    const { activeBrand, refreshBrands } = useBrand();
     const [reviews, setReviews] = useState<ReviewData[]>([]);
     const [gens, setGens] = useState<Generation[]>([]);
     const [loading, setLoading] = useState(true);
+    const [insight, setInsight] = useState<FeedbackInsight | null>(null);
+    const [analyzing, setAnalyzing] = useState(false);
+    const [insightError, setInsightError] = useState<string | null>(null);
+    const [applied, setApplied] = useState<Record<string, "ok" | "off">>({});
 
     useEffect(() => {
         if (!activeBrand) return;
@@ -91,6 +95,30 @@ export function BrandBrainPage() {
         }, { usd: 0, n: 0 }),
         [gens],
     );
+
+    const analyze = async () => {
+        if (!activeBrand) return;
+        setAnalyzing(true); setInsightError(null);
+        try {
+            setInsight(await proposeArtDirectionRules(activeBrand.id));
+        } catch (e) {
+            setInsightError(e instanceof Error ? e.message : "No se pudo analizar");
+        } finally {
+            setAnalyzing(false);
+        }
+    };
+
+    /** Aceptar escribe la regla en la marca y refresca el brand kit para verla arriba. */
+    const accept = async (p: ArtRuleProposal, i: number) => {
+        if (!activeBrand) return;
+        setApplied((prev) => ({ ...prev, [i]: "ok" }));
+        try {
+            await applyArtDirectionRule(activeBrand.id, p.field, p.rule);
+            await refreshBrands();
+        } catch {
+            setApplied((prev) => { const n = { ...prev }; delete n[i]; return n; });
+        }
+    };
 
     if (!activeBrand) {
         return (
@@ -195,15 +223,69 @@ export function BrandBrainPage() {
                                 </div>
                             ))}
 
-                            {/* El paso que falta: leer esto y proponer una regla. Se dice
-                                explícito en vez de mostrar un botón que todavía no hace nada. */}
-                            <p className="text-[11.5px] text-fg-muted mt-4 pt-3 border-t border-edge-subtle leading-relaxed">
-                                Estas devoluciones todavía no alimentan la dirección de arte. El paso que falta
-                                es leerlas y proponer una regla que puedas aceptar.
-                            </p>
+                            <div className="mt-4 pt-3 border-t border-edge-subtle">
+                                <button
+                                    onClick={analyze}
+                                    disabled={analyzing}
+                                    className="flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-secondary hover:text-fg hover:border-edge-strong transition-colors cursor-pointer disabled:opacity-50"
+                                >
+                                    {analyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                                    {analyzing ? "Leyendo las devoluciones…" : "Proponer reglas"}
+                                </button>
+                                {insightError && <p className="text-[11.5px] text-[var(--color-error)] mt-2">{insightError}</p>}
+                            </div>
                         </>
                     )}
                 </section>
+
+                {/* Propuestas del loop — el sistema propone, vos confirmás. */}
+                {insight && (
+                    <section className="lg:col-span-2 rounded-[var(--radius-md)] border border-[var(--color-action)] bg-[var(--color-action-muted)] px-5 py-4">
+                        <h2 className="text-[13.5px] font-semibold">Lo que se aprendió trabajando</h2>
+                        <p className="text-[11.5px] text-fg-muted mb-4">
+                            Leído de {insight.feedbackCount} devoluciones. Nada se escribe hasta que aceptes.
+                        </p>
+
+                        {insight.proposals.length === 0 ? (
+                            <p className="text-[12.5px] text-fg-secondary leading-relaxed">{insight.skipped}</p>
+                        ) : insight.proposals.map((p, i) => (
+                            <div key={i} className="rounded-[var(--radius-sm)] bg-black/25 border border-edge-subtle px-4 py-3.5 mb-2.5 last:mb-0">
+                                <p className="text-[10px] font-mono uppercase tracking-[.1em] text-fg-muted">{p.field}</p>
+                                <p className="text-[13px] text-fg mt-1 leading-relaxed">{p.rule}</p>
+                                <p className="text-[11.5px] text-fg-muted mt-2 leading-relaxed">{p.reasoning}</p>
+                                {p.evidence.length > 0 && (
+                                    <p className="text-[11px] font-mono text-fg-faint mt-2">
+                                        {p.evidence.map((e) => `"${e}"`).join(" · ")}
+                                    </p>
+                                )}
+                                <div className="flex items-center gap-2 mt-3">
+                                    {applied[i] === "ok" ? (
+                                        <span className="flex items-center gap-1.5 text-[11.5px] text-[var(--color-success)]">
+                                            <Check size={12} /> Escrita en {p.field}
+                                        </span>
+                                    ) : applied[i] === "off" ? (
+                                        <span className="text-[11.5px] text-fg-faint">Descartada</span>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={() => accept(p, i)}
+                                                className="flex items-center gap-1.5 h-7 px-3 rounded-[var(--radius-sm)] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[11.5px] font-semibold cursor-pointer"
+                                            >
+                                                <Check size={11} /> Aceptar regla
+                                            </button>
+                                            <button
+                                                onClick={() => setApplied((prev) => ({ ...prev, [i]: "off" }))}
+                                                className="flex items-center gap-1.5 h-7 px-3 rounded-[var(--radius-sm)] border border-edge text-[11.5px] text-fg-muted hover:text-fg cursor-pointer"
+                                            >
+                                                <X size={11} /> Descartar
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </section>
+                )}
 
                 {/* Assets */}
                 <section className="lg:col-span-2 rounded-[var(--radius-md)] border border-edge-subtle bg-surface-1 px-5 py-4">

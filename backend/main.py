@@ -53,6 +53,7 @@ from services import beeble_switchx
 from services import omnihuman        # talking-character audio-driven (labios), v1.5
 from services import kling_avatar     # talking-character audio-driven, económico
 from services import music_gen        # Lyria 2 — música instrumental de fondo
+from services import feedback_loop    # devoluciones del cliente → reglas de dirección de arte
 from services.image_utils import normalize_image_bytes, is_image_upload
 
 # ── Paths ────────────────────────────────────────────────────
@@ -4748,6 +4749,50 @@ async def create_generation(req: SaveGenerationRequest):
     with generations_service.mutate() as gens:
         gens.append(gen)
     return gen
+
+
+# ══════════════════════════════════════════════════════════════
+#  Feedback loop — devoluciones del cliente → dirección de arte
+#  Ver services/feedback_loop.py y docs/decisions-log.md 2026-08.
+# ══════════════════════════════════════════════════════════════
+
+class ApplyRuleRequest(BaseModel):
+    field: str
+    rule: str
+
+
+@app.post("/api/brands/{brand_id}/feedback-insight")
+async def brand_feedback_insight(brand_id: str):
+    """Lee las devoluciones de la marca y propone reglas de dirección de arte.
+
+    NO escribe nada — solo propone. Aplicar es un paso aparte y explícito.
+    """
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    try:
+        return await feedback_loop.propose_rules(brand, _load_reviews())
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=f"Gemini error: {str(e)[:300]}")
+
+
+@app.post("/api/brands/{brand_id}/art-direction/apply")
+def apply_art_direction_rule(brand_id: str, req: ApplyRuleRequest):
+    """Escribe una regla ACEPTADA en la dirección de arte. Apendea, no pisa."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    ds = feedback_loop.apply_rule(brand, req.field, req.rule)
+    if ds is None:
+        raise HTTPException(status_code=400, detail=f"Campo desconocido: {req.field}")
+    brands.save_brands(all_brands)
+    return {"designSystem": ds, "brand": brand}
 
 
 # ══════════════════════════════════════════════════════════════
