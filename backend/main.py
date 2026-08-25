@@ -43,6 +43,7 @@ from services import apify_tiktok
 from services import instagram_scraper
 import nodes as node_system  # Fase 1: catálogo de primitivas + motor de grafos (backend/nodes/)
 from services import manual_lab
+from services import generations as generations_service
 from services import asset_matcher
 from services import seedance_video
 from services import veo_video
@@ -361,21 +362,13 @@ def convert_heic_legacy():
 TOOLS_DIR = Path(__file__).parent / "tools"
 DATA_DIR = Path(__file__).parent / "data"
 TOOLS_JOBS: Dict[str, dict] = {}
-GENERATIONS_FILE = DATA_DIR / "generations.json"
-
-
-def _load_generations() -> List[dict]:
-    if not GENERATIONS_FILE.exists():
-        with open(GENERATIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump([], f)
-        return []
-    with open(GENERATIONS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def _save_generations(gens: List[dict]):
-    with open(GENERATIONS_FILE, "w", encoding="utf-8") as f:
-        json.dump(gens, f, indent=2, ensure_ascii=False)
+# La persistencia vive en services/generations.py. El índice que se lee acá es
+# LIVIANO: no trae pipelineState (era el 87% de un archivo de 462 MB). Ese campo
+# vive en un archivo por generación y se hidrata solo en el endpoint de detalle.
+# Para cualquier cambio usar generations_service.mutate(): lee y escribe bajo el
+# mismo lock, así dos guardados simultáneos no se pisan.
+_load_generations = generations_service.load_generations
+_save_generations = generations_service.save_generations
 
 
 def _load_registry() -> List[dict]:
@@ -4687,21 +4680,27 @@ def list_generations(brandId: Optional[str] = None):
 
 @app.get("/api/generations/{gen_id}")
 def get_generation(gen_id: str):
+    """Detalle. Acá SÍ se hidrata el pipelineState desde su archivo — es lo que
+    ToolRunPage usa para restaurar una corrida guardada. Listar nunca lo trae."""
     gens = _load_generations()
     gen = next((g for g in gens if g["id"] == gen_id), None)
     if not gen:
         raise HTTPException(status_code=404, detail="Generation not found")
-    return gen
+    return generations_service.with_pipeline_state(gen)
 
 
 @app.post("/api/generations")
 async def create_generation(req: SaveGenerationRequest):
     """Save a completed generation."""
-    gens = _load_generations()
     from datetime import datetime, timezone
 
+    gen_id = f"gen_{uuid.uuid4().hex[:8]}"
+    # El pipelineState pesado va a data/pipeline_states/<id>.json; en el índice
+    # queda solo el flag que la biblioteca usa para mostrar "Abrir en el tool".
+    has_state = generations_service.write_pipeline_state(gen_id, req.pipelineState)
+
     gen = {
-        "id": f"gen_{uuid.uuid4().hex[:8]}",
+        "id": gen_id,
         "brandId": req.brandId,
         "toolId": req.toolId,
         "title": req.title,
@@ -4711,11 +4710,11 @@ async def create_generation(req: SaveGenerationRequest):
         "outputUrl": req.outputUrl,
         "scenes": req.scenes or [],
         "metadata": req.metadata or {},
-        "pipelineState": req.pipelineState,
+        "hasPipelineState": has_state,
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
-    gens.append(gen)
-    _save_generations(gens)
+    with generations_service.mutate() as gens:
+        gens.append(gen)
     return gen
 
 
@@ -4883,12 +4882,11 @@ class PublishRequest(BaseModel):
 @app.post("/api/generations/{gen_id}/publish")
 async def publish_generation(gen_id: str, req: PublishRequest):
     """Agency: show/hide a generation in the client portal."""
-    gens = _load_generations()
-    gen = next((g for g in gens if g.get("id") == gen_id), None)
-    if not gen:
-        raise HTTPException(status_code=404, detail="Generation not found")
-    gen["publishedToPortal"] = req.published
-    _save_generations(gens)
+    with generations_service.mutate() as gens:
+        gen = next((g for g in gens if g.get("id") == gen_id), None)
+        if not gen:
+            raise HTTPException(status_code=404, detail="Generation not found")
+        gen["publishedToPortal"] = req.published
     if req.published:
         _ensure_review(gen)  # so the portal has clips + a review token ready
     return {"ok": True, "published": req.published}
@@ -4940,36 +4938,40 @@ def get_portal(token: str):
 @app.patch("/api/generations/{gen_id}")
 async def update_generation(gen_id: str, req: SaveGenerationRequest):
     """Update an existing generation (for auto-save across pipeline steps)."""
-    gens = _load_generations()
-    idx = next((i for i, g in enumerate(gens) if g["id"] == gen_id), None)
-    if idx is None:
-        raise HTTPException(status_code=404, detail="Generation not found")
-    existing = gens[idx]
-    existing.update({
-        "brandId": req.brandId,
-        "toolId": req.toolId,
-        "title": req.title,
-        "type": req.type,
-        "status": req.status,
-        "thumbnailUrl": req.thumbnailUrl or existing.get("thumbnailUrl"),
-        "outputUrl": req.outputUrl or existing.get("outputUrl"),
-        "scenes": req.scenes if req.scenes is not None else existing.get("scenes", []),
-        "metadata": req.metadata if req.metadata is not None else existing.get("metadata", {}),
-        "pipelineState": req.pipelineState if req.pipelineState is not None else existing.get("pipelineState"),
-    })
-    gens[idx] = existing
-    _save_generations(gens)
+    with generations_service.mutate() as gens:
+        idx = next((i for i, g in enumerate(gens) if g["id"] == gen_id), None)
+        if idx is None:
+            raise HTTPException(status_code=404, detail="Generation not found")
+        # Se escribe adentro del bloque para no dejar un archivo huérfano si el id no existe.
+        if req.pipelineState is not None:
+            has_state = generations_service.write_pipeline_state(gen_id, req.pipelineState)
+        else:
+            has_state = generations_service.has_pipeline_state(gen_id)
+        existing = gens[idx]
+        existing.update({
+            "brandId": req.brandId,
+            "toolId": req.toolId,
+            "title": req.title,
+            "type": req.type,
+            "status": req.status,
+            "thumbnailUrl": req.thumbnailUrl or existing.get("thumbnailUrl"),
+            "outputUrl": req.outputUrl or existing.get("outputUrl"),
+            "scenes": req.scenes if req.scenes is not None else existing.get("scenes", []),
+            "metadata": req.metadata if req.metadata is not None else existing.get("metadata", {}),
+            "hasPipelineState": has_state,
+        })
+        existing.pop("pipelineState", None)  # nunca vuelve al índice
+        gens[idx] = existing
     return existing
 
 
 @app.delete("/api/generations/{gen_id}")
 def delete_generation(gen_id: str):
-    gens = _load_generations()
-    gen = next((g for g in gens if g["id"] == gen_id), None)
-    if not gen:
-        raise HTTPException(status_code=404, detail="Generation not found")
-    gens = [g for g in gens if g["id"] != gen_id]
-    _save_generations(gens)
+    with generations_service.mutate() as gens:
+        if not any(g["id"] == gen_id for g in gens):
+            raise HTTPException(status_code=404, detail="Generation not found")
+        gens[:] = [g for g in gens if g["id"] != gen_id]  # in-place: mutate() guarda ESTA lista
+    generations_service.delete_pipeline_state(gen_id)
     return {"ok": True}
 
 
