@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
     LayoutGrid, Wand2, FolderOpen, Settings,
-    FlaskConical, Loader2, Moon, Sun, Megaphone, PanelLeft, Home, Compass, ListTodo } from "lucide-react";
+    FlaskConical, Loader2, Moon, Sun, Megaphone, PanelLeft, Home, Compass, ListTodo, ArrowLeft, ChevronRight } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
 import { useTheme } from "../../lib/theme";
 import { cn } from "../../lib/utils";
@@ -27,22 +27,42 @@ interface NavItem {
     tour?: string; // data-tour para el onboarding (Coachmarks)
 }
 
-const PRIMARY_NAV: NavItem[] = [
-    { label: "Inicio", href: "/dashboard", exact: true, icon: <Home size={18} />, title: "Inicio — bienvenida, tools y campañas recientes", tour: "nav-inicio" },
+/**
+ * Navegación de DOS NIVELES (ver docs/decisions-log.md 2026-08 — Coevo World).
+ *
+ *   Coevo World  → la operación: qué se pidió, en qué estado está, qué costó
+ *   Coevo Studio → la fábrica: las tools, el contenido, el sandbox
+ *
+ * Se entra al Studio desde un item del World y se vuelve con un "atrás". El sidebar
+ * cambia de set según la ruta, así nunca ves las dos cosas mezcladas.
+ */
+const WORLD_NAV: NavItem[] = [
+    { label: "Inicio", href: "/dashboard", exact: true, icon: <Home size={18} />, title: "Inicio — pedí algo nuevo y mirá qué está pendiente", tour: "nav-inicio" },
     { label: "Trabajo", href: "/dashboard/trabajo", exact: true, icon: <ListTodo size={18} />, title: "Trabajo — qué está en curso, qué espera aprobación y qué costó" },
     { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={18} />, title: "Marcas — gestioná tus marcas y su brand kit" },
     { label: "Campañas", href: "/dashboard/campaigns", icon: <Megaphone size={18} />, title: "Campañas — trabajá contenido por campaña de la marca activa", tour: "nav-campanas" },
-    { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} />, title: "Generar — tools de generación de contenido", tour: "nav-generar" },
-    { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} />, title: "Contenido — biblioteca de generaciones" },
 ];
 
-const LAB_NAV: NavItem = {
-    label: "Lab",
-    href: "/dashboard/lab",
-    exact: true,
-    icon: <FlaskConical size={18} />,
-    title: "Lab — sandbox SIN marca (Nano Banana + Kling/Seedance directo)",
+/** La puerta a la fábrica. Se pinta con el acento porque abre otro NIVEL, no otra página. */
+const STUDIO_ENTRY: NavItem = {
+    label: "Coevo Studio",
+    href: "/dashboard/generate",
+    icon: <Wand2 size={18} />,
+    title: "Coevo Studio — las herramientas de generación",
+    tour: "nav-generar",
 };
+
+const STUDIO_NAV: NavItem[] = [
+    { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} />, title: "Generar — tools de generación de contenido" },
+    { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} />, title: "Contenido — biblioteca de generaciones" },
+    { label: "Lab", href: "/dashboard/lab", exact: true, icon: <FlaskConical size={18} />, title: "Lab — sandbox SIN marca (Nano Banana + Kling/Seedance directo)" },
+];
+
+/** Rutas que viven adentro del Studio — definen en qué nivel está parado el sidebar. */
+const STUDIO_PREFIXES = [
+    "/dashboard/generate", "/dashboard/content", "/dashboard/lab", "/dashboard/lab-v2",
+    "/dashboard/voice-lab", "/dashboard/ecommerce-batch", "/dashboard/tools", "/dashboard/pipeline",
+];
 
 const SETTINGS_NAV: NavItem[] = [
     { label: "Ajustes", href: "/dashboard/settings", exact: true, icon: <Settings size={15} /> },
@@ -76,6 +96,11 @@ export function Sidebar() {
 
     const isSettingsActive = SETTINGS_NAV.some((i) => location.pathname === i.href);
 
+    /** ¿Estamos adentro de la fábrica? Define qué set de nav se muestra. */
+    const inStudio = STUDIO_PREFIXES.some(
+        (p) => location.pathname === p || location.pathname.startsWith(p + "/"),
+    );
+
     const itemCls = (active: boolean) => cn(
         "flex items-center rounded-[var(--radius-md)] transition-colors h-10",
         expanded ? "gap-3 px-3 justify-start w-full" : "w-10 justify-center",
@@ -92,10 +117,14 @@ export function Sidebar() {
                 <Link
                     to="/dashboard/brands"
                     className={cn("flex items-center gap-2 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-1)] transition-colors group", expanded ? "px-2 py-1.5 flex-1" : "w-9 h-9 justify-center")}
-                    title="Coevo Studio"
+                    title={inStudio ? "Coevo Studio" : "Coevo World"}
                 >
                     <span className="w-2 h-2 rounded-full bg-[var(--color-action)] opacity-70 group-hover:opacity-100 transition-opacity shrink-0" />
-                    {expanded && <span className="text-[13px] font-semibold text-fg">Coevo</span>}
+                    {expanded && (
+                        <span className="text-[13px] font-semibold text-fg whitespace-nowrap">
+                            Coevo <span className="text-fg-muted font-normal">{inStudio ? "Studio" : "World"}</span>
+                        </span>
+                    )}
                 </Link>
                 <button
                     onClick={toggleExpanded}
@@ -106,43 +135,64 @@ export function Sidebar() {
                 </button>
             </div>
 
-            {/* Primary nav (brand flow) */}
-            <nav className={cn("flex flex-col gap-1", expanded ? "items-stretch" : "items-center")}>
-                {PRIMARY_NAV.map((item) => {
-                    const active = isActive(item);
-                    return (
-                        <Link key={item.label} to={item.href} title={item.title} data-tour={item.tour} className={itemCls(active)}>
-                            <span className="shrink-0 flex items-center justify-center w-5">{item.icon}</span>
-                            {expanded && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
-                        </Link>
-                    );
-                })}
-            </nav>
-
-            {/* Divider — Lab está fuera del brand flow */}
-            <div className={cn("h-px bg-edge my-3", expanded ? "w-full" : "w-6 mx-auto")} />
-
-            {/* Lab — sandbox brand-agnostic. Dot terracota cuando NO está activo. */}
-            {(() => {
-                const labActive = isActive(LAB_NAV);
-                return (
-                    <Link
-                        to={LAB_NAV.href}
-                        title={LAB_NAV.title}
+            {/* Nav — cambia de nivel según dónde estás parado (World ↔ Studio) */}
+            {inStudio ? (
+                <>
+                    <button
+                        onClick={() => navigate("/dashboard")}
+                        title="Volver a Coevo World"
                         className={cn(
-                            "flex items-center rounded-[var(--radius-md)] transition-colors h-10",
-                            expanded ? "gap-3 px-3 justify-start w-full" : "w-10 justify-center",
-                            labActive ? "text-[var(--color-action-fg)] bg-[var(--color-action)]" : "text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)]",
+                            "flex items-center rounded-[var(--radius-md)] transition-colors h-9 mb-2 cursor-pointer",
+                            "text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)]",
+                            expanded ? "gap-2 px-3 justify-start w-full" : "w-10 justify-center",
                         )}
                     >
-                        <span className="relative shrink-0 flex items-center justify-center w-5">
-                            {LAB_NAV.icon}
-                            {!labActive && !expanded && <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-[var(--color-action)]" />}
-                        </span>
-                        {expanded && <span className="text-[13px] font-medium">{LAB_NAV.label}</span>}
+                        <ArrowLeft size={15} className="shrink-0" />
+                        {expanded && <span className="text-[12px] font-medium">Coevo World</span>}
+                    </button>
+                    <nav className={cn("flex flex-col gap-1", expanded ? "items-stretch" : "items-center")}>
+                        {STUDIO_NAV.map((item) => (
+                            <Link key={item.label} to={item.href} title={item.title} data-tour={item.tour} className={itemCls(isActive(item))}>
+                                <span className="shrink-0 flex items-center justify-center w-5">{item.icon}</span>
+                                {expanded && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
+                            </Link>
+                        ))}
+                    </nav>
+                </>
+            ) : (
+                <>
+                    <nav className={cn("flex flex-col gap-1", expanded ? "items-stretch" : "items-center")}>
+                        {WORLD_NAV.map((item) => (
+                            <Link key={item.label} to={item.href} title={item.title} data-tour={item.tour} className={itemCls(isActive(item))}>
+                                <span className="shrink-0 flex items-center justify-center w-5">{item.icon}</span>
+                                {expanded && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
+                            </Link>
+                        ))}
+                    </nav>
+
+                    <div className={cn("h-px bg-edge my-3", expanded ? "w-full" : "w-6 mx-auto")} />
+
+                    {/* Puerta al Studio — acentuada porque abre otro nivel, no otra página */}
+                    <Link
+                        to={STUDIO_ENTRY.href}
+                        title={STUDIO_ENTRY.title}
+                        data-tour={STUDIO_ENTRY.tour}
+                        className={cn(
+                            "flex items-center rounded-[var(--radius-md)] transition-colors h-10",
+                            "border border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg hover:bg-[var(--color-action)] hover:text-[var(--color-action-fg)]",
+                            expanded ? "gap-3 px-3 justify-start w-full" : "w-10 justify-center",
+                        )}
+                    >
+                        <span className="shrink-0 flex items-center justify-center w-5">{STUDIO_ENTRY.icon}</span>
+                        {expanded && (
+                            <>
+                                <span className="text-[13px] font-medium whitespace-nowrap">{STUDIO_ENTRY.label}</span>
+                                <ChevronRight size={13} className="ml-auto opacity-60 shrink-0" />
+                            </>
+                        )}
                     </Link>
-                );
-            })()}
+                </>
+            )}
 
             {/* Spacer — empuja brand+theme+settings al fondo */}
             <div className="flex-1" />
