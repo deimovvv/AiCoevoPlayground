@@ -21,12 +21,21 @@ import { formatUsd } from "../lib/pricing";
 import { PRICE_NOTE } from "../lib/costLedger";
 import { cn } from "../lib/utils";
 
+// Manual Lab es el sandbox: 2.825 de las 3.211 generaciones históricas salieron de ahí.
+// Son pruebas, no entregables — un tablero de trabajo con eso adentro es ruido.
+const SANDBOX_TOOLS = ["manual_lab"];
+
+// El Historial puede tener cientos de corridas viejas. Se muestran las últimas y se
+// dice cuántas quedaron afuera — nunca truncar en silencio.
+const ARCHIVE_LIMIT = 25;
+
 /** Orden de los grupos en la lista — lo que exige acción primero. */
 const GROUPS: Array<{ key: string; label: string; statuses: WorkStatus[] }> = [
     { key: "action", label: "Requiere acción", statuses: ["review", "changes"] },
     { key: "open", label: "En curso", statuses: ["in_progress", "draft"] },
     { key: "waiting", label: "Esperando al cliente", statuses: ["sent"] },
     { key: "done", label: "Aprobados", statuses: ["approved"] },
+    { key: "archive", label: "Historial", statuses: ["archived"] },
 ];
 
 const PILL_CLS: Record<WorkStatus, string> = {
@@ -36,12 +45,17 @@ const PILL_CLS: Record<WorkStatus, string> = {
     draft: "bg-white/[.04] text-fg-faint",
     sent: "bg-white/[.06] text-fg-secondary",
     approved: "bg-[rgba(61,191,138,.13)] text-[var(--color-success)]",
+    archived: "bg-white/[.04] text-fg-faint",
 };
 
-/** Las corridas viejas no tienen workStatus — se infiere del status de pipeline. */
+/**
+ * Las corridas anteriores al costing layer no tienen `workStatus`. NO se infiere "para
+ * revisar" — eso mandaba 3.000 piezas viejas a exigir acción y volvía inútil el tablero.
+ * Van a Historial: no sabemos en qué quedaron, y fingir que sí sería peor.
+ */
 function statusOf(g: Generation): WorkStatus {
     if (g.workStatus) return g.workStatus;
-    return g.status === "completed" ? "review" : "in_progress";
+    return g.status === "completed" ? "archived" : "in_progress";
 }
 
 function daysAgo(iso?: string): string {
@@ -60,6 +74,10 @@ export function WorkPage() {
     const [onlyAction, setOnlyAction] = useState(false);
     const [search, setSearch] = useState("");
     const [saving, setSaving] = useState<string | null>(null);
+    const [showSandbox, setShowSandbox] = useState(false);
+    // Los thumbs viejos apuntan a fal.media, que expira. Se recuerda cuál falló para
+    // no dejar el recuadro roto en cada re-render.
+    const [brokenThumbs, setBrokenThumbs] = useState<Record<string, true>>({});
 
     useEffect(() => {
         setLoading(true);
@@ -78,23 +96,35 @@ export function WorkPage() {
     const visible = useMemo(() => {
         const q = search.trim().toLowerCase();
         return gens.filter((g) => {
+            if (!showSandbox && SANDBOX_TOOLS.includes(g.toolId)) return false;
             if (onlyAction && !WORK_STATUS_NEEDS_ACTION.includes(statusOf(g))) return false;
             if (q && !`${g.title} ${g.toolId}`.toLowerCase().includes(q)) return false;
             return true;
         });
-    }, [gens, onlyAction, search]);
+    }, [gens, onlyAction, search, showSandbox]);
+
+    const sandboxCount = useMemo(
+        () => gens.filter((g) => SANDBOX_TOOLS.includes(g.toolId)).length,
+        [gens],
+    );
 
     const grouped = useMemo(
         () => GROUPS.map((grp) => ({
             ...grp,
             items: visible.filter((g) => grp.statuses.includes(statusOf(g))),
-        })).filter((grp) => grp.items.length > 0),
+        })).map((grp) => grp.key === "archive" && grp.items.length > ARCHIVE_LIMIT
+            ? { ...grp, hidden: grp.items.length - ARCHIVE_LIMIT, items: grp.items.slice(0, ARCHIVE_LIMIT) }
+            : { ...grp, hidden: 0 },
+        ).filter((grp) => grp.items.length > 0),
         [visible],
     );
 
     const actionCount = useMemo(
-        () => gens.filter((g) => WORK_STATUS_NEEDS_ACTION.includes(statusOf(g))).length,
-        [gens],
+        () => gens.filter((g) =>
+            (showSandbox || !SANDBOX_TOOLS.includes(g.toolId)) &&
+            WORK_STATUS_NEEDS_ACTION.includes(statusOf(g))
+        ).length,
+        [gens, showSandbox],
     );
 
     /** Gasto del período por marca, contando SOLO lo que ya tiene costo registrado. */
@@ -102,6 +132,7 @@ export function WorkPage() {
         const byBrand: Record<string, number> = {};
         let total = 0, pieces = 0, unpriced = 0;
         for (const g of gens) {
+            if (!showSandbox && SANDBOX_TOOLS.includes(g.toolId)) continue;
             const usd = g.cost?.usd;
             if (typeof usd !== "number") { unpriced++; continue; }
             const key = g.brandId || "—";
@@ -111,7 +142,7 @@ export function WorkPage() {
         }
         const rows = Object.entries(byBrand).sort((a, b) => b[1] - a[1]);
         return { rows, total, pieces, unpriced, avg: pieces > 0 ? total / pieces : 0 };
-    }, [gens]);
+    }, [gens, showSandbox]);
 
     const setStatus = async (g: Generation, workStatus: WorkStatus) => {
         setSaving(g.id);
@@ -177,6 +208,20 @@ export function WorkPage() {
                 >
                     {allBrands ? "Todas las marcas" : activeBrand?.name || "Marca activa"}
                 </button>
+                {sandboxCount > 0 && (
+                    <button
+                        onClick={() => setShowSandbox((v) => !v)}
+                        title="Manual Lab es el sandbox — pruebas, no entregables"
+                        className={cn(
+                            "h-7 px-3 rounded-full text-[11.5px] border transition-colors cursor-pointer",
+                            showSandbox
+                                ? "border-[var(--color-warm)] bg-[var(--color-warm-muted)] text-fg"
+                                : "border-edge-subtle bg-surface-1 text-fg-muted hover:text-fg-secondary",
+                        )}
+                    >
+                        {showSandbox ? "Ocultar Lab" : `Incluir Lab · ${sandboxCount}`}
+                    </button>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_270px] gap-6">
@@ -206,11 +251,17 @@ export function WorkPage() {
                                                 grp.key === "action" && "bg-[rgba(228,171,27,.05)]",
                                             )}
                                         >
-                                            {g.thumbnailUrl && (
+                                            {g.thumbnailUrl && !brokenThumbs[g.id] ? (
                                                 <img
                                                     src={g.thumbnailUrl.startsWith("http") ? g.thumbnailUrl : `http://127.0.0.1:8000${g.thumbnailUrl}`}
                                                     alt=""
+                                                    onError={() => setBrokenThumbs((p) => ({ ...p, [g.id]: true }))}
                                                     className="w-8 h-11 object-cover rounded-[3px] shrink-0 bg-surface-2"
+                                                />
+                                            ) : (
+                                                <span
+                                                    className="w-8 h-11 rounded-[3px] shrink-0 border border-edge-subtle"
+                                                    title={g.thumbnailUrl ? "La miniatura expiró (fal.media)" : "Sin miniatura"}
                                                 />
                                             )}
                                             <div className="min-w-0 flex-1">
@@ -251,6 +302,14 @@ export function WorkPage() {
                                         </div>
                                     );
                                 })}
+                                {grp.hidden > 0 && (
+                                    <p className="text-[11.5px] text-fg-faint pt-3">
+                                        + {grp.hidden} corridas más en el historial —{" "}
+                                        <Link to="/dashboard/content" className="underline hover:text-fg-secondary">
+                                            verlas en Contenido
+                                        </Link>
+                                    </p>
+                                )}
                             </section>
                         ))
                     )}

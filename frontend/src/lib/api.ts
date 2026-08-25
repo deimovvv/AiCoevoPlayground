@@ -18,7 +18,8 @@ export type WorkStatus =
     | "review"       // lista, falta que la miremos nosotros
     | "sent"         // publicada al portal, esperando al cliente
     | "changes"      // el cliente pidió cambios
-    | "approved";    // aprobada
+    | "approved"     // aprobada
+    | "archived";    // cerrada / anterior al registro — no exige nada
 
 export const WORK_STATUS_LABEL: Record<WorkStatus, string> = {
     draft: "Borrador",
@@ -27,6 +28,7 @@ export const WORK_STATUS_LABEL: Record<WorkStatus, string> = {
     sent: "Esperando al cliente",
     changes: "Pidió cambios",
     approved: "Aprobado",
+    archived: "Historial",
 };
 
 /** Los que exigen una acción nuestra — el filtro por defecto de la pantalla Trabajo. */
