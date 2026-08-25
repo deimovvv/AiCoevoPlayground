@@ -557,7 +557,7 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                     </div>
 
                     {/* Continue / Open in tool */}
-                    {gen.pipelineState ? (
+                    {gen.hasPipelineState ? (
                         <Link
                             to={`/dashboard/generate/${gen.toolId}?gen=${gen.id}`}
                             className="flex items-center justify-center gap-2 w-full py-2.5 bg-[var(--color-action)] hover:opacity-90 text-[var(--color-action-fg)] font-semibold rounded-[var(--radius-sm)] text-[13px] transition-opacity cursor-pointer"
@@ -639,7 +639,7 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                                     );
                                 })}
                             </div>
-                            {clientFeedback.some(([, v]) => v.status === "change") && gen.pipelineState && (
+                            {clientFeedback.some(([, v]) => v.status === "change") && gen.hasPipelineState && (
                                 <p className="text-[10px] text-fg-faint">Abrí en el tool para regenerar los clips con cambios.</p>
                             )}
                         </div>
@@ -721,7 +721,7 @@ function GenerationDrawer({ gen, onClose, onDelete }: { gen: Generation; onClose
                                 Download
                             </button>
                         )}
-                        {gen.pipelineState && (
+                        {gen.hasPipelineState && (
                             <Link
                                 to={`/dashboard/generate/${gen.toolId}?gen=${gen.id}`}
                                 className="flex-1 flex items-center justify-center gap-2 py-2.5 text-[13px] font-medium text-fg bg-surface-2 hover:bg-surface-3 rounded-[var(--radius-sm)] transition-colors cursor-pointer"
