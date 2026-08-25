@@ -1453,6 +1453,10 @@ export interface Generation {
     outputUrl?: string;
     scenes?: Array<{ id: string; title: string; script?: string; imageUrl?: string; videoUrl?: string }>;
     metadata?: Record<string, unknown>;
+    /** Presente en el LISTADO: dice si hay estado guardado, sin traerlo.
+     *  El estado real pesa MBs y vive en un archivo aparte del lado del backend. */
+    hasPipelineState?: boolean;
+    /** Solo lo devuelve el detalle (GET /api/generations/:id), no el listado. */
     pipelineState?: {
         steps: Array<{ id: string; status: string; result?: unknown }>;
         config: Record<string, unknown>;
