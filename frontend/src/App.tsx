@@ -19,6 +19,7 @@ import { BrandProvider } from "./lib/BrandContext";
 import { BrandSettings } from "./pages/BrandSettings";
 import { ContentPage } from "./pages/ContentPage";
 import { WorkPage } from "./pages/WorkPage";
+import { BrandBrainPage } from "./pages/BrandBrainPage";
 import { IntegrationsPage } from "./pages/IntegrationsPage";
 import { AutomationsPage } from "./pages/AutomationsPage";
 import { PerformancePage } from "./pages/PerformancePage";
@@ -70,6 +71,7 @@ function App() {
         <Route index element={<DashboardHome />} />
         <Route path="chat" element={<ChatPage />} />
         <Route path="trabajo" element={<WorkPage />} />
+        <Route path="brain" element={<BrandBrainPage />} />
         <Route path="content" element={<ContentPage />} />
         <Route path="brand" element={<BrandSettings />} />
         <Route path="integrations" element={<IntegrationsPage />} />

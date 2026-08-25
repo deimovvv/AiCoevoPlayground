@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
     LayoutGrid, Wand2, FolderOpen, Settings,
-    FlaskConical, Loader2, Moon, Sun, Megaphone, PanelLeft, Home, Compass, ListTodo, ArrowLeft, ChevronRight } from "lucide-react";
+    FlaskConical, Loader2, Moon, Sun, Megaphone, PanelLeft, Home, Compass, ListTodo, ArrowLeft, ChevronRight, BrainCircuit } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
 import { useTheme } from "../../lib/theme";
 import { cn } from "../../lib/utils";
@@ -41,6 +41,7 @@ const WORLD_NAV: NavItem[] = [
     { label: "Trabajo", href: "/dashboard/trabajo", exact: true, icon: <ListTodo size={18} />, title: "Trabajo — qué está en curso, qué espera aprobación y qué costó" },
     { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={18} />, title: "Marcas — gestioná tus marcas y su brand kit" },
     { label: "Campañas", href: "/dashboard/campaigns", icon: <Megaphone size={18} />, title: "Campañas — trabajá contenido por campaña de la marca activa", tour: "nav-campanas" },
+    { label: "Brand Brain", href: "/dashboard/brain", exact: true, icon: <BrainCircuit size={18} />, title: "Brand Brain — la dirección de arte de la marca y lo que devolvió el cliente" },
 ];
 
 /** La puerta a la fábrica. Se pinta con el acento porque abre otro NIVEL, no otra página. */
