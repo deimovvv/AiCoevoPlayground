@@ -2,8 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
     LayoutGrid, Wand2, FolderOpen, Settings,
-    FlaskConical, Loader2, Moon, Sun, Megaphone, PanelLeft, Home, Compass,
-} from "lucide-react";
+    FlaskConical, Loader2, Moon, Sun, Megaphone, PanelLeft, Home, Compass, ListTodo } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
 import { useTheme } from "../../lib/theme";
 import { cn } from "../../lib/utils";
@@ -30,6 +29,7 @@ interface NavItem {
 
 const PRIMARY_NAV: NavItem[] = [
     { label: "Inicio", href: "/dashboard", exact: true, icon: <Home size={18} />, title: "Inicio — bienvenida, tools y campañas recientes", tour: "nav-inicio" },
+    { label: "Trabajo", href: "/dashboard/trabajo", exact: true, icon: <ListTodo size={18} />, title: "Trabajo — qué está en curso, qué espera aprobación y qué costó" },
     { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={18} />, title: "Marcas — gestioná tus marcas y su brand kit" },
     { label: "Campañas", href: "/dashboard/campaigns", icon: <Megaphone size={18} />, title: "Campañas — trabajá contenido por campaña de la marca activa", tour: "nav-campanas" },
     { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} />, title: "Generar — tools de generación de contenido", tour: "nav-generar" },

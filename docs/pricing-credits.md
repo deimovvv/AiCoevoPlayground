@@ -43,6 +43,28 @@ suma por grafo → estima/debita. El costing layer es un campo más del nodo. Ve
 - **ToS de Fal**: confirmar que permiten reventa vía plataforma antes de ir comercial.
 
 ## Estado
-Fase 1 arrancada: `frontend/src/lib/pricing.ts` (precios + créditos) + badge de costo
-estimado en el "Generar piezas" de Campañas. Los precios unitarios son AJUSTABLES (el de
-Nano Banana es estimado — actualizar con el dato real de Fal). Fase 2 espera a auth.
+
+**Fase 1 completa (2026-08-25).**
+
+- `lib/pricing.ts` — precios por unidad + créditos. **Nano Banana y Kling V3 Pro
+  verificados contra Fal**; Kling V2.x, Seedance y ElevenLabs siguen estimados y están
+  marcados como tales en el código.
+- `lib/costLedger.ts` — registra el costo REAL de cada corrida. Se instrumentó en
+  `lib/api.ts`, no en las tools: toda llamada a modelo pasa por ahí, así una tool nueva
+  queda medida sola el día que se crea.
+- `generations.json` — campos `cost` (el resumen del ledger) y `workStatus`.
+- `/dashboard/trabajo` — la lista agrupada por estado con el costo en la fila y el gasto
+  por marca en el rail.
+
+**Corrección importante:** el precio de Nano Banana que había acá ($0.039/img) estaba
+**3× por debajo** del real ($0.08 base, $0.12 en 2K). Todo estimado mostrado antes de esta
+fecha subestimaba el costo.
+
+**Limitación conocida del ledger:** adjudica por cercanía temporal, no por id de corrida.
+Dos pipelines en paralelo en la misma pestaña pueden cruzar la atribución por pieza — el
+total del período sigue bien. Se arregla cuando el motor de pipelines pase un runId.
+
+**Sin costo histórico:** las ~3.200 generaciones anteriores no tienen `cost` y no se pueden
+reconstruir con exactitud. La pantalla Trabajo las cuenta aparte en vez de asumir cero.
+
+Fase 2 (auth + ledger por cliente + top-up) sigue esperando autenticación.

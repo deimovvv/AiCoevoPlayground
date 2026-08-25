@@ -224,6 +224,13 @@ class SaveGenerationRequest(BaseModel):
     scenes: Optional[List[dict]] = None
     metadata: Optional[dict] = None
     pipelineState: Optional[dict] = None  # Full pipeline: {steps, config, curationSelections}
+    # Costo REAL de los modelos que consumió la corrida — lo arma `costLedger` en el
+    # front y viaja acá. Shape: {usd, images, videoClips, videoSeconds, ttsChars,
+    # byModel, verified}. Ver docs/pricing-credits.md.
+    cost: Optional[dict] = None
+    # Estado de TRABAJO (draft | in_progress | review | sent | changes | approved).
+    # Distinto de `status`, que dice si la corrida terminó.
+    workStatus: Optional[str] = None
 
 
 # ══════════════════════════════════════════════════════════════
@@ -4710,6 +4717,9 @@ async def create_generation(req: SaveGenerationRequest):
         "outputUrl": req.outputUrl,
         "scenes": req.scenes or [],
         "metadata": req.metadata or {},
+        "cost": req.cost or None,
+        # Una corrida recién guardada todavía no la vio nadie → "para revisar".
+        "workStatus": req.workStatus or ("review" if req.status == "completed" else "in_progress"),
         "hasPipelineState": has_state,
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
@@ -4958,6 +4968,10 @@ async def update_generation(gen_id: str, req: SaveGenerationRequest):
             "outputUrl": req.outputUrl or existing.get("outputUrl"),
             "scenes": req.scenes if req.scenes is not None else existing.get("scenes", []),
             "metadata": req.metadata if req.metadata is not None else existing.get("metadata", {}),
+            # El costo que llega es el ACUMULADO de la corrida (lo calcula costLedger),
+            # así que pisa. Si viene vacío, no borramos lo que ya había registrado.
+            "cost": req.cost if req.cost else existing.get("cost"),
+            "workStatus": req.workStatus or existing.get("workStatus") or "in_progress",
             "hasPipelineState": has_state,
         })
         existing.pop("pipelineState", None)  # nunca vuelve al índice

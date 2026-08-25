@@ -372,6 +372,37 @@ deploy.
 
 ---
 
+## 2026-08 — Coevo World: Studio pasa a ser un lugar adentro, no la app entera
+
+**Contexto.** Estudiando Superspace (Superside) quedó claro que lo que le falta a Coevo no
+es capa de generación — esa es más profunda que la de ellos — sino **capa de operación**:
+qué se pidió, en qué estado está, qué costó, qué devolvió el cliente. Ver
+`competitive-research.md` § Superside, sección 11 (UI verificada por screenshots).
+
+**Decisión.** Se envuelve la app en un shell llamado **Coevo World** (nombre provisorio;
+se descartó "Coevo Space"). La fábrica de tools sigue igual y pasa a ser **un item del
+sidebar** — se entra a ella desde un pedido y se vuelve con una pieza que tiene costo y
+estado. Alrededor: Trabajo, Brand Brain, Clientes.
+
+**Regla de arquitectura (importante).** La capa de operación vive en rutas y módulos
+propios que CONSUMEN las tools. Ni una línea adentro de `ToolRunPage.tsx` — con 14.910
+líneas, meterle esto es matarlo.
+
+**Alternativa descartada.** Construir un producto aparte ("Coevo Brains"). Tendría que
+leer marcas, assets, generaciones y costos, que viven todos acá → problema de sincronización
+permanente. Lo que hace valioso a Superspace es justamente estar soldado a donde el trabajo
+pasa.
+
+**Qué se construyó primero.** El costing layer real (`lib/costLedger.ts`) y la pantalla
+`/dashboard/trabajo`. El razonamiento del orden: la calidad se puede mejorar cuando sea,
+pero **cada pieza generada sin registrar su costo es un dato irrecuperable**.
+
+**Dato que apareció en el camino.** El `pricing.ts` que existía estimaba Nano Banana a
+$0.039/imagen. El real es $0.08 base y **$0.12 en 2K** — el estimador que ya se mostraba en
+Campañas venía 3× por debajo.
+
+---
+
 ## Cómo usar este archivo
 
 - **Agregar entrada cuando.** Tomamos una decisión que: (a) descarta otra opción razonable, (b) no es obvia leyendo el código, (c) podría confundir a otro dev futuro o re-discutir en 3 meses.

@@ -209,3 +209,197 @@ Verificado: ninguno de estos aparece en docs públicas de Pletor con el nivel de
 - **Refutados / killed**: 2 (8%)
 - **Agentes llamados**: 105
 - **Duración**: ~9 minutos
+
+---
+
+## Superside / Superspace (https://www.superside.com/enterprise)
+
+- **Fecha de investigación:** 2026-08-25
+- **Método:** fetch directo de 5 superficies públicas (enterprise, our-technology, llm-info, updates, help center "Intro to Superspace") + búsqueda. **NO** se usó el producto live.
+- **Confianza:** ALTA en modelo de negocio y pricing (lo publican explícito), MEDIA en features de Superspace (todo viene de marketing y help center, no de docs técnicas), BAJA en métricas de eficiencia (self-reported).
+
+### TL;DR — la lectura importante
+
+**Superside NO vende software. Vende servicio creativo gestionado a $30k/mes, y Superspace es la capa de operación que hace ese servicio escalable, medible y difícil de abandonar.**
+
+Es el caso grande que valida la tesis de Coevo (vender output, no SaaS horizontal) — pero ejecutado con 800 personas en 70 países. La plataforma no es el producto: es el *moat de retención* del servicio. Nadie compra Superspace; compran el equipo, y Superspace es donde el equipo se vuelve legible, auditable y renovable.
+
+### 1. Modelo de negocio (lo publican explícito)
+
+| Plan | Precio | Estructura |
+|---|---|---|
+| **Dedicated** | desde **$30.000/mes** (12 meses) + $1.000/mes software fee | equipo fijo armado alrededor de un use case; setup 3 semanas |
+| **Flex** | **$20k–$50k/mes** (12 meses) + $1.000/mes software fee | equipo variable según demanda; presupuesto no usado rollea 3 meses |
+| **High-Impact Projects** | desde **$50.000** | scope fijo, iniciativa puntual |
+
+Todos incluyen usuarios ilimitados, storage y acceso full a la plataforma.
+
+**El detalle que más importa: el software fee es $1.000/mes sobre un ticket de $30.000.** ~3%. La plataforma está deliberadamente subvaluada — su función es hacer el servicio pegajoso, no generar revenue. Es una decisión de packaging, no de pricing.
+
+- Fundada 2015 como Konsus, rebrand a Superside en 2019. CEO Fredrik Thomassen.
+- 800+ empleados / 70+ países / 500+ marcas / 200.000+ proyectos / 12.000+ proyectos "AI-powered".
+- Clientes públicos: Figma, Reddit, Microsoft, Colgate-Palmolive, Grubhub, Pernod Ricard.
+- Claims: "~35% más eficiencia en proyectos AI-powered", "94% ROI a 3 años y payback a 6 meses" (Forrester TEI, encargado por ellos). G2 4.5, Trustpilot 4.2.
+- "90%+ de los creativos certificados en herramientas AI", "50+ AI-powered workflows" internos.
+
+### 2. Superspace — anatomía
+
+Superficies confirmadas:
+
+| Superficie | Qué hace |
+|---|---|
+| **Briefing** | submit de proyectos en el workspace; el AI Briefing Agent completa el brief desde un pedido crudo |
+| **Project Plan View** (feb 2026) | briefs + estimados + timelines + milestones en un dashboard; aprobación en un click; sync automático del brief |
+| **Review de assets** | ver diseños/videos in-platform, anotaciones, **versionado**, feedback contextual, workflow de aprobación |
+| **Chat por proyecto** | comunicación en contexto, reemplaza mail |
+| **Account Analytics** (ene 2026) | balance, uso, timelines 3/6/12 meses, drilldown por equipo, forecasting |
+| **Teams & roles** | crear equipos, asignar roles, **asignar presupuesto por equipo**, gasto en tiempo real |
+| **Integraciones** | Slack, MS Teams, Asana, Jira, Monday, Wrike |
+| **Superads** | analytics de creative performance (adquirido/lanzado nov 2024) |
+
+### 3. Brand Brain — el componente a estudiar de verdad
+
+Lo describen como "evolving intelligence layer" por cliente, que captura:
+
+- guidelines, tono de voz, misión, mensajes, personas de audiencia
+- **campañas pasadas, assets finales, referencias, feedback y datos de performance**
+- **roles del equipo, preferencias individuales y flujos de aprobación**
+
+Y alimenta con eso tanto a la plataforma **como a los creativos humanos asignados**.
+
+Agentes que corren encima:
+1. **AI Briefing Agent** — idea cruda → brief accionable, con specs y referencias sacadas del Brain
+2. **AI Insights Agent** — consultar data de campañas y contenido sin buscar archivos
+3. **Brand Models** — modelos visuales custom entrenados por marca, para explorar direcciones antes de producción
+4. **Apps** (coming soon, mar 2026) — automatizar tareas repetitivas: resize, workflows de producción
+5. **QA estructurado** antes de la revisión humana
+
+**La diferencia real con el Brand Kit de Coevo no es la profundidad — es el loop.** El data model de Coevo es *más rico* en assets (multi-foto por producto y prenda, poses, look&feel, voice presets con clonado real, consistency anchor). Pero el Brain de Superside come **feedback y performance de proyectos pasados**, y eso compone con el tiempo. Coevo tiene 3.200 filas en `generations.json` y ninguna alimenta la próxima generación.
+
+### 4. Comparativa Superside vs Coevo
+
+| Dimensión | **Superside** | **Coevo** |
+|---|---|---|
+| Qué vende | Servicio gestionado $30k/mes; software como wrapper (3% del ticket) | Output de agencia; software interno sin pricing |
+| Escala del delivery | 800 personas | equipo chico + pipelines automatizados |
+| Capa de generación | Brand Models + image gen in-platform (poco detalle público) | **Mucho más profunda**: 15+ tools verticales, multi-shot, consistencia, look&feel, TTS con clonado |
+| Capa de **operación** | **Completa**: intake → brief → plan → review → aprobación → budget → analytics | ❌ **Prácticamente ausente** |
+| Brand context | Brand Brain con loop de feedback + performance | Brand Kit + DNA + Design System, **sin loop** |
+| Versionado de assets | ✅ nativo | ❌ (spec'd en campaigns.md Fase 2) |
+| Presupuesto / costo | Por equipo, tiempo real, forecasting | doc `pricing-credits.md`, **sin implementar** |
+| Performance de las piezas | Superads | ❌ |
+| Integraciones | Slack, Teams, Asana, Jira, Monday, Wrike | ❌ |
+| Portal del cliente | Es *el* producto | `/portal/:token` a medias |
+
+### 5. Plan priorizado para Coevo (uso interno primero)
+
+El gap no está en la fábrica — está en la recepción, el mostrador y la contabilidad.
+
+#### 🔴 ALTA — sin esto no podés "frontear" la operación
+1. **Entidad `Request` / pedido.** Hoy todo arranca como una corrida de tool; no existe "pedido de un cliente". Es el eslabón que falta entre la operación real y la app. Se encaja con la entidad `Campaign` ya spec'd en [campaigns.md](campaigns.md) Fase 1 — no es trabajo nuevo, es priorizarlo.
+2. **Costo real por pieza.** Cada job ya es una llamada a API con precio conocido (Kling V3 Pro 5s = $0.56). Agregar `cost` al registro de generación es un campo — y desbloquea la métrica que define si la tesis del negocio funciona: **COGS por pieza entregada**. Es la Fase 1 de `pricing-credits.md`, que ya está escrita y sin hacer.
+3. **Loop de feedback → Brand Kit.** Tenés `reviews.json` (11 filas) y 3.200 generaciones. Que la selección/rechazo de una variante escriba de vuelta al Design System de la marca es lo que convierte al Brand Kit en un Brain.
+
+#### 🟡 MEDIA
+4. **Vista de estado tipo Project Plan** — qué está en curso, qué espera aprobación, qué se entregó. Hoy `GenerationBoard` es historial, no pipeline de trabajo.
+5. **Versionado por imagen** (v1/v2/v3, revert) — [campaigns.md](campaigns.md) Fase 2.
+6. **Portal del cliente v1 real** sobre `/portal/:token`, con aprobación y comentario contextual.
+
+#### 🟢 BAJA — no copiar
+7. **Integraciones con Asana/Jira/Monday.** Tienen sentido con clientes enterprise que ya viven ahí. Para la operación propia es overhead.
+8. **Chat por proyecto.** Si el equipo es chico, WhatsApp/Slack ya lo resuelve.
+
+### 6. El ángulo de financiación — lectura honesta
+
+Superside levantó sobre el **servicio**, no sobre Superspace. Lo fundable de Coevo no es la tool: es la **evidencia de que la tool cambia la unidad económica de la agencia**. Eso son tres números, y hoy no se pueden calcular:
+
+1. **COGS por pieza entregada** (requiere el punto 🔴2)
+2. **Throughput por operador** — piezas/semana por persona (requiere 🔴1 para saber qué es "una pieza pedida")
+3. **Margen bruto por cliente** — vs el ~40-60% típico de agencia
+
+Con esos tres medidos sobre marcas reales durante un trimestre, tenés algo que un inversor no puede discutir y que Superside tardó 800 personas en construir. Sin ellos, es una demo linda.
+
+**El otro activo que ya tenés y no estás usando: 3.200 generaciones reales sobre 13 marcas.** Eso es data de producción, no un deck. Instrumentarla es más barato que construir features nuevos.
+
+### 7. Diferenciadores defendibles de Coevo vs Superside
+
+1. **Verticalidad de moda/ecommerce** con profundidad que Superside no publica: Fashion Reel multi-shot con face anchor, Ecommerce Pack outfit × pose, consistency anchor, multi-foto por prenda
+2. **Voice presets con clonado real** (ElevenLabs) — Superside no menciona audio propio
+3. **Look & Feel transfer modo Receta** (Gemini Vision → texto)
+4. **Costo marginal real por pieza** ≈ centavos vs un equipo humano de 800 personas — la ventaja estructural, si se mide
+5. **Velocidad de iteración del producto**: acá una tool nueva es un directorio + un registry entry
+
+### 8. Caveats
+
+- ⚠️ **No usamos Superspace.** Todo viene de marketing, help center y `/llm-info`. La UI real, la calidad del Briefing Agent y qué tan "evolving" es el Brand Brain no están auditados.
+- ⚠️ El **"~35% más eficiencia"** es self-reported. El estudio Forrester TEI fue **encargado por Superside** — es marketing con metodología, no auditoría independiente.
+- ⚠️ **Brand Models** ("modelos visuales custom por marca") no aclara si es fine-tuning real o prompt/LoRA. Diferencia material para comparar contra el approach de Coevo.
+- ⚠️ **Apps** figura como "coming soon" en el update de marzo 2026 — puede no existir todavía.
+- ⚠️ Pricing a agosto 2026; los tiers de $30k/$20-50k pueden moverse.
+- ⚠️ La comparación "Coevo tiene capa de generación más profunda" se apoya en que Superside **no publica** el detalle. Ausencia de evidencia ≠ evidencia de ausencia.
+
+### 9. Preguntas abiertas
+
+1. ¿**Brand Models** es fine-tuning real por marca? Si sí, es la pieza técnica más valiosa que tienen y la más cara de replicar.
+2. ¿Cómo cierra el loop Brand Brain ↔ feedback? ¿Es RAG sobre proyectos pasados o hay algo estructurado?
+3. ¿Qué % del delivery de Superside es realmente AI vs humano? "12.000 proyectos AI-powered" sobre 200.000 totales sugiere **~6%** — mucho menos "AI-first" que el marketing.
+4. ¿El software fee de $1.000/mes se cobra aparte porque planean venderlo standalone en algún momento?
+5. Con $30k/mes de piso: ¿qué pasa en el segmento de marcas que necesitan volumen pero no pueden pagar eso? Ese es el hueco donde entra Coevo.
+
+### 10. Fuentes
+
+- https://www.superside.com/enterprise
+- https://www.superside.com/our-technology
+- https://www.superside.com/llm-info (la más densa — la publican para LLMs)
+- https://www.superside.com/updates
+- https://help.superside.com/en/articles/13441460-intro-to-superspace
+- https://help.superside.com/en/articles/13257393-what-is-superside
+
+### 11. UI verificada por screenshots (2026-08-25)
+
+Evidencia directa del walkthrough del producto — esto **corrige el caveat** de la sección 8 ("no vimos la UI"). Ya no es inferencia de marketing.
+
+#### Home — el intake es un prompt, no un dashboard
+
+La pantalla principal de un servicio de $30k/mes es **un campo de texto**: *"What can we do for you?"* con botón de **dictado** y flecha de submit, sobre una ilustración a página completa ("Brief in. Breathe out.", acreditada a una ilustradora del equipo).
+
+Debajo, **prompt suggestions** en 3 cards con contador: `About Superside (8)` · `Project insights (5)` · `Create a brief`.
+
+Y una sección "Let's get started": barra de progreso **"50% completed"** con checklist de onboarding ("Complete your profile — 1 min"), al lado de una card "Your Superside Team" con el PM asignado por nombre y foto + **saludo en video**.
+
+#### Sidebar — Brand Brain es destino, no configuración
+
+```
+[+ Create new]
+Home · Projects · Assets › · Brand Brain
+── Favorite projects (5, con dot de color)
+── Recents (con ícono por tipo de acción)
+── Account
+```
+
+**`Brand Brain` es ítem de nav de primer nivel**, hermano de Home y Projects. No vive adentro de un settings.
+
+#### Projects — trabajo y plata en la misma pantalla
+
+- Header: `Display by Status` · buscar · ordenar · filtrar · **[Create project]**
+- Chips de filtro: **`Action required`** · **`Unread message`** · Status · Collaborator · Deadline · Team
+- Tabs: **List | Calendar**
+- Agrupado por `Open (7)` / `Ideas (2)`. Cada fila: nombre + nº de piezas + **código de job** (345, 789654) + `Due in X days` + pill de estado (`In progress` / `Action required` / `Draft`) + inline un thumbnail con **"DESIGN DELIVERED · 2h · Waiting for approval"** y punto rojo.
+- **Rail derecho: `ACCOUNT SUMMARY`** — presupuesto restante **por equipo**, en dólares, al lado del trabajo: Sales team $8.606 · Marketing team $26.589 · Operations $3.600.
+
+#### Brand Brain — composición confirmada
+
+La animación del video lo desglosa literal en cinco entradas:
+
+`Your teams` (Sales 10 · Marketing GTM 8 · Brand 14 personas) → `Your Superside team` (humanos asignados con tags de rol: Graphic Designer, Creative Director) → `Your brand context` (stack de imágenes) → `Your guidelines` → **`Your past projects`** → **`Your feedback`**
+
+Queda confirmado lo que se había inferido: **el feedback y los proyectos pasados son input de primera clase del Brain**, no un log.
+
+#### Lecturas nuevas para Coevo
+
+1. **El intake es una caja de texto con dictado.** No un formulario. Coevo ya tiene `ChatPanel` y dictado es-AR en Manual Lab v2 — la pieza existe, está en el lugar equivocado.
+2. **El presupuesto vive al lado del trabajo**, no en una página de billing. Refuerza el costing layer: el número tiene que estar donde se decide, no en un reporte.
+3. **Vocabulario de estado chico y accionable**: `Action required` / `In progress` / `Draft` / `Waiting for approval`. Todo el filtrado es "qué necesita algo de mí".
+4. **El onboarding es una barra de progreso.** Los tiers de [client_onboarding.md](client_onboarding.md) son exactamente eso, pero en un markdown que el cliente nunca ve.
+5. **Venden a los humanos a través del software** (PM con nombre, saludo en video, tags de rol, stack de avatares). Coevo tiene el problema inverso: casi no hay humanos. **No copiar el teatro humano** — sí copiar la claridad de "quién responde por esto".
+6. **Tab Calendar** al lado de List — el Content Calendar que Coevo tiene en "Planned".

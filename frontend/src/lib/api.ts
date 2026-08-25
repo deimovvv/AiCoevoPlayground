@@ -1,5 +1,36 @@
 // ── API Client ──────────────────────────────────────────────
 // Centralised helpers for backend communication.
+//
+// COSTO: cada submit a un modelo pago registra su operación en `costLedger`. Se hace acá
+// y no en las tools a propósito — así una tool nueva queda medida sola. Ver
+// docs/pricing-credits.md.
+
+import { recordImage, recordKling, recordSeedance, claimFor, pendingSummary } from "./costLedger";
+import type { CostSummary } from "./costLedger";
+
+/**
+ * Estado de TRABAJO de una pieza — el vocabulario de la pantalla Trabajo.
+ * Deliberadamente corto: cada valor responde "¿qué necesita algo de mí?".
+ */
+export type WorkStatus =
+    | "draft"        // arrancada, sin terminar
+    | "in_progress"  // corriendo
+    | "review"       // lista, falta que la miremos nosotros
+    | "sent"         // publicada al portal, esperando al cliente
+    | "changes"      // el cliente pidió cambios
+    | "approved";    // aprobada
+
+export const WORK_STATUS_LABEL: Record<WorkStatus, string> = {
+    draft: "Borrador",
+    in_progress: "En curso",
+    review: "Para revisar",
+    sent: "Esperando al cliente",
+    changes: "Pidió cambios",
+    approved: "Aprobado",
+};
+
+/** Los que exigen una acción nuestra — el filtro por defecto de la pantalla Trabajo. */
+export const WORK_STATUS_NEEDS_ACTION: WorkStatus[] = ["review", "changes"];
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -1453,6 +1484,12 @@ export interface Generation {
     outputUrl?: string;
     scenes?: Array<{ id: string; title: string; script?: string; imageUrl?: string; videoUrl?: string }>;
     metadata?: Record<string, unknown>;
+    /** Costo REAL de los modelos que consumió esta corrida. Lo llena `costLedger`
+     *  automáticamente al guardar — ver docs/pricing-credits.md. */
+    cost?: CostSummary;
+    /** Estado de TRABAJO (no de pipeline): dónde está la pieza en la operación.
+     *  `status` dice si la corrida terminó; esto dice si el cliente ya la vio. */
+    workStatus?: WorkStatus;
     /** Presente en el LISTADO: dice si hay estado guardado, sin traerlo.
      *  El estado real pesa MBs y vive en un archivo aparte del lado del backend. */
     hasPipelineState?: boolean;
@@ -1486,14 +1523,19 @@ export async function saveGeneration(gen: {
     scenes?: Array<Record<string, unknown>>;
     metadata?: Record<string, unknown>;
     pipelineState?: Record<string, unknown>;
+    workStatus?: WorkStatus;
 }): Promise<Generation> {
+    // El costo de lo que se consumió hasta acá viaja con la corrida. Se manda ANTES de
+    // adjudicar porque todavía no existe el id — y se adjudica recién con el id de vuelta.
     const res = await fetch(`${API_BASE}/api/generations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(gen),
+        body: JSON.stringify({ ...gen, cost: pendingSummary() }),
     });
     if (!res.ok) throw new Error("Failed to save generation");
-    return res.json();
+    const saved: Generation = await res.json();
+    claimFor(saved.id);
+    return saved;
 }
 
 export async function updateGeneration(genId: string, gen: {
@@ -1507,11 +1549,14 @@ export async function updateGeneration(genId: string, gen: {
     scenes?: Array<Record<string, unknown>>;
     metadata?: Record<string, unknown>;
     pipelineState?: Record<string, unknown>;
+    workStatus?: WorkStatus;
 }): Promise<Generation> {
+    // `claimFor` adjudica lo consumido desde el último guardado y devuelve el ACUMULADO
+    // de la corrida — por eso el autosave por paso no duplica ni pierde costo.
     const res = await fetch(`${API_BASE}/api/generations/${genId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(gen),
+        body: JSON.stringify({ ...gen, cost: claimFor(genId) }),
     });
     if (!res.ok) throw new Error("Failed to update generation");
     return res.json();
@@ -1870,6 +1915,7 @@ export async function createSeedanceReferenceToVideo(opts: {
         const err = await res.json().catch(() => ({ detail: "Seedance failed" }));
         throw new Error(typeof err.detail === "string" ? err.detail : "Seedance failed");
     }
+    recordSeedance(opts.duration || "5");
     return res.json();
 }
 
@@ -2058,6 +2104,7 @@ export async function createKlingVideo(
         throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Kling video failed (${res.status})`);
     }
 
+    recordKling(duration, model || "v3-pro");
     return res.json();
 }
 
@@ -2121,6 +2168,7 @@ export async function createKlingFrameToFrame(opts: {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
         throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Kling frame-to-frame failed (${res.status})`);
     }
+    recordKling(opts.duration || "5", opts.model || "v3-pro");
     return res.json();
 }
 
@@ -2263,6 +2311,7 @@ export async function createImageEdit(
         throw new Error(detail || `Image gen failed (${res.status})`);
     }
 
+    recordImage(resolution);
     return res.json();
 }
 
@@ -2446,6 +2495,7 @@ export async function createTextToImage(
         throw new Error(detail || `Text-to-image failed (${res.status})`);
     }
 
+    recordImage(resolution);
     return res.json();
 }
 
