@@ -1553,8 +1553,9 @@ export async function updateGeneration(genId: string, gen: {
     pipelineState?: Record<string, unknown>;
     workStatus?: WorkStatus;
 }): Promise<Generation> {
-    // `claimFor` adjudica lo consumido desde el último guardado y devuelve el ACUMULADO
-    // de la corrida — por eso el autosave por paso no duplica ni pierde costo.
+    // `claimFor` devuelve el DELTA consumido desde el último guardado; el backend lo suma
+    // a lo que ya tenía. Así el autosave por paso no duplica, y un reload a mitad de
+    // pipeline no pisa hacia abajo lo ya registrado.
     const res = await fetch(`${API_BASE}/api/generations/${genId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

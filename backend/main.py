@@ -4696,6 +4696,28 @@ def get_generation(gen_id: str):
     return generations_service.with_pipeline_state(gen)
 
 
+def _merge_cost(existing: Optional[dict], delta: Optional[dict]) -> Optional[dict]:
+    """Suma un delta de costo sobre lo ya registrado (ver lib/costLedger.ts).
+
+    Los campos numéricos se acumulan, `byModel` se suma por clave, y `verified` es un AND:
+    basta una operación con precio estimado para que el total deje de estar verificado.
+    """
+    if not delta:
+        return existing
+    if not existing:
+        return delta
+    out = dict(existing)
+    for k in ("usd", "images", "videoClips", "videoSeconds", "ttsChars"):
+        out[k] = (existing.get(k) or 0) + (delta.get(k) or 0)
+    out["usd"] = round(out["usd"], 4)
+    by = dict(existing.get("byModel") or {})
+    for model, usd in (delta.get("byModel") or {}).items():
+        by[model] = round((by.get(model) or 0) + usd, 4)
+    out["byModel"] = by
+    out["verified"] = bool(existing.get("verified", True)) and bool(delta.get("verified", True))
+    return out
+
+
 @app.post("/api/generations")
 async def create_generation(req: SaveGenerationRequest):
     """Save a completed generation."""
@@ -4968,9 +4990,10 @@ async def update_generation(gen_id: str, req: SaveGenerationRequest):
             "outputUrl": req.outputUrl or existing.get("outputUrl"),
             "scenes": req.scenes if req.scenes is not None else existing.get("scenes", []),
             "metadata": req.metadata if req.metadata is not None else existing.get("metadata", {}),
-            # El costo que llega es el ACUMULADO de la corrida (lo calcula costLedger),
-            # así que pisa. Si viene vacío, no borramos lo que ya había registrado.
-            "cost": req.cost if req.cost else existing.get("cost"),
+            # El costo que llega es el DELTA consumido desde el último guardado — se SUMA
+            # a lo registrado. Sumar en vez de pisar hace que un reload a mitad de
+            # pipeline (el ledger del front vive en memoria) no baje el total ya guardado.
+            "cost": _merge_cost(existing.get("cost"), req.cost),
             "workStatus": req.workStatus or existing.get("workStatus") or "in_progress",
             "hasPipelineState": has_state,
         })
