@@ -9,6 +9,7 @@ import {
   type Campaign, type CampaignPiece,
 } from "../lib/api";
 import { imagesUsd, formatCost } from "../lib/pricing";
+import { claimFor } from "../lib/costLedger";
 import { cn } from "../lib/utils";
 
 const STATUS_LABEL: Record<Campaign["status"], { label: string; cls: string }> = {
@@ -112,8 +113,27 @@ export function CampaignDetailPage() {
       }
       setProgress((p) => ({ ...p, done: p.done + 1 }));
     }
+    // Las piezas de campaña NO son generaciones, así que nadie reclamaba lo que el ledger
+    // venía acumulando — se le hubiera cargado a la próxima corrida de una tool. La campaña
+    // reclama su propio costo y lo suma al que ya tenía.
+    const delta = claimFor(campaign.id);
+    const prev = campaign.cost;
+    const merged = prev ? {
+      ...prev,
+      usd: Math.round((prev.usd + delta.usd) * 10000) / 10000,
+      images: prev.images + delta.images,
+      videoClips: prev.videoClips + delta.videoClips,
+      videoSeconds: prev.videoSeconds + delta.videoSeconds,
+      ttsChars: prev.ttsChars + delta.ttsChars,
+      byModel: Object.entries(delta.byModel).reduce(
+        (acc, [m, usd]) => ({ ...acc, [m]: Math.round(((acc[m] || 0) + usd) * 10000) / 10000 }),
+        { ...prev.byModel } as Record<string, number>,
+      ),
+      verified: prev.verified && delta.verified,
+    } : delta;
+
     try {
-      const updated = await updateCampaign(campaign.id, { pieces: [...campaign.pieces, ...fresh], status: "review" });
+      const updated = await updateCampaign(campaign.id, { pieces: [...campaign.pieces, ...fresh], status: "review", cost: merged });
       setCampaign(updated);
     } catch { /* si falla el patch, al menos mostramos lo generado en memoria */ setCampaign((c) => c ? { ...c, pieces: [...c.pieces, ...fresh], status: "review" } : c); }
     setGenerating(false);

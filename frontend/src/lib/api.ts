@@ -419,6 +419,9 @@ export interface Campaign {
     status: "draft" | "generating" | "review" | "approved";
     generationIds: string[];
     pieces: CampaignPiece[];
+    /** Costo real de los modelos. Las piezas de campaña no pasan por `saveGeneration`,
+     *  así que la campaña lleva su propio registro. Ver lib/costLedger.ts. */
+    cost?: CostSummary;
     createdAt: string;
     updatedAt: string;
 }

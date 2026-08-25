@@ -83,6 +83,9 @@ _EDITABLE = {
     "name", "brief", "productIds", "moodboardId", "poseId", "shotPlan",
     "customShots", "variationsPerShot", "aspectRatios", "resolution",
     "status", "generationIds", "pieces",
+    # Costo real de los modelos que consumió la campaña. Las piezas de campaña no son
+    # generaciones, así que necesitan su propio registro. Ver lib/costLedger.ts.
+    "cost",
     "avatarId", "clothingIds", "backgroundId", "lookFeelId",
 }
 

@@ -13,10 +13,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { Loader2, Search, Plus, AlertCircle } from "lucide-react";
+import { Loader2, Search, Plus, AlertCircle, Folder, ChevronRight, ChevronDown } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
-import { fetchGenerations, updateGeneration, WORK_STATUS_LABEL, WORK_STATUS_NEEDS_ACTION } from "../lib/api";
-import type { Generation, WorkStatus } from "../lib/api";
+import { fetchGenerations, updateGeneration, listCampaigns, WORK_STATUS_LABEL, WORK_STATUS_NEEDS_ACTION } from "../lib/api";
+import type { Generation, WorkStatus, Campaign } from "../lib/api";
 import { formatUsd } from "../lib/pricing";
 import { PRICE_NOTE } from "../lib/costLedger";
 import { cn } from "../lib/utils";
@@ -78,6 +78,8 @@ export function WorkPage() {
     // Los thumbs viejos apuntan a fal.media, que expira. Se recuerda cuál falló para
     // no dejar el recuadro roto en cada re-render.
     const [brokenThumbs, setBrokenThumbs] = useState<Record<string, true>>({});
+    const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [openCampaigns, setOpenCampaigns] = useState<Record<string, true>>({});
 
     useEffect(() => {
         setLoading(true);
@@ -86,6 +88,30 @@ export function WorkPage() {
             .catch(() => setGens([]))
             .finally(() => setLoading(false));
     }, [activeBrand?.id, allBrands]);
+
+    // Las campañas son los PEDIDOS: contenedores con piezas adentro. Antes vivían en su
+    // propia pantalla y Trabajo mostraba solo piezas sueltas — dos listas para la misma
+    // pregunta. Acá van juntas, como en el mockup de Coevo World.
+    useEffect(() => {
+        if (allBrands || !activeBrand) { setCampaigns([]); return; }
+        listCampaigns(activeBrand.id).then(setCampaigns).catch(() => setCampaigns([]));
+    }, [activeBrand?.id, allBrands]);
+
+    /** El estado de trabajo de una campaña sale de sus piezas; si no tiene, de su propio estado. */
+    const campaignStatus = (c: Campaign): WorkStatus => {
+        const linked = gens.filter((g) => (c.generationIds || []).includes(g.id));
+        if (linked.length > 0) {
+            const sts = linked.map(statusOf);
+            if (sts.some((x) => WORK_STATUS_NEEDS_ACTION.includes(x))) return "review";
+            if (sts.every((x) => x === "approved")) return "approved";
+            if (sts.some((x) => x === "in_progress" || x === "draft")) return "in_progress";
+            return sts[0];
+        }
+        return c.status === "approved" ? "approved"
+            : c.status === "review" ? "review"
+            : c.status === "generating" ? "in_progress"
+            : "draft";
+    };
 
     const brandName = useMemo(() => {
         const m: Record<string, string> = {};
@@ -108,15 +134,47 @@ export function WorkPage() {
         [gens],
     );
 
+    /** Ids de generaciones que ya cuelgan de una campaña — no se repiten como sueltas. */
+    const inCampaign = useMemo(() => {
+        const set = new Set<string>();
+        for (const c of campaigns) for (const id of c.generationIds || []) set.add(id);
+        return set;
+    }, [campaigns]);
+
+    /**
+     * Una fila puede ser un PEDIDO (campaña, con piezas adentro) o una PIEZA suelta.
+     * Ambas se agrupan por el mismo estado de trabajo.
+     */
+    type Row =
+        | { kind: "campaign"; id: string; status: WorkStatus; campaign: Campaign; children: Generation[] }
+        | { kind: "piece"; id: string; status: WorkStatus; gen: Generation };
+
+    const rows = useMemo<Row[]>(() => {
+        const q = search.trim().toLowerCase();
+        const campaignRows: Row[] = campaigns
+            .filter((c) => !q || c.name.toLowerCase().includes(q))
+            .map((c) => ({
+                kind: "campaign" as const,
+                id: c.id,
+                status: campaignStatus(c),
+                campaign: c,
+                children: gens.filter((g) => (c.generationIds || []).includes(g.id)),
+            }));
+        const pieceRows: Row[] = visible
+            .filter((g) => !inCampaign.has(g.id))
+            .map((g) => ({ kind: "piece" as const, id: g.id, status: statusOf(g), gen: g }));
+        return [...campaignRows, ...pieceRows];
+    }, [campaigns, visible, inCampaign, gens, search]);
+
     const grouped = useMemo(
         () => GROUPS.map((grp) => ({
             ...grp,
-            items: visible.filter((g) => grp.statuses.includes(statusOf(g))),
+            items: rows.filter((r) => grp.statuses.includes(r.status)),
         })).map((grp) => grp.key === "archive" && grp.items.length > ARCHIVE_LIMIT
             ? { ...grp, hidden: grp.items.length - ARCHIVE_LIMIT, items: grp.items.slice(0, ARCHIVE_LIMIT) }
             : { ...grp, hidden: 0 },
         ).filter((grp) => grp.items.length > 0),
-        [visible],
+        [rows],
     );
 
     const actionCount = useMemo(
@@ -140,9 +198,17 @@ export function WorkPage() {
             total += usd;
             pieces++;
         }
+        // Las campañas llevan su costo aparte (sus piezas no son generaciones).
+        for (const c of campaigns) {
+            const usd = c.cost?.usd;
+            if (typeof usd !== "number") continue;
+            byBrand[c.brandId] = (byBrand[c.brandId] || 0) + usd;
+            total += usd;
+            pieces += (c.cost?.images || 0) + (c.cost?.videoClips || 0);
+        }
         const rows = Object.entries(byBrand).sort((a, b) => b[1] - a[1]);
         return { rows, total, pieces, unpriced, avg: pieces > 0 ? total / pieces : 0 };
-    }, [gens, showSandbox]);
+    }, [gens, showSandbox, campaigns]);
 
     const setStatus = async (g: Generation, workStatus: WorkStatus) => {
         setSaving(g.id);
@@ -176,8 +242,14 @@ export function WorkPage() {
                         />
                     </div>
                     <Link
+                        to="/dashboard/campaigns/new"
+                        className="flex items-center gap-1.5 h-9 px-4 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-secondary hover:text-fg"
+                    >
+                        <Folder size={13} /> Nuevo pedido
+                    </Link>
+                    <Link
                         to="/dashboard/generate"
-                        className="flex items-center gap-1.5 h-9 px-4 rounded-[var(--radius-sm)] bg-[var(--color-warm)] text-white text-[12px] font-semibold"
+                        className="flex items-center gap-1.5 h-9 px-4 rounded-[var(--radius-sm)] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[12px] font-semibold"
                     >
                         <Plus size={13} /> Nueva pieza
                     </Link>
@@ -241,8 +313,63 @@ export function WorkPage() {
                                 <p className="text-[10.5px] font-mono uppercase tracking-[.12em] text-fg-faint pb-2">
                                     {grp.label} · {grp.items.length}
                                 </p>
-                                {grp.items.map((g) => {
-                                    const st = statusOf(g);
+                                {grp.items.map((row) => {
+                                    if (row.kind === "campaign") {
+                                        const c = row.campaign;
+                                        const open = !!openCampaigns[c.id];
+                                        return (
+                                            <div key={c.id} className="border-b border-edge-subtle">
+                                                <div className={cn(
+                                                    "flex items-center gap-3 px-3 py-3 rounded-[var(--radius-sm)]",
+                                                    grp.key === "action" && "bg-[rgba(228,171,27,.05)]",
+                                                )}>
+                                                    <button
+                                                        onClick={() => setOpenCampaigns((p) => {
+                                                            const n = { ...p };
+                                                            if (n[c.id]) delete n[c.id]; else n[c.id] = true;
+                                                            return n;
+                                                        })}
+                                                        disabled={row.children.length === 0}
+                                                        className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer disabled:cursor-default"
+                                                    >
+                                                        {row.children.length > 0
+                                                            ? (open ? <ChevronDown size={13} className="text-fg-faint shrink-0" /> : <ChevronRight size={13} className="text-fg-faint shrink-0" />)
+                                                            : <span className="w-[13px] shrink-0" />}
+                                                        <Folder size={14} className="text-fg-muted shrink-0" />
+                                                        <span className="min-w-0">
+                                                            <span className="text-[13px] font-medium truncate block">
+                                                                {c.name || "Campaña sin nombre"}
+                                                                <span className="text-fg-faint font-normal ml-1.5">{c.pieces?.length || row.children.length || 0}</span>
+                                                            </span>
+                                                            <span className="text-[10.5px] font-mono text-fg-faint block mt-0.5">
+                                                                pedido · {daysAgo(c.createdAt)}
+                                                            </span>
+                                                        </span>
+                                                    </button>
+                                                    <span className="text-[11.5px] font-mono tabular-nums text-fg-secondary w-16 text-right shrink-0">
+                                                        {c.cost ? formatUsd(c.cost.usd) : "—"}
+                                                    </span>
+                                                    <Link
+                                                        to={`/dashboard/campaigns/${c.id}`}
+                                                        className={cn("text-[11px] font-medium px-2.5 py-1 rounded-full shrink-0", PILL_CLS[row.status])}
+                                                    >
+                                                        {WORK_STATUS_LABEL[row.status]}
+                                                    </Link>
+                                                </div>
+                                                {open && row.children.map((g) => (
+                                                    <div key={g.id} className="flex items-center gap-3 pl-12 pr-3 py-2 border-t border-edge-subtle">
+                                                        <span className="text-[12.5px] text-fg-secondary truncate flex-1">{g.title}</span>
+                                                        <span className="text-[11px] font-mono tabular-nums text-fg-faint w-16 text-right">
+                                                            {g.cost ? formatUsd(g.cost.usd) : "—"}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    }
+
+                                    const g = row.gen;
+                                    const st = row.status;
                                     return (
                                         <div
                                             key={g.id}
@@ -272,7 +399,6 @@ export function WorkPage() {
                                                 </p>
                                             </div>
 
-                                            {/* Costo real — vacío cuando la corrida es anterior al ledger */}
                                             <span
                                                 className="text-[11.5px] font-mono tabular-nums text-fg-secondary w-16 text-right shrink-0"
                                                 title={
@@ -293,9 +419,9 @@ export function WorkPage() {
                                                     PILL_CLS[st],
                                                 )}
                                             >
-                                                {(Object.keys(WORK_STATUS_LABEL) as WorkStatus[]).map((s) => (
-                                                    <option key={s} value={s} className="bg-surface-1 text-fg">
-                                                        {WORK_STATUS_LABEL[s]}
+                                                {(Object.keys(WORK_STATUS_LABEL) as WorkStatus[]).map((sv) => (
+                                                    <option key={sv} value={sv} className="bg-surface-1 text-fg">
+                                                        {WORK_STATUS_LABEL[sv]}
                                                     </option>
                                                 ))}
                                             </select>
