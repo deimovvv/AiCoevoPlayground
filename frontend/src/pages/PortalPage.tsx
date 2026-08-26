@@ -227,7 +227,7 @@ export function PortalPage() {
               {open.items.map((it) => {
                 const st = itemState(it);
                 return (
-                  <Link key={it.generationId} to={`/review/${it.token}`} className={cardCls} style={cardStyle}>
+                  <Link key={it.generationId} to={`/review/${it.token}?portal=${token}`} className={cardCls} style={cardStyle}>
                     <div className="aspect-[3/4]" style={{ background: "#e8e2db" }}>
                       {it.thumbnailUrl && <img src={resolveUrl(it.thumbnailUrl)} alt="" className="w-full h-full object-cover" />}
                     </div>
@@ -360,7 +360,7 @@ export function PortalPage() {
                 {(active === "review" ? toReview : done).map((it) => {
                   const st = itemState(it);
                   return (
-                    <Link key={it.generationId} to={`/review/${it.token}`} className={cardCls} style={cardStyle}>
+                    <Link key={it.generationId} to={`/review/${it.token}?portal=${token}`} className={cardCls} style={cardStyle}>
                       <div className="aspect-[3/4]" style={{ background: "#e8e2db" }}>
                         {it.thumbnailUrl && <img src={resolveUrl(it.thumbnailUrl)} alt="" className="w-full h-full object-cover" />}
                       </div>

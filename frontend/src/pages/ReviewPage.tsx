@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "react-router";
+import { useParams, useSearchParams, Link } from "react-router";
 import { Check, Loader2, ArrowRight, ArrowLeft } from "lucide-react";
 import { getReview, submitReviewFeedback, type ReviewData } from "../lib/api";
 
@@ -36,6 +36,10 @@ const C = {
 
 export function ReviewPage() {
   const { token } = useParams();
+  // De dónde vino. Sin esto la revisión era un callejón sin salida: el cliente abría una
+  // pieza y no tenía cómo volver a su portal.
+  const [params] = useSearchParams();
+  const portalToken = params.get("portal");
   const [review, setReview] = useState<ReviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -133,6 +137,15 @@ export function ReviewPage() {
         className="w-full lg:w-[340px] shrink-0 px-8 py-9 flex flex-col"
         style={{ borderLeft: `1px solid ${C.line}` }}
       >
+        {portalToken && (
+          <Link
+            to={`/portal/${portalToken}`}
+            className="flex items-center gap-1.5 text-[12px] mb-5"
+            style={{ color: C.ink3 }}
+          >
+            <ArrowLeft size={12} /> Volver
+          </Link>
+        )}
         <p className="text-[9.5px] font-mono uppercase tracking-[.16em]" style={{ color: C.ink3 }}>
           {review.title || "Entrega"}
         </p>
@@ -210,29 +223,47 @@ export function ReviewPage() {
           </>
         )}
 
-        {/* ── Avance ── */}
+        {/* ── Avance. Con una sola pieza no hay nada que paginar: dos flechas apagadas
+             se leen como que algo está roto. ── */}
         <div className="mt-auto pt-6 flex items-center gap-3 text-[12px]" style={{ borderTop: `1px solid ${C.line}`, color: C.ink3 }}>
-          <button
-            onClick={() => go(-1)}
-            disabled={idx === 0}
-            className="w-7 h-7 rounded-full flex items-center justify-center cursor-pointer disabled:opacity-30"
-            style={{ border: `1px solid ${C.line}` }}
-          >
-            <ArrowLeft size={12} />
-          </button>
-          <span>
-            <b style={{ color: C.ink2, fontWeight: 500 }}>{idx + 1}</b> de {clips.length}
-            {reviewed > 0 && ` · ${reviewed} revisadas`}
-          </span>
-          <button
-            onClick={() => go(1)}
-            disabled={idx >= clips.length - 1}
-            className="ml-auto flex items-center gap-1.5 h-7 px-3 rounded-full cursor-pointer disabled:opacity-30"
-            style={{ border: `1px solid ${C.line}`, color: C.ink2 }}
-          >
-            Siguiente <ArrowRight size={12} />
-          </button>
+          {clips.length > 1 ? (
+            <>
+              <button
+                onClick={() => go(-1)}
+                disabled={idx === 0}
+                title="Anterior"
+                className="w-7 h-7 rounded-full flex items-center justify-center cursor-pointer disabled:opacity-30"
+                style={{ border: `1px solid ${C.line}` }}
+              >
+                <ArrowLeft size={12} />
+              </button>
+              <span>
+                <b style={{ color: C.ink2, fontWeight: 500 }}>{idx + 1}</b> de {clips.length}
+                {reviewed > 0 && ` · ${reviewed} revisadas`}
+              </span>
+              <button
+                onClick={() => go(1)}
+                disabled={idx >= clips.length - 1}
+                className="ml-auto flex items-center gap-1.5 h-7 px-3 rounded-full cursor-pointer disabled:opacity-30"
+                style={{ border: `1px solid ${C.line}`, color: C.ink2 }}
+              >
+                Siguiente <ArrowRight size={12} />
+              </button>
+            </>
+          ) : decided && portalToken ? (
+            /* Una sola pieza y ya respondió: lo único útil es volver. */
+            <Link
+              to={`/portal/${portalToken}`}
+              className="flex items-center gap-1.5 h-8 px-4 rounded-full text-[12.5px] font-medium"
+              style={{ border: `1px solid ${C.line}`, color: C.ink2 }}
+            >
+              <ArrowLeft size={12} /> Volver a mis entregas
+            </Link>
+          ) : (
+            <span>Una sola pieza en esta entrega.</span>
+          )}
         </div>
+
       </aside>
     </div>
   );
