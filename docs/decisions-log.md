@@ -488,6 +488,35 @@ siguen iguales. Solo cambió dónde vive cada pantalla.
 
 ---
 
+## 2026-08 — El pedido en papel claro: piloto de paleta
+
+**Contexto.** Tres rondas de "está feo" sobre la app interna. El diagnóstico que quedó:
+el problema no era el tono oscuro sino **el acento**. Un mismo terracota saturado marcaba
+lo seleccionado, lo urgente y el botón de guardar — un color que significa tres cosas no
+significa ninguna — y encima sobre negro puro se lee barato.
+
+**Decisión.** Se dibujaron tres paletas sobre la misma pantalla (claro / carbón cálido /
+papel oscuro) y el usuario eligió **un híbrido: papel claro con la estructura del papel
+oscuro** — sin cajas, líneas finas, serif de libro para lo que se lee, sans para lo que se
+opera. El color de acento lo define él más adelante.
+
+**Cómo queda preparado.** `--accent` es una sola variable, hoy en tinta (#1a1817). El día
+que exista un color de Coevo se cambia en un lugar y aparece en los tres únicos puntos
+donde importa: lo elegido, lo urgente y la acción principal.
+
+**Es un PILOTO, no una migración.** Se implementó solo en `NewCampaignPage` — la pantalla
+más importante y la que peor estaba. El resto de la app sigue oscura, así que por ahora
+hay una isla clara. Es deliberado: probar la dirección en una pantalla real antes de tocar
+las quince que faltan. Si al usarla convence, se migra el resto; si no, se revierte una
+sola pantalla.
+
+**Lo que también se arregló, y era de fondo:** el formulario **nunca pedía el brief**. El
+campo existía en la entidad `Campaign` desde el principio y ningún input lo llenaba — por
+eso todos los pedidos viejos se llamaban "Campaña sin nombre" y elegir un moodboard era
+configurar sin decir para qué. Ahora el brief es la primera fila y lo único obligatorio.
+
+---
+
 ## Cómo usar este archivo
 
 - **Agregar entrada cuando.** Tomamos una decisión que: (a) descarta otra opción razonable, (b) no es obvia leyendo el código, (c) podría confundir a otro dev futuro o re-discutir en 3 meses.
