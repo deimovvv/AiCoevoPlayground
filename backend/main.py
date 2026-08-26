@@ -4978,7 +4978,40 @@ async def submit_review_feedback(token: str, req: ReviewFeedbackRequest):
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
     _save_reviews(reviews)
+
+    # Y que se note del lado nuestro. Sin esto el cliente pedía un cambio y la pieza seguía
+    # figurando igual en Trabajo: el feedback quedaba enterrado en reviews.json y había que
+    # adivinar que había pasado algo. Reportado: "¿dónde veo los cambios?".
+    _sync_work_status_from_review(review)
     return {"ok": True}
+
+
+def _sync_work_status_from_review(review: dict) -> None:
+    """Traduce el veredicto del cliente al estado de trabajo de la pieza.
+
+    · Alguien pidió un cambio → `changes` (nos exige acción)
+    · Todos los clips aprobados → `approved`
+    · Todavía faltan clips por responder → se deja como está (`sent`, esperando)
+    """
+    gen_id = review.get("generationId")
+    if not gen_id:
+        return
+    fb = list((review.get("feedback") or {}).values())
+    if not fb:
+        return
+    total = len(review.get("clips") or [])
+    if any(f.get("status") == "change" for f in fb):
+        new_status = "changes"
+    elif total and len(fb) >= total and all(f.get("status") == "approved" for f in fb):
+        new_status = "approved"
+    else:
+        return
+
+    with generations_service.mutate() as gens:
+        for g in gens:
+            if g.get("id") == gen_id:
+                g["workStatus"] = new_status
+                break
 
 
 @app.get("/api/generations/{gen_id}/review")
