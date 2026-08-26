@@ -106,24 +106,24 @@ function deriveAssetName(filename: string): string {
 }
 
 // Píldoras de navegación — saltan a cada sección de assets (ref: Campaign Settings).
-const BRAND_NAV: Array<{ id: string; label: string }> = [
+const BRAND_NAV: Array<{ id: string; label: string; group?: boolean }> = [
+  // `group: true` mete un separador ANTES de esa píldora. Doce ítems sueltos se leen como
+  // doce cosas que entender; agrupados por paso se leen como cuatro. Nada se oculta —
+  // solo se agrupa. Reportado: "la sección de marcas quedó llena de información".
   { id: "sec-brief", label: "Brief" },
   { id: "sec-brand", label: "Marca" },
-  { id: "sec-products", label: "Productos" },
+  { id: "sec-learning", label: "Aprendizaje" },
+  { id: "sec-products", label: "Productos", group: true },
+  { id: "sec-clothing", label: "Prendas" },
   { id: "sec-avatars", label: "Avatares" },
+  { id: "sec-poses", label: "Poses" },
+  { id: "sec-backgrounds", label: "Fondos" },
   { id: "sec-logos", label: "Logos" },
   { id: "sec-moodboard", label: "Moodboard" },
   { id: "sec-lookfeel", label: "Look & Feel" },
-  { id: "sec-backgrounds", label: "Fondos" },
   { id: "sec-voices", label: "Voces" },
-  { id: "sec-clothing", label: "Prendas" },
-  { id: "sec-poses", label: "Poses" },
-  // Todo lo que es DE una marca vive adentro de la marca. Antes Brand Brain y Clientes
-  // eran destinos sueltos del nav y se pisaban con esta pantalla — tres lugares distintos
-  // para hablar de la misma marca. Ver docs/decisions-log.md 2026-08.
-  { id: "sec-learning", label: "Aprendizaje" },
+  { id: "sec-export", label: "Compartir", group: true },
   { id: "sec-access", label: "Accesos" },
-  { id: "sec-export", label: "Export" },
 ];
 
 export function BrandSettings() {
@@ -157,18 +157,20 @@ export function BrandSettings() {
       <div className="sticky top-0 z-30 -mx-1 px-1 py-2 bg-[var(--color-canvas)]/85 backdrop-blur-md border-b border-edge">
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
           {BRAND_NAV.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => scrollToSection(s.id)}
-              className={cn(
-                "shrink-0 px-3 py-1.5 text-[12px] font-medium rounded-full transition-colors cursor-pointer",
-                activeSection === s.id
-                  ? "bg-[var(--color-action)] text-[var(--color-action-fg)]"
-                  : "bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3",
-              )}
-            >
-              {s.label}
-            </button>
+            <span key={s.id} className="contents">
+              {s.group && <span className="shrink-0 w-px h-4 self-center bg-edge mx-1.5" aria-hidden="true" />}
+              <button
+                onClick={() => scrollToSection(s.id)}
+                className={cn(
+                  "shrink-0 px-3 py-1.5 text-[12px] font-medium rounded-full transition-colors cursor-pointer",
+                  activeSection === s.id
+                    ? "bg-[var(--color-action)] text-[var(--color-action-fg)]"
+                    : "bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3",
+                )}
+              >
+                {s.label}
+              </button>
+            </span>
           ))}
         </div>
       </div>
@@ -182,12 +184,18 @@ export function BrandSettings() {
         <GuidanceCard />
       </div>
 
-      {/* ② AUTO — extraído por IA */}
+      {/* ② AUTO — extraído por IA, y lo aprendido trabajando.
+           Las dos cosas escriben en el MISMO lugar (el Design System de la marca): una sale
+           del brand book, la otra de lo que devolvió el cliente. Por eso viven juntas y no
+           como pasos separados. */}
       <div id="sec-brand" className="scroll-mt-20">
-        <SectionHeader number="②" title="Auto-extraído por IA" subtitle="Brand DNA + Negocio + Design System. Salen del input de arriba con un click." />
+        <SectionHeader number="②" title="Lo que la marca sabe" subtitle="Brand DNA + Negocio + Dirección de arte. Sale del input de arriba con un click, y de trabajar con el cliente." />
         <BrandDNACard />
         <BusinessCard />
         <DesignSystemCard />
+        <div id="sec-learning" className="scroll-mt-20 mt-6">
+          <BrandLearningSection />
+        </div>
       </div>
 
       {/* ③ ASSETS — archivos que se usan en cada generación */}
@@ -215,20 +223,13 @@ export function BrandSettings() {
         </div>
       </SectionHeader>
 
-      {/* ⑤ EXPORT — entregable para el cliente */}
-      <div id="sec-learning" className="scroll-mt-20">
-        <SectionHeader number="④" title="Aprendizaje" subtitle="Lo que la marca aprendió trabajando: qué devolvió el cliente y qué regla sale de eso." />
-        <BrandLearningSection />
-      </div>
-
-      <div id="sec-access" className="scroll-mt-20">
-        <SectionHeader number="④" title="Accesos" subtitle="Quién entra al portal de esta marca, y con qué link." />
-        <BrandAccessSection />
-      </div>
-
+      {/* ⑤ COMPARTIR — lo que sale de acá hacia afuera: el identity y el acceso al portal */}
       <div id="sec-export" className="scroll-mt-20">
-        <SectionHeader number="⑤" title="Export" subtitle="Descargá el brand identity para mandarle al cliente." />
+        <SectionHeader number="⑤" title="Compartir" subtitle="El identity para mandarle al cliente, y quién entra a su portal." />
         <BrandIdentityExportCard />
+        <div id="sec-access" className="scroll-mt-20 mt-6">
+          <BrandAccessSection />
+        </div>
       </div>
     </div>
   );
