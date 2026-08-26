@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, Loader2, Trash2, Sparkles, Image as ImageIcon, AlertCircle, X, Download } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, Sparkles, Image as ImageIcon, AlertCircle, X, Download, Upload } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
   getCampaign, deleteCampaign, updateCampaign,
@@ -10,6 +10,7 @@ import {
 } from "../lib/api";
 import { imagesUsd, formatCost } from "../lib/pricing";
 import { claimFor } from "../lib/costLedger";
+import { uploadCampaignPieces } from "../lib/api";
 import { cn } from "../lib/utils";
 
 const STATUS_LABEL: Record<Campaign["status"], { label: string; cls: string }> = {
@@ -30,6 +31,8 @@ export function CampaignDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [lightbox, setLightbox] = useState<string | null>(null);
 
@@ -48,6 +51,22 @@ export function CampaignDetailPage() {
     if (!confirm(`¿Borrar la campaña "${campaign.name}"? No se puede deshacer.`)) return;
     try { await deleteCampaign(campaign.id); navigate("/dashboard/campaigns"); }
     catch { alert("No se pudo borrar."); }
+  };
+
+  /**
+   * Subir material propio al pedido. Existe porque no todo tiene que salir de nuestras
+   * tools: si un video conviene hacerlo en otro lado, igual pertenece a este pedido.
+   */
+  const handleUpload = async (files: FileList | null) => {
+    if (!campaign || !files || files.length === 0) return;
+    setUploading(true); setUploadError(null);
+    try {
+      setCampaign(await uploadCampaignPieces(campaign.id, Array.from(files)));
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "No se pudo subir");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleGenerate = async () => {
@@ -144,6 +163,8 @@ export function CampaignDetailPage() {
 
   const st = STATUS_LABEL[campaign.status] || STATUS_LABEL.draft;
   const pieces = campaign.pieces || [];
+  // Las generadas vienen de Fal con URL absoluta; las subidas viven en nuestro backend.
+  const pieceUrl = (u: string) => (u.startsWith("http") ? u : `http://127.0.0.1:8000${u}`);
 
   // Todos los assets asignados (avatar, productos, prendas, fondo, moodboard, look&feel)
   // como una sola lista para el strip compacto.
@@ -203,6 +224,12 @@ export function CampaignDetailPage() {
         )}
       </div>
 
+      {uploadError && (
+        <div className="mb-3 flex items-center gap-2 text-[12.5px] text-[var(--color-error)]">
+          <AlertCircle size={13} /> {uploadError}
+        </div>
+      )}
+
       {/* Piezas */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-[16px] font-bold">Piezas {pieces.length > 0 && <span className="text-fg-faint font-normal text-[13px]">· {pieces.length}</span>}</h3>
@@ -221,8 +248,22 @@ export function CampaignDetailPage() {
           </button>
           {/* El generador de campaña hace imágenes sueltas. Para un reel, un catálogo o un
               UGC hay que ir a la tool — el brief del pedido viaja con vos. */}
+          <label
+            title="Subir un video o una imagen hecha fuera de Coevo"
+            className="flex items-center gap-1.5 px-3.5 h-9 rounded-full border border-edge text-[12px] text-fg-secondary hover:text-fg cursor-pointer"
+          >
+            <input
+              type="file"
+              multiple
+              accept="video/*,image/*"
+              className="hidden"
+              onChange={(e) => { handleUpload(e.target.files); e.target.value = ""; }}
+            />
+            {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+            {uploading ? "Subiendo…" : "Subir material"}
+          </label>
           <button
-            onClick={() => navigate(`/dashboard/generate?ask=${encodeURIComponent(campaign.brief || campaign.name)}`)}
+            onClick={() => navigate(`/dashboard/generate?ask=${encodeURIComponent(campaign.brief || campaign.name)}&campaign=${campaign.id}`)}
             title="Arrancar este pedido con una tool del Studio"
             className="flex items-center gap-1.5 px-3.5 h-9 rounded-full border border-edge text-[12px] text-fg-secondary hover:text-fg cursor-pointer"
           >
@@ -243,9 +284,28 @@ export function CampaignDetailPage() {
             <div key={pc.id} className={cn("relative rounded-[var(--radius-md)] overflow-hidden border border-edge bg-surface-1 group", AR_CLASS[pc.aspectRatio] || "aspect-square")}>
               {pc.url ? (
                 <>
-                  <img src={pc.url} alt="" className="w-full h-full object-cover cursor-zoom-in" onClick={() => setLightbox(pc.url)} />
-                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px]">{pc.aspectRatio}</span>
-                  <a href={pc.url} download onClick={(e) => e.stopPropagation()} className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" title="Descargar"><Download size={12} /></a>
+                  {pc.type === "video" ? (
+                    <video
+                      src={pieceUrl(pc.url)}
+                      className="w-full h-full object-cover cursor-zoom-in"
+                      muted
+                      loop
+                      playsInline
+                      onMouseEnter={(e) => void (e.currentTarget as HTMLVideoElement).play().catch(() => {})}
+                      onMouseLeave={(e) => (e.currentTarget as HTMLVideoElement).pause()}
+                      onClick={() => setLightbox(pc.url)}
+                    />
+                  ) : (
+                    <img src={pieceUrl(pc.url)} alt="" className="w-full h-full object-cover cursor-zoom-in" onClick={() => setLightbox(pc.url)} />
+                  )}
+                  {/* Marca de origen: lo subido no lo generamos nosotros ni costó acá. */}
+                  {pc.source === "upload" && (
+                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white text-[9px] font-medium" title={pc.prompt}>
+                      subida
+                    </span>
+                  )}
+                  {pc.aspectRatio && <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px]">{pc.aspectRatio}</span>}
+                  <a href={pieceUrl(pc.url)} download onClick={(e) => e.stopPropagation()} className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" title="Descargar"><Download size={12} /></a>
                 </>
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-[var(--color-error)] gap-1"><AlertCircle size={16} /><span className="text-[9px]">falló</span></div>
@@ -260,7 +320,11 @@ export function CampaignDetailPage() {
 
       {lightbox && (
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-8 cursor-zoom-out" onClick={() => setLightbox(null)}>
-          <img src={lightbox} alt="" className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]" onClick={(e) => e.stopPropagation()} />
+          {pieces.find((p) => p.url === lightbox)?.type === "video" ? (
+            <video src={pieceUrl(lightbox)} className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]" controls autoPlay loop onClick={(e) => e.stopPropagation()} />
+          ) : (
+            <img src={pieceUrl(lightbox)} alt="" className="max-h-full max-w-full object-contain rounded-[var(--radius-md)]" onClick={(e) => e.stopPropagation()} />
+          )}
           <button onClick={() => setLightbox(null)} className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer"><X size={16} /></button>
         </div>
       )}

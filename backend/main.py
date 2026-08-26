@@ -614,6 +614,71 @@ def update_campaign(campaign_id: str, patch: dict = Body(...)):
     return campaign
 
 
+# ── Material subido a un pedido ───────────────────────────────
+#  Un pedido no es solo lo que generan NUESTRAS tools. A veces el video sale de otro lado
+#  (más barato, o porque el cliente lo mandó) y tiene que poder vivir en el mismo lugar.
+#  Sin esto, la app obliga a que todo pase por sus generadores — y limita en vez de servir.
+
+_campaign_uploads_dir = DATA_DIR / "campaign_uploads"
+_campaign_uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static/campaign-uploads", StaticFiles(directory=str(_campaign_uploads_dir)), name="campaign-uploads")
+
+_VIDEO_EXT = {".mp4", ".mov", ".webm", ".m4v"}
+_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif"}
+
+
+@app.post("/api/campaigns/{campaign_id}/uploads")
+async def upload_campaign_pieces(campaign_id: str, files: list[UploadFile] = File(...)):
+    """Sube material propio a un pedido. Se guarda como pieza más, marcada `upload`.
+
+    Las piezas subidas llevan `cost: 0` a propósito: no las pagamos nosotros, y mezclarlas
+    con las generadas rompería el costo por pieza.
+    """
+    items = campaigns_service.load_campaigns()
+    campaign = campaigns_service.find_campaign(items, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+
+    added = []
+    for f in files:
+        if not f or not f.filename:
+            continue
+        ext = os.path.splitext(f.filename)[1].lower()
+        if ext in _VIDEO_EXT:
+            kind = "video"
+        elif ext in _IMAGE_EXT:
+            kind = "image"
+        else:
+            raise HTTPException(status_code=400, detail=f"Formato no soportado: {ext or f.filename}")
+
+        data = await f.read()
+        if len(data) > 200 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail=f"{f.filename} pesa más de 200MB")
+
+        name = f"{campaign_id}_{uuid.uuid4().hex[:8]}{ext}"
+        with open(_campaign_uploads_dir / name, "wb") as out:
+            out.write(data)
+
+        added.append({
+            "id": f"up_{uuid.uuid4().hex[:8]}",
+            "url": f"/static/campaign-uploads/{name}",
+            "type": kind,
+            "aspectRatio": "",
+            "prompt": f.filename,
+            "status": "done",
+            # De dónde salió: "upload" no lo generamos nosotros y no cuesta.
+            "source": "upload",
+        })
+
+    if not added:
+        raise HTTPException(status_code=400, detail="No llegó ningún archivo")
+
+    campaign["pieces"] = (campaign.get("pieces") or []) + added
+    campaigns_service.apply_update(campaign, {"pieces": campaign["pieces"]})
+    campaigns_service.save_campaigns(items)
+    return {"added": added, "campaign": campaign}
+
+
 @app.delete("/api/campaigns/{campaign_id}")
 def delete_campaign(campaign_id: str):
     items = campaigns_service.load_campaigns()

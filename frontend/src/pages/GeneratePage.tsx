@@ -139,6 +139,13 @@ export function GeneratePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const ask = searchParams.get("ask")?.trim() || "";
+  // Id del pedido, si venimos de uno. Viaja en la URL hasta la tool para que las piezas
+  // que salgan vuelvan a colgar del pedido (ver tools/shared/autoSave.ts).
+  const campaignId = searchParams.get("campaign") || "";
+  const openTool = (tool: { id: string; route?: string }) => {
+    const base = tool.route || `/dashboard/generate/${tool.id}`;
+    navigate(campaignId ? `${base}?campaign=${encodeURIComponent(campaignId)}` : base);
+  };
   const [tools, setTools] = useState<ToolEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "video" | "images" | "copy">("all");
@@ -223,7 +230,7 @@ export function GeneratePage() {
       {filter === "all" ? (
         (() => {
           const tile = (tool: ToolEntry) => (
-            <ToolTile key={tool.id} tool={tool} disabled={!activeBrand || tool.status !== "active"} onClick={() => navigate(tool.route || `/dashboard/generate/${tool.id}`)} />
+            <ToolTile key={tool.id} tool={tool} disabled={!activeBrand || tool.status !== "active"} onClick={() => openTool(tool)} />
           );
           const mappedIds = new Set(USE_CASES.flatMap((u) => u.toolIds));
           const rest = orderedTools.filter((t) => !mappedIds.has(t.id));
@@ -255,7 +262,7 @@ export function GeneratePage() {
               key={tool.id}
               tool={tool}
               disabled={!activeBrand || tool.status !== "active"}
-              onClick={() => navigate(tool.route || `/dashboard/generate/${tool.id}`)}
+              onClick={() => openTool(tool)}
             />
           ))}
         </div>

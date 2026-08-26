@@ -395,8 +395,11 @@ export interface CampaignPiece {
     url: string;
     type: "image" | "video";
     aspectRatio: string;
+    /** En las generadas, el prompt. En las subidas, el nombre del archivo original. */
     prompt: string;
     status: "done" | "failed";
+    /** "upload" = la trajimos de afuera, no la generó Coevo (y no costó nada acá). */
+    source?: "upload";
 }
 
 export interface Campaign {
@@ -479,6 +482,24 @@ export async function updateCampaign(id: string, patch: Partial<Campaign>): Prom
     });
     if (!res.ok) throw new Error("No se pudo actualizar la campaña");
     return res.json();
+}
+
+/**
+ * Sube material propio a un pedido — video o imagen hecha FUERA de Coevo Studio.
+ * La app no tiene que obligar a que todo pase por sus generadores: si un video sale más
+ * barato en otro lado, tiene que poder vivir igual en el pedido.
+ * Las piezas subidas van marcadas `source: "upload"` y no suman al costo.
+ */
+export async function uploadCampaignPieces(campaignId: string, files: File[]): Promise<Campaign> {
+    const form = new FormData();
+    for (const f of files) form.append("files", f);
+    const res = await fetch(`${API_BASE}/api/campaigns/${campaignId}/uploads`, { method: "POST", body: form });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "No se pudo subir" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo subir");
+    }
+    const data = await res.json();
+    return data.campaign as Campaign;
 }
 
 export async function deleteCampaign(id: string): Promise<void> {

@@ -4,7 +4,7 @@
  * genId is persisted in sessionStorage keyed by toolId+brandId so reloads keep the same draft.
  */
 
-import { saveGeneration, updateGeneration, type Generation, type Brand } from "../../lib/api";
+import { saveGeneration, updateGeneration, getCampaign, updateCampaign, type Generation, type Brand } from "../../lib/api";
 import type { ToolConfig, ToolEntry, StepState } from "../types";
 
 const GEN_ID_KEY = (toolId: string, brandId: string) => `__genId:${toolId}:${brandId}`;
@@ -83,10 +83,38 @@ export async function autoSaveStep(input: AutoSaveInput): Promise<Generation | n
     }
     const created = await saveGeneration(body);
     setActiveGenId(tool.id, activeBrand.id, created.id);
+    await linkToCampaign(created.id);
     return created;
   } catch (err) {
     console.warn("[autoSaveStep] failed:", err);
     return null;
+  }
+}
+
+/**
+ * Cuelga una corrida del pedido del que salió, si vino de uno.
+ *
+ * El id del pedido viaja en la URL (`?campaign=…`) desde que apretás "Abrir en una tool".
+ * Se lee de acá y no de ToolRunPage a propósito: esta capa ya es el único lugar por donde
+ * pasan TODAS las tools, así que ninguna necesita enterarse. Sin esto, un pedido nunca
+ * acumula sus piezas ni su costo — que es justamente para lo que existe.
+ *
+ * No bloquea nada: si falla, la corrida se guardó igual y solo queda suelta.
+ */
+async function linkToCampaign(genId: string) {
+  try {
+    const campaignId = new URLSearchParams(window.location.search).get("campaign");
+    if (!campaignId) return;
+    const campaign = await getCampaign(campaignId);
+    const ids = campaign.generationIds || [];
+    if (ids.includes(genId)) return;
+    await updateCampaign(campaignId, {
+      generationIds: [...ids, genId],
+      // Si el pedido estaba en borrador, arrancó a producirse.
+      ...(campaign.status === "draft" ? { status: "generating" as const } : {}),
+    });
+  } catch (e) {
+    console.warn("[autoSaveStep] no se pudo colgar la corrida del pedido:", e);
   }
 }
 
