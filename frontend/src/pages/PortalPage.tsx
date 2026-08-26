@@ -37,7 +37,7 @@ const C = {
   err: "#b4453f",
 };
 
-type Section = "campaigns" | "review" | "approved";
+type Section = "campaigns" | "review" | "reviewed";
 
 function relativeDate(iso?: string): string {
   if (!iso) return "";
@@ -80,7 +80,12 @@ export function PortalPage() {
   const [plan, setPlan] = useState<PortalPlanItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [section, setSection] = useState<Section>("campaigns");
+  /**
+   * Sección inicial. NO es fija: si hay algo esperando al cliente, el portal abre ahí.
+   * Abrir siempre en "Campañas" dejaba lo único accionable escondido a un click —
+   * reportado por el usuario: "¿dónde apruebo? no entiendo esa parte".
+   */
+  const [section, setSection] = useState<Section | null>(null);
   /** Campaña abierta. Estado local y no ruta: el portal es una sola página. */
   const [openId, setOpenId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -97,6 +102,11 @@ export function PortalPage() {
   const items = data?.items || [];
   const toReview = useMemo(() => items.filter((it) => itemState(it) === "turn"), [items]);
   const done = useMemo(() => items.filter((it) => itemState(it) !== "turn"), [items]);
+
+  // Prioridad: lo que espera al cliente → el plan → lo ya revisado.
+  const initialSection: Section =
+    toReview.length > 0 ? "review" : plan.length > 0 ? "campaigns" : done.length > 0 ? "reviewed" : "campaigns";
+  const active: Section = section ?? initialSection;
 
   const open = plan.find((c) => c.id === openId) || null;
 
@@ -136,7 +146,8 @@ export function PortalPage() {
   const NAV: Array<{ key: Section; label: string; count: number }> = [
     { key: "campaigns", label: "Campañas", count: plan.length },
     { key: "review", label: "Para revisar", count: toReview.length },
-    { key: "approved", label: "Aprobado", count: done.length },
+    // "Revisado" y no "Aprobado": acá caen tanto las aprobadas como las que pidió cambiar.
+    { key: "reviewed", label: "Revisado", count: done.length },
   ];
 
   const cardCls = "rounded-[8px] overflow-hidden block";
@@ -162,7 +173,7 @@ export function PortalPage() {
 
         <nav className="mt-8 flex flex-col gap-[2px]">
           {NAV.map((n) => {
-            const on = section === n.key && !open;
+            const on = active === n.key && !open;
             return (
               <button
                 key={n.key}
@@ -271,7 +282,7 @@ export function PortalPage() {
               </label>
             </div>
           </>
-        ) : section === "campaigns" ? (
+        ) : active === "campaigns" ? (
           <>
             <h1 className="font-display text-[30px] tracking-[-.015em]">Campañas</h1>
             <p className="text-[13.5px] mt-1.5 max-w-[56ch]" style={{ color: C.ink2 }}>
@@ -280,10 +291,24 @@ export function PortalPage() {
             <div className="my-7" style={{ height: 1, background: C.line }} />
 
             {plan.length === 0 ? (
-              <p className="text-[13.5px] max-w-[46ch] leading-relaxed" style={{ color: C.ink2 }}>
-                Todavía no hay ninguna campaña arrancada. Cuando definamos la primera, la vas a ver
-                acá con todo lo que se vaya produciendo.
-              </p>
+              <>
+                <p className="text-[13.5px] max-w-[46ch] leading-relaxed" style={{ color: C.ink2 }}>
+                  Todavía no hay ninguna campaña arrancada. Cuando definamos la primera, la vas a ver
+                  acá con todo lo que se vaya produciendo.
+                </p>
+                {/* Un vacío no puede ser un callejón sin salida: si hay algo esperándolo,
+                    se lo decimos acá mismo. */}
+                {toReview.length > 0 && (
+                  <button
+                    onClick={() => setSection("review")}
+                    className="mt-5 text-[13.5px] font-semibold cursor-pointer underline underline-offset-4 block text-left"
+                    style={{ color: accent }}
+                  >
+                    Mientras tanto, tenés {toReview.length}{" "}
+                    {toReview.length === 1 ? "entrega esperando tu revisión" : "entregas esperando tu revisión"} →
+                  </button>
+                )}
+              </>
             ) : (
               plan.map((c) => {
                 const pending = c.items.filter((it) => itemState(it) === "turn").length;
@@ -317,22 +342,22 @@ export function PortalPage() {
         ) : (
           <>
             <h1 className="font-display text-[30px] tracking-[-.015em]">
-              {section === "review" ? "Para revisar" : "Aprobado"}
+              {active === "review" ? "Para revisar" : "Revisado"}
             </h1>
             <p className="text-[13.5px] mt-1.5 max-w-[56ch]" style={{ color: C.ink2 }}>
-              {section === "review"
-                ? "Abrí cada una para aprobarla o pedir un cambio."
+              {active === "review"
+                ? "Abrí cada una, mirala en grande y decidí si sale así o querés un cambio."
                 : "Lo que ya miraste. Queda acá para que lo tengas a mano."}
             </p>
             <div className="my-7" style={{ height: 1, background: C.line }} />
 
-            {(section === "review" ? toReview : done).length === 0 ? (
+            {(active === "review" ? toReview : done).length === 0 ? (
               <p className="text-[13.5px]" style={{ color: C.ink2 }}>
-                {section === "review" ? "No hay nada esperándote. Todo al día." : "Todavía no revisaste nada."}
+                {active === "review" ? "No hay nada esperándote. Todo al día." : "Todavía no revisaste nada."}
               </p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3.5">
-                {(section === "review" ? toReview : done).map((it) => {
+                {(active === "review" ? toReview : done).map((it) => {
                   const st = itemState(it);
                   return (
                     <Link key={it.generationId} to={`/review/${it.token}`} className={cardCls} style={cardStyle}>
@@ -343,7 +368,7 @@ export function PortalPage() {
                         <span className="text-[11.5px] truncate block" style={{ color: C.ink2 }}>{it.title}</span>
                         <span className="mt-1 block">
                           {st === "turn"
-                            ? <Status tone="turn" label="Te toca" accent={accent} />
+                            ? <Status tone="turn" label="Revisar →" accent={accent} />
                             : st === "changes"
                               ? <Status tone="neutral" label="Pediste cambios" accent={accent} />
                               : <Status tone="done" label="Aprobado" accent={accent} />}
