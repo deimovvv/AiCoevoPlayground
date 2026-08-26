@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { MessageSquareWarning, ArrowUpRight, Loader2, Sparkles, Check, X } from "lucide-react";
+import { MessageSquareWarning, Loader2, Sparkles, Check, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { listReviews, fetchGenerations, proposeArtDirectionRules, applyArtDirectionRule } from "../lib/api";
 import type { ReviewData, Generation, ArtRuleProposal, FeedbackInsight } from "../lib/api";
@@ -42,7 +42,7 @@ function asText(v: unknown): string {
     return typeof v === "string" ? v.trim() : "";
 }
 
-export function BrandBrainPage() {
+export function BrandLearningSection() {
     const { activeBrand, refreshBrands } = useBrand();
     const [reviews, setReviews] = useState<ReviewData[]>([]);
     const [gens, setGens] = useState<Generation[]>([]);
@@ -121,11 +121,7 @@ export function BrandBrainPage() {
     };
 
     if (!activeBrand) {
-        return (
-            <div className="px-6 py-5">
-                <p className="text-[13px] text-fg-muted">Elegí una marca en el switcher para ver su Brand Brain.</p>
-            </div>
-        );
+        return <p className="text-[13px] text-fg-muted">Elegí una marca para ver su aprendizaje.</p>;
     }
 
     const ds = (activeBrand.designSystem || {}) as Record<string, unknown>;
@@ -141,19 +137,11 @@ export function BrandBrainPage() {
     ];
 
     return (
-        <div className="px-6 py-5 max-w-[1200px]">
-            <div className="flex items-baseline gap-3 mb-1">
-                <h1 className="text-[21px] font-semibold tracking-[-.01em]">Brand Brain</h1>
-                <span className="text-[13px] text-fg-muted">{activeBrand.name}</span>
-                <Link
-                    to={`/dashboard/brands/${activeBrand.id}`}
-                    className="ml-auto flex items-center gap-1 text-[12px] text-fg-muted hover:text-fg"
-                >
-                    Editar el brand kit <ArrowUpRight size={12} />
-                </Link>
-            </div>
-            <p className="text-[12.5px] text-fg-muted mb-6">
-                Lo que la marca sabe de sí misma, y lo que aprendió trabajando.
+        <div>
+            <p className="text-[12.5px] text-fg-muted mb-5 max-w-[70ch]">
+                Lo que la marca sabe de sí misma vive en las secciones de arriba. Acá está lo que
+                aprendió <b className="text-fg font-medium">trabajando</b>: qué devolvió el cliente y
+                qué regla sale de eso.
             </p>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

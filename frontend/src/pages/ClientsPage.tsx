@@ -19,7 +19,7 @@ import type { PortalLink } from "../lib/api";
 
 const portalUrl = (token: string) => `${window.location.origin}/portal/${token}`;
 
-export function ClientsPage() {
+export function BrandAccessSection() {
     const { activeBrand } = useBrand();
     const [links, setLinks] = useState<PortalLink[]>([]);
     const [legacyToken, setLegacyToken] = useState<string | null>(null);
@@ -71,17 +71,14 @@ export function ClientsPage() {
     };
 
     if (!activeBrand) {
-        return <div className="px-6 py-5"><p className="text-[13px] text-fg-muted">Elegí una marca para gestionar sus accesos.</p></div>;
+        return <p className="text-[13px] text-fg-muted">Elegí una marca para gestionar sus accesos.</p>;
     }
 
     return (
-        <div className="px-6 py-5 max-w-[900px]">
-            <div className="flex items-baseline gap-3 mb-1">
-                <h1 className="text-[21px] font-semibold tracking-[-.01em]">Clientes</h1>
-                <span className="text-[13px] text-fg-muted">{activeBrand.name}</span>
-            </div>
-            <p className="text-[12.5px] text-fg-muted mb-6">
-                Cada persona tiene su propio link al portal. Ahí ve lo publicado, aprueba y pide.
+        <div className="max-w-[900px]">
+            <p className="text-[12.5px] text-fg-muted mb-5 max-w-[70ch]">
+                Cada persona tiene su propio link al portal de {activeBrand.name}. Ahí ve lo publicado,
+                aprueba y sigue sus campañas.
             </p>
 
             {/* Alta */}

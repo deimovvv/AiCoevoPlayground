@@ -82,6 +82,8 @@ import type { Avatar, Product, ClothingItem, BackgroundItem, MoodboardItem, Look
 import { cn } from "../lib/utils";
 import { PromptsCard } from "../components/PromptsCard";
 import { BusinessCard, BrandSourcesCard, CustomerReviewsCard, CompetitorsCard, BrandHealthCard, SectionHeader, BrandIdentityExportCard } from "../components/BrandLayer";
+import { BrandLearningSection } from "./BrandBrainPage";
+import { BrandAccessSection } from "./ClientsPage";
 
 /**
  * Derive a human-friendly asset name from an uploaded filename.
@@ -116,6 +118,11 @@ const BRAND_NAV: Array<{ id: string; label: string }> = [
   { id: "sec-voices", label: "Voces" },
   { id: "sec-clothing", label: "Prendas" },
   { id: "sec-poses", label: "Poses" },
+  // Todo lo que es DE una marca vive adentro de la marca. Antes Brand Brain y Clientes
+  // eran destinos sueltos del nav y se pisaban con esta pantalla — tres lugares distintos
+  // para hablar de la misma marca. Ver docs/decisions-log.md 2026-08.
+  { id: "sec-learning", label: "Aprendizaje" },
+  { id: "sec-access", label: "Accesos" },
   { id: "sec-export", label: "Export" },
 ];
 
@@ -209,6 +216,16 @@ export function BrandSettings() {
       </SectionHeader>
 
       {/* ⑤ EXPORT — entregable para el cliente */}
+      <div id="sec-learning" className="scroll-mt-20">
+        <SectionHeader number="④" title="Aprendizaje" subtitle="Lo que la marca aprendió trabajando: qué devolvió el cliente y qué regla sale de eso." />
+        <BrandLearningSection />
+      </div>
+
+      <div id="sec-access" className="scroll-mt-20">
+        <SectionHeader number="④" title="Accesos" subtitle="Quién entra al portal de esta marca, y con qué link." />
+        <BrandAccessSection />
+      </div>
+
       <div id="sec-export" className="scroll-mt-20">
         <SectionHeader number="⑤" title="Export" subtitle="Descargá el brand identity para mandarle al cliente." />
         <BrandIdentityExportCard />

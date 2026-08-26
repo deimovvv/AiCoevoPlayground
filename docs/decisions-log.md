@@ -462,6 +462,32 @@ pedido directo vuelve a tener sentido: ahí el pedido se descuenta de algo acord
 
 ---
 
+## 2026-08 — Todo lo que es de una marca vive adentro de la marca
+
+**Contexto.** El nav del World había quedado con Inicio · Trabajo · Marcas · Brand Brain ·
+Clientes. El usuario preguntó lo obvio: *"¿cuál es la diferencia entre clientes y marcas?
+¿y entre esta información y lo que está en Brain?"*. La respuesta honesta era: se pisan.
+
+**El error.** Brand Brain se copió de Superspace, donde es un ítem de primer nivel. Pero
+ahí funciona porque **es** la configuración de marca — no hay otra pantalla. Coevo ya tenía
+`BrandSettings` con 12 secciones haciendo ese trabajo, así que Brand Brain terminó
+mostrando la misma dirección de arte que ya estaba ahí, con una sola cosa propia: el loop
+de feedback. Y Clientes era, igual, una vista por marca viviendo fuera de la marca.
+
+**Decisión.** Brand Brain y Clientes dejan de ser destinos y pasan a ser dos secciones más
+adentro de la marca: **Aprendizaje** y **Accesos**. El nav del World queda en tres:
+Inicio · Trabajo · Marcas, más la puerta a Coevo Studio.
+
+**La regla que queda.** Todo lo que es *de una marca* vive adentro de la marca; el nav de
+afuera es la operación (qué hay que hacer, en todas las marcas). Antes había tres lugares
+distintos para hablar de Koxis y para saltar entre ellos había que usar el switcher — que
+es exactamente de dónde salía la confusión.
+
+**Qué NO cambió.** La lógica: el loop de feedback, los links por persona y sus endpoints
+siguen iguales. Solo cambió dónde vive cada pantalla.
+
+---
+
 ## Cómo usar este archivo
 
 - **Agregar entrada cuando.** Tomamos una decisión que: (a) descarta otra opción razonable, (b) no es obvia leyendo el código, (c) podría confundir a otro dev futuro o re-discutir en 3 meses.
