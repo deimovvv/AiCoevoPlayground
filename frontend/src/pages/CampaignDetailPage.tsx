@@ -219,6 +219,15 @@ export function CampaignDetailPage() {
           >
             {generating ? <><Loader2 size={13} className="animate-spin" /> Generando {progress.done}/{progress.total}</> : <><Sparkles size={13} /> {pieces.length > 0 ? "Generar más" : "Generar piezas"}</>}
           </button>
+          {/* El generador de campaña hace imágenes sueltas. Para un reel, un catálogo o un
+              UGC hay que ir a la tool — el brief del pedido viaja con vos. */}
+          <button
+            onClick={() => navigate(`/dashboard/generate?ask=${encodeURIComponent(campaign.brief || campaign.name)}`)}
+            title="Arrancar este pedido con una tool del Studio"
+            className="flex items-center gap-1.5 px-3.5 h-9 rounded-full border border-edge text-[12px] text-fg-secondary hover:text-fg cursor-pointer"
+          >
+            Abrir en una tool
+          </button>
         </div>
       </div>
 

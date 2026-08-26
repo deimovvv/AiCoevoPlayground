@@ -823,6 +823,14 @@ export async function revokePortalLink(brandId: string, token: string): Promise<
     if (!res.ok) throw new Error("No se pudo revocar");
 }
 
+/** Cuánto espera una acción NUESTRA — alimenta el badge de Trabajo en el sidebar. */
+export async function fetchInboxCount(brandId?: string): Promise<{ requests: number; pieces: number; total: number }> {
+    const url = brandId ? `${API_BASE}/api/inbox/count?brandId=${encodeURIComponent(brandId)}` : `${API_BASE}/api/inbox/count`;
+    const res = await fetch(url);
+    if (!res.ok) return { requests: 0, pieces: 0, total: 0 };
+    return res.json();
+}
+
 export async function listReviews(): Promise<ReviewData[]> {
     const res = await fetch(`${API_BASE}/api/reviews`);
     if (!res.ok) return [];

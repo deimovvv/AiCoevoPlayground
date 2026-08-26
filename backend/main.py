@@ -5062,6 +5062,27 @@ def revoke_portal_link(brand_id: str, token: str):
     raise HTTPException(status_code=404, detail="Acceso no encontrado")
 
 
+@app.get("/api/inbox/count")
+def inbox_count(brandId: Optional[str] = None):
+    """Cuántas cosas esperan una acción NUESTRA. Alimenta el badge del sidebar.
+
+    Deliberadamente barato: solo cuenta, no devuelve nada más. Se llama seguido.
+    """
+    campaigns = campaigns_service.load_campaigns()
+    if brandId:
+        campaigns = [c for c in campaigns if c.get("brandId") == brandId]
+    # Un pedido del cliente que nadie tocó todavía.
+    pending = sum(1 for c in campaigns if c.get("source") == "portal" and c.get("status") == "draft")
+
+    gens = _load_generations()
+    if brandId:
+        gens = [g for g in gens if g.get("brandId") == brandId]
+    # Solo lo que TIENE workStatus: las corridas viejas van a Historial, no exigen nada.
+    needs = sum(1 for g in gens if g.get("workStatus") in ("review", "changes"))
+
+    return {"requests": pending, "pieces": needs, "total": pending + needs}
+
+
 @app.get("/api/portal/{token}")
 def get_portal(token: str):
     """Public: the client opens /portal/{token} and sees the brand's PUBLISHED content."""

@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { Loader2, Search, Plus, AlertCircle, Folder, ChevronRight, ChevronDown } from "lucide-react";
+import { Loader2, Search, Plus, AlertCircle, Folder, ChevronRight, ChevronDown, Sparkles } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { fetchGenerations, updateGeneration, listCampaigns, WORK_STATUS_LABEL, WORK_STATUS_NEEDS_ACTION } from "../lib/api";
 import type { Generation, WorkStatus, Campaign } from "../lib/api";
@@ -357,10 +357,14 @@ export function WorkPage() {
                                                     </span>
                                                     <Link
                                                         to={`/dashboard/campaigns/${c.id}`}
-                                                        className={cn("text-[11px] font-medium px-2.5 py-1 rounded-full shrink-0", PILL_CLS[row.status])}
+                                                        title="Abrir el pedido y generar sus piezas"
+                                                        className="h-7 px-3 rounded-[var(--radius-sm)] border border-edge text-[11.5px] text-fg-secondary hover:text-fg hover:border-edge-strong flex items-center gap-1.5 shrink-0"
                                                     >
-                                                        {WORK_STATUS_LABEL[row.status]}
+                                                        <Sparkles size={11} /> Generar
                                                     </Link>
+                                                    <span className={cn("text-[11px] font-medium px-2.5 py-1 rounded-full shrink-0", PILL_CLS[row.status])}>
+                                                        {WORK_STATUS_LABEL[row.status]}
+                                                    </span>
                                                 </div>
                                                 {open && row.children.map((g) => (
                                                     <div key={g.id} className="flex items-center gap-3 pl-12 pr-3 py-2 border-t border-edge-subtle">

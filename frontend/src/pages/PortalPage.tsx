@@ -107,6 +107,9 @@ export function PortalPage() {
   }
 
   const allDone = progress.total > 0 && progress.reviewed === progress.total;
+  // Primera vez: no hay nada publicado ni pedido todavía. En vez de un cartel de "vacío",
+  // el portal se presenta y explica en qué consiste. Es lo primero que ve un cliente.
+  const firstVisit = data.items.length === 0 && requests.length === 0;
 
   return (
     <div className="min-h-screen bg-[var(--color-canvas)] text-fg">
@@ -123,7 +126,7 @@ export function PortalPage() {
             </h1>
           </div>
 
-          {progress.total > 0 && (
+          {progress.total > 0 && !firstVisit && (
             <div className="shrink-0 text-right">
               <div className="flex items-center justify-end gap-2">
                 {allDone && <CheckCircle2 size={15} className="text-[var(--color-success)]" />}
@@ -145,9 +148,38 @@ export function PortalPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-5 sm:px-8 py-8">
+        {firstVisit && (
+          <section className="pt-6 pb-10 border-b border-edge mb-10">
+            <h2 className="text-[26px] sm:text-[32px] font-bold tracking-tight leading-[1.15] max-w-xl">
+              Este es el espacio de contenido de {data.brandName}.
+            </h2>
+            <p className="text-[15px] text-fg-muted mt-3 max-w-xl leading-relaxed">
+              Acá vas a pedir lo que necesites, ver en qué anda, y aprobarlo cuando esté listo.
+              Todo en un mismo lugar, sin mails ni carpetas dando vueltas.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 max-w-3xl">
+              {[
+                { n: "1", t: "Pedís", d: "Escribís lo que necesitás, como se lo dirías a una persona. No hace falta que sea preciso." },
+                { n: "2", t: "Producimos", d: "Lo trabajamos con el material y el estilo de tu marca. Vas viendo el estado acá." },
+                { n: "3", t: "Aprobás", d: "Mirás cada pieza y la aprobás, o pedís los cambios que quieras. Las veces que haga falta." },
+              ].map((step) => (
+                <div key={step.n}>
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-[var(--color-action)] text-[var(--color-action)] text-[11px] font-bold">
+                    {step.n}
+                  </span>
+                  <p className="text-[14px] font-semibold mt-3">{step.t}</p>
+                  <p className="text-[13px] text-fg-muted mt-1 leading-relaxed">{step.d}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Pedir — la misma caja que usa la agencia en Inicio, de este lado. */}
         <section className="mb-10">
-          <h2 className="text-[15px] font-semibold">¿Necesitás algo?</h2>
+          <h2 className={firstVisit ? "text-[19px] font-semibold" : "text-[15px] font-semibold"}>
+            {firstVisit ? "Empezá pidiendo algo" : "¿Necesitás algo?"}
+          </h2>
           <p className="text-[13px] text-fg-muted mt-0.5 mb-3">
             Contanos qué te hace falta y lo tomamos. No hace falta que sea preciso.
           </p>
@@ -176,37 +208,54 @@ export function PortalPage() {
           {askError && <p className="text-[12.5px] text-[var(--color-error)] mt-2">{askError}</p>}
         </section>
 
-        {/* Estado de lo pedido — antes el cliente solo veía lo terminado. */}
+        {/* Estado de lo pedido — antes el cliente solo veía lo terminado.
+            Las filas son grandes a propósito: es lo que el cliente viene a chequear. */}
         {requests.length > 0 && (
-          <section className="mb-10">
+          <section className="mb-12">
             <h2 className="text-[15px] font-semibold mb-3">Tus pedidos</h2>
-            <div className="border border-edge rounded-[var(--radius-md)] overflow-hidden">
-              {requests.map((r) => (
-                <div key={r.id} className="flex items-center gap-3 px-4 py-3 border-b border-edge last:border-0">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[13.5px] font-medium truncate">{r.name}</p>
-                    <p className="text-[11.5px] text-fg-faint mt-0.5">
-                      {relativeDate(r.createdAt)}
-                      {r.pieces > 0 ? ` · ${r.pieces} piezas` : ""}
-                      {r.source === "portal" ? " · lo pediste vos" : ""}
-                    </p>
+            <div className="flex flex-col gap-2.5">
+              {requests.map((r) => {
+                const isTurn = r.state === "Listo para vos";
+                const done = r.state === "Aprobado";
+                return (
+                  <div
+                    key={r.id}
+                    className={`rounded-[var(--radius-md)] border px-5 py-4 ${
+                      isTurn ? "border-[var(--color-warning)] bg-[rgba(228,171,27,.07)]" : "border-edge bg-surface-1"
+                    }`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[15px] font-medium leading-snug">{r.name}</p>
+                        {r.brief && r.brief !== r.name && (
+                          <p className="text-[13px] text-fg-muted mt-1 leading-relaxed line-clamp-2">{r.brief}</p>
+                        )}
+                        <p className="text-[12px] text-fg-faint mt-2">
+                          {relativeDate(r.createdAt)}
+                          {r.pieces > 0 ? ` · ${r.pieces} ${r.pieces === 1 ? "pieza" : "piezas"}` : ""}
+                          {r.source === "portal" ? " · lo pediste vos" : " · lo cargamos nosotros"}
+                        </p>
+                      </div>
+                      <span
+                        className={`text-[13px] font-semibold px-3.5 py-1.5 rounded-full shrink-0 whitespace-nowrap ${
+                          isTurn
+                            ? "bg-[var(--color-warning)] text-black"
+                            : done
+                              ? "bg-[rgba(61,191,138,.16)] text-[var(--color-success)]"
+                              : "bg-surface-2 text-fg-secondary border border-edge"
+                        }`}
+                      >
+                        {r.state}
+                      </span>
+                    </div>
                   </div>
-                  <span className={`text-[11.5px] font-medium px-2.5 py-1 rounded-full shrink-0 ${
-                    r.state === "Listo para vos"
-                      ? "bg-[rgba(228,171,27,.14)] text-[var(--color-warning)]"
-                      : r.state === "Aprobado"
-                        ? "bg-[rgba(61,191,138,.13)] text-[var(--color-success)]"
-                        : "bg-surface-2 text-fg-muted"
-                  }`}>
-                    {r.state}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
 
-        {data.items.length === 0 ? (
+        {data.items.length === 0 ? (firstVisit ? null : (
           <div className="flex flex-col items-center justify-center text-center py-24 gap-3">
             <div className="w-14 h-14 rounded-full bg-surface-1 border border-edge flex items-center justify-center text-fg-faint">
               <ImageIcon size={22} />
@@ -214,7 +263,7 @@ export function PortalPage() {
             <p className="text-[15px] font-medium text-fg">Todavía no hay contenido</p>
             <p className="text-[13px] text-fg-faint max-w-xs">Cuando tu agencia publique algo, lo vas a ver acá listo para revisar.</p>
           </div>
-        ) : (
+        )) : (
           <>
             <p className="text-[14px] text-fg-muted mb-6 max-w-2xl">
               Estos son los contenidos listos para tu revisión. Abrí cada uno para <span className="text-fg">aprobarlo</span> o <span className="text-fg">pedir cambios</span>.
