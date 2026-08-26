@@ -786,14 +786,27 @@ export async function applyArtDirectionRule(brandId: string, field: string, rule
  * escribiendo en una caja. Por eso lo que el cliente escribe es una NOTA — input para la
  * próxima conversación — y convertirla en campaña es una decisión nuestra.
  */
+export interface PortalPlanPiece {
+    id: string;
+    url: string;
+    type: "image" | "video";
+    label: string;
+    /** "upload" = la trajo alguien de afuera, no la generó Coevo. */
+    source?: string | null;
+}
+
 export interface PortalPlanItem {
     id: string;
     name: string;
     brief: string;
     /** Estado en lenguaje de cliente: Recibido · En producción · Listo para vos · Aprobado */
     state: string;
-    pieces: number;
-    source: "agency" | "portal";
+    /** Total de material de la campaña: piezas + entregas revisables. */
+    pieceCount: number;
+    /** Material de la campaña: generado adentro o subido. */
+    pieces: PortalPlanPiece[];
+    /** Entregas publicadas que cuelgan de esta campaña, cada una con su review. */
+    items: PortalItem[];
     createdAt: string;
 }
 
@@ -809,6 +822,17 @@ export async function fetchPortalPlan(token: string): Promise<{ campaigns: Porta
     const res = await fetch(`${API_BASE}/api/portal/${token}/plan`);
     if (!res.ok) return { campaigns: [], notes: [] };
     return res.json();
+}
+
+/** El cliente sube material propio a una campaña desde su portal. */
+export async function uploadPortalPieces(token: string, campaignId: string, files: File[]): Promise<void> {
+    const form = new FormData();
+    for (const f of files) form.append("files", f);
+    const res = await fetch(`${API_BASE}/api/portal/${token}/campaigns/${campaignId}/uploads`, { method: "POST", body: form });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "No se pudo subir" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo subir");
+    }
 }
 
 export async function createPortalNote(token: string, text: string): Promise<PortalNote> {

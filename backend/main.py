@@ -5283,6 +5283,23 @@ def resolve_brand_note(brand_id: str, note_id: str):
     raise HTTPException(status_code=404, detail="Nota no encontrada")
 
 
+@app.post("/api/portal/{token}/campaigns/{campaign_id}/uploads")
+async def portal_upload_pieces(token: str, campaign_id: str, files: list[UploadFile] = File(...)):
+    """El cliente sube material a una campaña desde su portal.
+
+    Mismo guardado que la subida interna, pero autenticado por el token del portal y
+    verificando que la campaña sea de SU marca — si no, un link podría escribir en otra.
+    """
+    brand, _access = _resolve_portal(token)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Portal not found")
+    items = campaigns_service.load_campaigns()
+    campaign = campaigns_service.find_campaign(items, campaign_id)
+    if not campaign or campaign.get("brandId") != brand["id"]:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    return await upload_campaign_pieces(campaign_id, files)
+
+
 @app.get("/api/portal/{token}/plan")
 def list_portal_requests(token: str):
     """El plan de la marca: las campañas briefeadas, con estado en lenguaje de cliente.
@@ -5302,17 +5319,49 @@ def list_portal_requests(token: str):
         "review": "Listo para vos",
         "approved": "Aprobado",
     }
+    # Las generaciones publicadas, indexadas para poder colgarlas de su campaña.
+    published = {g["id"]: g for g in _load_generations()
+                 if g.get("brandId") == brand["id"] and g.get("publishedToPortal") and g.get("status") == "completed"}
+
     out = []
     for c in campaigns_service.load_campaigns():
         if c.get("brandId") != brand["id"]:
             continue
+        # Piezas de la campaña: las generadas dentro de ella + el material subido.
+        pieces = [
+            {"id": p.get("id"), "url": p.get("url"), "type": p.get("type", "image"),
+             "label": p.get("prompt", "")[:60], "source": p.get("source")}
+            for p in (c.get("pieces") or []) if p.get("url")
+        ]
+        # Corridas de tools que cuelgan de este pedido y ya se publicaron: son revisables.
+        items = []
+        for gid in (c.get("generationIds") or []):
+            g = published.get(gid)
+            if not g:
+                continue
+            review = _ensure_review(g)
+            vals = list((review.get("feedback") or {}).values())
+            items.append({
+                "generationId": g.get("id"),
+                "token": review.get("token"),
+                "title": g.get("title"),
+                "type": g.get("type"),
+                "thumbnailUrl": g.get("thumbnailUrl"),
+                "createdAt": g.get("createdAt"),
+                "summary": {
+                    "total": len(review.get("clips") or []),
+                    "approved": sum(1 for v in vals if v.get("status") == "approved"),
+                    "changes": sum(1 for v in vals if v.get("status") == "change"),
+                },
+            })
         out.append({
             "id": c.get("id"),
             "name": c.get("name"),
             "brief": c.get("brief"),
             "state": CLIENT_LABEL.get(c.get("status"), "Recibido"),
-            "pieces": len(c.get("pieces") or []),
-            "source": c.get("source", "agency"),
+            "pieceCount": len(pieces) + len(items),
+            "pieces": pieces,
+            "items": items,
             "createdAt": c.get("createdAt"),
         })
     out.sort(key=lambda c: c.get("createdAt") or "", reverse=True)
