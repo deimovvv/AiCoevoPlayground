@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
     LayoutGrid, Wand2, FolderOpen, Settings,
-    FlaskConical, Loader2, Moon, Sun, PanelLeft, Home, Compass, ListTodo, ArrowLeft, ChevronRight, BrainCircuit } from "lucide-react";
+    FlaskConical, Loader2, Moon, Sun, PanelLeft, Home, Compass, ListTodo, ArrowLeft, ChevronRight, BrainCircuit, Users } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
 import { useTheme } from "../../lib/theme";
 import { cn } from "../../lib/utils";
@@ -41,6 +41,7 @@ const WORLD_NAV: NavItem[] = [
     { label: "Trabajo", href: "/dashboard/trabajo", exact: true, icon: <ListTodo size={18} />, title: "Trabajo — pedidos y piezas: qué está en curso, qué espera aprobación y qué costó", tour: "nav-campanas" },
     { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={18} />, title: "Marcas — gestioná tus marcas y su brand kit" },
     { label: "Brand Brain", href: "/dashboard/brain", exact: true, icon: <BrainCircuit size={18} />, title: "Brand Brain — la dirección de arte de la marca y lo que devolvió el cliente" },
+    { label: "Clientes", href: "/dashboard/clientes", exact: true, icon: <Users size={18} />, title: "Clientes — quién entra al portal de la marca y con qué link" },
 ];
 
 /** La puerta a la fábrica. Se pinta con el acento porque abre otro NIVEL, no otra página. */

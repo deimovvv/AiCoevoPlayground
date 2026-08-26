@@ -4984,11 +4984,88 @@ async def ensure_brand_portal(brand_id: str):
     return {"token": brand["portalToken"]}
 
 
+# ── Accesos al portal ─────────────────────────────────────────
+#  Un token por PERSONA, no uno por marca. Mismo mecanismo de link mágico (cero auth),
+#  pero saber quién pidió qué, y poder revocarle a uno sin romperle el link al resto.
+#  `brand["portalToken"]` (legacy, uno por marca) se sigue aceptando para no romper los
+#  links ya repartidos. Ver docs/decisions-log.md 2026-08.
+
+def _resolve_portal(token: str):
+    """Devuelve (brand, access) para un token de portal, o (None, None).
+
+    `access` es None cuando entró por el token legacy de la marca — ahí no sabemos quién es.
+    """
+    for brand in brands.load_brands():
+        for acc in (brand.get("portalAccess") or []):
+            if acc.get("token") == token and not acc.get("revokedAt"):
+                return brand, acc
+        if brand.get("portalToken") == token:
+            return brand, None
+    return None, None
+
+
+class PortalLinkRequest(BaseModel):
+    name: str
+    email: Optional[str] = None
+
+
+@app.get("/api/brands/{brand_id}/portal/links")
+def list_portal_links(brand_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    return {
+        "links": [a for a in (brand.get("portalAccess") or []) if not a.get("revokedAt")],
+        # El link viejo de la marca sigue vivo si alguna vez se generó — hay que poder verlo
+        # para saber que existe y decidir si se apaga.
+        "legacyToken": brand.get("portalToken"),
+    }
+
+
+@app.post("/api/brands/{brand_id}/portal/links")
+def create_portal_link(brand_id: str, req: PortalLinkRequest):
+    from datetime import datetime, timezone
+    name = (req.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Poné un nombre para saber de quién es el link")
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    access = {
+        "token": f"pt_{uuid.uuid4().hex[:12]}",
+        "name": name,
+        "email": (req.email or "").strip() or None,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "revokedAt": None,
+    }
+    brand.setdefault("portalAccess", []).append(access)
+    brands.save_brands(all_brands)
+    return access
+
+
+@app.delete("/api/brands/{brand_id}/portal/links/{token}")
+def revoke_portal_link(brand_id: str, token: str):
+    """Revoca un acceso. No se borra: queda la fecha, así los pedidos viejos siguen
+    diciendo quién los mandó."""
+    from datetime import datetime, timezone
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    for acc in (brand.get("portalAccess") or []):
+        if acc.get("token") == token:
+            acc["revokedAt"] = datetime.now(timezone.utc).isoformat()
+            brands.save_brands(all_brands)
+            return {"ok": True}
+    raise HTTPException(status_code=404, detail="Acceso no encontrado")
+
+
 @app.get("/api/portal/{token}")
 def get_portal(token: str):
     """Public: the client opens /portal/{token} and sees the brand's PUBLISHED content."""
-    all_brands = brands.load_brands()
-    brand = next((b for b in all_brands if b.get("portalToken") == token), None)
+    brand, _access = _resolve_portal(token)
     if not brand:
         raise HTTPException(status_code=404, detail="Portal not found")
     gens = [g for g in _load_generations()
@@ -5033,8 +5110,7 @@ def create_portal_request(token: str, req: PortalRequestBody):
     if len(text) > 2000:
         raise HTTPException(status_code=400, detail="El pedido es demasiado largo")
 
-    all_brands = brands.load_brands()
-    brand = next((b for b in all_brands if b.get("portalToken") == token), None)
+    brand, access = _resolve_portal(token)
     if not brand:
         raise HTTPException(status_code=404, detail="Portal not found")
 
@@ -5045,7 +5121,9 @@ def create_portal_request(token: str, req: PortalRequestBody):
         "name": (text.splitlines()[0] or text)[:60],
         "brief": text,
         "source": "portal",
-        "requestedBy": (req.requestedBy or "").strip() or None,
+        # Quién pidió sale del LINK, no de lo que tipee el cliente: el link es la
+        # identidad. Solo caemos al campo libre si entró por el token legacy de la marca.
+        "requestedBy": (access or {}).get("name") or (req.requestedBy or "").strip() or None,
     })
     items.append(campaign)
     campaigns_service.save_campaigns(items)
@@ -5055,8 +5133,7 @@ def create_portal_request(token: str, req: PortalRequestBody):
 @app.get("/api/portal/{token}/requests")
 def list_portal_requests(token: str):
     """Los pedidos de esta marca, con un estado en lenguaje de cliente."""
-    all_brands = brands.load_brands()
-    brand = next((b for b in all_brands if b.get("portalToken") == token), None)
+    brand, _access = _resolve_portal(token)
     if not brand:
         raise HTTPException(status_code=404, detail="Portal not found")
 

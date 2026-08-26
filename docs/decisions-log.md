@@ -403,6 +403,33 @@ Campañas venía 3× por debajo.
 
 ---
 
+## 2026-08 — Accesos al portal: un link por persona, no cuentas (todavía)
+
+**Contexto.** El portal pasó a ser de dos vías: el cliente además de aprobar, pide. Ahí
+apareció la pregunta de login. Hasta ese momento había **un token por marca**, así que
+todos los que tuvieran el link eran "el cliente".
+
+**Decisión.** Un token por **persona** (`brand.portalAccess[]` con nombre, email opcional
+y fecha de revocación). Mismo link mágico, cero infraestructura de auth, pero:
+- el `requestedBy` de un pedido sale del LINK, no de lo que tipee el cliente
+- se le puede cortar el acceso a uno sin romperle el link a los demás
+- revocar no borra: queda la fecha, así los pedidos viejos siguen diciendo quién los mandó
+
+El token legacy por marca se sigue aceptando para no romper links ya repartidos, y la
+pantalla de Clientes lo muestra advirtiendo que los pedidos que entren por ahí van sin
+nombre.
+
+**Alternativa descartada (por ahora): cuentas de verdad.** Email+password propio queda
+descartado directamente — mantener reset, verificación y sesiones no aporta nada que Clerk
+no dé. Clerk entra cuando pase **una** de estas tres: que el cliente suba sus propios
+assets, que haya que cobrarle, o que distintas personas necesiten permisos distintos
+(uno aprueba, otro solo mira). Sus "organizations" mapean uno a uno con las marcas.
+
+**Por qué no adelantarlo.** Mientras el cliente solo mire, comente y pida, el link con
+nombre da el 90% de lo que se quiere del login a un costo de casi cero.
+
+---
+
 ## Cómo usar este archivo
 
 - **Agregar entrada cuando.** Tomamos una decisión que: (a) descarta otra opción razonable, (b) no es obvia leyendo el código, (c) podría confundir a otro dev futuro o re-discutir en 3 meses.

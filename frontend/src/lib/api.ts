@@ -786,6 +786,43 @@ export async function listPortalRequests(token: string): Promise<PortalRequest[]
     return data.requests || [];
 }
 
+/**
+ * Accesos al portal — un link por PERSONA, no uno por marca.
+ * Mismo link mágico de siempre (cero auth) pero con nombre: sabés quién pidió qué y podés
+ * revocarle a uno sin romperle el link al resto.
+ */
+export interface PortalLink {
+    token: string;
+    name: string;
+    email: string | null;
+    createdAt: string;
+    revokedAt: string | null;
+}
+
+export async function listPortalLinks(brandId: string): Promise<{ links: PortalLink[]; legacyToken: string | null }> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal/links`);
+    if (!res.ok) return { links: [], legacyToken: null };
+    return res.json();
+}
+
+export async function createPortalLink(brandId: string, name: string, email?: string): Promise<PortalLink> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal/links`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Error" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo crear el link");
+    }
+    return res.json();
+}
+
+export async function revokePortalLink(brandId: string, token: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal/links/${token}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("No se pudo revocar");
+}
+
 export async function listReviews(): Promise<ReviewData[]> {
     const res = await fetch(`${API_BASE}/api/reviews`);
     if (!res.ok) return [];
