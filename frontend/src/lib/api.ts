@@ -689,7 +689,14 @@ export interface PortalItem {
     createdAt: string;
     summary: { total: number; approved: number; changes: number };
 }
-export interface PortalData { brandName?: string; items: PortalItem[] }
+export interface PortalData {
+    brandName?: string;
+    /** Logo de la marca, si tiene alguno cargado. */
+    logoUrl?: string | null;
+    /** Color de la paleta de la marca usable como acento (ni negro ni blanco puro). */
+    accent?: string | null;
+    items: PortalItem[];
+}
 
 export async function ensureBrandPortal(brandId: string): Promise<{ token: string }> {
     const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal`, { method: "POST" });

@@ -112,11 +112,17 @@ export function PortalPage() {
   const firstVisit = data.items.length === 0 && requests.length === 0;
 
   return (
-    <div className="min-h-screen bg-[var(--color-canvas)] text-fg">
+    <div
+      className="min-h-screen bg-[var(--color-canvas)] text-fg"
+      // El acento sale de la paleta de la marca cuando la tiene. Sin esto el portal se ve
+      // igual para todas — y es lo primero que ve un cliente.
+      style={{ ["--accent" as string]: data.accent || "var(--color-action)" }}
+    >
       {/* Accent hairline */}
-      <div className="h-[2px] w-full bg-gradient-to-r from-[var(--color-action)] via-[var(--color-action)]/40 to-transparent" />
+      <div className="h-[2px] w-full" style={{ background: "linear-gradient(to right, var(--accent), color-mix(in srgb, var(--accent) 35%, transparent), transparent)" }} />
 
       {/* Header */}
+      {!firstVisit && (
       <header className="border-b border-edge sticky top-0 bg-[var(--color-canvas)]/85 backdrop-blur-xl z-10">
         <div className="max-w-5xl mx-auto px-5 sm:px-8 py-5 flex items-end justify-between gap-4">
           <div className="min-w-0">
@@ -146,34 +152,72 @@ export function PortalPage() {
           )}
         </div>
       </header>
+      )}
 
-      <main className="max-w-5xl mx-auto px-5 sm:px-8 py-8">
-        {firstVisit && (
-          <section className="pt-6 pb-10 border-b border-edge mb-10">
-            <h2 className="text-[26px] sm:text-[32px] font-bold tracking-tight leading-[1.15] max-w-xl">
-              Este es el espacio de contenido de {data.brandName}.
-            </h2>
-            <p className="text-[15px] text-fg-muted mt-3 max-w-xl leading-relaxed">
-              Acá vas a pedir lo que necesites, ver en qué anda, y aprobarlo cuando esté listo.
-              Todo en un mismo lugar, sin mails ni carpetas dando vueltas.
+      <main className={firstVisit ? "max-w-[680px] mx-auto px-6 min-h-[calc(100vh-2px)] flex flex-col justify-center py-16" : "max-w-5xl mx-auto px-5 sm:px-8 py-8"}>
+        {firstVisit ? (
+          <div className="text-center">
+            {/* Sin logo cargado, el NOMBRE es la marca. Va en la serif del sistema y
+                grande — es el ancla visual de toda la pantalla. */}
+            {data.logoUrl && (
+              <img
+                src={resolveUrl(data.logoUrl)}
+                alt={data.brandName}
+                className="h-10 w-auto object-contain mx-auto mb-7"
+              />
+            )}
+            <p className="text-[10px] font-bold uppercase tracking-[0.28em]" style={{ color: "var(--accent)" }}>
+              Espacio de contenido
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 max-w-3xl">
+            {!data.logoUrl && (
+              <h1 className="font-display text-[42px] sm:text-[56px] font-semibold tracking-[-0.025em] leading-[1.05] mt-3">
+                {data.brandName}
+              </h1>
+            )}
+            <p className="text-[15px] text-fg-muted mt-4 max-w-[440px] mx-auto leading-relaxed">
+              Pedí lo que necesites, seguí cómo va, y aprobalo cuando esté listo.
+            </p>
+
+            {/* La caja de pedido es el protagonista: es la única acción de esta pantalla. */}
+            <div className="mt-9 flex items-center gap-2 bg-surface-1 border border-edge rounded-[26px] pl-6 pr-2 py-2 focus-within:border-[var(--color-edge-focus)] transition-colors text-left">
+              <input
+                value={ask}
+                onChange={(e) => setAsk(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") submitAsk(); }}
+                placeholder="Necesito 3 fotos de la remera lila…"
+                className="flex-1 bg-transparent text-[15px] outline-none placeholder:text-fg-faint py-2.5"
+              />
+              <button
+                onClick={submitAsk}
+                disabled={!ask.trim() || sending}
+                className="h-10 px-5 rounded-[20px] text-[13px] font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-default transition-opacity"
+                style={{ background: "var(--accent)", color: "#000" }}
+              >
+                {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Enviar
+              </button>
+            </div>
+            {sent && (
+              <p className="flex items-center justify-center gap-1.5 text-[13px] text-[var(--color-success)] mt-3">
+                <Check size={13} /> Lo recibimos. Te avisamos por acá cuando esté.
+              </p>
+            )}
+            {askError && <p className="text-[13px] text-[var(--color-error)] mt-3">{askError}</p>}
+
+            {/* Los tres pasos, en voz baja: contexto, no instrucciones. */}
+            <div className="grid grid-cols-3 gap-6 mt-14 pt-8 border-t border-edge text-left">
               {[
-                { n: "1", t: "Pedís", d: "Escribís lo que necesitás, como se lo dirías a una persona. No hace falta que sea preciso." },
-                { n: "2", t: "Producimos", d: "Lo trabajamos con el material y el estilo de tu marca. Vas viendo el estado acá." },
-                { n: "3", t: "Aprobás", d: "Mirás cada pieza y la aprobás, o pedís los cambios que quieras. Las veces que haga falta." },
+                { t: "Pedís", d: "Como se lo dirías a una persona." },
+                { t: "Producimos", d: "Con el material y el estilo de tu marca." },
+                { t: "Aprobás", d: "O pedís cambios, las veces que haga falta." },
               ].map((step) => (
-                <div key={step.n}>
-                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-[var(--color-action)] text-[var(--color-action)] text-[11px] font-bold">
-                    {step.n}
-                  </span>
-                  <p className="text-[14px] font-semibold mt-3">{step.t}</p>
-                  <p className="text-[13px] text-fg-muted mt-1 leading-relaxed">{step.d}</p>
+                <div key={step.t}>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-fg-faint">{step.t}</p>
+                  <p className="text-[12.5px] text-fg-muted mt-1.5 leading-relaxed">{step.d}</p>
                 </div>
               ))}
             </div>
-          </section>
-        )}
+          </div>
+        ) : (<>
 
         {/* Pedir — la misma caja que usa la agencia en Inicio, de este lado. */}
         <section className="mb-10">
@@ -343,6 +387,8 @@ export function PortalPage() {
             </div>
           </>
         )}
+
+        </>)}
 
         <footer className="mt-12 pt-6 border-t border-edge flex items-center justify-between gap-3">
           <p className="text-[11px] text-fg-faint">Tu feedback se guarda automáticamente.</p>

@@ -5083,6 +5083,34 @@ def inbox_count(brandId: Optional[str] = None):
     return {"requests": pending, "pieces": needs, "total": pending + needs}
 
 
+def _portal_accent(brand: dict) -> Optional[str]:
+    """El color de la marca que sirve como acento en el portal.
+
+    Se descartan los extremos: un #000000 o un #FFFFFF son colores de marca legítimos pero
+    inservibles como acento sobre fondo oscuro. Se busca el primero con luminancia usable.
+    """
+    for c in ((brand.get("dna") or {}).get("colors") or []):
+        hex_val = (c.get("hex") or "").strip()
+        if not (len(hex_val) == 7 and hex_val.startswith("#")):
+            continue
+        try:
+            r, g, b = (int(hex_val[i:i + 2], 16) for i in (1, 3, 5))
+        except ValueError:
+            continue
+        lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        if 0.25 <= lum <= 0.92:
+            return hex_val
+    return None
+
+
+def _portal_logo(brand: dict) -> Optional[str]:
+    logos = brand.get("logos") or []
+    if logos:
+        return logos[0].get("imageUrl")
+    legacy = brand.get("logo") or {}
+    return legacy.get("imageUrl")
+
+
 @app.get("/api/portal/{token}")
 def get_portal(token: str):
     """Public: the client opens /portal/{token} and sees the brand's PUBLISHED content."""
@@ -5109,7 +5137,14 @@ def get_portal(token: str):
                 "changes": sum(1 for v in vals if v.get("status") == "change"),
             },
         })
-    return {"brandName": brand.get("name"), "items": items}
+    return {
+        "brandName": brand.get("name"),
+        # Identidad mínima para que el portal no se vea genérico: el logo si hay, y un
+        # acento sacado de la paleta de la marca.
+        "logoUrl": _portal_logo(brand),
+        "accent": _portal_accent(brand),
+        "items": items,
+    }
 
 
 class PortalRequestBody(BaseModel):
