@@ -69,6 +69,10 @@ def new_campaign(payload: dict) -> dict:
         "aspectRatios": payload.get("aspectRatios", ["9:16"]) or ["9:16"],
         "resolution": payload.get("resolution", "2K"),
         "status": "draft",
+        # De dónde vino el pedido: "agency" (lo cargamos nosotros) o "portal" (lo pidió el
+        # cliente desde su link). Los del portal entran a Trabajo exigiendo acción.
+        "source": payload.get("source", "agency"),
+        "requestedBy": payload.get("requestedBy"),
         # Ids de generaciones que pertenecen a esta campaña (se linkean al generar).
         "generationIds": [],
         # Piezas generadas dentro de la campaña: { id, url, type, aspectRatio, prompt, status }.
@@ -86,6 +90,9 @@ _EDITABLE = {
     # Costo real de los modelos que consumió la campaña. Las piezas de campaña no son
     # generaciones, así que necesitan su propio registro. Ver lib/costLedger.ts.
     "cost",
+    # De dónde salió el pedido: "agency" (lo cargamos nosotros) o "portal" (lo pidió el
+    # cliente desde su link). Un pedido del cliente entra a Trabajo exigiendo acción.
+    "source", "requestedBy",
     "avatarId", "clothingIds", "backgroundId", "lookFeelId",
 }
 

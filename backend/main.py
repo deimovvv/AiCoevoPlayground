@@ -568,6 +568,8 @@ class CampaignCreateRequest(BaseModel):
     variationsPerShot: int = 1
     aspectRatios: list[str] = ["9:16"]
     resolution: str = "2K"
+    source: str = "agency"      # "agency" | "portal"
+    requestedBy: Optional[str] = None
 
 
 @app.get("/api/campaigns")
@@ -5010,6 +5012,77 @@ def get_portal(token: str):
             },
         })
     return {"brandName": brand.get("name"), "items": items}
+
+
+class PortalRequestBody(BaseModel):
+    text: str
+    requestedBy: Optional[str] = None
+
+
+@app.post("/api/portal/{token}/requests")
+def create_portal_request(token: str, req: PortalRequestBody):
+    """El cliente pide algo desde su portal. Crea una campaña en borrador con su texto.
+
+    El token de la marca ES la autenticación — el mismo que ya usa para ver sus piezas.
+    NO se acepta brandId del cliente: se resuelve del token, así un link no puede crear
+    pedidos en otra marca.
+    """
+    text = (req.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="El pedido no puede estar vacío")
+    if len(text) > 2000:
+        raise HTTPException(status_code=400, detail="El pedido es demasiado largo")
+
+    all_brands = brands.load_brands()
+    brand = next((b for b in all_brands if b.get("portalToken") == token), None)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Portal not found")
+
+    items = campaigns_service.load_campaigns()
+    campaign = campaigns_service.new_campaign({
+        "brandId": brand["id"],
+        # El nombre sale de la primera línea del pedido — mejor que "Campaña sin nombre".
+        "name": (text.splitlines()[0] or text)[:60],
+        "brief": text,
+        "source": "portal",
+        "requestedBy": (req.requestedBy or "").strip() or None,
+    })
+    items.append(campaign)
+    campaigns_service.save_campaigns(items)
+    return campaign
+
+
+@app.get("/api/portal/{token}/requests")
+def list_portal_requests(token: str):
+    """Los pedidos de esta marca, con un estado en lenguaje de cliente."""
+    all_brands = brands.load_brands()
+    brand = next((b for b in all_brands if b.get("portalToken") == token), None)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Portal not found")
+
+    # Cómo se le muestra al cliente cada estado interno. Deliberadamente distinto del
+    # vocabulario interno: al cliente no le importa "generating", le importa si es su turno.
+    CLIENT_LABEL = {
+        "draft": "Recibido",
+        "generating": "En producción",
+        "review": "Listo para vos",
+        "approved": "Aprobado",
+    }
+    out = []
+    for c in campaigns_service.load_campaigns():
+        if c.get("brandId") != brand["id"]:
+            continue
+        out.append({
+            "id": c.get("id"),
+            "name": c.get("name"),
+            "brief": c.get("brief"),
+            "state": CLIENT_LABEL.get(c.get("status"), "Recibido"),
+            "pieces": len(c.get("pieces") or []),
+            "source": c.get("source", "agency"),
+            "createdAt": c.get("createdAt"),
+        })
+    out.sort(key=lambda c: c.get("createdAt") or "", reverse=True)
+    return {"requests": out}
 
 
 @app.patch("/api/generations/{gen_id}")

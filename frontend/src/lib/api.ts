@@ -422,6 +422,9 @@ export interface Campaign {
     /** Costo real de los modelos. Las piezas de campaña no pasan por `saveGeneration`,
      *  así que la campaña lleva su propio registro. Ver lib/costLedger.ts. */
     cost?: CostSummary;
+    /** Quién lo pidió: nosotros o el cliente desde su portal. */
+    source?: "agency" | "portal";
+    requestedBy?: string | null;
     createdAt: string;
     updatedAt: string;
 }
@@ -746,6 +749,41 @@ export async function applyArtDirectionRule(brandId: string, field: string, rule
     });
     if (!res.ok) throw new Error("No se pudo aplicar la regla");
     return res.json();
+}
+
+/**
+ * Portal de dos vías — el cliente además de aprobar, PIDE y ve estado.
+ * El token de la marca es la autenticación; el brandId nunca viaja del cliente.
+ */
+export interface PortalRequest {
+    id: string;
+    name: string;
+    brief: string;
+    /** Estado en lenguaje de cliente: Recibido · En producción · Listo para vos · Aprobado */
+    state: string;
+    pieces: number;
+    source: "agency" | "portal";
+    createdAt: string;
+}
+
+export async function createPortalRequest(token: string, text: string, requestedBy?: string): Promise<PortalRequest> {
+    const res = await fetch(`${API_BASE}/api/portal/${token}/requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, requestedBy }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "No se pudo enviar" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo enviar el pedido");
+    }
+    return res.json();
+}
+
+export async function listPortalRequests(token: string): Promise<PortalRequest[]> {
+    const res = await fetch(`${API_BASE}/api/portal/${token}/requests`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.requests || [];
 }
 
 export async function listReviews(): Promise<ReviewData[]> {

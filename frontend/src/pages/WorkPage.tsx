@@ -107,6 +107,10 @@ export function WorkPage() {
             if (sts.some((x) => x === "in_progress" || x === "draft")) return "in_progress";
             return sts[0];
         }
+        // Un pedido que MANDÓ EL CLIENTE y todavía nadie tocó exige acción nuestra —
+        // no es un borrador que dejamos a medias. Es la diferencia entre "me olvidé"
+        // y "alguien está esperando".
+        if (c.source === "portal" && c.status === "draft") return "review";
         return c.status === "approved" ? "approved"
             : c.status === "review" ? "review"
             : c.status === "generating" ? "in_progress"
@@ -342,7 +346,9 @@ export function WorkPage() {
                                                                 <span className="text-fg-faint font-normal ml-1.5">{c.pieces?.length || row.children.length || 0}</span>
                                                             </span>
                                                             <span className="text-[10.5px] font-mono text-fg-faint block mt-0.5">
-                                                                pedido · {daysAgo(c.createdAt)}
+                                                                {c.source === "portal"
+                                                                    ? `lo pidió el cliente${c.requestedBy ? ` (${c.requestedBy})` : ""}`
+                                                                    : "pedido"} · {daysAgo(c.createdAt)}
                                                             </span>
                                                         </span>
                                                     </button>

@@ -8,8 +8,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router";
-import { Loader2, Image as ImageIcon, Video, FileText, ArrowUpRight, CheckCircle2 } from "lucide-react";
-import { getPortal, type PortalData, type PortalItem } from "../lib/api";
+import { Loader2, Image as ImageIcon, Video, FileText, ArrowUpRight, CheckCircle2, Send, Check } from "lucide-react";
+import { getPortal, createPortalRequest, listPortalRequests, type PortalData, type PortalItem, type PortalRequest } from "../lib/api";
 
 const resolveUrl = (u?: string | null) => (u ? (u.startsWith("http") ? u : `http://127.0.0.1:8000${u}`) : "");
 
@@ -51,6 +51,12 @@ export function PortalPage() {
   const [data, setData] = useState<PortalData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Portal de DOS VÍAS: además de aprobar, el cliente pide y ve en qué anda lo pedido.
+  const [requests, setRequests] = useState<PortalRequest[]>([]);
+  const [ask, setAsk] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -58,7 +64,25 @@ export function PortalPage() {
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar"))
       .finally(() => setLoading(false));
+    listPortalRequests(token).then(setRequests).catch(() => setRequests([]));
   }, [token]);
+
+  const submitAsk = async () => {
+    const text = ask.trim();
+    if (!token || !text || sending) return;
+    setSending(true); setAskError(null);
+    try {
+      const created = await createPortalRequest(token, text);
+      setRequests((prev) => [created, ...prev]);
+      setAsk("");
+      setSent(true);
+      setTimeout(() => setSent(false), 4000);
+    } catch (e) {
+      setAskError(e instanceof Error ? e.message : "No se pudo enviar");
+    } finally {
+      setSending(false);
+    }
+  };
 
   const progress = useMemo(() => {
     const items = data?.items || [];
@@ -121,6 +145,67 @@ export function PortalPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-5 sm:px-8 py-8">
+        {/* Pedir — la misma caja que usa la agencia en Inicio, de este lado. */}
+        <section className="mb-10">
+          <h2 className="text-[15px] font-semibold">¿Necesitás algo?</h2>
+          <p className="text-[13px] text-fg-muted mt-0.5 mb-3">
+            Contanos qué te hace falta y lo tomamos. No hace falta que sea preciso.
+          </p>
+          <div className="flex items-start gap-2">
+            <textarea
+              value={ask}
+              onChange={(e) => setAsk(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitAsk(); }}
+              rows={2}
+              placeholder="Ej: necesito 3 fotos de la remera lila para el feed de septiembre"
+              className="flex-1 bg-surface-1 border border-edge rounded-[var(--radius-md)] px-4 py-3 text-[14px] outline-none resize-none placeholder:text-fg-faint focus:border-[var(--color-edge-focus)] transition-colors"
+            />
+            <button
+              onClick={submitAsk}
+              disabled={!ask.trim() || sending}
+              className="h-11 px-4 rounded-[var(--radius-md)] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+            >
+              {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Enviar
+            </button>
+          </div>
+          {sent && (
+            <p className="flex items-center gap-1.5 text-[12.5px] text-[var(--color-success)] mt-2">
+              <Check size={13} /> Lo recibimos. Te avisamos por acá cuando esté.
+            </p>
+          )}
+          {askError && <p className="text-[12.5px] text-[var(--color-error)] mt-2">{askError}</p>}
+        </section>
+
+        {/* Estado de lo pedido — antes el cliente solo veía lo terminado. */}
+        {requests.length > 0 && (
+          <section className="mb-10">
+            <h2 className="text-[15px] font-semibold mb-3">Tus pedidos</h2>
+            <div className="border border-edge rounded-[var(--radius-md)] overflow-hidden">
+              {requests.map((r) => (
+                <div key={r.id} className="flex items-center gap-3 px-4 py-3 border-b border-edge last:border-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13.5px] font-medium truncate">{r.name}</p>
+                    <p className="text-[11.5px] text-fg-faint mt-0.5">
+                      {relativeDate(r.createdAt)}
+                      {r.pieces > 0 ? ` · ${r.pieces} piezas` : ""}
+                      {r.source === "portal" ? " · lo pediste vos" : ""}
+                    </p>
+                  </div>
+                  <span className={`text-[11.5px] font-medium px-2.5 py-1 rounded-full shrink-0 ${
+                    r.state === "Listo para vos"
+                      ? "bg-[rgba(228,171,27,.14)] text-[var(--color-warning)]"
+                      : r.state === "Aprobado"
+                        ? "bg-[rgba(61,191,138,.13)] text-[var(--color-success)]"
+                        : "bg-surface-2 text-fg-muted"
+                  }`}>
+                    {r.state}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {data.items.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-24 gap-3">
             <div className="w-14 h-14 rounded-full bg-surface-1 border border-edge flex items-center justify-center text-fg-faint">
