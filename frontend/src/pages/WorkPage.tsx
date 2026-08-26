@@ -13,10 +13,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { Loader2, Search, Plus, AlertCircle, Folder, ChevronRight, ChevronDown, Sparkles } from "lucide-react";
+import { Loader2, Search, Plus, AlertCircle, Folder, ChevronRight, ChevronDown, Sparkles, MessageSquare } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
-import { fetchGenerations, updateGeneration, listCampaigns, WORK_STATUS_LABEL, WORK_STATUS_NEEDS_ACTION } from "../lib/api";
-import type { Generation, WorkStatus, Campaign } from "../lib/api";
+import { fetchGenerations, updateGeneration, listCampaigns, listBrandNotes, resolveBrandNote, WORK_STATUS_LABEL, WORK_STATUS_NEEDS_ACTION } from "../lib/api";
+import type { Generation, WorkStatus, Campaign, PortalNote } from "../lib/api";
 import { formatUsd } from "../lib/pricing";
 import { PRICE_NOTE } from "../lib/costLedger";
 import { cn } from "../lib/utils";
@@ -80,6 +80,9 @@ export function WorkPage() {
     const [brokenThumbs, setBrokenThumbs] = useState<Record<string, true>>({});
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
     const [openCampaigns, setOpenCampaigns] = useState<Record<string, true>>({});
+    // Notas del cliente: input para el próximo briefing, NO trabajo. No entran a la lista
+    // de piezas a propósito — meterlas ahí sería tratar un comentario como una orden.
+    const [notes, setNotes] = useState<PortalNote[]>([]);
 
     useEffect(() => {
         setLoading(true);
@@ -95,7 +98,16 @@ export function WorkPage() {
     useEffect(() => {
         if (allBrands || !activeBrand) { setCampaigns([]); return; }
         listCampaigns(activeBrand.id).then(setCampaigns).catch(() => setCampaigns([]));
+        listBrandNotes(activeBrand.id)
+            .then((ns) => setNotes(ns.filter((n) => !n.resolvedAt)))
+            .catch(() => setNotes([]));
     }, [activeBrand?.id, allBrands]);
+
+    const resolveNote = async (id: string) => {
+        if (!activeBrand) return;
+        setNotes((prev) => prev.filter((n) => n.id !== id));
+        try { await resolveBrandNote(activeBrand.id, id); } catch { /* vuelve al recargar */ }
+    };
 
     /** El estado de trabajo de una campaña sale de sus piezas; si no tiene, de su propio estado. */
     const campaignStatus = (c: Campaign): WorkStatus => {
@@ -299,6 +311,33 @@ export function WorkPage() {
                     </button>
                 )}
             </div>
+
+            {notes.length > 0 && (
+                <div className="mb-6 rounded-[var(--radius-md)] border border-[var(--color-action)] bg-[var(--color-action-muted)] px-5 py-4">
+                    <h2 className="text-[13.5px] font-semibold">Dijo el cliente</h2>
+                    <p className="text-[11.5px] text-fg-muted mb-3">
+                        Input para el próximo briefing — no es trabajo hasta que lo definan juntos
+                    </p>
+                    {notes.map((n) => (
+                        <div key={n.id} className="flex items-start gap-3 py-2.5 border-b border-edge-subtle last:border-0">
+                            <MessageSquare size={13} className="shrink-0 mt-0.5 text-fg-muted" />
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[13px] text-fg leading-relaxed">{n.text}</p>
+                                <p className="text-[10.5px] font-mono text-fg-faint mt-1">
+                                    {n.by || "sin nombre"} · {daysAgo(n.createdAt)}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => resolveNote(n.id)}
+                                title="Marcar como conversada"
+                                className="h-7 px-3 rounded-[var(--radius-sm)] border border-edge text-[11.5px] text-fg-muted hover:text-fg shrink-0 cursor-pointer"
+                            >
+                                Conversada
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_270px] gap-6">
                 {/* Lista */}

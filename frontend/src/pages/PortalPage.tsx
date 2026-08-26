@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router";
 import { Loader2, Image as ImageIcon, Video, FileText, ArrowUpRight, CheckCircle2, Send, Check } from "lucide-react";
-import { getPortal, createPortalRequest, listPortalRequests, type PortalData, type PortalItem, type PortalRequest } from "../lib/api";
+import { getPortal, fetchPortalPlan, createPortalNote, type PortalData, type PortalItem, type PortalPlanItem } from "../lib/api";
 
 const resolveUrl = (u?: string | null) => (u ? (u.startsWith("http") ? u : `http://127.0.0.1:8000${u}`) : "");
 
@@ -51,8 +51,9 @@ export function PortalPage() {
   const [data, setData] = useState<PortalData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Portal de DOS VÍAS: además de aprobar, el cliente pide y ve en qué anda lo pedido.
-  const [requests, setRequests] = useState<PortalRequest[]>([]);
+  // El eje es el PLAN: las campañas que se briefearon. Lo que el cliente escribe es una
+  // NOTA para la próxima conversación, no una orden de trabajo.
+  const [plan, setPlan] = useState<PortalPlanItem[]>([]);
   const [ask, setAsk] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -64,7 +65,7 @@ export function PortalPage() {
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : "No se pudo cargar"))
       .finally(() => setLoading(false));
-    listPortalRequests(token).then(setRequests).catch(() => setRequests([]));
+    fetchPortalPlan(token).then((d) => setPlan(d.campaigns)).catch(() => setPlan([]));
   }, [token]);
 
   const submitAsk = async () => {
@@ -72,8 +73,7 @@ export function PortalPage() {
     if (!token || !text || sending) return;
     setSending(true); setAskError(null);
     try {
-      const created = await createPortalRequest(token, text);
-      setRequests((prev) => [created, ...prev]);
+      await createPortalNote(token, text);
       setAsk("");
       setSent(true);
       setTimeout(() => setSent(false), 4000);
@@ -109,7 +109,7 @@ export function PortalPage() {
   const allDone = progress.total > 0 && progress.reviewed === progress.total;
   // Primera vez: no hay nada publicado ni pedido todavía. En vez de un cartel de "vacío",
   // el portal se presenta y explica en qué consiste. Es lo primero que ve un cliente.
-  const firstVisit = data.items.length === 0 && requests.length === 0;
+  const firstVisit = data.items.length === 0 && plan.length === 0;
 
   return (
     <div
@@ -175,38 +175,18 @@ export function PortalPage() {
               </h1>
             )}
             <p className="text-[15px] text-fg-muted mt-4 max-w-[440px] mx-auto leading-relaxed">
-              Pedí lo que necesites, seguí cómo va, y aprobalo cuando esté listo.
+              Acá vas a seguir cada campaña, ver lo que se va produciendo y aprobarlo.
             </p>
 
-            {/* La caja de pedido es el protagonista: es la única acción de esta pantalla. */}
-            <div className="mt-9 flex items-center gap-2 bg-surface-1 border border-edge rounded-[26px] pl-6 pr-2 py-2 focus-within:border-[var(--color-edge-focus)] transition-colors text-left">
-              <input
-                value={ask}
-                onChange={(e) => setAsk(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") submitAsk(); }}
-                placeholder="Necesito 3 fotos de la remera lila…"
-                className="flex-1 bg-transparent text-[15px] outline-none placeholder:text-fg-faint py-2.5"
-              />
-              <button
-                onClick={submitAsk}
-                disabled={!ask.trim() || sending}
-                className="h-10 px-5 rounded-[20px] text-[13px] font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-default transition-opacity"
-                style={{ background: "var(--accent)", color: "#000" }}
-              >
-                {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Enviar
-              </button>
-            </div>
-            {sent && (
-              <p className="flex items-center justify-center gap-1.5 text-[13px] text-[var(--color-success)] mt-3">
-                <Check size={13} /> Lo recibimos. Te avisamos por acá cuando esté.
-              </p>
-            )}
-            {askError && <p className="text-[13px] text-[var(--color-error)] mt-3">{askError}</p>}
+            <p className="text-[13px] text-fg-faint mt-8 max-w-[420px] mx-auto leading-relaxed">
+              Todavía no hay ninguna campaña arrancada. Cuando definamos la primera,
+              la vas a ver acá con todo lo que se vaya produciendo.
+            </p>
 
             {/* Los tres pasos, en voz baja: contexto, no instrucciones. */}
             <div className="grid grid-cols-3 gap-6 mt-14 pt-8 border-t border-edge text-left">
               {[
-                { t: "Pedís", d: "Como se lo dirías a una persona." },
+                { t: "Definimos", d: "Cada campaña arranca con un briefing entre nosotros." },
                 { t: "Producimos", d: "Con el material y el estilo de tu marca." },
                 { t: "Aprobás", d: "O pedís cambios, las veces que haga falta." },
               ].map((step) => (
@@ -219,65 +199,33 @@ export function PortalPage() {
           </div>
         ) : (<>
 
-        {/* Pedir — la misma caja que usa la agencia en Inicio, de este lado. */}
-        <section className="mb-10">
-          <h2 className={firstVisit ? "text-[19px] font-semibold" : "text-[15px] font-semibold"}>
-            {firstVisit ? "Empezá pidiendo algo" : "¿Necesitás algo?"}
-          </h2>
-          <p className="text-[13px] text-fg-muted mt-0.5 mb-3">
-            Contanos qué te hace falta y lo tomamos. No hace falta que sea preciso.
-          </p>
-          <div className="flex items-start gap-2">
-            <textarea
-              value={ask}
-              onChange={(e) => setAsk(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitAsk(); }}
-              rows={2}
-              placeholder="Ej: necesito 3 fotos de la remera lila para el feed de septiembre"
-              className="flex-1 bg-surface-1 border border-edge rounded-[var(--radius-md)] px-4 py-3 text-[14px] outline-none resize-none placeholder:text-fg-faint focus:border-[var(--color-edge-focus)] transition-colors"
-            />
-            <button
-              onClick={submitAsk}
-              disabled={!ask.trim() || sending}
-              className="h-11 px-4 rounded-[var(--radius-md)] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-default"
-            >
-              {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Enviar
-            </button>
-          </div>
-          {sent && (
-            <p className="flex items-center gap-1.5 text-[12.5px] text-[var(--color-success)] mt-2">
-              <Check size={13} /> Lo recibimos. Te avisamos por acá cuando esté.
-            </p>
-          )}
-          {askError && <p className="text-[12.5px] text-[var(--color-error)] mt-2">{askError}</p>}
-        </section>
-
-        {/* Estado de lo pedido — antes el cliente solo veía lo terminado.
-            Las filas son grandes a propósito: es lo que el cliente viene a chequear. */}
-        {requests.length > 0 && (
+        {/* El plan: lo que se acordó trabajar. Cada campaña nace de un briefing. */}
+        {plan.length > 0 && (
           <section className="mb-12">
-            <h2 className="text-[15px] font-semibold mb-3">Tus pedidos</h2>
+            <h2 className="text-[15px] font-semibold">Tus campañas</h2>
+            <p className="text-[13px] text-fg-muted mt-0.5 mb-4">
+              Lo que estamos trabajando y en qué anda cada cosa.
+            </p>
             <div className="flex flex-col gap-2.5">
-              {requests.map((r) => {
-                const isTurn = r.state === "Listo para vos";
-                const done = r.state === "Aprobado";
+              {plan.map((c) => {
+                const isTurn = c.state === "Listo para vos";
+                const done = c.state === "Aprobado";
                 return (
                   <div
-                    key={r.id}
+                    key={c.id}
                     className={`rounded-[var(--radius-md)] border px-5 py-4 ${
                       isTurn ? "border-[var(--color-warning)] bg-[rgba(228,171,27,.07)]" : "border-edge bg-surface-1"
                     }`}
                   >
                     <div className="flex items-start gap-4">
                       <div className="min-w-0 flex-1">
-                        <p className="text-[15px] font-medium leading-snug">{r.name}</p>
-                        {r.brief && r.brief !== r.name && (
-                          <p className="text-[13px] text-fg-muted mt-1 leading-relaxed line-clamp-2">{r.brief}</p>
+                        <p className="text-[15px] font-medium leading-snug">{c.name}</p>
+                        {c.brief && c.brief !== c.name && (
+                          <p className="text-[13px] text-fg-muted mt-1 leading-relaxed line-clamp-2">{c.brief}</p>
                         )}
                         <p className="text-[12px] text-fg-faint mt-2">
-                          {relativeDate(r.createdAt)}
-                          {r.pieces > 0 ? ` · ${r.pieces} ${r.pieces === 1 ? "pieza" : "piezas"}` : ""}
-                          {r.source === "portal" ? " · lo pediste vos" : " · lo cargamos nosotros"}
+                          {relativeDate(c.createdAt)}
+                          {c.pieces > 0 ? ` · ${c.pieces} ${c.pieces === 1 ? "pieza" : "piezas"}` : ""}
                         </p>
                       </div>
                       <span
@@ -289,7 +237,7 @@ export function PortalPage() {
                               : "bg-surface-2 text-fg-secondary border border-edge"
                         }`}
                       >
-                        {r.state}
+                        {c.state}
                       </span>
                     </div>
                   </div>
@@ -389,6 +337,41 @@ export function PortalPage() {
         )}
 
         </>)}
+
+        {/* Notas — input para la próxima conversación, NO una orden de trabajo.
+            El trabajo nace de un briefing; esto evita que lo que se le ocurre al cliente
+            se pierda en WhatsApp hasta la próxima reunión. */}
+        <section className={firstVisit ? "mt-14 pt-8 border-t border-edge text-left" : "mt-12 pt-8 border-t border-edge"}>
+          <h2 className="text-[15px] font-semibold">¿Algo para la próxima?</h2>
+          <p className="text-[13px] text-fg-muted mt-0.5 mb-3 max-w-lg leading-relaxed">
+            Dejá acá lo que se te ocurra — una idea, algo que viste, algo que hace falta.
+            Lo vemos juntos cuando definamos la próxima campaña.
+          </p>
+          <div className="flex items-start gap-2 max-w-2xl">
+            <textarea
+              value={ask}
+              onChange={(e) => setAsk(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitAsk(); }}
+              rows={2}
+              placeholder="Ej: me gustaría probar algo en exterior para la cápsula de lino"
+              className="flex-1 bg-surface-1 border border-edge rounded-[var(--radius-md)] px-4 py-3 text-[14px] outline-none resize-none placeholder:text-fg-faint focus:border-[var(--color-edge-focus)] transition-colors"
+            />
+            <button
+              onClick={submitAsk}
+              disabled={!ask.trim() || sending}
+              className="h-11 px-4 rounded-[var(--radius-md)] text-[13px] font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+              style={{ background: "var(--accent)", color: "#000" }}
+            >
+              {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Enviar
+            </button>
+          </div>
+          {sent && (
+            <p className="flex items-center gap-1.5 text-[13px] text-[var(--color-success)] mt-2">
+              <Check size={13} /> Anotado. Lo charlamos en la próxima.
+            </p>
+          )}
+          {askError && <p className="text-[13px] text-[var(--color-error)] mt-2">{askError}</p>}
+        </section>
 
         <footer className="mt-12 pt-6 border-t border-edge flex items-center justify-between gap-3">
           <p className="text-[11px] text-fg-faint">Tu feedback se guarda automáticamente.</p>

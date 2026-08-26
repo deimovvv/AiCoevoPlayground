@@ -759,10 +759,13 @@ export async function applyArtDirectionRule(brandId: string, field: string, rule
 }
 
 /**
- * Portal de dos vías — el cliente además de aprobar, PIDE y ve estado.
- * El token de la marca es la autenticación; el brandId nunca viaja del cliente.
+ * Portal del cliente — el eje es el PLAN acordado, no un buzón de pedidos.
+ *
+ * El trabajo nace de un briefing (reunión, scope, presupuesto), no de un cliente
+ * escribiendo en una caja. Por eso lo que el cliente escribe es una NOTA — input para la
+ * próxima conversación — y convertirla en campaña es una decisión nuestra.
  */
-export interface PortalRequest {
+export interface PortalPlanItem {
     id: string;
     name: string;
     brief: string;
@@ -773,24 +776,44 @@ export interface PortalRequest {
     createdAt: string;
 }
 
-export async function createPortalRequest(token: string, text: string, requestedBy?: string): Promise<PortalRequest> {
-    const res = await fetch(`${API_BASE}/api/portal/${token}/requests`, {
+export interface PortalNote {
+    id: string;
+    text: string;
+    by: string | null;
+    createdAt: string;
+    resolvedAt: string | null;
+}
+
+export async function fetchPortalPlan(token: string): Promise<{ campaigns: PortalPlanItem[]; notes: PortalNote[] }> {
+    const res = await fetch(`${API_BASE}/api/portal/${token}/plan`);
+    if (!res.ok) return { campaigns: [], notes: [] };
+    return res.json();
+}
+
+export async function createPortalNote(token: string, text: string): Promise<PortalNote> {
+    const res = await fetch(`${API_BASE}/api/portal/${token}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, requestedBy }),
+        body: JSON.stringify({ text }),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "No se pudo enviar" }));
-        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo enviar el pedido");
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo enviar la nota");
     }
     return res.json();
 }
 
-export async function listPortalRequests(token: string): Promise<PortalRequest[]> {
-    const res = await fetch(`${API_BASE}/api/portal/${token}/requests`);
+/** Del lado nuestro: las notas del cliente, para el próximo briefing. */
+export async function listBrandNotes(brandId: string): Promise<PortalNote[]> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal/notes`);
     if (!res.ok) return [];
     const data = await res.json();
-    return data.requests || [];
+    return data.notes || [];
+}
+
+export async function resolveBrandNote(brandId: string, noteId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal/notes/${noteId}/resolve`, { method: "POST" });
+    if (!res.ok) throw new Error("No se pudo marcar la nota");
 }
 
 /**
@@ -831,10 +854,10 @@ export async function revokePortalLink(brandId: string, token: string): Promise<
 }
 
 /** Cuánto espera una acción NUESTRA — alimenta el badge de Trabajo en el sidebar. */
-export async function fetchInboxCount(brandId?: string): Promise<{ requests: number; pieces: number; total: number }> {
+export async function fetchInboxCount(brandId?: string): Promise<{ notes: number; pieces: number; total: number }> {
     const url = brandId ? `${API_BASE}/api/inbox/count?brandId=${encodeURIComponent(brandId)}` : `${API_BASE}/api/inbox/count`;
     const res = await fetch(url);
-    if (!res.ok) return { requests: 0, pieces: 0, total: 0 };
+    if (!res.ok) return { notes: 0, pieces: 0, total: 0 };
     return res.json();
 }
 

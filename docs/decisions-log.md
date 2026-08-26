@@ -430,6 +430,38 @@ nombre da el 90% de lo que se quiere del login a un costo de casi cero.
 
 ---
 
+## 2026-08 — El cliente no encarga trabajo: deja notas
+
+**Contexto.** El portal se había construido con una caja de "pedí lo que necesites" que
+creaba una campaña directamente. El usuario lo frenó: *"esto de pedí no tiene sentido, se
+supone que hay una instancia de briefing, reuniones"*. Tenía razón, y era un error de
+modelo, no de diseño.
+
+**El problema.** Esa caja implica que el cliente puede encargar trabajo como quien pide un
+delivery: sin brief, sin scope, sin presupuesto acordado. Superside puede tenerla porque
+atrás hay un contrato de $30k/mes con horas ya compradas — el pedido se descuenta de una
+bolsa. Coevo no tiene esa bolsa, así que la caja prometía algo que el modelo comercial no
+puede sostener.
+
+**Decisión.**
+- La **campaña sigue siendo el resultado del briefing**, del lado de la agencia. Eso ya
+  existía (`NewCampaignPage` con brief, productos, shot plan) — solo estaba mal que el
+  cliente pudiera saltearse la instancia.
+- Lo que el cliente escribe es una **nota** (`brand.portalNotes[]`), no una orden. Llega a
+  Trabajo bajo "Dijo el cliente", con la aclaración de que no es trabajo hasta definirlo
+  juntos, y se marca como conversada.
+- El portal deja de girar alrededor de pedir y pasa a girar alrededor del **plan**: las
+  campañas briefeadas con su estado en lenguaje de cliente.
+
+**Cómo entra el trabajo, confirmado con el usuario:** por campaña puntual, briefeada
+cuando surge. No hay plan mensual fijo — por eso el portal lista campañas y no un
+calendario.
+
+**Cuándo se revisaría.** Si alguna vez hay retainer con horas contratadas, la caja de
+pedido directo vuelve a tener sentido: ahí el pedido se descuenta de algo acordado.
+
+---
+
 ## Cómo usar este archivo
 
 - **Agregar entrada cuando.** Tomamos una decisión que: (a) descarta otra opción razonable, (b) no es obvia leyendo el código, (c) podría confundir a otro dev futuro o re-discutir en 3 meses.

@@ -5071,8 +5071,13 @@ def inbox_count(brandId: Optional[str] = None):
     campaigns = campaigns_service.load_campaigns()
     if brandId:
         campaigns = [c for c in campaigns if c.get("brandId") == brandId]
-    # Un pedido del cliente que nadie tocó todavía.
-    pending = sum(1 for c in campaigns if c.get("source") == "portal" and c.get("status") == "draft")
+    # Notas del cliente que todavía no conversamos.
+    all_brands = brands.load_brands()
+    if brandId:
+        all_brands = [b for b in all_brands if b.get("id") == brandId]
+    pending = sum(
+        1 for b in all_brands for n in (b.get("portalNotes") or []) if not n.get("resolvedAt")
+    )
 
     gens = _load_generations()
     if brandId:
@@ -5080,7 +5085,7 @@ def inbox_count(brandId: Optional[str] = None):
     # Solo lo que TIENE workStatus: las corridas viejas van a Historial, no exigen nada.
     needs = sum(1 for g in gens if g.get("workStatus") in ("review", "changes"))
 
-    return {"requests": pending, "pieces": needs, "total": pending + needs}
+    return {"notes": pending, "pieces": needs, "total": pending + needs}
 
 
 def _portal_accent(brand: dict) -> Optional[str]:
@@ -5147,48 +5152,79 @@ def get_portal(token: str):
     }
 
 
-class PortalRequestBody(BaseModel):
+class PortalNoteBody(BaseModel):
     text: str
-    requestedBy: Optional[str] = None
 
 
-@app.post("/api/portal/{token}/requests")
-def create_portal_request(token: str, req: PortalRequestBody):
-    """El cliente pide algo desde su portal. Crea una campaña en borrador con su texto.
+@app.post("/api/portal/{token}/notes")
+def create_portal_note(token: str, req: PortalNoteBody):
+    """El cliente deja una nota — NO crea trabajo.
 
-    El token de la marca ES la autenticación — el mismo que ya usa para ver sus piezas.
-    NO se acepta brandId del cliente: se resuelve del token, así un link no puede crear
-    pedidos en otra marca.
+    Antes esto creaba una campaña directamente, y estaba mal: en una agencia el trabajo
+    nace de un briefing (reunión, scope, presupuesto), no de un cliente escribiendo en una
+    caja. La nota es input para esa conversación; convertirla en campaña es una decisión
+    nuestra. Ver docs/decisions-log.md 2026-08.
     """
+    from datetime import datetime, timezone
     text = (req.text or "").strip()
     if not text:
-        raise HTTPException(status_code=400, detail="El pedido no puede estar vacío")
+        raise HTTPException(status_code=400, detail="La nota no puede estar vacía")
     if len(text) > 2000:
-        raise HTTPException(status_code=400, detail="El pedido es demasiado largo")
+        raise HTTPException(status_code=400, detail="La nota es demasiado larga")
 
+    all_brands = brands.load_brands()
     brand, access = _resolve_portal(token)
     if not brand:
         raise HTTPException(status_code=404, detail="Portal not found")
+    # _resolve_portal carga su propia copia; hay que escribir sobre la lista que guardamos.
+    brand = brands.find_brand(all_brands, brand["id"])
 
-    items = campaigns_service.load_campaigns()
-    campaign = campaigns_service.new_campaign({
-        "brandId": brand["id"],
-        # El nombre sale de la primera línea del pedido — mejor que "Campaña sin nombre".
-        "name": (text.splitlines()[0] or text)[:60],
-        "brief": text,
-        "source": "portal",
-        # Quién pidió sale del LINK, no de lo que tipee el cliente: el link es la
-        # identidad. Solo caemos al campo libre si entró por el token legacy de la marca.
-        "requestedBy": (access or {}).get("name") or (req.requestedBy or "").strip() or None,
-    })
-    items.append(campaign)
-    campaigns_service.save_campaigns(items)
-    return campaign
+    note = {
+        "id": f"note_{uuid.uuid4().hex[:10]}",
+        "text": text,
+        "by": (access or {}).get("name"),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "resolvedAt": None,
+    }
+    brand.setdefault("portalNotes", []).append(note)
+    brands.save_brands(all_brands)
+    return note
 
 
-@app.get("/api/portal/{token}/requests")
+@app.get("/api/brands/{brand_id}/portal/notes")
+def list_brand_notes(brand_id: str):
+    """Las notas del cliente, del lado nuestro. Input para el próximo briefing."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    notes = sorted(brand.get("portalNotes") or [], key=lambda n: n.get("createdAt") or "", reverse=True)
+    return {"notes": notes}
+
+
+@app.post("/api/brands/{brand_id}/portal/notes/{note_id}/resolve")
+def resolve_brand_note(brand_id: str, note_id: str):
+    """Marcar una nota como conversada. No se borra: quedó dicha."""
+    from datetime import datetime, timezone
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    for n in (brand.get("portalNotes") or []):
+        if n.get("id") == note_id:
+            n["resolvedAt"] = datetime.now(timezone.utc).isoformat()
+            brands.save_brands(all_brands)
+            return n
+    raise HTTPException(status_code=404, detail="Nota no encontrada")
+
+
+@app.get("/api/portal/{token}/plan")
 def list_portal_requests(token: str):
-    """Los pedidos de esta marca, con un estado en lenguaje de cliente."""
+    """El plan de la marca: las campañas briefeadas, con estado en lenguaje de cliente.
+
+    No es "lo que el cliente pidió" — es lo que se acordó trabajar. Cada campaña nace de
+    un briefing del lado nuestro.
+    """
     brand, _access = _resolve_portal(token)
     if not brand:
         raise HTTPException(status_code=404, detail="Portal not found")
@@ -5215,7 +5251,11 @@ def list_portal_requests(token: str):
             "createdAt": c.get("createdAt"),
         })
     out.sort(key=lambda c: c.get("createdAt") or "", reverse=True)
-    return {"requests": out}
+    notes = sorted(
+        [n for n in (brand.get("portalNotes") or []) if not n.get("resolvedAt")],
+        key=lambda n: n.get("createdAt") or "", reverse=True,
+    )
+    return {"campaigns": out, "notes": notes}
 
 
 @app.patch("/api/generations/{gen_id}")
