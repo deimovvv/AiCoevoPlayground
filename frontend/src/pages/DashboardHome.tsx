@@ -97,15 +97,14 @@ export function DashboardHome() {
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] -z-10"
         style={{ background: "radial-gradient(45% 90% at 12% 0%, rgba(196,88,48,0.22), transparent 65%), radial-gradient(40% 80% at 85% 5%, rgba(120,110,220,0.16), transparent 65%), radial-gradient(60% 60% at 50% 40%, rgba(196,88,48,0.06), transparent 70%)" }} />
 
-      {/* Intake — la puerta de entrada es una frase, no un formulario. */}
-      <div
-        className="mb-8 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-xl px-6 py-8 md:px-10 md:py-12 text-center"
-        style={{ boxShadow: "inset 0 1px 0 var(--glass-sheen), 0 20px 60px -30px rgba(0,0,0,0.6)" }}
-      >
-        <h1 className="font-display text-[28px] md:text-[36px] font-semibold tracking-[-0.01em] leading-tight">
+      {/* Intake — la puerta de entrada es una frase, no un formulario.
+          Sin caja: el gradiente de arriba ya es el fondo, y una caja bordeada alrededor
+          solo encerraba aire. */}
+      <div className="mb-10 pt-6 pb-2 text-center">
+        <h1 className="font-display text-[30px] md:text-[38px] font-semibold tracking-[-0.015em] leading-tight">
           ¿Qué hacemos hoy?
         </h1>
-        <p className="text-[13px] text-fg-muted mt-2 mb-7">
+        <p className="text-[13px] text-fg-muted mt-2 mb-6">
           {activeBrand
             ? <>Escribí o dictá el pedido para <span className="text-fg font-medium">{activeBrand.name}</span>.</>
             : "Elegí una marca en el switcher para empezar."}
@@ -145,14 +144,14 @@ export function DashboardHome() {
           </button>
         </div>
 
-        <div className="flex flex-wrap gap-2 justify-center mt-5">
+        <div className="flex flex-wrap gap-2 justify-center mt-4">
           {INTAKE_SUGGESTIONS.map((sug) => (
             <button
               key={sug.toolId}
               onClick={() => navigate(`/dashboard/generate/${sug.toolId}`)}
               className="text-[12px] text-fg-secondary bg-surface-1 border border-edge-subtle rounded-full px-3.5 py-1.5 hover:border-edge hover:text-fg transition-colors cursor-pointer"
             >
-              {sug.text} <span className="text-fg-faint font-mono text-[10.5px]">{sug.tool}</span>
+              {sug.text} <span className="text-fg-faint">· {sug.tool}</span>
             </button>
           ))}
         </div>
@@ -160,15 +159,17 @@ export function DashboardHome() {
 
       {/* Dos cards de operación: lo que no contestó el cliente, y lo que va gastado. */}
       {activeBrand && (waiting.length > 0 || spend.pieces > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr] gap-4 mb-12">
+        <div className={cn(
+          "grid grid-cols-1 gap-4 mb-12",
+          waiting.length > 0 && spend.pieces > 0 && "md:grid-cols-[1.4fr_1fr]",
+        )}>
+          {waiting.length > 0 && (
           <div className="rounded-[var(--radius-md)] border border-edge-subtle bg-surface-1 px-5 py-4">
             <div className="flex items-baseline gap-2 mb-3">
               <h3 className="text-[13.5px] font-semibold">Esperando al cliente</h3>
               <Link to="/dashboard/trabajo" className="ml-auto text-[11.5px] text-fg-muted hover:text-fg">Ver todo</Link>
             </div>
-            {waiting.length === 0 ? (
-              <p className="text-[12px] text-fg-muted">Nada publicado esperando respuesta.</p>
-            ) : waiting.map((g) => (
+            {waiting.map((g) => (
               <div key={g.id} className="flex items-center gap-3 py-2 border-b border-edge-subtle last:border-0">
                 <span className="text-[12.5px] font-medium truncate flex-1">{g.title}</span>
                 <span className="text-[11px] font-mono text-fg-faint shrink-0 flex items-center gap-1">
@@ -177,21 +178,22 @@ export function DashboardHome() {
               </div>
             ))}
           </div>
+          )}
 
-          <div className="rounded-[var(--radius-md)] border border-edge-subtle bg-surface-1 px-5 py-4">
-            <h3 className="text-[13.5px] font-semibold">Costo registrado</h3>
-            <p className="text-[11.5px] text-fg-faint mb-3">Modelos, sin markup</p>
-            {spend.pieces === 0 ? (
-              <p className="text-[12px] text-fg-muted">Todavía sin datos. Se llena con cada corrida nueva.</p>
-            ) : (
-              <>
-                <p className="font-mono text-[26px] tabular-nums leading-none">{formatUsd(spend.usd)}</p>
-                <p className="text-[11.5px] text-fg-muted mt-2.5 pt-2.5 border-t border-edge-subtle">
-                  {spend.pieces} piezas · <b className="font-mono font-medium text-fg">{formatUsd(spend.usd / spend.pieces)}</b> c/u
-                </p>
-              </>
-            )}
+          {spend.pieces > 0 && (
+          <div className="rounded-[var(--radius-md)] border border-edge-subtle bg-surface-1 px-5 py-4 flex items-center gap-5">
+            <div>
+              <h3 className="text-[13.5px] font-semibold">Costo registrado</h3>
+              <p className="text-[11.5px] text-fg-faint">Modelos, sin markup</p>
+            </div>
+            <div className="ml-auto text-right">
+              <p className="font-mono text-[24px] tabular-nums leading-none">{formatUsd(spend.usd)}</p>
+              <p className="text-[11.5px] text-fg-muted mt-1.5">
+                {spend.pieces} {spend.pieces === 1 ? "pieza" : "piezas"} · <b className="font-mono font-medium text-fg">{formatUsd(spend.usd / spend.pieces)}</b> c/u
+              </p>
+            </div>
           </div>
+          )}
         </div>
       )}
 
