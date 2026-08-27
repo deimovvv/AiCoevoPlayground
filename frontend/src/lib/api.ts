@@ -400,6 +400,12 @@ export interface CampaignPiece {
     status: "done" | "failed";
     /** "upload" = la trajimos de afuera, no la generó Coevo (y no costó nada acá). */
     source?: "upload";
+    /**
+     * Versiones anteriores, de la más vieja a la más nueva. Regenerar EMPUJA la url actual
+     * acá en vez de pisarla — es lo que hace que el flujo tolere que la IA no acierte al
+     * primer intento. Se puede volver a cualquiera.
+     */
+    history?: string[];
 }
 
 export interface Campaign {
