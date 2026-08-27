@@ -1,5 +1,38 @@
 // ── API Client ──────────────────────────────────────────────
 // Centralised helpers for backend communication.
+//
+// COSTO: cada submit a un modelo pago registra su operación en `costLedger`. Se hace acá
+// y no en las tools a propósito — así una tool nueva queda medida sola. Ver
+// docs/pricing-credits.md.
+
+import { recordImage, recordKling, recordSeedance, claimFor, pendingSummary } from "./costLedger";
+import type { CostSummary } from "./costLedger";
+
+/**
+ * Estado de TRABAJO de una pieza — el vocabulario de la pantalla Trabajo.
+ * Deliberadamente corto: cada valor responde "¿qué necesita algo de mí?".
+ */
+export type WorkStatus =
+    | "draft"        // arrancada, sin terminar
+    | "in_progress"  // corriendo
+    | "review"       // lista, falta que la miremos nosotros
+    | "sent"         // publicada al portal, esperando al cliente
+    | "changes"      // el cliente pidió cambios
+    | "approved"     // aprobada
+    | "archived";    // cerrada / anterior al registro — no exige nada
+
+export const WORK_STATUS_LABEL: Record<WorkStatus, string> = {
+    draft: "Borrador",
+    in_progress: "En curso",
+    review: "Para revisar",
+    sent: "Esperando al cliente",
+    changes: "Pidió cambios",
+    approved: "Aprobado",
+    archived: "Historial",
+};
+
+/** Los que exigen una acción nuestra — el filtro por defecto de la pantalla Trabajo. */
+export const WORK_STATUS_NEEDS_ACTION: WorkStatus[] = ["review", "changes"];
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -362,8 +395,17 @@ export interface CampaignPiece {
     url: string;
     type: "image" | "video";
     aspectRatio: string;
+    /** En las generadas, el prompt. En las subidas, el nombre del archivo original. */
     prompt: string;
     status: "done" | "failed";
+    /** "upload" = la trajimos de afuera, no la generó Coevo (y no costó nada acá). */
+    source?: "upload";
+    /**
+     * Versiones anteriores, de la más vieja a la más nueva. Regenerar EMPUJA la url actual
+     * acá en vez de pisarla — es lo que hace que el flujo tolere que la IA no acierte al
+     * primer intento. Se puede volver a cualquiera.
+     */
+    history?: string[];
 }
 
 export interface Campaign {
@@ -386,6 +428,12 @@ export interface Campaign {
     status: "draft" | "generating" | "review" | "approved";
     generationIds: string[];
     pieces: CampaignPiece[];
+    /** Costo real de los modelos. Las piezas de campaña no pasan por `saveGeneration`,
+     *  así que la campaña lleva su propio registro. Ver lib/costLedger.ts. */
+    cost?: CostSummary;
+    /** Quién lo pidió: nosotros o el cliente desde su portal. */
+    source?: "agency" | "portal";
+    requestedBy?: string | null;
     createdAt: string;
     updatedAt: string;
 }
@@ -440,6 +488,24 @@ export async function updateCampaign(id: string, patch: Partial<Campaign>): Prom
     });
     if (!res.ok) throw new Error("No se pudo actualizar la campaña");
     return res.json();
+}
+
+/**
+ * Sube material propio a un pedido — video o imagen hecha FUERA de Coevo Studio.
+ * La app no tiene que obligar a que todo pase por sus generadores: si un video sale más
+ * barato en otro lado, tiene que poder vivir igual en el pedido.
+ * Las piezas subidas van marcadas `source: "upload"` y no suman al costo.
+ */
+export async function uploadCampaignPieces(campaignId: string, files: File[]): Promise<Campaign> {
+    const form = new FormData();
+    for (const f of files) form.append("files", f);
+    const res = await fetch(`${API_BASE}/api/campaigns/${campaignId}/uploads`, { method: "POST", body: form });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "No se pudo subir" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo subir");
+    }
+    const data = await res.json();
+    return data.campaign as Campaign;
 }
 
 export async function deleteCampaign(id: string): Promise<void> {
@@ -650,7 +716,14 @@ export interface PortalItem {
     createdAt: string;
     summary: { total: number; approved: number; changes: number };
 }
-export interface PortalData { brandName?: string; items: PortalItem[] }
+export interface PortalData {
+    brandName?: string;
+    /** Logo de la marca, si tiene alguno cargado. */
+    logoUrl?: string | null;
+    /** Color de la paleta de la marca usable como acento (ni negro ni blanco puro). */
+    accent?: string | null;
+    items: PortalItem[];
+}
 
 export async function ensureBrandPortal(brandId: string): Promise<{ token: string }> {
     const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal`, { method: "POST" });
@@ -671,6 +744,171 @@ export async function setGenerationPublished(generationId: string, published: bo
         body: JSON.stringify({ published }),
     });
     if (!res.ok) throw new Error(`No se pudo publicar (${res.status})`);
+    return res.json();
+}
+
+/**
+ * Feedback loop — devoluciones del cliente → reglas de dirección de arte.
+ * Ver backend/services/feedback_loop.py. `proposeArtDirectionRules` NO escribe nada;
+ * escribir es `applyArtDirectionRule`, y lo dispara el usuario.
+ */
+export interface ArtRuleProposal {
+    field: string;
+    rule: string;
+    evidence: string[];
+    reasoning: string;
+}
+
+export interface FeedbackInsight {
+    proposals: ArtRuleProposal[];
+    feedbackCount: number;
+    /** Por qué no hay propuestas, cuando no las hay. */
+    skipped: string | null;
+}
+
+export async function proposeArtDirectionRules(brandId: string): Promise<FeedbackInsight> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/feedback-insight`, { method: "POST" });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Error" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo analizar el feedback");
+    }
+    return res.json();
+}
+
+export async function applyArtDirectionRule(brandId: string, field: string, rule: string): Promise<{ brand: Brand }> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/art-direction/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, rule }),
+    });
+    if (!res.ok) throw new Error("No se pudo aplicar la regla");
+    return res.json();
+}
+
+/**
+ * Portal del cliente — el eje es el PLAN acordado, no un buzón de pedidos.
+ *
+ * El trabajo nace de un briefing (reunión, scope, presupuesto), no de un cliente
+ * escribiendo en una caja. Por eso lo que el cliente escribe es una NOTA — input para la
+ * próxima conversación — y convertirla en campaña es una decisión nuestra.
+ */
+export interface PortalPlanPiece {
+    id: string;
+    url: string;
+    type: "image" | "video";
+    label: string;
+    /** "upload" = la trajo alguien de afuera, no la generó Coevo. */
+    source?: string | null;
+}
+
+export interface PortalPlanItem {
+    id: string;
+    name: string;
+    brief: string;
+    /** Estado en lenguaje de cliente: Recibido · En producción · Listo para vos · Aprobado */
+    state: string;
+    /** Total de material de la campaña: piezas + entregas revisables. */
+    pieceCount: number;
+    /** Material de la campaña: generado adentro o subido. */
+    pieces: PortalPlanPiece[];
+    /** Entregas publicadas que cuelgan de esta campaña, cada una con su review. */
+    items: PortalItem[];
+    createdAt: string;
+}
+
+export interface PortalNote {
+    id: string;
+    text: string;
+    by: string | null;
+    createdAt: string;
+    resolvedAt: string | null;
+}
+
+export async function fetchPortalPlan(token: string): Promise<{ campaigns: PortalPlanItem[]; notes: PortalNote[] }> {
+    const res = await fetch(`${API_BASE}/api/portal/${token}/plan`);
+    if (!res.ok) return { campaigns: [], notes: [] };
+    return res.json();
+}
+
+/** El cliente sube material propio a una campaña desde su portal. */
+export async function uploadPortalPieces(token: string, campaignId: string, files: File[]): Promise<void> {
+    const form = new FormData();
+    for (const f of files) form.append("files", f);
+    const res = await fetch(`${API_BASE}/api/portal/${token}/campaigns/${campaignId}/uploads`, { method: "POST", body: form });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "No se pudo subir" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo subir");
+    }
+}
+
+export async function createPortalNote(token: string, text: string): Promise<PortalNote> {
+    const res = await fetch(`${API_BASE}/api/portal/${token}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "No se pudo enviar" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo enviar la nota");
+    }
+    return res.json();
+}
+
+/** Del lado nuestro: las notas del cliente, para el próximo briefing. */
+export async function listBrandNotes(brandId: string): Promise<PortalNote[]> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal/notes`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.notes || [];
+}
+
+export async function resolveBrandNote(brandId: string, noteId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal/notes/${noteId}/resolve`, { method: "POST" });
+    if (!res.ok) throw new Error("No se pudo marcar la nota");
+}
+
+/**
+ * Accesos al portal — un link por PERSONA, no uno por marca.
+ * Mismo link mágico de siempre (cero auth) pero con nombre: sabés quién pidió qué y podés
+ * revocarle a uno sin romperle el link al resto.
+ */
+export interface PortalLink {
+    token: string;
+    name: string;
+    email: string | null;
+    createdAt: string;
+    revokedAt: string | null;
+}
+
+export async function listPortalLinks(brandId: string): Promise<{ links: PortalLink[]; legacyToken: string | null }> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal/links`);
+    if (!res.ok) return { links: [], legacyToken: null };
+    return res.json();
+}
+
+export async function createPortalLink(brandId: string, name: string, email?: string): Promise<PortalLink> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal/links`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Error" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo crear el link");
+    }
+    return res.json();
+}
+
+export async function revokePortalLink(brandId: string, token: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal/links/${token}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("No se pudo revocar");
+}
+
+/** Cuánto espera una acción NUESTRA — alimenta el badge de Trabajo en el sidebar. */
+export async function fetchInboxCount(brandId?: string): Promise<{ notes: number; pieces: number; total: number }> {
+    const url = brandId ? `${API_BASE}/api/inbox/count?brandId=${encodeURIComponent(brandId)}` : `${API_BASE}/api/inbox/count`;
+    const res = await fetch(url);
+    if (!res.ok) return { notes: 0, pieces: 0, total: 0 };
     return res.json();
 }
 
@@ -1453,6 +1691,16 @@ export interface Generation {
     outputUrl?: string;
     scenes?: Array<{ id: string; title: string; script?: string; imageUrl?: string; videoUrl?: string }>;
     metadata?: Record<string, unknown>;
+    /** Costo REAL de los modelos que consumió esta corrida. Lo llena `costLedger`
+     *  automáticamente al guardar — ver docs/pricing-credits.md. */
+    cost?: CostSummary;
+    /** Estado de TRABAJO (no de pipeline): dónde está la pieza en la operación.
+     *  `status` dice si la corrida terminó; esto dice si el cliente ya la vio. */
+    workStatus?: WorkStatus;
+    /** Presente en el LISTADO: dice si hay estado guardado, sin traerlo.
+     *  El estado real pesa MBs y vive en un archivo aparte del lado del backend. */
+    hasPipelineState?: boolean;
+    /** Solo lo devuelve el detalle (GET /api/generations/:id), no el listado. */
     pipelineState?: {
         steps: Array<{ id: string; status: string; result?: unknown }>;
         config: Record<string, unknown>;
@@ -1482,14 +1730,19 @@ export async function saveGeneration(gen: {
     scenes?: Array<Record<string, unknown>>;
     metadata?: Record<string, unknown>;
     pipelineState?: Record<string, unknown>;
+    workStatus?: WorkStatus;
 }): Promise<Generation> {
+    // El costo de lo que se consumió hasta acá viaja con la corrida. Se manda ANTES de
+    // adjudicar porque todavía no existe el id — y se adjudica recién con el id de vuelta.
     const res = await fetch(`${API_BASE}/api/generations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(gen),
+        body: JSON.stringify({ ...gen, cost: pendingSummary() }),
     });
     if (!res.ok) throw new Error("Failed to save generation");
-    return res.json();
+    const saved: Generation = await res.json();
+    claimFor(saved.id);
+    return saved;
 }
 
 export async function updateGeneration(genId: string, gen: {
@@ -1503,11 +1756,15 @@ export async function updateGeneration(genId: string, gen: {
     scenes?: Array<Record<string, unknown>>;
     metadata?: Record<string, unknown>;
     pipelineState?: Record<string, unknown>;
+    workStatus?: WorkStatus;
 }): Promise<Generation> {
+    // `claimFor` devuelve el DELTA consumido desde el último guardado; el backend lo suma
+    // a lo que ya tenía. Así el autosave por paso no duplica, y un reload a mitad de
+    // pipeline no pisa hacia abajo lo ya registrado.
     const res = await fetch(`${API_BASE}/api/generations/${genId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(gen),
+        body: JSON.stringify({ ...gen, cost: claimFor(genId) }),
     });
     if (!res.ok) throw new Error("Failed to update generation");
     return res.json();
@@ -1866,6 +2123,7 @@ export async function createSeedanceReferenceToVideo(opts: {
         const err = await res.json().catch(() => ({ detail: "Seedance failed" }));
         throw new Error(typeof err.detail === "string" ? err.detail : "Seedance failed");
     }
+    recordSeedance(opts.duration || "5");
     return res.json();
 }
 
@@ -2054,6 +2312,7 @@ export async function createKlingVideo(
         throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Kling video failed (${res.status})`);
     }
 
+    recordKling(duration, model || "v3-pro");
     return res.json();
 }
 
@@ -2117,6 +2376,7 @@ export async function createKlingFrameToFrame(opts: {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
         throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Kling frame-to-frame failed (${res.status})`);
     }
+    recordKling(opts.duration || "5", opts.model || "v3-pro");
     return res.json();
 }
 
@@ -2259,6 +2519,7 @@ export async function createImageEdit(
         throw new Error(detail || `Image gen failed (${res.status})`);
     }
 
+    recordImage(resolution);
     return res.json();
 }
 
@@ -2442,6 +2703,7 @@ export async function createTextToImage(
         throw new Error(detail || `Text-to-image failed (${res.status})`);
     }
 
+    recordImage(resolution);
     return res.json();
 }
 

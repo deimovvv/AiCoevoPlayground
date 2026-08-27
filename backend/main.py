@@ -43,6 +43,7 @@ from services import apify_tiktok
 from services import instagram_scraper
 import nodes as node_system  # Fase 1: catálogo de primitivas + motor de grafos (backend/nodes/)
 from services import manual_lab
+from services import generations as generations_service
 from services import asset_matcher
 from services import seedance_video
 from services import veo_video
@@ -52,6 +53,7 @@ from services import beeble_switchx
 from services import omnihuman        # talking-character audio-driven (labios), v1.5
 from services import kling_avatar     # talking-character audio-driven, económico
 from services import music_gen        # Lyria 2 — música instrumental de fondo
+from services import feedback_loop    # devoluciones del cliente → reglas de dirección de arte
 from services.image_utils import normalize_image_bytes, is_image_upload
 
 # ── Paths ────────────────────────────────────────────────────
@@ -223,6 +225,13 @@ class SaveGenerationRequest(BaseModel):
     scenes: Optional[List[dict]] = None
     metadata: Optional[dict] = None
     pipelineState: Optional[dict] = None  # Full pipeline: {steps, config, curationSelections}
+    # Costo REAL de los modelos que consumió la corrida — lo arma `costLedger` en el
+    # front y viaja acá. Shape: {usd, images, videoClips, videoSeconds, ttsChars,
+    # byModel, verified}. Ver docs/pricing-credits.md.
+    cost: Optional[dict] = None
+    # Estado de TRABAJO (draft | in_progress | review | sent | changes | approved).
+    # Distinto de `status`, que dice si la corrida terminó.
+    workStatus: Optional[str] = None
 
 
 # ══════════════════════════════════════════════════════════════
@@ -361,21 +370,13 @@ def convert_heic_legacy():
 TOOLS_DIR = Path(__file__).parent / "tools"
 DATA_DIR = Path(__file__).parent / "data"
 TOOLS_JOBS: Dict[str, dict] = {}
-GENERATIONS_FILE = DATA_DIR / "generations.json"
-
-
-def _load_generations() -> List[dict]:
-    if not GENERATIONS_FILE.exists():
-        with open(GENERATIONS_FILE, "w", encoding="utf-8") as f:
-            json.dump([], f)
-        return []
-    with open(GENERATIONS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def _save_generations(gens: List[dict]):
-    with open(GENERATIONS_FILE, "w", encoding="utf-8") as f:
-        json.dump(gens, f, indent=2, ensure_ascii=False)
+# La persistencia vive en services/generations.py. El índice que se lee acá es
+# LIVIANO: no trae pipelineState (era el 87% de un archivo de 462 MB). Ese campo
+# vive en un archivo por generación y se hidrata solo en el endpoint de detalle.
+# Para cualquier cambio usar generations_service.mutate(): lee y escribe bajo el
+# mismo lock, así dos guardados simultáneos no se pisan.
+_load_generations = generations_service.load_generations
+_save_generations = generations_service.save_generations
 
 
 def _load_registry() -> List[dict]:
@@ -567,6 +568,8 @@ class CampaignCreateRequest(BaseModel):
     variationsPerShot: int = 1
     aspectRatios: list[str] = ["9:16"]
     resolution: str = "2K"
+    source: str = "agency"      # "agency" | "portal"
+    requestedBy: Optional[str] = None
 
 
 @app.get("/api/campaigns")
@@ -609,6 +612,71 @@ def update_campaign(campaign_id: str, patch: dict = Body(...)):
     campaigns_service.apply_update(campaign, patch)
     campaigns_service.save_campaigns(items)
     return campaign
+
+
+# ── Material subido a un pedido ───────────────────────────────
+#  Un pedido no es solo lo que generan NUESTRAS tools. A veces el video sale de otro lado
+#  (más barato, o porque el cliente lo mandó) y tiene que poder vivir en el mismo lugar.
+#  Sin esto, la app obliga a que todo pase por sus generadores — y limita en vez de servir.
+
+_campaign_uploads_dir = DATA_DIR / "campaign_uploads"
+_campaign_uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static/campaign-uploads", StaticFiles(directory=str(_campaign_uploads_dir)), name="campaign-uploads")
+
+_VIDEO_EXT = {".mp4", ".mov", ".webm", ".m4v"}
+_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif"}
+
+
+@app.post("/api/campaigns/{campaign_id}/uploads")
+async def upload_campaign_pieces(campaign_id: str, files: list[UploadFile] = File(...)):
+    """Sube material propio a un pedido. Se guarda como pieza más, marcada `upload`.
+
+    Las piezas subidas llevan `cost: 0` a propósito: no las pagamos nosotros, y mezclarlas
+    con las generadas rompería el costo por pieza.
+    """
+    items = campaigns_service.load_campaigns()
+    campaign = campaigns_service.find_campaign(items, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+
+    added = []
+    for f in files:
+        if not f or not f.filename:
+            continue
+        ext = os.path.splitext(f.filename)[1].lower()
+        if ext in _VIDEO_EXT:
+            kind = "video"
+        elif ext in _IMAGE_EXT:
+            kind = "image"
+        else:
+            raise HTTPException(status_code=400, detail=f"Formato no soportado: {ext or f.filename}")
+
+        data = await f.read()
+        if len(data) > 200 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail=f"{f.filename} pesa más de 200MB")
+
+        name = f"{campaign_id}_{uuid.uuid4().hex[:8]}{ext}"
+        with open(_campaign_uploads_dir / name, "wb") as out:
+            out.write(data)
+
+        added.append({
+            "id": f"up_{uuid.uuid4().hex[:8]}",
+            "url": f"/static/campaign-uploads/{name}",
+            "type": kind,
+            "aspectRatio": "",
+            "prompt": f.filename,
+            "status": "done",
+            # De dónde salió: "upload" no lo generamos nosotros y no cuesta.
+            "source": "upload",
+        })
+
+    if not added:
+        raise HTTPException(status_code=400, detail="No llegó ningún archivo")
+
+    campaign["pieces"] = (campaign.get("pieces") or []) + added
+    campaigns_service.apply_update(campaign, {"pieces": campaign["pieces"]})
+    campaigns_service.save_campaigns(items)
+    return {"added": added, "campaign": campaign}
 
 
 @app.delete("/api/campaigns/{campaign_id}")
@@ -4687,21 +4755,49 @@ def list_generations(brandId: Optional[str] = None):
 
 @app.get("/api/generations/{gen_id}")
 def get_generation(gen_id: str):
+    """Detalle. Acá SÍ se hidrata el pipelineState desde su archivo — es lo que
+    ToolRunPage usa para restaurar una corrida guardada. Listar nunca lo trae."""
     gens = _load_generations()
     gen = next((g for g in gens if g["id"] == gen_id), None)
     if not gen:
         raise HTTPException(status_code=404, detail="Generation not found")
-    return gen
+    return generations_service.with_pipeline_state(gen)
+
+
+def _merge_cost(existing: Optional[dict], delta: Optional[dict]) -> Optional[dict]:
+    """Suma un delta de costo sobre lo ya registrado (ver lib/costLedger.ts).
+
+    Los campos numéricos se acumulan, `byModel` se suma por clave, y `verified` es un AND:
+    basta una operación con precio estimado para que el total deje de estar verificado.
+    """
+    if not delta:
+        return existing
+    if not existing:
+        return delta
+    out = dict(existing)
+    for k in ("usd", "images", "videoClips", "videoSeconds", "ttsChars"):
+        out[k] = (existing.get(k) or 0) + (delta.get(k) or 0)
+    out["usd"] = round(out["usd"], 4)
+    by = dict(existing.get("byModel") or {})
+    for model, usd in (delta.get("byModel") or {}).items():
+        by[model] = round((by.get(model) or 0) + usd, 4)
+    out["byModel"] = by
+    out["verified"] = bool(existing.get("verified", True)) and bool(delta.get("verified", True))
+    return out
 
 
 @app.post("/api/generations")
 async def create_generation(req: SaveGenerationRequest):
     """Save a completed generation."""
-    gens = _load_generations()
     from datetime import datetime, timezone
 
+    gen_id = f"gen_{uuid.uuid4().hex[:8]}"
+    # El pipelineState pesado va a data/pipeline_states/<id>.json; en el índice
+    # queda solo el flag que la biblioteca usa para mostrar "Abrir en el tool".
+    has_state = generations_service.write_pipeline_state(gen_id, req.pipelineState)
+
     gen = {
-        "id": f"gen_{uuid.uuid4().hex[:8]}",
+        "id": gen_id,
         "brandId": req.brandId,
         "toolId": req.toolId,
         "title": req.title,
@@ -4711,12 +4807,59 @@ async def create_generation(req: SaveGenerationRequest):
         "outputUrl": req.outputUrl,
         "scenes": req.scenes or [],
         "metadata": req.metadata or {},
-        "pipelineState": req.pipelineState,
+        "cost": req.cost or None,
+        # Una corrida recién guardada todavía no la vio nadie → "para revisar".
+        "workStatus": req.workStatus or ("review" if req.status == "completed" else "in_progress"),
+        "hasPipelineState": has_state,
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
-    gens.append(gen)
-    _save_generations(gens)
+    with generations_service.mutate() as gens:
+        gens.append(gen)
     return gen
+
+
+# ══════════════════════════════════════════════════════════════
+#  Feedback loop — devoluciones del cliente → dirección de arte
+#  Ver services/feedback_loop.py y docs/decisions-log.md 2026-08.
+# ══════════════════════════════════════════════════════════════
+
+class ApplyRuleRequest(BaseModel):
+    field: str
+    rule: str
+
+
+@app.post("/api/brands/{brand_id}/feedback-insight")
+async def brand_feedback_insight(brand_id: str):
+    """Lee las devoluciones de la marca y propone reglas de dirección de arte.
+
+    NO escribe nada — solo propone. Aplicar es un paso aparte y explícito.
+    """
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    try:
+        return await feedback_loop.propose_rules(brand, _load_reviews())
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=f"Gemini error: {str(e)[:300]}")
+
+
+@app.post("/api/brands/{brand_id}/art-direction/apply")
+def apply_art_direction_rule(brand_id: str, req: ApplyRuleRequest):
+    """Escribe una regla ACEPTADA en la dirección de arte. Apendea, no pisa."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    ds = feedback_loop.apply_rule(brand, req.field, req.rule)
+    if ds is None:
+        raise HTTPException(status_code=400, detail=f"Campo desconocido: {req.field}")
+    brands.save_brands(all_brands)
+    return {"designSystem": ds, "brand": brand}
 
 
 # ══════════════════════════════════════════════════════════════
@@ -4835,7 +4978,40 @@ async def submit_review_feedback(token: str, req: ReviewFeedbackRequest):
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
     _save_reviews(reviews)
+
+    # Y que se note del lado nuestro. Sin esto el cliente pedía un cambio y la pieza seguía
+    # figurando igual en Trabajo: el feedback quedaba enterrado en reviews.json y había que
+    # adivinar que había pasado algo. Reportado: "¿dónde veo los cambios?".
+    _sync_work_status_from_review(review)
     return {"ok": True}
+
+
+def _sync_work_status_from_review(review: dict) -> None:
+    """Traduce el veredicto del cliente al estado de trabajo de la pieza.
+
+    · Alguien pidió un cambio → `changes` (nos exige acción)
+    · Todos los clips aprobados → `approved`
+    · Todavía faltan clips por responder → se deja como está (`sent`, esperando)
+    """
+    gen_id = review.get("generationId")
+    if not gen_id:
+        return
+    fb = list((review.get("feedback") or {}).values())
+    if not fb:
+        return
+    total = len(review.get("clips") or [])
+    if any(f.get("status") == "change" for f in fb):
+        new_status = "changes"
+    elif total and len(fb) >= total and all(f.get("status") == "approved" for f in fb):
+        new_status = "approved"
+    else:
+        return
+
+    with generations_service.mutate() as gens:
+        for g in gens:
+            if g.get("id") == gen_id:
+                g["workStatus"] = new_status
+                break
 
 
 @app.get("/api/generations/{gen_id}/review")
@@ -4883,12 +5059,11 @@ class PublishRequest(BaseModel):
 @app.post("/api/generations/{gen_id}/publish")
 async def publish_generation(gen_id: str, req: PublishRequest):
     """Agency: show/hide a generation in the client portal."""
-    gens = _load_generations()
-    gen = next((g for g in gens if g.get("id") == gen_id), None)
-    if not gen:
-        raise HTTPException(status_code=404, detail="Generation not found")
-    gen["publishedToPortal"] = req.published
-    _save_generations(gens)
+    with generations_service.mutate() as gens:
+        gen = next((g for g in gens if g.get("id") == gen_id), None)
+        if not gen:
+            raise HTTPException(status_code=404, detail="Generation not found")
+        gen["publishedToPortal"] = req.published
     if req.published:
         _ensure_review(gen)  # so the portal has clips + a review token ready
     return {"ok": True, "published": req.published}
@@ -4907,11 +5082,142 @@ async def ensure_brand_portal(brand_id: str):
     return {"token": brand["portalToken"]}
 
 
+# ── Accesos al portal ─────────────────────────────────────────
+#  Un token por PERSONA, no uno por marca. Mismo mecanismo de link mágico (cero auth),
+#  pero saber quién pidió qué, y poder revocarle a uno sin romperle el link al resto.
+#  `brand["portalToken"]` (legacy, uno por marca) se sigue aceptando para no romper los
+#  links ya repartidos. Ver docs/decisions-log.md 2026-08.
+
+def _resolve_portal(token: str):
+    """Devuelve (brand, access) para un token de portal, o (None, None).
+
+    `access` es None cuando entró por el token legacy de la marca — ahí no sabemos quién es.
+    """
+    for brand in brands.load_brands():
+        for acc in (brand.get("portalAccess") or []):
+            if acc.get("token") == token and not acc.get("revokedAt"):
+                return brand, acc
+        if brand.get("portalToken") == token:
+            return brand, None
+    return None, None
+
+
+class PortalLinkRequest(BaseModel):
+    name: str
+    email: Optional[str] = None
+
+
+@app.get("/api/brands/{brand_id}/portal/links")
+def list_portal_links(brand_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    return {
+        "links": [a for a in (brand.get("portalAccess") or []) if not a.get("revokedAt")],
+        # El link viejo de la marca sigue vivo si alguna vez se generó — hay que poder verlo
+        # para saber que existe y decidir si se apaga.
+        "legacyToken": brand.get("portalToken"),
+    }
+
+
+@app.post("/api/brands/{brand_id}/portal/links")
+def create_portal_link(brand_id: str, req: PortalLinkRequest):
+    from datetime import datetime, timezone
+    name = (req.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Poné un nombre para saber de quién es el link")
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    access = {
+        "token": f"pt_{uuid.uuid4().hex[:12]}",
+        "name": name,
+        "email": (req.email or "").strip() or None,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "revokedAt": None,
+    }
+    brand.setdefault("portalAccess", []).append(access)
+    brands.save_brands(all_brands)
+    return access
+
+
+@app.delete("/api/brands/{brand_id}/portal/links/{token}")
+def revoke_portal_link(brand_id: str, token: str):
+    """Revoca un acceso. No se borra: queda la fecha, así los pedidos viejos siguen
+    diciendo quién los mandó."""
+    from datetime import datetime, timezone
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    for acc in (brand.get("portalAccess") or []):
+        if acc.get("token") == token:
+            acc["revokedAt"] = datetime.now(timezone.utc).isoformat()
+            brands.save_brands(all_brands)
+            return {"ok": True}
+    raise HTTPException(status_code=404, detail="Acceso no encontrado")
+
+
+@app.get("/api/inbox/count")
+def inbox_count(brandId: Optional[str] = None):
+    """Cuántas cosas esperan una acción NUESTRA. Alimenta el badge del sidebar.
+
+    Deliberadamente barato: solo cuenta, no devuelve nada más. Se llama seguido.
+    """
+    campaigns = campaigns_service.load_campaigns()
+    if brandId:
+        campaigns = [c for c in campaigns if c.get("brandId") == brandId]
+    # Notas del cliente que todavía no conversamos.
+    all_brands = brands.load_brands()
+    if brandId:
+        all_brands = [b for b in all_brands if b.get("id") == brandId]
+    pending = sum(
+        1 for b in all_brands for n in (b.get("portalNotes") or []) if not n.get("resolvedAt")
+    )
+
+    gens = _load_generations()
+    if brandId:
+        gens = [g for g in gens if g.get("brandId") == brandId]
+    # Solo lo que TIENE workStatus: las corridas viejas van a Historial, no exigen nada.
+    needs = sum(1 for g in gens if g.get("workStatus") in ("review", "changes"))
+
+    return {"notes": pending, "pieces": needs, "total": pending + needs}
+
+
+def _portal_accent(brand: dict) -> Optional[str]:
+    """El color de la marca que sirve como acento en el portal.
+
+    Se descartan los extremos: un #000000 o un #FFFFFF son colores de marca legítimos pero
+    inservibles como acento sobre fondo oscuro. Se busca el primero con luminancia usable.
+    """
+    for c in ((brand.get("dna") or {}).get("colors") or []):
+        hex_val = (c.get("hex") or "").strip()
+        if not (len(hex_val) == 7 and hex_val.startswith("#")):
+            continue
+        try:
+            r, g, b = (int(hex_val[i:i + 2], 16) for i in (1, 3, 5))
+        except ValueError:
+            continue
+        lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        if 0.25 <= lum <= 0.92:
+            return hex_val
+    return None
+
+
+def _portal_logo(brand: dict) -> Optional[str]:
+    logos = brand.get("logos") or []
+    if logos:
+        return logos[0].get("imageUrl")
+    legacy = brand.get("logo") or {}
+    return legacy.get("imageUrl")
+
+
 @app.get("/api/portal/{token}")
 def get_portal(token: str):
     """Public: the client opens /portal/{token} and sees the brand's PUBLISHED content."""
-    all_brands = brands.load_brands()
-    brand = next((b for b in all_brands if b.get("portalToken") == token), None)
+    brand, _access = _resolve_portal(token)
     if not brand:
         raise HTTPException(status_code=404, detail="Portal not found")
     gens = [g for g in _load_generations()
@@ -4934,42 +5240,213 @@ def get_portal(token: str):
                 "changes": sum(1 for v in vals if v.get("status") == "change"),
             },
         })
-    return {"brandName": brand.get("name"), "items": items}
+    return {
+        "brandName": brand.get("name"),
+        # Identidad mínima para que el portal no se vea genérico: el logo si hay, y un
+        # acento sacado de la paleta de la marca.
+        "logoUrl": _portal_logo(brand),
+        "accent": _portal_accent(brand),
+        "items": items,
+    }
+
+
+class PortalNoteBody(BaseModel):
+    text: str
+
+
+@app.post("/api/portal/{token}/notes")
+def create_portal_note(token: str, req: PortalNoteBody):
+    """El cliente deja una nota — NO crea trabajo.
+
+    Antes esto creaba una campaña directamente, y estaba mal: en una agencia el trabajo
+    nace de un briefing (reunión, scope, presupuesto), no de un cliente escribiendo en una
+    caja. La nota es input para esa conversación; convertirla en campaña es una decisión
+    nuestra. Ver docs/decisions-log.md 2026-08.
+    """
+    from datetime import datetime, timezone
+    text = (req.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="La nota no puede estar vacía")
+    if len(text) > 2000:
+        raise HTTPException(status_code=400, detail="La nota es demasiado larga")
+
+    all_brands = brands.load_brands()
+    brand, access = _resolve_portal(token)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Portal not found")
+    # _resolve_portal carga su propia copia; hay que escribir sobre la lista que guardamos.
+    brand = brands.find_brand(all_brands, brand["id"])
+
+    note = {
+        "id": f"note_{uuid.uuid4().hex[:10]}",
+        "text": text,
+        "by": (access or {}).get("name"),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "resolvedAt": None,
+    }
+    brand.setdefault("portalNotes", []).append(note)
+    brands.save_brands(all_brands)
+    return note
+
+
+@app.get("/api/brands/{brand_id}/portal/notes")
+def list_brand_notes(brand_id: str):
+    """Las notas del cliente, del lado nuestro. Input para el próximo briefing."""
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    notes = sorted(brand.get("portalNotes") or [], key=lambda n: n.get("createdAt") or "", reverse=True)
+    return {"notes": notes}
+
+
+@app.post("/api/brands/{brand_id}/portal/notes/{note_id}/resolve")
+def resolve_brand_note(brand_id: str, note_id: str):
+    """Marcar una nota como conversada. No se borra: quedó dicha."""
+    from datetime import datetime, timezone
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    for n in (brand.get("portalNotes") or []):
+        if n.get("id") == note_id:
+            n["resolvedAt"] = datetime.now(timezone.utc).isoformat()
+            brands.save_brands(all_brands)
+            return n
+    raise HTTPException(status_code=404, detail="Nota no encontrada")
+
+
+@app.post("/api/portal/{token}/campaigns/{campaign_id}/uploads")
+async def portal_upload_pieces(token: str, campaign_id: str, files: list[UploadFile] = File(...)):
+    """El cliente sube material a una campaña desde su portal.
+
+    Mismo guardado que la subida interna, pero autenticado por el token del portal y
+    verificando que la campaña sea de SU marca — si no, un link podría escribir en otra.
+    """
+    brand, _access = _resolve_portal(token)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Portal not found")
+    items = campaigns_service.load_campaigns()
+    campaign = campaigns_service.find_campaign(items, campaign_id)
+    if not campaign or campaign.get("brandId") != brand["id"]:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+    return await upload_campaign_pieces(campaign_id, files)
+
+
+@app.get("/api/portal/{token}/plan")
+def list_portal_requests(token: str):
+    """El plan de la marca: las campañas briefeadas, con estado en lenguaje de cliente.
+
+    No es "lo que el cliente pidió" — es lo que se acordó trabajar. Cada campaña nace de
+    un briefing del lado nuestro.
+    """
+    brand, _access = _resolve_portal(token)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Portal not found")
+
+    # Cómo se le muestra al cliente cada estado interno. Deliberadamente distinto del
+    # vocabulario interno: al cliente no le importa "generating", le importa si es su turno.
+    CLIENT_LABEL = {
+        "draft": "Recibido",
+        "generating": "En producción",
+        "review": "Listo para vos",
+        "approved": "Aprobado",
+    }
+    # Las generaciones publicadas, indexadas para poder colgarlas de su campaña.
+    published = {g["id"]: g for g in _load_generations()
+                 if g.get("brandId") == brand["id"] and g.get("publishedToPortal") and g.get("status") == "completed"}
+
+    out = []
+    for c in campaigns_service.load_campaigns():
+        if c.get("brandId") != brand["id"]:
+            continue
+        # Piezas de la campaña: las generadas dentro de ella + el material subido.
+        pieces = [
+            {"id": p.get("id"), "url": p.get("url"), "type": p.get("type", "image"),
+             "label": p.get("prompt", "")[:60], "source": p.get("source")}
+            for p in (c.get("pieces") or []) if p.get("url")
+        ]
+        # Corridas de tools que cuelgan de este pedido y ya se publicaron: son revisables.
+        items = []
+        for gid in (c.get("generationIds") or []):
+            g = published.get(gid)
+            if not g:
+                continue
+            review = _ensure_review(g)
+            vals = list((review.get("feedback") or {}).values())
+            items.append({
+                "generationId": g.get("id"),
+                "token": review.get("token"),
+                "title": g.get("title"),
+                "type": g.get("type"),
+                "thumbnailUrl": g.get("thumbnailUrl"),
+                "createdAt": g.get("createdAt"),
+                "summary": {
+                    "total": len(review.get("clips") or []),
+                    "approved": sum(1 for v in vals if v.get("status") == "approved"),
+                    "changes": sum(1 for v in vals if v.get("status") == "change"),
+                },
+            })
+        out.append({
+            "id": c.get("id"),
+            "name": c.get("name"),
+            "brief": c.get("brief"),
+            "state": CLIENT_LABEL.get(c.get("status"), "Recibido"),
+            "pieceCount": len(pieces) + len(items),
+            "pieces": pieces,
+            "items": items,
+            "createdAt": c.get("createdAt"),
+        })
+    out.sort(key=lambda c: c.get("createdAt") or "", reverse=True)
+    notes = sorted(
+        [n for n in (brand.get("portalNotes") or []) if not n.get("resolvedAt")],
+        key=lambda n: n.get("createdAt") or "", reverse=True,
+    )
+    return {"campaigns": out, "notes": notes}
 
 
 @app.patch("/api/generations/{gen_id}")
 async def update_generation(gen_id: str, req: SaveGenerationRequest):
     """Update an existing generation (for auto-save across pipeline steps)."""
-    gens = _load_generations()
-    idx = next((i for i, g in enumerate(gens) if g["id"] == gen_id), None)
-    if idx is None:
-        raise HTTPException(status_code=404, detail="Generation not found")
-    existing = gens[idx]
-    existing.update({
-        "brandId": req.brandId,
-        "toolId": req.toolId,
-        "title": req.title,
-        "type": req.type,
-        "status": req.status,
-        "thumbnailUrl": req.thumbnailUrl or existing.get("thumbnailUrl"),
-        "outputUrl": req.outputUrl or existing.get("outputUrl"),
-        "scenes": req.scenes if req.scenes is not None else existing.get("scenes", []),
-        "metadata": req.metadata if req.metadata is not None else existing.get("metadata", {}),
-        "pipelineState": req.pipelineState if req.pipelineState is not None else existing.get("pipelineState"),
-    })
-    gens[idx] = existing
-    _save_generations(gens)
+    with generations_service.mutate() as gens:
+        idx = next((i for i, g in enumerate(gens) if g["id"] == gen_id), None)
+        if idx is None:
+            raise HTTPException(status_code=404, detail="Generation not found")
+        # Se escribe adentro del bloque para no dejar un archivo huérfano si el id no existe.
+        if req.pipelineState is not None:
+            has_state = generations_service.write_pipeline_state(gen_id, req.pipelineState)
+        else:
+            has_state = generations_service.has_pipeline_state(gen_id)
+        existing = gens[idx]
+        existing.update({
+            "brandId": req.brandId,
+            "toolId": req.toolId,
+            "title": req.title,
+            "type": req.type,
+            "status": req.status,
+            "thumbnailUrl": req.thumbnailUrl or existing.get("thumbnailUrl"),
+            "outputUrl": req.outputUrl or existing.get("outputUrl"),
+            "scenes": req.scenes if req.scenes is not None else existing.get("scenes", []),
+            "metadata": req.metadata if req.metadata is not None else existing.get("metadata", {}),
+            # El costo que llega es el DELTA consumido desde el último guardado — se SUMA
+            # a lo registrado. Sumar en vez de pisar hace que un reload a mitad de
+            # pipeline (el ledger del front vive en memoria) no baje el total ya guardado.
+            "cost": _merge_cost(existing.get("cost"), req.cost),
+            "workStatus": req.workStatus or existing.get("workStatus") or "in_progress",
+            "hasPipelineState": has_state,
+        })
+        existing.pop("pipelineState", None)  # nunca vuelve al índice
+        gens[idx] = existing
     return existing
 
 
 @app.delete("/api/generations/{gen_id}")
 def delete_generation(gen_id: str):
-    gens = _load_generations()
-    gen = next((g for g in gens if g["id"] == gen_id), None)
-    if not gen:
-        raise HTTPException(status_code=404, detail="Generation not found")
-    gens = [g for g in gens if g["id"] != gen_id]
-    _save_generations(gens)
+    with generations_service.mutate() as gens:
+        if not any(g["id"] == gen_id for g in gens):
+            raise HTTPException(status_code=404, detail="Generation not found")
+        gens[:] = [g for g in gens if g["id"] != gen_id]  # in-place: mutate() guarda ESTA lista
+    generations_service.delete_pipeline_state(gen_id)
     return {"ok": True}
 
 

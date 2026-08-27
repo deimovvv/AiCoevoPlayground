@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import {
   Sparkles,
   Video,
@@ -10,6 +10,7 @@ import {
   Eraser,
   Clock,
   Loader2,
+  Quote,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { cn } from "../lib/utils";
@@ -136,6 +137,15 @@ function ToolTile({ tool, disabled, onClick }: { tool: ToolEntry; disabled: bool
 export function GeneratePage() {
   const { activeBrand } = useBrand();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const ask = searchParams.get("ask")?.trim() || "";
+  // Id del pedido, si venimos de uno. Viaja en la URL hasta la tool para que las piezas
+  // que salgan vuelvan a colgar del pedido (ver tools/shared/autoSave.ts).
+  const campaignId = searchParams.get("campaign") || "";
+  const openTool = (tool: { id: string; route?: string }) => {
+    const base = tool.route || `/dashboard/generate/${tool.id}`;
+    navigate(campaignId ? `${base}?campaign=${encodeURIComponent(campaignId)}` : base);
+  };
   const [tools, setTools] = useState<ToolEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "video" | "images" | "copy">("all");
@@ -167,6 +177,20 @@ export function GeneratePage() {
 
   return (
     <div className="space-y-9">
+      {/* Pedido que viene del intake de Inicio. Todavía no existe la entidad "pedido"
+          (docs/campaigns.md Fase 1), así que se muestra como intención mientras elegís
+          la tool — pero NO se pierde por el camino. */}
+      {ask && (
+        <div className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-action)] bg-[var(--color-action-muted)] px-4 py-3">
+          <Quote size={14} className="text-[var(--color-action)] shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-mono uppercase tracking-[.12em] text-fg-muted">Tu pedido</p>
+            <p className="text-[13.5px] text-fg mt-0.5">{ask}</p>
+          </div>
+          <span className="ml-auto text-[11px] text-fg-muted shrink-0">Elegí con qué tool arrancarlo</span>
+        </div>
+      )}
+
       {/* Hero Header — editorial, with manifesto eyebrow */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
@@ -206,7 +230,7 @@ export function GeneratePage() {
       {filter === "all" ? (
         (() => {
           const tile = (tool: ToolEntry) => (
-            <ToolTile key={tool.id} tool={tool} disabled={!activeBrand || tool.status !== "active"} onClick={() => navigate(tool.route || `/dashboard/generate/${tool.id}`)} />
+            <ToolTile key={tool.id} tool={tool} disabled={!activeBrand || tool.status !== "active"} onClick={() => openTool(tool)} />
           );
           const mappedIds = new Set(USE_CASES.flatMap((u) => u.toolIds));
           const rest = orderedTools.filter((t) => !mappedIds.has(t.id));
@@ -238,7 +262,7 @@ export function GeneratePage() {
               key={tool.id}
               tool={tool}
               disabled={!activeBrand || tool.status !== "active"}
-              onClick={() => navigate(tool.route || `/dashboard/generate/${tool.id}`)}
+              onClick={() => openTool(tool)}
             />
           ))}
         </div>

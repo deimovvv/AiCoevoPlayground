@@ -1,29 +1,55 @@
 /**
- * ReviewPage — public, no-auth client review of a generation.
- * ─────────────────────────────────────────────────────────────
- * The client opens /review/:token (link shared by the agency), sees each clip and
- * approves or requests a change per clip. Feedback is saved and surfaces back to the
- * agency in Contenido. Standalone layout (no app nav) — works locally and, once the app
- * is deployed, with the public URL unchanged.
+ * ReviewPage — el cliente mira una entrega y decide. Pública, sin auth.
+ * ──────────────────────────────────────────────────────────────────────
+ * Rehecha entera: antes era un formulario oscuro con dos botones del mismo peso (uno
+ * naranja fuerte) y un campo de comentario SIEMPRE abierto. Lo que se ve ahora:
+ *
+ *   · La pieza ocupa la pantalla, sobre fondo oscuro. Es el único lugar del portal donde
+ *     el oscuro suma: hace que la imagen respire.
+ *   · Al costado, UNA pregunta — "¿Sale así?" — con Aprobar sólido y Pedir un cambio en
+ *     outline. Una decisión, no dos botones compitiendo.
+ *   · El comentario aparece SOLO si pide el cambio. Antes estaba siempre abierto,
+ *     pidiendo que escriba algo aunque fuera a aprobar.
+ *   · "3 de 12 · siguiente": revisar doce piezas sin saber cuántas faltan es lo que hace
+ *     que el cliente abandone a la mitad.
  */
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "react-router";
-import { Check, X, Loader2, MessageSquare, Maximize2, ChevronLeft, ChevronRight } from "lucide-react";
+import { useParams, useSearchParams, Link } from "react-router";
+import { Check, Loader2, ArrowRight, ArrowLeft } from "lucide-react";
 import { getReview, submitReviewFeedback, type ReviewData } from "../lib/api";
 
-const resolveUrl = (u: string) => (u && u.startsWith("http") ? u : `http://127.0.0.1:8000${u}`);
+const API = "http://127.0.0.1:8000";
+const resolveUrl = (u: string) => (u && u.startsWith("http") ? u : `${API}${u}`);
+
+/** Misma paleta clara del portal — es la misma casa. */
+const C = {
+  bg: "#faf8f6",
+  stage: "#141210",
+  card: "#ffffff",
+  ink: "#1a1817",
+  ink2: "#6b6560",
+  ink3: "#9c948d",
+  line: "#e4dfda",
+  ok: "#3f8f6d",
+};
 
 export function ReviewPage() {
   const { token } = useParams();
+  // De dónde vino. Sin esto la revisión era un callejón sin salida: el cliente abría una
+  // pieza y no tenía cómo volver a su portal.
+  const [params] = useSearchParams();
+  const portalToken = params.get("portal");
   const [review, setReview] = useState<ReviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Local feedback state (seeded from the saved review) so the UI is snappy.
   const [feedback, setFeedback] = useState<Record<string, { status: string; comment: string }>>({});
-  const [savingId, setSavingId] = useState<string | null>(null);
-  // Lightbox: index del clip abierto en fullscreen. null = cerrado.
-  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  /** Índice del clip que se está mirando. Se revisa de a uno, no en una lista larga. */
+  const [idx, setIdx] = useState(0);
+  /** Se abre el comentario solo cuando eligió pedir un cambio. */
+  const [asking, setAsking] = useState(false);
+  const [draft, setDraft] = useState("");
 
   useEffect(() => {
     if (!token) return;
@@ -38,198 +64,207 @@ export function ReviewPage() {
       .finally(() => setLoading(false));
   }, [token]);
 
-  // Cierra el lightbox y navega entre clips con flechas / ESC.
-  const closeLightbox = useCallback(() => setLightboxIdx(null), []);
-  const navLightbox = useCallback((dir: 1 | -1) => {
-    setLightboxIdx((cur) => {
-      if (cur === null || !review) return cur;
-      const total = review.clips.length;
-      return (cur + dir + total) % total;
-    });
-  }, [review]);
+  const clips = review?.clips || [];
+  const clip = clips[idx];
+  const current = clip ? feedback[clip.id] : undefined;
+
+  const go = useCallback((dir: 1 | -1) => {
+    setAsking(false); setDraft("");
+    setIdx((i) => Math.min(clips.length - 1, Math.max(0, i + dir)));
+  }, [clips.length]);
+
+  const save = async (status: "approved" | "change", comment: string) => {
+    if (!token || !clip) return;
+    setSaving(true);
+    setFeedback((prev) => ({ ...prev, [clip.id]: { status, comment } }));
+    try {
+      await submitReviewFeedback(token, clip.id, status, comment);
+    } catch { /* queda marcado local; se reintenta al volver a elegir */ }
+    setSaving(false);
+    setAsking(false); setDraft("");
+    // Avanzar solo es útil si queda algo por delante.
+    if (idx < clips.length - 1) setTimeout(() => go(1), 350);
+  };
 
   useEffect(() => {
-    if (lightboxIdx === null) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeLightbox();
-      else if (e.key === "ArrowLeft") navLightbox(-1);
-      else if (e.key === "ArrowRight") navLightbox(1);
+      if (asking) return;
+      if (e.key === "ArrowRight") go(1);
+      if (e.key === "ArrowLeft") go(-1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [lightboxIdx, closeLightbox, navLightbox]);
-
-  const save = async (clipId: string, status: string, comment: string) => {
-    if (!token) return;
-    setFeedback((f) => ({ ...f, [clipId]: { status, comment } }));
-    setSavingId(clipId);
-    try {
-      await submitReviewFeedback(token, clipId, status, comment);
-    } catch { /* keep local state; let them retry */ }
-    finally { setSavingId(null); }
-  };
-
-  // Gradient sutil consistente con ToolRunPage / Lab v2 — radial centrado arriba
-  // con surface-0 que apenas se asoma del canvas. Es la impronta visual del producto.
-  const gradientBg = "radial-gradient(ellipse 50% 30% at 50% 0%, var(--color-surface-0), var(--color-canvas) 80%)";
+  }, [go, asking]);
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center" style={{ background: gradientBg }}><Loader2 className="animate-spin text-fg-muted" /></div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: C.bg }}>
+        <Loader2 className="animate-spin" style={{ color: C.ink3 }} />
+      </div>
+    );
   }
-  if (error || !review) {
-    return <div className="min-h-screen flex items-center justify-center text-fg-muted text-[14px]" style={{ background: gradientBg }}>{error || "Review no encontrada"}</div>;
+  if (error || !review || !clip) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-2 px-6 text-center" style={{ background: C.bg, color: C.ink }}>
+        <p className="text-[15px] font-medium">{error || "No encontramos esta entrega"}</p>
+        <p className="text-[13px]" style={{ color: C.ink3 }}>Revisá el link o pedile uno nuevo a tu agencia.</p>
+      </div>
+    );
   }
 
-  const approved = review.clips.filter((c) => feedback[c.id]?.status === "approved").length;
-  const changes = review.clips.filter((c) => feedback[c.id]?.status === "change").length;
+  const reviewed = Object.values(feedback).filter((f) => f.status).length;
+  const decided = current?.status;
 
   return (
-    <div className="min-h-screen text-fg" style={{ background: gradientBg }}>
-      {/* Header — sticky, eyebrow en burgundy (era off-white), contador de cambios en
-          burgundy (era amarillo warning que rompía la estética del producto). */}
-      <div className="border-b border-edge sticky top-0 bg-[var(--color-canvas)]/85 backdrop-blur z-10">
-        <div className="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-brand)]">Review</p>
-            <h1 className="text-[18px] font-bold tracking-tight leading-tight">{review.title || "Contenido para revisar"}</h1>
-          </div>
-          <div className="text-[11px] text-fg-muted text-right shrink-0">
-            <span className="text-[var(--color-success)] font-semibold">{approved} ✓</span>
-            {changes > 0 && <span className="text-[var(--color-brand)] font-semibold ml-2">{changes} cambios</span>}
-            <div className="text-fg-faint">{review.clips.length} clips</div>
-          </div>
-        </div>
+    <div className="min-h-screen flex flex-col lg:flex-row" style={{ background: C.bg, color: C.ink }}>
+      {/* ── La pieza. Fondo oscuro: el único lugar del portal donde suma. ── */}
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 min-h-[52vh]" style={{ background: C.stage }}>
+        {clip.type === "video" ? (
+          <video
+            key={clip.id}
+            src={resolveUrl(clip.url)}
+            controls
+            playsInline
+            className="max-h-[76vh] max-w-full rounded-[6px]"
+          />
+        ) : (
+          <img key={clip.id} src={resolveUrl(clip.url)} alt={clip.label} className="max-h-[76vh] max-w-full object-contain rounded-[6px]" />
+        )}
       </div>
 
-      <div className="max-w-3xl mx-auto px-5 py-6 space-y-6">
-        <p className="text-[13px] text-fg-muted">Mirá cada clip y marcá <strong className="text-fg">Aprobar</strong> o <strong className="text-fg">Pedir cambio</strong>. Si pedís un cambio, contanos qué ajustar.</p>
-
-        {review.clips.map((clip, i) => {
-          const fb = feedback[clip.id] || { status: "", comment: "" };
-          return (
-            <div key={clip.id} className="bg-surface-1 border border-edge rounded-[var(--radius-md)] overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-edge flex items-center justify-between gap-2">
-                <span className="text-[12px] font-semibold text-fg">{i + 1}. {clip.label}</span>
-                {savingId === clip.id && <Loader2 size={12} className="animate-spin text-fg-faint" />}
-              </div>
-              <div className="bg-black flex items-center justify-center relative group">
-                {clip.type === "video" ? (
-                  // Video usa controls nativos para play/scrub. El botón flotante
-                  // de la esquina permite abrir el lightbox sin que pelearse con
-                  // los controles del video.
-                  <video src={resolveUrl(clip.url)} controls playsInline className="max-h-[60vh] w-full object-contain" />
-                ) : (
-                  // Imagen: click en cualquier parte abre el lightbox.
-                  <img
-                    src={resolveUrl(clip.url)}
-                    alt={clip.label}
-                    onClick={() => setLightboxIdx(i)}
-                    className="max-h-[60vh] w-full object-contain cursor-zoom-in"
-                  />
-                )}
-                <button
-                  type="button"
-                  onClick={() => setLightboxIdx(i)}
-                  title="Ver en grande"
-                  className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                >
-                  <Maximize2 size={14} />
-                </button>
-              </div>
-              <div className="p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => save(clip.id, fb.status === "approved" ? "" : "approved", fb.comment)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-[var(--radius-sm)] text-[12px] font-semibold cursor-pointer transition-colors border ${fb.status === "approved" ? "bg-[var(--color-success)] text-white border-[var(--color-success)]" : "border-edge text-fg-muted hover:text-fg hover:border-edge-strong"}`}
-                  >
-                    <Check size={14} /> Aprobar
-                  </button>
-                  <button
-                    onClick={() => save(clip.id, fb.status === "change" ? "" : "change", fb.comment)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-[var(--radius-sm)] text-[12px] font-semibold cursor-pointer transition-colors border ${fb.status === "change" ? "bg-[var(--color-brand)] text-[var(--color-brand-fg)] border-[var(--color-brand)] shadow-[0_0_14px_-4px_var(--color-brand-muted)]" : "border-edge text-fg-muted hover:text-fg hover:border-edge-strong"}`}
-                  >
-                    <X size={14} /> Pedir cambio
-                  </button>
-                </div>
-                {fb.status === "change" && (
-                  <div className="flex items-start gap-2">
-                    <MessageSquare size={13} className="text-fg-faint mt-2 shrink-0" />
-                    <textarea
-                      defaultValue={fb.comment}
-                      onBlur={(e) => save(clip.id, "change", e.target.value)}
-                      placeholder="¿Qué querés cambiar de este clip? (ej: 'muy rápido', 'cambiá el color del fondo')"
-                      rows={2}
-                      className="flex-1 text-[12px] text-fg bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2.5 py-1.5 outline-none focus:border-[var(--color-edge-focus)] resize-none"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        <p className="text-[11px] text-fg-faint text-center py-4">Tu feedback se guarda solo. Podés cerrar y volver con este mismo link.</p>
-      </div>
-
-      {/* Lightbox fullscreen — abre al click en el media o en el botón Maximize2.
-          Imagen/video se muestran a ~90vh con padding alrededor. Cierra con ESC,
-          backdrop click o el botón X. Navega con ← → cuando hay varios clips. */}
-      {lightboxIdx !== null && review.clips[lightboxIdx] && (() => {
-        const clip = review.clips[lightboxIdx];
-        const hasMultiple = review.clips.length > 1;
-        return (
-          <div
-            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-150"
-            onClick={closeLightbox}
+      {/* ── La decisión ── */}
+      <aside
+        className="w-full lg:w-[340px] shrink-0 px-8 py-9 flex flex-col"
+        style={{ borderLeft: `1px solid ${C.line}` }}
+      >
+        {portalToken && (
+          <Link
+            to={`/portal/${portalToken}`}
+            className="flex items-center gap-1.5 text-[12px] mb-5"
+            style={{ color: C.ink3 }}
           >
-            {/* Header chip con número de clip + label */}
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur border border-white/15 rounded-full px-3 py-1.5 text-[11px] text-white font-medium pointer-events-none">
-              {lightboxIdx + 1} / {review.clips.length} · {clip.label}
-            </div>
+            <ArrowLeft size={12} /> Volver
+          </Link>
+        )}
+        <p className="text-[9.5px] font-mono uppercase tracking-[.16em]" style={{ color: C.ink3 }}>
+          {review.title || "Entrega"}
+        </p>
+        <h1 className="font-display text-[21px] mt-2 tracking-[-.01em]">{clip.label}</h1>
+        <p className="text-[12px] mt-1.5" style={{ color: C.ink2 }}>
+          {clip.type === "video" ? "Video" : "Imagen"}
+        </p>
 
-            {/* Close — top right */}
+        {asking ? (
+          <>
+            <p className="text-[13.5px] font-medium mt-8 mb-3">¿Qué habría que ajustar?</p>
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={4}
+              placeholder="Contanos con tus palabras — la luz, la pose, el encuadre…"
+              className="w-full rounded-[8px] px-3.5 py-3 text-[13.5px] outline-none resize-none"
+              style={{ background: C.card, border: `1px solid ${C.line}`, color: C.ink }}
+            />
             <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); closeLightbox(); }}
-              title="Cerrar (ESC)"
-              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur flex items-center justify-center text-white cursor-pointer transition-colors"
+              onClick={() => save("change", draft.trim())}
+              disabled={!draft.trim() || saving}
+              className="w-full mt-2.5 py-2.5 rounded-[8px] text-[13px] font-semibold cursor-pointer disabled:opacity-40"
+              style={{ background: C.ink, color: "#fff" }}
             >
-              <X size={18} />
+              {saving ? "Guardando…" : "Enviar el cambio"}
             </button>
-
-            {/* Prev / Next */}
-            {hasMultiple && (
-              <>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); navLightbox(-1); }}
-                  title="Anterior (←)"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur flex items-center justify-center text-white cursor-pointer transition-colors"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); navLightbox(1); }}
-                  title="Siguiente (→)"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur flex items-center justify-center text-white cursor-pointer transition-colors"
-                >
-                  <ChevronRight size={20} />
-                </button>
-              </>
+            <button
+              onClick={() => { setAsking(false); setDraft(""); }}
+              className="w-full mt-2 py-2.5 rounded-[8px] text-[13px] cursor-pointer"
+              style={{ border: `1px solid ${C.line}`, color: C.ink2 }}
+            >
+              Volver
+            </button>
+          </>
+        ) : decided ? (
+          <>
+            <p className="flex items-center gap-2 text-[13.5px] font-medium mt-8" style={{ color: decided === "approved" ? C.ok : C.ink }}>
+              <Check size={14} /> {decided === "approved" ? "Aprobada" : "Pediste un cambio"}
+            </p>
+            {current?.comment && (
+              <p className="text-[13px] mt-2.5 leading-relaxed" style={{ color: C.ink2 }}>“{current.comment}”</p>
             )}
+            <button
+              onClick={() => setFeedback((p) => { const n = { ...p }; delete n[clip.id]; return n; })}
+              className="text-[12px] mt-4 underline cursor-pointer self-start"
+              style={{ color: C.ink3 }}
+            >
+              Cambiar mi respuesta
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-[13.5px] font-medium mt-8 mb-3">¿Sale así?</p>
+            <button
+              onClick={() => save("approved", "")}
+              disabled={saving}
+              className="w-full py-2.5 rounded-[8px] text-[13px] font-semibold cursor-pointer disabled:opacity-50"
+              style={{ background: C.ink, color: "#fff" }}
+            >
+              Aprobar
+            </button>
+            <button
+              onClick={() => setAsking(true)}
+              className="w-full mt-2 py-2.5 rounded-[8px] text-[13px] cursor-pointer"
+              style={{ border: `1px solid ${C.line}`, color: C.ink2 }}
+            >
+              Pedir un cambio
+            </button>
+            <p className="text-[12px] mt-5 leading-relaxed" style={{ color: C.ink3 }}>
+              Si pedís un cambio te vamos a preguntar qué ajustar. Lo que escribas queda guardado y
+              lo usamos para las próximas piezas de la marca.
+            </p>
+          </>
+        )}
 
-            {/* Media — stop propagation para que click en la imagen no cierre */}
-            <div onClick={(e) => e.stopPropagation()} className="max-w-[95vw] max-h-[90vh] flex items-center justify-center">
-              {clip.type === "video" ? (
-                <video src={resolveUrl(clip.url)} controls autoPlay playsInline className="max-w-full max-h-[90vh] object-contain" />
-              ) : (
-                <img src={resolveUrl(clip.url)} alt={clip.label} className="max-w-full max-h-[90vh] object-contain" />
-              )}
-            </div>
-          </div>
-        );
-      })()}
+        {/* ── Avance. Con una sola pieza no hay nada que paginar: dos flechas apagadas
+             se leen como que algo está roto. ── */}
+        <div className="mt-auto pt-6 flex items-center gap-3 text-[12px]" style={{ borderTop: `1px solid ${C.line}`, color: C.ink3 }}>
+          {clips.length > 1 ? (
+            <>
+              <button
+                onClick={() => go(-1)}
+                disabled={idx === 0}
+                title="Anterior"
+                className="w-7 h-7 rounded-full flex items-center justify-center cursor-pointer disabled:opacity-30"
+                style={{ border: `1px solid ${C.line}` }}
+              >
+                <ArrowLeft size={12} />
+              </button>
+              <span>
+                <b style={{ color: C.ink2, fontWeight: 500 }}>{idx + 1}</b> de {clips.length}
+                {reviewed > 0 && ` · ${reviewed} revisadas`}
+              </span>
+              <button
+                onClick={() => go(1)}
+                disabled={idx >= clips.length - 1}
+                className="ml-auto flex items-center gap-1.5 h-7 px-3 rounded-full cursor-pointer disabled:opacity-30"
+                style={{ border: `1px solid ${C.line}`, color: C.ink2 }}
+              >
+                Siguiente <ArrowRight size={12} />
+              </button>
+            </>
+          ) : decided && portalToken ? (
+            /* Una sola pieza y ya respondió: lo único útil es volver. */
+            <Link
+              to={`/portal/${portalToken}`}
+              className="flex items-center gap-1.5 h-8 px-4 rounded-full text-[12.5px] font-medium"
+              style={{ border: `1px solid ${C.line}`, color: C.ink2 }}
+            >
+              <ArrowLeft size={12} /> Volver a mis entregas
+            </Link>
+          ) : (
+            <span>Una sola pieza en esta entrega.</span>
+          )}
+        </div>
+
+      </aside>
     </div>
   );
 }

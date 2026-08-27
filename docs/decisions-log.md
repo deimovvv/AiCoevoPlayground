@@ -372,6 +372,151 @@ deploy.
 
 ---
 
+## 2026-08 — Coevo World: Studio pasa a ser un lugar adentro, no la app entera
+
+**Contexto.** Estudiando Superspace (Superside) quedó claro que lo que le falta a Coevo no
+es capa de generación — esa es más profunda que la de ellos — sino **capa de operación**:
+qué se pidió, en qué estado está, qué costó, qué devolvió el cliente. Ver
+`competitive-research.md` § Superside, sección 11 (UI verificada por screenshots).
+
+**Decisión.** Se envuelve la app en un shell llamado **Coevo World** (nombre provisorio;
+se descartó "Coevo Space"). La fábrica de tools sigue igual y pasa a ser **un item del
+sidebar** — se entra a ella desde un pedido y se vuelve con una pieza que tiene costo y
+estado. Alrededor: Trabajo, Brand Brain, Clientes.
+
+**Regla de arquitectura (importante).** La capa de operación vive en rutas y módulos
+propios que CONSUMEN las tools. Ni una línea adentro de `ToolRunPage.tsx` — con 14.910
+líneas, meterle esto es matarlo.
+
+**Alternativa descartada.** Construir un producto aparte ("Coevo Brains"). Tendría que
+leer marcas, assets, generaciones y costos, que viven todos acá → problema de sincronización
+permanente. Lo que hace valioso a Superspace es justamente estar soldado a donde el trabajo
+pasa.
+
+**Qué se construyó primero.** El costing layer real (`lib/costLedger.ts`) y la pantalla
+`/dashboard/trabajo`. El razonamiento del orden: la calidad se puede mejorar cuando sea,
+pero **cada pieza generada sin registrar su costo es un dato irrecuperable**.
+
+**Dato que apareció en el camino.** El `pricing.ts` que existía estimaba Nano Banana a
+$0.039/imagen. El real es $0.08 base y **$0.12 en 2K** — el estimador que ya se mostraba en
+Campañas venía 3× por debajo.
+
+---
+
+## 2026-08 — Accesos al portal: un link por persona, no cuentas (todavía)
+
+**Contexto.** El portal pasó a ser de dos vías: el cliente además de aprobar, pide. Ahí
+apareció la pregunta de login. Hasta ese momento había **un token por marca**, así que
+todos los que tuvieran el link eran "el cliente".
+
+**Decisión.** Un token por **persona** (`brand.portalAccess[]` con nombre, email opcional
+y fecha de revocación). Mismo link mágico, cero infraestructura de auth, pero:
+- el `requestedBy` de un pedido sale del LINK, no de lo que tipee el cliente
+- se le puede cortar el acceso a uno sin romperle el link a los demás
+- revocar no borra: queda la fecha, así los pedidos viejos siguen diciendo quién los mandó
+
+El token legacy por marca se sigue aceptando para no romper links ya repartidos, y la
+pantalla de Clientes lo muestra advirtiendo que los pedidos que entren por ahí van sin
+nombre.
+
+**Alternativa descartada (por ahora): cuentas de verdad.** Email+password propio queda
+descartado directamente — mantener reset, verificación y sesiones no aporta nada que Clerk
+no dé. Clerk entra cuando pase **una** de estas tres: que el cliente suba sus propios
+assets, que haya que cobrarle, o que distintas personas necesiten permisos distintos
+(uno aprueba, otro solo mira). Sus "organizations" mapean uno a uno con las marcas.
+
+**Por qué no adelantarlo.** Mientras el cliente solo mire, comente y pida, el link con
+nombre da el 90% de lo que se quiere del login a un costo de casi cero.
+
+---
+
+## 2026-08 — El cliente no encarga trabajo: deja notas
+
+**Contexto.** El portal se había construido con una caja de "pedí lo que necesites" que
+creaba una campaña directamente. El usuario lo frenó: *"esto de pedí no tiene sentido, se
+supone que hay una instancia de briefing, reuniones"*. Tenía razón, y era un error de
+modelo, no de diseño.
+
+**El problema.** Esa caja implica que el cliente puede encargar trabajo como quien pide un
+delivery: sin brief, sin scope, sin presupuesto acordado. Superside puede tenerla porque
+atrás hay un contrato de $30k/mes con horas ya compradas — el pedido se descuenta de una
+bolsa. Coevo no tiene esa bolsa, así que la caja prometía algo que el modelo comercial no
+puede sostener.
+
+**Decisión.**
+- La **campaña sigue siendo el resultado del briefing**, del lado de la agencia. Eso ya
+  existía (`NewCampaignPage` con brief, productos, shot plan) — solo estaba mal que el
+  cliente pudiera saltearse la instancia.
+- Lo que el cliente escribe es una **nota** (`brand.portalNotes[]`), no una orden. Llega a
+  Trabajo bajo "Dijo el cliente", con la aclaración de que no es trabajo hasta definirlo
+  juntos, y se marca como conversada.
+- El portal deja de girar alrededor de pedir y pasa a girar alrededor del **plan**: las
+  campañas briefeadas con su estado en lenguaje de cliente.
+
+**Cómo entra el trabajo, confirmado con el usuario:** por campaña puntual, briefeada
+cuando surge. No hay plan mensual fijo — por eso el portal lista campañas y no un
+calendario.
+
+**Cuándo se revisaría.** Si alguna vez hay retainer con horas contratadas, la caja de
+pedido directo vuelve a tener sentido: ahí el pedido se descuenta de algo acordado.
+
+---
+
+## 2026-08 — Todo lo que es de una marca vive adentro de la marca
+
+**Contexto.** El nav del World había quedado con Inicio · Trabajo · Marcas · Brand Brain ·
+Clientes. El usuario preguntó lo obvio: *"¿cuál es la diferencia entre clientes y marcas?
+¿y entre esta información y lo que está en Brain?"*. La respuesta honesta era: se pisan.
+
+**El error.** Brand Brain se copió de Superspace, donde es un ítem de primer nivel. Pero
+ahí funciona porque **es** la configuración de marca — no hay otra pantalla. Coevo ya tenía
+`BrandSettings` con 12 secciones haciendo ese trabajo, así que Brand Brain terminó
+mostrando la misma dirección de arte que ya estaba ahí, con una sola cosa propia: el loop
+de feedback. Y Clientes era, igual, una vista por marca viviendo fuera de la marca.
+
+**Decisión.** Brand Brain y Clientes dejan de ser destinos y pasan a ser dos secciones más
+adentro de la marca: **Aprendizaje** y **Accesos**. El nav del World queda en tres:
+Inicio · Trabajo · Marcas, más la puerta a Coevo Studio.
+
+**La regla que queda.** Todo lo que es *de una marca* vive adentro de la marca; el nav de
+afuera es la operación (qué hay que hacer, en todas las marcas). Antes había tres lugares
+distintos para hablar de Koxis y para saltar entre ellos había que usar el switcher — que
+es exactamente de dónde salía la confusión.
+
+**Qué NO cambió.** La lógica: el loop de feedback, los links por persona y sus endpoints
+siguen iguales. Solo cambió dónde vive cada pantalla.
+
+---
+
+## 2026-08 — El pedido en papel claro: piloto de paleta
+
+**Contexto.** Tres rondas de "está feo" sobre la app interna. El diagnóstico que quedó:
+el problema no era el tono oscuro sino **el acento**. Un mismo terracota saturado marcaba
+lo seleccionado, lo urgente y el botón de guardar — un color que significa tres cosas no
+significa ninguna — y encima sobre negro puro se lee barato.
+
+**Decisión.** Se dibujaron tres paletas sobre la misma pantalla (claro / carbón cálido /
+papel oscuro) y el usuario eligió **un híbrido: papel claro con la estructura del papel
+oscuro** — sin cajas, líneas finas, serif de libro para lo que se lee, sans para lo que se
+opera. El color de acento lo define él más adelante.
+
+**Cómo queda preparado.** `--accent` es una sola variable, hoy en tinta (#1a1817). El día
+que exista un color de Coevo se cambia en un lugar y aparece en los tres únicos puntos
+donde importa: lo elegido, lo urgente y la acción principal.
+
+**Es un PILOTO, no una migración.** Se implementó solo en `NewCampaignPage` — la pantalla
+más importante y la que peor estaba. El resto de la app sigue oscura, así que por ahora
+hay una isla clara. Es deliberado: probar la dirección en una pantalla real antes de tocar
+las quince que faltan. Si al usarla convence, se migra el resto; si no, se revierte una
+sola pantalla.
+
+**Lo que también se arregló, y era de fondo:** el formulario **nunca pedía el brief**. El
+campo existía en la entidad `Campaign` desde el principio y ningún input lo llenaba — por
+eso todos los pedidos viejos se llamaban "Campaña sin nombre" y elegir un moodboard era
+configurar sin decir para qué. Ahora el brief es la primera fila y lo único obligatorio.
+
+---
+
 ## Cómo usar este archivo
 
 - **Agregar entrada cuando.** Tomamos una decisión que: (a) descarta otra opción razonable, (b) no es obvia leyendo el código, (c) podría confundir a otro dev futuro o re-discutir en 3 meses.

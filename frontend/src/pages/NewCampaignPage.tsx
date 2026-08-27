@@ -1,21 +1,71 @@
-import { useState, useMemo } from "react";
+/**
+ * NewCampaignPage — el pedido. Donde nace el trabajo.
+ * ────────────────────────────────────────────────────
+ * Rehecha entera. La versión anterior era un formulario de configuración: cuatro
+ * acordeones grises que decían "Elegir" (elegías un moodboard sin ver ningún moodboard),
+ * y el nombre de la campaña pesaba lo mismo que la resolución.
+ *
+ * Ahora son cuatro filas en orden de importancia — qué necesitamos · cómo se ve esta vez ·
+ * con qué · qué sale — con el rótulo en el margen izquierdo y el contenido a la derecha.
+ * La jerarquía la hace la grilla, no un borde alrededor de cada cosa.
+ *
+ * PALETA: papel claro, sin cajas, líneas finas. Es un piloto deliberado — el resto de la
+ * app sigue oscura. Se probó acá primero porque es la pantalla más importante y la que
+ * peor estaba. Ver docs/decisions-log.md 2026-08.
+ *
+ * EL ACENTO ES UNA SOLA VARIABLE (`--accent`, hoy tinta). Cuando haya un color de Coevo va
+ * ahí y aparece en los tres únicos lugares donde importa: lo elegido, lo urgente y la
+ * acción principal. El problema del diseño viejo era un mismo naranja marcando las tres
+ * cosas hasta no significar ninguna.
+ */
+
+import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, Loader2, Check, Plus, ChevronDown } from "lucide-react";
+import { ArrowLeft, Loader2, Paperclip } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
   createCampaign,
-  avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl, lookAndFeelImageUrl,
+  avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl,
+  moodboardImageUrl, lookAndFeelImageUrl, poseImageUrl,
 } from "../lib/api";
-import { cn } from "../lib/utils";
+import { imagesUsd, formatUsd } from "../lib/pricing";
 
-const AR_OPTIONS = ["9:16", "16:9", "1:1", "4:5"];
+const AR_OPTIONS = ["9:16", "4:5", "1:1", "16:9"];
 const RES_OPTIONS = ["1K", "2K", "4K"];
+
+/** Papel claro. Explícito y no tokenizado: esta pantalla no sigue el tema oscuro. */
+const C = {
+  paper: "#faf8f6",
+  paper2: "#f4f1ed",
+  ink: "#1a1817",
+  ink2: "#6b6560",
+  ink3: "#9c948d",
+  hair: "#e2ddd7",
+  hairSoft: "#eeeae5",
+  accent: "#1a1817", // ← acá va el color de Coevo cuando exista
+  err: "#b4453f",
+};
+
+const SERIF = '"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif';
 
 type AssetItem = { id: string; name: string; thumb?: string };
 
-/** Módulo colapsable de assets de un tipo — single (radio) o multi (checkbox).
- *  Cerrado por default; el header muestra qué elegiste (thumbs + contador) sin abrir. */
-function AssetGrid({ label, hint, items, multi, selectedId, selectedIds, onSingle, onToggle }: {
+/** Rótulo del margen izquierdo. */
+function Gutter({ n, title, hint }: { n: string; title: string; hint?: string }) {
+  return (
+    <div>
+      <p className="font-mono text-[10px] tracking-[.18em]" style={{ color: C.ink3 }}>{n}</p>
+      <p className="text-[13px] font-semibold mt-[7px] tracking-[-.005em]">{title}</p>
+      {hint && <p className="text-[11.5px] mt-[5px] leading-snug" style={{ color: C.ink3 }}>{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * Tira de miniaturas. Todo a la vista: sin acordeón, sin "Elegir".
+ * Lo seleccionado lleva un marco fino por fuera, nunca un relleno de color.
+ */
+function Picker({ label, hint, items, multi, selectedId, selectedIds, onSingle, onToggle }: {
   label: string;
   hint?: string;
   items: AssetItem[];
@@ -25,51 +75,89 @@ function AssetGrid({ label, hint, items, multi, selectedId, selectedIds, onSingl
   onSingle?: (id: string | null) => void;
   onToggle?: (id: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const selected = useMemo(
-    () => multi ? items.filter((i) => (selectedIds || []).includes(i.id)) : items.filter((i) => i.id === selectedId),
-    [items, multi, selectedIds, selectedId],
-  );
+  // Se muestran las primeras; el resto se despliega en el lugar, sin cambiar de pantalla.
+  const [showAll, setShowAll] = useState(false);
   if (items.length === 0) return null;
+  const VISIBLE = 6;
+  const shown = showAll ? items : items.slice(0, VISIBLE);
+  const rest = items.length - shown.length;
 
   return (
-    <div className="rounded-[var(--radius-sm)] border border-edge bg-surface-1 overflow-hidden">
-      {/* Header — click para abrir/cerrar. Muestra selección aunque esté cerrado. */}
-      <button type="button" onClick={() => setOpen((v) => !v)} className="w-full flex items-center gap-2 px-3 py-2.5 cursor-pointer text-left">
-        <ChevronDown size={14} className={cn("text-fg-faint shrink-0 transition-transform", open ? "" : "-rotate-90")} />
-        <span className="text-[12px] font-semibold text-fg-secondary">{label}</span>
-        {hint && <span className="text-[10px] text-fg-faint">{hint}</span>}
-        <span className="ml-auto flex items-center gap-1.5">
-          {!open && selected.slice(0, 4).map((s) => (
-            <span key={s.id} className="w-6 h-6 rounded overflow-hidden border border-edge bg-surface-2 shrink-0">
-              {s.thumb && <img src={s.thumb} alt={s.name} className="w-full h-full object-cover" />}
-            </span>
-          ))}
-          <span className={cn("text-[10px] font-medium", selected.length ? "text-[var(--color-brand)]" : "text-fg-faint")}>
-            {selected.length ? `${selected.length} sel.` : "Elegir"}
-          </span>
-        </span>
-      </button>
+    <div>
+      <p className="flex items-baseline gap-2 mb-[9px]">
+        <b className="text-[10px] font-semibold tracking-[.14em] uppercase">{label}</b>
+        {hint && <span className="text-[10.5px] tracking-[.04em]" style={{ color: C.ink3 }}>{hint}</span>}
+      </p>
+      <div className="flex gap-1.5 flex-wrap">
+        {shown.map((it) => {
+          const on = multi ? (selectedIds || []).includes(it.id) : selectedId === it.id;
+          return (
+            <button
+              key={it.id}
+              type="button"
+              title={it.name}
+              onClick={() => (multi ? onToggle?.(it.id) : onSingle?.(on ? null : it.id))}
+              className="w-[50px] h-[64px] rounded-[2px] overflow-hidden cursor-pointer transition-shadow"
+              style={{
+                background: C.paper2,
+                boxShadow: on
+                  ? `0 0 0 1px ${C.accent}, 0 0 0 4px ${C.paper}, 0 0 0 5px ${C.accent}`
+                  : `inset 0 0 0 1px ${C.hairSoft}`,
+              }}
+            >
+              {it.thumb
+                ? <img src={it.thumb} alt={it.name} className="w-full h-full object-cover" />
+                : <span className="text-[8px] px-1 block leading-tight pt-2" style={{ color: C.ink3 }}>{it.name}</span>}
+            </button>
+          );
+        })}
+        {rest > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className="w-[50px] h-[64px] rounded-[2px] text-[10.5px] cursor-pointer"
+            style={{ color: C.ink3, boxShadow: `inset 0 0 0 1px ${C.hair}` }}
+          >
+            +{rest}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
-      {open && (
-        <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 p-3 pt-0">
-          {!multi && (
-            <button type="button" onClick={() => onSingle?.(null)}
-              className={cn("aspect-square rounded-[var(--radius-sm)] border-2 flex items-center justify-center text-[9px] cursor-pointer", selectedId == null ? "border-[var(--color-brand)] text-fg" : "border-edge text-fg-faint")}>Ninguno</button>
-          )}
-          {items.map((it) => {
-            const on = multi ? (selectedIds || []).includes(it.id) : selectedId === it.id;
-            return (
-              <button key={it.id} type="button" title={it.name}
-                onClick={() => multi ? onToggle?.(it.id) : onSingle?.(it.id)}
-                className={cn("relative aspect-square rounded-[var(--radius-sm)] border-2 overflow-hidden cursor-pointer", on ? "border-[var(--color-brand)]" : "border-edge opacity-70 hover:opacity-100")}>
-                {it.thumb ? <img src={it.thumb} alt={it.name} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-surface-2 flex items-center justify-center text-[8px] text-fg-faint p-1 text-center">{it.name}</div>}
-                {on && <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-brand)] text-white flex items-center justify-center"><Check size={9} /></span>}
-              </button>
-            );
-          })}
-        </div>
-      )}
+/** Controles: subrayado, no pastilla. Nada grita. */
+function Options({ label, options, value, values, onPick, onToggle }: {
+  label: string;
+  options: Array<string | number>;
+  value?: string | number;
+  values?: Array<string | number>;
+  onPick?: (v: never) => void;
+  onToggle?: (v: never) => void;
+}) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold tracking-[.14em] uppercase mb-[9px]" style={{ color: C.ink3 }}>{label}</p>
+      <div className="flex gap-[18px]">
+        {options.map((o) => {
+          const on = values ? values.includes(o) : value === o;
+          return (
+            <button
+              key={String(o)}
+              type="button"
+              onClick={() => (onToggle ? onToggle(o as never) : onPick?.(o as never))}
+              className="text-[12.5px] pb-1 cursor-pointer transition-colors"
+              style={{
+                color: on ? C.ink : C.ink3,
+                fontWeight: on ? 600 : 400,
+                borderBottom: `1.5px solid ${on ? C.accent : "transparent"}`,
+              }}
+            >
+              {o}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -79,13 +167,14 @@ export function NewCampaignPage() {
   const { activeBrand } = useBrand();
 
   const [name, setName] = useState("");
+  const [brief, setBrief] = useState("");
   const [avatarId, setAvatarId] = useState<string | null>(null);
   const [productIds, setProductIds] = useState<string[]>([]);
   const [clothingIds, setClothingIds] = useState<string[]>([]);
   const [backgroundId, setBackgroundId] = useState<string | null>(null);
   const [moodboardId, setMoodboardId] = useState<string | null>(null);
   const [lookFeelId, setLookFeelId] = useState<string | null>(null);
-  const [shotPlan, setShotPlan] = useState<"ai" | "manual">("ai");
+  const [poseId, setPoseId] = useState<string | null>(null);
   const [variationsPerShot, setVariationsPerShot] = useState(2);
   const [aspectRatios, setAspectRatios] = useState<string[]>(["9:16"]);
   const [resolution, setResolution] = useState("2K");
@@ -93,121 +182,171 @@ export function NewCampaignPage() {
   const [error, setError] = useState<string | null>(null);
 
   if (!activeBrand) {
-    return <div className="p-10 text-center text-fg-muted text-[14px]">Elegí una marca en el switcher para crear una campaña.</div>;
+    return <div className="p-10 text-center text-fg-muted text-[14px]">Elegí una marca en el switcher para crear un pedido.</div>;
   }
 
   const b = activeBrand;
   const toggle = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (id: string) =>
-    setter((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-  const toggleAR = (ar: string) => setAspectRatios((p) => p.includes(ar) ? p.filter((x) => x !== ar) : [...p, ar]);
+    setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  // Cuánto va a costar, con los precios reales y ANTES de crear nada.
+  const pieceCount = Math.max(1, aspectRatios.length) * variationsPerShot;
+  const estimate = imagesUsd(pieceCount, resolution);
 
   const submit = async () => {
     setSaving(true); setError(null);
     try {
       const c = await createCampaign({
         brandId: b.id,
-        name: name.trim() || "Campaña sin nombre",
-        avatarId, productIds, clothingIds, backgroundId, moodboardId, lookFeelId,
-        shotPlan, variationsPerShot,
+        // Si no le pusieron nombre, la primera línea del brief sirve mejor que
+        // "Campaña sin nombre" — que es lo que se veía en todos los pedidos viejos.
+        name: name.trim() || brief.trim().split("\n")[0].slice(0, 60) || "Pedido sin nombre",
+        brief: brief.trim(),
+        avatarId, productIds, clothingIds, backgroundId, moodboardId, lookFeelId, poseId,
+        shotPlan: "ai",
+        variationsPerShot,
         aspectRatios: aspectRatios.length ? aspectRatios : ["9:16"],
         resolution,
       });
       navigate(`/dashboard/campaigns/${c.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo crear la campaña");
+      setError(e instanceof Error ? e.message : "No se pudo crear el pedido");
       setSaving(false);
     }
   };
 
+  const rowStyle = { borderTop: `1px solid ${C.hair}` };
+
   return (
-    <div className="max-w-3xl mx-auto p-6 md:p-8">
-      <button onClick={() => navigate("/dashboard/campaigns")} className="flex items-center gap-1.5 text-[12px] text-fg-faint hover:text-fg mb-4 cursor-pointer"><ArrowLeft size={14} /> Campañas</button>
-      <h1 className="font-display text-[26px] font-semibold tracking-tight">Nueva campaña</h1>
-      <p className="text-[12px] text-fg-faint mt-0.5 mb-6">Marca: <span className="text-fg-muted">{b.name}</span></p>
+    <div className="min-h-screen -m-6 md:-m-8" style={{ background: C.paper, color: C.ink }}>
+      <div className="max-w-[980px] mx-auto px-8 md:px-12 py-9">
+        <button
+          onClick={() => navigate("/dashboard/trabajo")}
+          className="flex items-center gap-1.5 text-[12px] cursor-pointer mb-5"
+          style={{ color: C.ink3 }}
+        >
+          <ArrowLeft size={13} /> Trabajo
+        </button>
 
-      <div className="space-y-6">
-        {/* Nombre */}
-        <div>
-          <label className="text-[12px] font-semibold text-fg-secondary">Nombre</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder='ej: "Campaña Auto — Verano"'
-            className="mt-1.5 w-full h-10 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[14px] outline-none focus:border-[var(--color-brand)]" />
-        </div>
+        <h1 className="text-[34px] leading-[1.05] tracking-[-.02em] font-normal" style={{ fontFamily: SERIF }}>
+          Nuevo pedido
+        </h1>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={`${b.name.toUpperCase()} · ponerle un nombre (opcional)`}
+          className="mt-2 w-full max-w-[440px] bg-transparent text-[12px] tracking-[.02em] outline-none"
+          style={{ color: C.ink2 }}
+        />
 
-        {/* Assets de la marca — cada tipo es un módulo colapsable (cerrado por default). */}
-        <div className="space-y-2">
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-fg-faint mb-1">Assets de la marca</div>
-          {(b.avatars?.length || b.products?.length || b.clothing?.length || b.backgrounds?.length || b.moodboards?.length || b.lookAndFeel?.length) ? (
-            <>
-              <AssetGrid label="Modelo / Avatar" hint="uno" selectedId={avatarId} onSingle={setAvatarId}
-                items={(b.avatars || []).map((a) => ({ id: a.id, name: a.name, thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined }))} />
-              <AssetGrid label="Productos" hint="multi" multi selectedIds={productIds} onToggle={toggle(setProductIds)}
-                items={(b.products || []).map((p) => ({ id: p.id, name: p.name, thumb: p.imageUrl ? productImageUrl(p.imageUrl) : undefined }))} />
-              <AssetGrid label="Prendas" hint="multi" multi selectedIds={clothingIds} onToggle={toggle(setClothingIds)}
-                items={(b.clothing || []).map((c) => ({ id: c.id, name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined }))} />
-              <AssetGrid label="Fondo" hint="uno" selectedId={backgroundId} onSingle={setBackgroundId}
-                items={(b.backgrounds || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))} />
-              <AssetGrid label="Moodboard" hint="look de la escena" selectedId={moodboardId} onSingle={setMoodboardId}
-                items={(b.moodboards || []).map((m) => ({ id: m.id, name: m.name, thumb: m.imageUrl ? moodboardImageUrl(m.imageUrl) : undefined }))} />
-              <AssetGrid label="Look & Feel" hint="iluminación / color" selectedId={lookFeelId} onSingle={setLookFeelId}
-                items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))} />
-            </>
-          ) : (
-            <p className="text-[12px] text-fg-faint">Esta marca no tiene assets cargados todavía. Cargalos en el <button onClick={() => navigate("/dashboard/brand")} className="text-[var(--color-brand)] cursor-pointer">Brand Kit</button>.</p>
-          )}
-        </div>
-
-        {/* Shot list */}
-        <div>
-          <label className="text-[12px] font-semibold text-fg-secondary">Shot list</label>
-          <div className="grid grid-cols-2 gap-2 mt-1.5">
-            {([["ai", "Que decida la IA"], ["manual", "Elegir estilos"]] as const).map(([id, lbl]) => (
-              <button key={id} type="button" onClick={() => setShotPlan(id)}
-                className={cn("px-3 py-2.5 rounded-[var(--radius-sm)] border text-[13px] cursor-pointer", shotPlan === id ? "bg-[var(--color-brand-subtle)] border-[var(--color-brand)] text-fg" : "bg-surface-1 border-edge text-fg-muted")}>{lbl}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Variantes + Resolución */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* ── 01 · el brief ── */}
+        <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7 mt-7" style={rowStyle}>
+          <Gutter n="01" title="Qué necesitamos" hint="Lo único obligatorio" />
           <div>
-            <label className="text-[12px] font-semibold text-fg-secondary">Variantes por toma</label>
-            <div className="flex items-center gap-1.5 mt-1.5">
-              {[1, 2, 3, 4].map((n) => (
-                <button key={n} type="button" onClick={() => setVariationsPerShot(n)}
-                  className={cn("w-9 h-9 rounded-[var(--radius-sm)] border text-[13px] font-semibold cursor-pointer", variationsPerShot === n ? "bg-[var(--color-brand-subtle)] border-[var(--color-brand)] text-fg" : "bg-surface-1 border-edge text-fg-muted")}>{n}</button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="text-[12px] font-semibold text-fg-secondary">Resolución</label>
-            <div className="flex items-center gap-1.5 mt-1.5">
-              {RES_OPTIONS.map((r) => (
-                <button key={r} type="button" onClick={() => setResolution(r)}
-                  className={cn("px-3 h-9 rounded-[var(--radius-sm)] border text-[13px] font-semibold cursor-pointer", resolution === r ? "bg-[var(--color-brand-subtle)] border-[var(--color-brand)] text-fg" : "bg-surface-1 border-edge text-fg-muted")}>{r}</button>
-              ))}
+            <textarea
+              autoFocus
+              value={brief}
+              onChange={(e) => setBrief(e.target.value)}
+              rows={4}
+              placeholder="Cápsula de invierno para el drop del 15. Remeras A27 sobre modelo, fondo estudio, y un reel corto para el lanzamiento…"
+              className="w-full bg-transparent outline-none resize-none max-w-[60ch]"
+              style={{ fontFamily: SERIF, fontSize: 17, lineHeight: 1.62, color: C.ink }}
+            />
+            <div className="flex items-center gap-3.5 mt-3">
+              <span className="inline-flex items-center gap-1.5 text-[12px] pb-[3px]" style={{ color: C.ink3, borderBottom: `1px solid ${C.hair}` }}>
+                <Paperclip size={11} /> Adjuntar algo
+              </span>
+              <span className="text-[11.5px]" style={{ color: C.ink3 }}>o dictalo</span>
             </div>
           </div>
         </div>
 
-        {/* Formatos */}
-        <div>
-          <label className="text-[12px] font-semibold text-fg-secondary">Formatos <span className="text-fg-faint font-normal">(multi)</span></label>
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
-            {AR_OPTIONS.map((ar) => (
-              <button key={ar} type="button" onClick={() => toggleAR(ar)}
-                className={cn("px-4 h-9 rounded-[var(--radius-sm)] border text-[13px] font-medium cursor-pointer", aspectRatios.includes(ar) ? "bg-[var(--color-brand-subtle)] border-[var(--color-brand)] text-fg" : "bg-surface-1 border-edge text-fg-muted")}>{ar}</button>
-            ))}
+        {/* ── 02 · la dirección de ESTE pedido ── */}
+        <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7" style={rowStyle}>
+          <Gutter n="02" title="Cómo se ve esta vez" hint="La estética de este pedido, no la de la marca" />
+          <div className="flex gap-9 flex-wrap">
+            <Picker
+              label="Moodboard" hint="dirección"
+              items={(b.moodboards || []).map((m) => ({ id: m.id, name: m.name, thumb: m.imageUrl ? moodboardImageUrl(m.imageUrl) : undefined }))}
+              selectedId={moodboardId} onSingle={setMoodboardId}
+            />
+            <Picker
+              label="Look & feel" hint="color y textura"
+              items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
+              selectedId={lookFeelId} onSingle={setLookFeelId}
+            />
+            <Picker
+              label="Poses" hint="estrictas"
+              items={(b.poses || []).map((p) => ({ id: p.id, name: p.name, thumb: p.imageUrl ? poseImageUrl(p.imageUrl) : undefined }))}
+              selectedId={poseId} onSingle={setPoseId}
+            />
           </div>
         </div>
 
-        {error && <p className="text-[13px] text-[var(--color-error)]">{error}</p>}
+        {/* ── 03 · el material ── */}
+        <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7" style={rowStyle}>
+          <Gutter n="03" title="Con qué" hint="Del banco de la marca" />
+          <div className="flex gap-9 flex-wrap">
+            <Picker
+              label="Prendas" hint={String((b.clothing || []).length)}
+              multi
+              items={(b.clothing || []).map((c) => ({ id: c.id, name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined }))}
+              selectedIds={clothingIds} onToggle={toggle(setClothingIds)}
+            />
+            <Picker
+              label="Productos" hint={String((b.products || []).length)}
+              multi
+              items={(b.products || []).map((p) => ({ id: p.id, name: p.name, thumb: p.imageUrl ? productImageUrl(p.imageUrl) : undefined }))}
+              selectedIds={productIds} onToggle={toggle(setProductIds)}
+            />
+            <Picker
+              label="Modelo" hint={String((b.avatars || []).length)}
+              items={(b.avatars || []).map((a) => ({ id: a.id, name: a.name, thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined }))}
+              selectedId={avatarId} onSingle={setAvatarId}
+            />
+            <Picker
+              label="Fondo" hint="opcional"
+              items={(b.backgrounds || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))}
+              selectedId={backgroundId} onSingle={setBackgroundId}
+            />
+          </div>
+        </div>
 
-        {/* Acciones */}
-        <div className="flex justify-end gap-2 pt-2 pb-8">
-          <button onClick={() => navigate("/dashboard/campaigns")} className="px-5 h-11 rounded-full border border-edge text-[14px] text-fg-muted hover:text-fg cursor-pointer">Cancelar</button>
-          <button onClick={submit} disabled={saving}
-            className="flex items-center gap-2 px-6 h-11 rounded-full bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-[14px] font-semibold hover:opacity-90 disabled:opacity-60 cursor-pointer">
-            {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Crear campaña
+        {/* ── 04 · la salida ── */}
+        <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7" style={rowStyle}>
+          <Gutter n="04" title="Qué sale" />
+          <div className="flex gap-11 flex-wrap items-start">
+            <Options
+              label="Formatos" options={AR_OPTIONS} values={aspectRatios}
+              onToggle={(ar) => setAspectRatios((p) => (p.includes(ar) ? p.filter((x) => x !== ar) : [...p, ar]))}
+            />
+            <Options label="Variantes" options={[1, 2, 3, 4]} value={variationsPerShot} onPick={setVariationsPerShot} />
+            <Options label="Resolución" options={RES_OPTIONS} value={resolution} onPick={setResolution} />
+            <div className="ml-auto text-right">
+              <p className="text-[10px] font-semibold tracking-[.14em] uppercase mb-1.5" style={{ color: C.ink3 }}>Va a costar</p>
+              <p className="tracking-[-.01em]" style={{ fontFamily: SERIF, fontSize: 26 }}>≈ {formatUsd(estimate)}</p>
+              <p className="text-[11.5px] mt-[3px]" style={{ color: C.ink3 }}>
+                {pieceCount} {pieceCount === 1 ? "pieza" : "piezas"} · {formatUsd(imagesUsd(1, resolution))} c/u
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {error && <p className="text-[12.5px] mt-4" style={{ color: C.err }}>{error}</p>}
+
+        <div className="flex gap-6 items-center justify-end pt-6 mt-2" style={rowStyle}>
+          <button onClick={() => navigate("/dashboard/trabajo")} className="text-[12.5px] cursor-pointer" style={{ color: C.ink3 }}>
+            Cancelar
+          </button>
+          <button
+            onClick={submit}
+            disabled={saving || !brief.trim()}
+            title={!brief.trim() ? "Escribí qué necesitamos" : undefined}
+            className="text-[13px] font-semibold px-[26px] py-[11px] rounded-full cursor-pointer disabled:opacity-40 disabled:cursor-default inline-flex items-center gap-2"
+            style={{ background: C.accent, color: C.paper }}
+          >
+            {saving && <Loader2 size={13} className="animate-spin" />}
+            {saving ? "Creando…" : "Crear el pedido"}
           </button>
         </div>
       </div>

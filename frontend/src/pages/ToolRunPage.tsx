@@ -473,6 +473,16 @@ interface ToolConfig {
   // Subset de selectedClothingIds. Reportado: "me pasan también las zapatillas o
   // un collar, no necesito foto de producto de eso".
   ecomAccessoryIds: string[];
+  // CALCE (fit reference, experimental): fotos de cómo CAE la prenda superior/inferior en
+  // el cuerpo. El color/diseño real sale del collage/prenda; del calce se toma SOLO la
+  // caída/silueta (el color se ignora). data URL. `ecomCalceDesaturate` = mandar el calce en
+  // B&N para que el modelo no pueda copiar color. Ver docs / branch experiment/calce-input.
+  ecomCalceTop?: string;
+  ecomCalceBottom?: string;
+  ecomCalceDesaturate?: boolean;
+  // Detalles a respetar (texto libre): aclaraciones de detalles del collage que el modelo
+  // suele "limpiar" (botón, puños, largo, tapeta…). Se AGREGA al prompt en todas las tomas.
+  ecomDetails?: string;
   // Fashion Reel — Looks mode: shots seleccionados por outfit (general / detail / etc.)
   // Cantidad por shot: un shot puede repetirse N veces para generar varias escenas
   // del mismo plano (ej. 2 planos generales del mismo outfit). El array contiene
@@ -608,6 +618,10 @@ const DEFAULT_CONFIG: ToolConfig = {
   ecomImageModel: "nano-banana-google",
   ecomPoseSinglePass: true,   // default 1 paso — más barato (el 2-pasos cuesta el doble)
   ecomAccessoryIds: [],
+  ecomCalceTop: "",
+  ecomCalceBottom: "",
+  ecomCalceDesaturate: true,   // B&N por default: el calce es solo caída, no color
+  ecomDetails: "",
   looksShots: ["general", "detail"],
   looksShotNotes: [],
   locationPreset: "studio_white",   // default: mismo blanco #ededed que Ecommerce Pack
@@ -3549,6 +3563,8 @@ function ConfigPanel({
     ? { ...baseSchema, showAvatar: true, avatarRequired: true }
     : baseSchema;
   const [systemVoices, setSystemVoices] = useState<Array<{ id: string; name: string; language: string }>>([]);
+  // Visor (lightbox) para las imágenes de calce — tocar la miniatura la muestra grande.
+  const [calcePreview, setCalcePreview] = useState<string | null>(null);
   // Upload state para la sección Accesorios (ecommerce_pack). Cuando el usuario
   // sube un archivo, va directo via uploadClothing con tag "accessory" y queda
   // auto-marcado en ecomAccessoryIds + selectedClothingIds para que el handler
@@ -4351,6 +4367,76 @@ function ConfigPanel({
               </label>
             )}
           </div>
+
+          {/* CALCE (fit reference, experimental — branch experiment/calce-input).
+              El color/diseño sale de las prendas; del calce se toma SOLO la caída. */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Calce (cómo cae · opcional)</span>
+            <p className="text-[10px] text-fg-faint leading-snug -mt-0.5">
+              Foto de cómo calza la prenda en un cuerpo. Se usa <strong className="text-fg-muted">solo la caída/silueta</strong> — el color y el diseño salen de las prendas del collage, no del calce.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {([["ecomCalceTop", "Calce arriba (superior)"], ["ecomCalceBottom", "Calce abajo (inferior)"]] as const).map(([key, label]) => {
+                const val = (config[key] as string) || "";
+                return (
+                  <div key={key} className="space-y-1">
+                    <span className="text-[10px] text-fg-muted">{label}</span>
+                    {val ? (
+                      <div className="relative w-full">
+                        <img src={val} alt={label} onClick={() => setCalcePreview(val)} className="w-full h-24 rounded object-cover border-2 border-[var(--color-brand)] cursor-zoom-in" title="Tocar para ver grande" />
+                        <button onClick={() => setConfig((p) => ({ ...p, [key]: "" }))} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-black/80 hover:bg-red-500 text-white flex items-center justify-center cursor-pointer" title="Quitar"><X size={9} /></button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center justify-center gap-1.5 h-24 rounded-[var(--radius-sm)] border border-dashed border-edge hover:border-[var(--color-brand)] cursor-pointer text-[10px] text-fg-muted hover:text-fg">
+                        <Plus size={12} /> Subir
+                        <input
+                          type="file"
+                          accept={IMAGE_ACCEPT}
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            const r = new FileReader();
+                            r.onload = () => setConfig((p) => ({ ...p, [key]: r.result as string }));
+                            r.readAsDataURL(f);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {(config.ecomCalceTop || config.ecomCalceBottom) && (
+              <label className="flex items-center gap-1.5 text-[10px] text-fg-muted cursor-pointer">
+                <input type="checkbox" checked={config.ecomCalceDesaturate ?? true} onChange={(e) => setConfig((p) => ({ ...p, ecomCalceDesaturate: e.target.checked }))} className="accent-[var(--color-action)]" />
+                Mandar el calce en B&amp;N (recomendado — evita que copie el color)
+              </label>
+            )}
+          </div>
+
+          {/* Detalles a respetar — texto libre que se AGREGA al prompt de todas las tomas.
+              Para forzar detalles del collage que el modelo suele limpiar (botón, largo, puños…). */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Detalles a respetar (del collage · opcional)</span>
+            <textarea
+              value={config.ecomDetails || ""}
+              onChange={(e) => setConfig((p) => ({ ...p, ecomDetails: e.target.value }))}
+              rows={3}
+              placeholder={"Detalles que el modelo suele comerse. Ej: 'el pantalón es largo y tiene botón al frente' · 'la camisa tiene puños azules' · 'los mocasines con borla'..."}
+              className="w-full bg-surface-0 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-brand)] resize-y leading-snug"
+            />
+            <p className="text-[10px] text-fg-faint leading-snug">Se suma a lo que ya se pasa (prendas, calce, etc.) — no lo reemplaza. Nombrá la prenda y el detalle.</p>
+          </div>
+
+          {/* Visor de calce — overlay a pantalla completa al tocar una miniatura. */}
+          {calcePreview && (
+            <div onClick={() => setCalcePreview(null)} className="fixed inset-0 z-[9999] bg-black/85 flex items-center justify-center p-6 cursor-zoom-out">
+              <img src={calcePreview} alt="calce" className="max-w-full max-h-full rounded-lg object-contain" />
+              <button onClick={() => setCalcePreview(null)} className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/15 hover:bg-white/30 text-white flex items-center justify-center cursor-pointer" title="Cerrar"><X size={18} /></button>
+            </div>
+          )}
 
           {/* Shot selection — para cada shot on-model tildado se puede sumar una
               pose ref one-off. El handler la usa como ref específica de ese shot. */}

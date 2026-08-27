@@ -1,9 +1,23 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { ArrowRight, Plus, Megaphone, Sparkles, Play, ChevronRight } from "lucide-react";
+import { ArrowRight, Plus, Megaphone, Sparkles, Play, ChevronRight, Mic, Square, Clock } from "lucide-react";
+import { Link } from "react-router";
 import { useBrand } from "../lib/BrandContext";
-import { listCampaigns, type Campaign } from "../lib/api";
+import { listCampaigns, fetchGenerations, type Campaign, type Generation } from "../lib/api";
+import { useDictation } from "../lib/useDictation";
+import { formatUsd } from "../lib/pricing";
 import { cn } from "../lib/utils";
+
+/**
+ * Sugerencias del intake — nombran la tool a propósito, así el operador aprende el mapa
+ * mientras pide. Ver docs/competitive-research.md § Superside (el "What can we do for you?"
+ * de Superspace es un campo de texto, no un formulario).
+ */
+const INTAKE_SUGGESTIONS: Array<{ text: string; tool: string; toolId: string }> = [
+  { text: "Un reel de un look", tool: "Fashion Reel", toolId: "fashion_reel" },
+  { text: "El catálogo de una cápsula", tool: "Ecommerce Pack", toolId: "ecommerce_pack" },
+  { text: "Un UGC hablando a cámara", tool: "UGC Creator", toolId: "ugc_creator" },
+];
 
 // Tools destacadas — reusa los previews reales de public/previews. Editá para sumar/quitar.
 const FEATURED_TOOLS: Array<{ id: string; name: string; tagline: string; src?: string; type?: "video" | "image"; gradient: string }> = [
@@ -32,6 +46,9 @@ export function DashboardHome() {
   const navigate = useNavigate();
   const { activeBrand } = useBrand();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [gens, setGens] = useState<Generation[]>([]);
+  const [ask, setAsk] = useState("");
+  const dictation = useDictation({ lang: "es-AR" });
 
   useEffect(() => {
     if (!activeBrand) return; // la sección de campañas ya está gateada por activeBrand
@@ -42,25 +59,143 @@ export function DashboardHome() {
     return () => { alive = false; };
   }, [activeBrand]);
 
+  useEffect(() => {
+    if (!activeBrand) return;
+    let alive = true;
+    fetchGenerations(activeBrand.id)
+      .then((g) => { if (alive) setGens(g); })
+      .catch(() => { if (alive) setGens([]); });
+    return () => { alive = false; };
+  }, [activeBrand]);
+
+  /**
+   * Todavía no existe la entidad "pedido" (ver docs/campaigns.md Fase 1). Hasta que exista,
+   * la frase se lleva a Generar como intención — no se pierde, pero tampoco finge que ya
+   * creó algo. Cuando esté el intake real, esto pasa a crear una campaña.
+   */
+  const submitAsk = () => {
+    const q = ask.trim();
+    if (!q) return;
+    navigate(`/dashboard/generate?ask=${encodeURIComponent(q)}`);
+  };
+
+  /** Lo que está esperando al cliente: publicado al portal, sin respuesta. */
+  const waiting = gens
+    .filter((g) => g.workStatus === "sent")
+    .slice(0, 3);
+
+  /** Gasto registrado de la marca activa — solo lo que tiene costo real. */
+  const spend = gens.reduce((acc, g) => {
+    const usd = g.cost?.usd;
+    if (typeof usd !== "number") return acc;
+    return { usd: acc.usd + usd, pieces: acc.pieces + 1 };
+  }, { usd: 0, pieces: 0 });
+
   return (
     <div className="relative max-w-6xl mx-auto p-6 md:p-10">
       {/* Ambiente rico detrás — le da al glass algo que frostear (warm burgundy + cool). */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] -z-10"
         style={{ background: "radial-gradient(45% 90% at 12% 0%, rgba(196,88,48,0.22), transparent 65%), radial-gradient(40% 80% at 85% 5%, rgba(120,110,220,0.16), transparent 65%), radial-gradient(60% 60% at 50% 40%, rgba(196,88,48,0.06), transparent 70%)" }} />
 
-      {/* Greeting — panel de glass (frosted) flotando sobre el ambiente. */}
-      <div
-        className="mb-10 rounded-[var(--radius-lg)] border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-xl px-6 py-6 md:px-8 md:py-7"
-        style={{ boxShadow: "inset 0 1px 0 var(--glass-sheen), 0 20px 60px -30px rgba(0,0,0,0.6)" }}
-      >
-        <p className="text-[13px] text-fg-faint mb-1">Hola 👋</p>
-        <h1 className="font-display text-[32px] md:text-[44px] font-semibold tracking-[-0.01em] leading-tight">
-          Bienvenido a <span className="italic text-[var(--color-brand)]">Coevo</span>
+      {/* Intake — la puerta de entrada es una frase, no un formulario.
+          Sin caja: el gradiente de arriba ya es el fondo, y una caja bordeada alrededor
+          solo encerraba aire. */}
+      <div className="mb-10 pt-6 pb-2 text-center">
+        <h1 className="font-display text-[30px] md:text-[38px] font-semibold tracking-[-0.015em] leading-tight">
+          ¿Qué hacemos hoy?
         </h1>
-        <p className="text-[14px] text-fg-muted mt-2">
-          {activeBrand ? <>Trabajando sobre <span className="text-fg font-medium">{activeBrand.name}</span>. Elegí una tool o retomá una campaña.</> : "Elegí una marca en el switcher para empezar."}
+        <p className="text-[13px] text-fg-muted mt-2 mb-6">
+          {activeBrand
+            ? <>Escribí o dictá el pedido para <span className="text-fg font-medium">{activeBrand.name}</span>.</>
+            : "Elegí una marca en el switcher para empezar."}
         </p>
+
+        <div className="max-w-[620px] mx-auto flex items-center gap-2.5 bg-surface-1 border border-edge rounded-full pl-5 pr-2.5 py-2.5 focus-within:border-[var(--color-edge-focus)] transition-colors">
+          <input
+            value={dictation.listening && dictation.transcript ? `${ask}${dictation.transcript}` : ask}
+            onChange={(e) => setAsk(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submitAsk(); }}
+            placeholder="un reel del look 62115 para el lanzamiento del viernes…"
+            className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-fg-faint text-left"
+          />
+          {dictation.supported && (
+            <button
+              onClick={() => dictation.listening
+                ? dictation.stop()
+                : dictation.start((finalText) => setAsk((prev) => (prev ? `${prev} ${finalText}` : finalText)))}
+              title={dictation.listening ? "Frenar el dictado" : "Dictar el pedido"}
+              className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-colors",
+                dictation.listening
+                  ? "bg-[var(--color-error)]/15 text-[var(--color-error)]"
+                  : "text-fg-muted hover:text-fg hover:bg-surface-2",
+              )}
+            >
+              {dictation.listening ? <Square size={13} className="fill-current" /> : <Mic size={15} />}
+            </button>
+          )}
+          <button
+            onClick={submitAsk}
+            disabled={!ask.trim()}
+            title="Empezar"
+            className="w-9 h-9 rounded-full bg-[var(--color-action)] text-[var(--color-action-fg)] flex items-center justify-center shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+          >
+            <ArrowRight size={16} />
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 justify-center mt-4">
+          {INTAKE_SUGGESTIONS.map((sug) => (
+            <button
+              key={sug.toolId}
+              onClick={() => navigate(`/dashboard/generate/${sug.toolId}`)}
+              className="text-[12px] text-fg-secondary bg-surface-1 border border-edge-subtle rounded-full px-3.5 py-1.5 hover:border-edge hover:text-fg transition-colors cursor-pointer"
+            >
+              {sug.text} <span className="text-fg-faint">· {sug.tool}</span>
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Dos cards de operación: lo que no contestó el cliente, y lo que va gastado. */}
+      {activeBrand && (waiting.length > 0 || spend.pieces > 0) && (
+        <div className={cn(
+          "grid grid-cols-1 gap-4 mb-12",
+          waiting.length > 0 && spend.pieces > 0 && "md:grid-cols-[1.4fr_1fr]",
+        )}>
+          {waiting.length > 0 && (
+          <div className="rounded-[var(--radius-md)] border border-edge-subtle bg-surface-1 px-5 py-4">
+            <div className="flex items-baseline gap-2 mb-3">
+              <h3 className="text-[13.5px] font-semibold">Esperando al cliente</h3>
+              <Link to="/dashboard/trabajo" className="ml-auto text-[11.5px] text-fg-muted hover:text-fg">Ver todo</Link>
+            </div>
+            {waiting.map((g) => (
+              <div key={g.id} className="flex items-center gap-3 py-2 border-b border-edge-subtle last:border-0">
+                <span className="text-[12.5px] font-medium truncate flex-1">{g.title}</span>
+                <span className="text-[11px] font-mono text-fg-faint shrink-0 flex items-center gap-1">
+                  <Clock size={10} />{new Date(g.createdAt).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                </span>
+              </div>
+            ))}
+          </div>
+          )}
+
+          {spend.pieces > 0 && (
+          <div className="rounded-[var(--radius-md)] border border-edge-subtle bg-surface-1 px-5 py-4 flex items-center gap-5">
+            <div>
+              <h3 className="text-[13.5px] font-semibold">Costo registrado</h3>
+              <p className="text-[11.5px] text-fg-faint">Modelos, sin markup</p>
+            </div>
+            <div className="ml-auto text-right">
+              <p className="font-mono text-[24px] tabular-nums leading-none">{formatUsd(spend.usd)}</p>
+              <p className="text-[11.5px] text-fg-muted mt-1.5">
+                {spend.pieces} {spend.pieces === 1 ? "pieza" : "piezas"} · <b className="font-mono font-medium text-fg">{formatUsd(spend.usd / spend.pieces)}</b> c/u
+              </p>
+            </div>
+          </div>
+          )}
+        </div>
+      )}
 
       {/* Tools carousel */}
       <section className="mb-12">
