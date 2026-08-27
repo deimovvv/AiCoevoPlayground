@@ -71,3 +71,5 @@ videoref/
 !backend/data/renders/.gitkeep
 !backend/tmp/.gitkeep
 backend/data/backups/
+backend/data/campaign_uploads/
+*.bak
