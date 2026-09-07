@@ -1,5 +1,5 @@
 /**
- * NewCampaignPage — el pedido. Donde nace el trabajo.
+ * NewCampaignPage — donde nace una campaña.
  * ────────────────────────────────────────────────────
  * Rehecha entera. La versión anterior era un formulario de configuración: cuatro
  * acordeones grises que decían "Elegir" (elegías un moodboard sin ver ningún moodboard),
@@ -35,16 +35,20 @@ const AR_OPTIONS = ["9:16", "4:5", "1:1", "16:9"];
 const RES_OPTIONS = ["1K", "2K", "4K"];
 
 /** Papel claro. Explícito y no tokenizado: esta pantalla no sigue el tema oscuro. */
+// Esta pantalla tenía su propia paleta clara hardcodeada (#faf8f6) y era la única
+// en blanco de toda la app — además de quedar afuera de cualquier cambio de tema.
+// Ahora toma los mismos tokens que el resto: se ve bien en oscuro y en claro.
 const C = {
-  paper: "#faf8f6",
-  paper2: "#f4f1ed",
-  ink: "#1a1817",
-  ink2: "#6b6560",
-  ink3: "#9c948d",
-  hair: "#e2ddd7",
-  hairSoft: "#eeeae5",
-  accent: "#1a1817", // ← acá va el color de Coevo cuando exista
-  err: "#b4453f",
+  paper: "var(--color-surface-0)",
+  paper2: "var(--color-surface-1)",
+  ink: "var(--color-fg)",
+  ink2: "var(--color-fg-secondary)",
+  ink3: "var(--color-fg-muted)",
+  hair: "var(--color-edge-subtle)",
+  hairSoft: "var(--color-edge-subtle)",
+  accent: "var(--color-action)",
+  accentFg: "var(--color-action-fg)",
+  err: "var(--color-danger, #b4453f)",
 };
 
 const SERIF = '"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif';
@@ -169,7 +173,7 @@ export function NewCampaignPage() {
 
   const [name, setName] = useState("");
   const [brief, setBrief] = useState("");
-  // Interpretación del pedido. El brief ya decía qué prenda, sobre quién, con qué
+  // Interpretación de lo que escribiste. El brief ya decía qué prenda, sobre quién, con qué
   // fondo y en qué formato — y el formulario te lo volvía a preguntar en tres
   // bloques. Ahora se completan solos al terminar de escribir, y quedan editables.
   const [plan, setPlan] = useState<CampaignPlan | null>(null);
@@ -190,7 +194,7 @@ export function NewCampaignPage() {
   const [error, setError] = useState<string | null>(null);
 
   if (!activeBrand) {
-    return <div className="p-10 text-center text-fg-muted text-[14px]">Elegí una marca en el switcher para crear un pedido.</div>;
+    return <div className="p-10 text-center text-fg-muted text-[14px]">Elegí una marca en el switcher para crear una campaña.</div>;
   }
 
   const b = activeBrand;
@@ -201,7 +205,7 @@ export function NewCampaignPage() {
   const pieceCount = Math.max(1, aspectRatios.length) * variationsPerShot;
   const estimate = imagesUsd(pieceCount, resolution);
 
-  // Se dispara sola al dejar de escribir. Sin botón: el pedido se lee mientras
+  // Se dispara sola al dejar de escribir. Sin botón: se lee mientras
   // trabajás, no en un paso aparte.
   useEffect(() => {
     const text = brief.trim();
@@ -243,8 +247,8 @@ export function NewCampaignPage() {
       const c = await createCampaign({
         brandId: b.id,
         // Si no le pusieron nombre, la primera línea del brief sirve mejor que
-        // "Campaña sin nombre" — que es lo que se veía en todos los pedidos viejos.
-        name: name.trim() || brief.trim().split("\n")[0].slice(0, 60) || "Pedido sin nombre",
+        // "Campaña sin nombre" — que es lo que se veía en todas las campañas viejas.
+        name: name.trim() || brief.trim().split("\n")[0].slice(0, 60) || "Campaña sin nombre",
         brief: brief.trim(),
         avatarId, productIds, clothingIds, backgroundId, moodboardId, lookFeelId, poseId,
         shotPlan: "ai",
@@ -254,7 +258,7 @@ export function NewCampaignPage() {
       });
       navigate(`/dashboard/campaigns/${c.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo crear el pedido");
+      setError(e instanceof Error ? e.message : "No se pudo crear la campaña");
       setSaving(false);
     }
   };
@@ -273,7 +277,7 @@ export function NewCampaignPage() {
         </button>
 
         <h1 className="text-[34px] leading-[1.05] tracking-[-.02em] font-normal" style={{ fontFamily: SERIF }}>
-          Nuevo pedido
+          Nueva campaña
         </h1>
         <input
           value={name}
@@ -285,7 +289,7 @@ export function NewCampaignPage() {
 
         {/* ── 01 · el brief ── */}
         <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7 mt-7" style={rowStyle}>
-          <Gutter n="01" title="Qué necesitamos" hint="Lo único obligatorio" />
+          <Gutter n="01" title="Qué vamos a hacer" hint="Lo único obligatorio" />
           <div>
             <textarea
               autoFocus
@@ -303,7 +307,7 @@ export function NewCampaignPage() {
               <span className="text-[11.5px]" style={{ color: C.ink3 }}>o dictalo</span>
               {reading && (
                 <span className="inline-flex items-center gap-1.5 text-[11.5px]" style={{ color: C.ink3 }}>
-                  <Loader2 size={10} className="animate-spin" /> leyendo el pedido…
+                  <Loader2 size={10} className="animate-spin" /> leyendo…
                 </span>
               )}
             </div>
@@ -340,7 +344,7 @@ export function NewCampaignPage() {
 
                 {plan.needs_video && (
                   <p className="text-[11px] leading-snug" style={{ color: C.ink3 }}>
-                    El pedido menciona video. Por ahora salen las imágenes; el reel se arma después desde Fashion Reel.
+                    Mencionaste video. Por ahora salen las imágenes; el reel se arma después desde Fashion Reel.
                   </p>
                 )}
               </div>
@@ -348,9 +352,9 @@ export function NewCampaignPage() {
           </div>
         </div>
 
-        {/* ── 02 · la dirección de ESTE pedido ── */}
+        {/* ── 02 · la dirección de ESTA campaña ── */}
         <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7" style={rowStyle}>
-          <Gutter n="02" title="Cómo se ve esta vez" hint="La estética de este pedido, no la de la marca" />
+          <Gutter n="02" title="Cómo se ve esta vez" hint="La estética de esta campaña, no la de la marca" />
           <div className="flex gap-9 flex-wrap">
             <Picker
               label="Moodboard" hint="dirección"
@@ -430,10 +434,10 @@ export function NewCampaignPage() {
             disabled={saving || !brief.trim()}
             title={!brief.trim() ? "Escribí qué necesitamos" : undefined}
             className="text-[13px] font-semibold px-[26px] py-[11px] rounded-full cursor-pointer disabled:opacity-40 disabled:cursor-default inline-flex items-center gap-2"
-            style={{ background: C.accent, color: C.paper }}
+            style={{ background: C.accent, color: C.accentFg }}
           >
             {saving && <Loader2 size={13} className="animate-spin" />}
-            {saving ? "Creando…" : "Crear el pedido"}
+            {saving ? "Creando…" : "Crear campaña"}
           </button>
         </div>
       </div>
