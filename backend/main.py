@@ -44,6 +44,7 @@ from services import instagram_scraper
 import nodes as node_system  # Fase 1: catálogo de primitivas + motor de grafos (backend/nodes/)
 from services import manual_lab
 from services import generations as generations_service
+from services import campaign_planner
 from services import asset_matcher
 from services import seedance_video
 from services import veo_video
@@ -677,6 +678,29 @@ async def upload_campaign_pieces(campaign_id: str, files: list[UploadFile] = Fil
     campaigns_service.apply_update(campaign, {"pieces": campaign["pieces"]})
     campaigns_service.save_campaigns(items)
     return {"added": added, "campaign": campaign}
+
+
+@app.post("/api/campaigns/{campaign_id}/plan")
+async def plan_campaign_endpoint(campaign_id: str):
+    """Convierte el brief de la campaña en un plan de tomas concreto.
+
+    Solo PLANIFICA — no genera ni gasta nada. El frontend muestra el plan, el
+    usuario lo ajusta, y recién ahí dispara la generación.
+    """
+    items = campaigns_service.load_campaigns()
+    campaign = campaigns_service.find_campaign(items, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, campaign.get("brandId"))
+    if not brand:
+        raise HTTPException(status_code=404, detail="La marca de esta campaña no existe")
+
+    if not campaign_planner.is_configured():
+        raise HTTPException(status_code=503, detail="Falta GEMINI_API_KEY para poder planificar")
+
+    return await campaign_planner.plan_campaign(brand, campaign)
 
 
 @app.delete("/api/campaigns/{campaign_id}")

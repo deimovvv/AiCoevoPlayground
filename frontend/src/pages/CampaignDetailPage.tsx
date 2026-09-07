@@ -6,7 +6,8 @@ import {
   getCampaign, deleteCampaign, updateCampaign,
   createImageEdit, createTextToImage, pollImageGen,
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl, lookAndFeelImageUrl,
-  type Campaign, type CampaignPiece,
+  planCampaign,
+  type Campaign, type CampaignPiece, type CampaignPlan,
 } from "../lib/api";
 import { imagesUsd, formatCost } from "../lib/pricing";
 import { claimFor } from "../lib/costLedger";
@@ -54,6 +55,12 @@ export function CampaignDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  // El plan de tomas: qué se va a generar y por qué. Se pide primero, se revisa,
+  // y recién ahí se genera. Antes handleGenerate armaba UN prompt genérico y lo
+  // repetía por formato — el brief que escribías no entraba en ningún lado.
+  const [plan, setPlan] = useState<CampaignPlan | null>(null);
+  const [planning, setPlanning] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [regenId, setRegenId] = useState<string | null>(null);
   const [versionsOf, setVersionsOf] = useState<string | null>(null);
@@ -157,6 +164,19 @@ export function CampaignDetailPage() {
     return refs.slice(0, 8);
   }, [activeBrand, campaign]);
 
+  const handlePlan = async () => {
+    if (!campaign || planning) return;
+    setPlanning(true);
+    setPlanError(null);
+    try {
+      setPlan(await planCampaign(campaign.id));
+    } catch (e) {
+      setPlanError(e instanceof Error ? e.message : "No se pudo armar el plan");
+    } finally {
+      setPlanning(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!activeBrand || !campaign || generating) return;
     const avatar = (activeBrand.avatars || []).find((a) => a.id === campaign.avatarId);
@@ -186,9 +206,17 @@ export function CampaignDetailPage() {
       `${lookFeel ? "Apply the lighting and color grade of the look & feel reference. " : ""}` +
       `High-end editorial commercial quality, sharp, photorealistic. No text, no watermark, no logo overlay.`;
 
-    // Una pieza por (aspect ratio × variante), capado por costo.
-    const jobs: string[] = [];
-    campaign.aspectRatios.forEach((ar) => { for (let i = 0; i < campaign.variationsPerShot; i++) jobs.push(ar); });
+    // Una pieza por (toma del plan × formato). Cada toma trae SU prompt, así que
+    // las piezas salen distintas entre sí. Sin plan se cae al prompt genérico de
+    // antes, repetido por variante — que es como funcionaba hasta ahora.
+    const shots = plan?.shots?.length
+      ? plan.shots
+      : Array.from({ length: campaign.variationsPerShot }, (_, i) => ({
+          id: `var_${i}`, label: `Variante ${i + 1}`, why: "", framing: "", prompt: "",
+        }));
+
+    const jobs: Array<{ ar: string; shot: typeof shots[number] }> = [];
+    shots.forEach((shot) => campaign.aspectRatios.forEach((ar) => jobs.push({ ar, shot })));
     const capped = jobs.slice(0, MAX_PIECES_PER_RUN);
     if (jobs.length > MAX_PIECES_PER_RUN) console.warn(`[campaign] capado ${jobs.length} → ${MAX_PIECES_PER_RUN} piezas por tanda`);
 
@@ -196,16 +224,19 @@ export function CampaignDetailPage() {
     setProgress({ done: 0, total: capped.length });
     const fresh: CampaignPiece[] = [];
     for (let i = 0; i < capped.length; i++) {
-      const ar = capped[i];
+      const { ar, shot } = capped[i];
+      // El prompt de la toma reemplaza a la descripción de escena del prompt base;
+      // el resto (identidad, producto, prendas, referencias) se mantiene igual.
+      const shotPrompt = shot.prompt ? `${prompt} SHOT: ${shot.prompt}` : prompt;
       try {
         const job = cappedRefs.length
-          ? await createImageEdit(cappedRefs, prompt, ar, campaign.resolution)
-          : await createTextToImage(prompt, ar, campaign.resolution);
+          ? await createImageEdit(cappedRefs, shotPrompt, ar, campaign.resolution)
+          : await createTextToImage(shotPrompt, ar, campaign.resolution);
         const r = await pollImageGen(job.request_id);
-        fresh.push({ id: `pc_${campaign.pieces.length + i}_${ar}_${i}`, url: r.image_url || "", type: "image", aspectRatio: ar, prompt, status: r.image_url ? "done" : "failed" });
+        fresh.push({ id: `pc_${campaign.pieces.length + i}_${ar}_${i}`, url: r.image_url || "", type: "image", aspectRatio: ar, prompt: shotPrompt, label: shot.label || undefined, status: r.image_url ? "done" : "failed" });
       } catch (e) {
         console.error("[campaign] pieza falló:", e);
-        fresh.push({ id: `pc_${campaign.pieces.length + i}_${ar}_${i}`, url: "", type: "image", aspectRatio: ar, prompt, status: "failed" });
+        fresh.push({ id: `pc_${campaign.pieces.length + i}_${ar}_${i}`, url: "", type: "image", aspectRatio: ar, prompt: shotPrompt, label: shot.label || undefined, status: "failed" });
       }
       setProgress((p) => ({ ...p, done: p.done + 1 }));
     }
@@ -284,6 +315,82 @@ export function CampaignDetailPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── El plan de tomas ──────────────────────────────────────────────
+          El brief se escribía y no se usaba: la generación armaba UN prompt
+          genérico y lo repetía por formato. Acá el brief se convierte en tomas
+          concretas, se revisan, y recién ahí se gasta. */}
+      <div className="rounded-[var(--radius-md)] border border-edge bg-surface-1 p-4">
+        <div className="flex items-start justify-between gap-4 mb-1">
+          <div className="min-w-0">
+            <h3 className="text-[13px] font-semibold text-fg">Plan de tomas</h3>
+            <p className="text-[11px] text-fg-faint mt-0.5">
+              {plan ? `${plan.shots.length} tomas · revisalas antes de generar` : "Qué se va a generar, a partir de tu pedido"}
+            </p>
+          </div>
+          <button
+            onClick={handlePlan}
+            disabled={planning || generating}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg hover:bg-surface-2 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {planning
+              ? <><Loader2 size={12} className="animate-spin" /> Armando…</>
+              : <><Sparkles size={12} /> {plan ? "Rehacer plan" : "Armar plan"}</>}
+          </button>
+        </div>
+
+        {planError && <p className="text-[11.5px] text-[var(--color-danger,#e06c5a)] mt-2">{planError}</p>}
+
+        {!plan && !planning && !planError && (
+          <p className="text-[11.5px] text-fg-muted mt-2">
+            {campaign.brief
+              ? <>Tu pedido: <span className="text-fg">“{campaign.brief.slice(0, 130)}{campaign.brief.length > 130 ? "…" : ""}”</span></>
+              : "Esta campaña no tiene brief. El plan va a proponer un set estándar con los assets elegidos."}
+          </p>
+        )}
+
+        {plan && (
+          <div className="mt-3 flex flex-col gap-3">
+            {plan.degraded && (
+              <p className="text-[11px] text-[var(--color-warning,#d9a94a)]">
+                No se pudo interpretar el pedido — este es un plan mínimo, revisalo bien.
+              </p>
+            )}
+            <p className="text-[12px] text-fg-secondary">{plan.interpretation}</p>
+
+            <div className="flex flex-col divide-y divide-[var(--color-edge-subtle)] border-y border-[var(--color-edge-subtle)]">
+              {plan.shots.map((sh, i) => (
+                <div key={sh.id} className="flex items-baseline gap-3 py-2">
+                  <span className="text-[10px] font-mono text-fg-faint shrink-0 w-4 tabular-nums">{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="text-[12.5px] font-medium text-fg">{sh.label}</span>
+                      {sh.framing && <span className="text-[9px] uppercase tracking-wide text-fg-faint">{sh.framing.replace(/_/g, " ")}</span>}
+                    </div>
+                    {sh.why && <p className="text-[11px] text-fg-muted leading-snug mt-0.5">{sh.why}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {plan.assumptions.length > 0 && (
+              <div>
+                <div className="text-[9.5px] uppercase tracking-wider text-fg-faint mb-1">Asumimos</div>
+                <ul className="flex flex-col gap-1">
+                  {plan.assumptions.map((a, i) => (
+                    <li key={i} className="text-[11px] text-fg-muted leading-snug">· {a}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <p className="text-[11px] text-fg-faint">
+              Van a salir <strong className="text-fg-muted">{plan.shots.length * campaign.aspectRatios.length}</strong> piezas
+              ({plan.shots.length} tomas × {campaign.aspectRatios.length} formato{campaign.aspectRatios.length > 1 ? "s" : ""}).
+            </p>
           </div>
         )}
       </div>

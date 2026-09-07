@@ -397,6 +397,9 @@ export interface CampaignPiece {
     aspectRatio: string;
     /** En las generadas, el prompt. En las subidas, el nombre del archivo original. */
     prompt: string;
+    /** Nombre legible de la toma del plan ("Detalle de textura"). Solo en las que
+     *  se generaron desde un plan — las viejas y las subidas no lo tienen. */
+    label?: string;
     status: "done" | "failed";
     /** "upload" = la trajimos de afuera, no la generó Coevo (y no costó nada acá). */
     source?: "upload";
@@ -1767,6 +1770,36 @@ export async function updateGeneration(genId: string, gen: {
         body: JSON.stringify({ ...gen, cost: claimFor(genId) }),
     });
     if (!res.ok) throw new Error("Failed to update generation");
+    return res.json();
+}
+
+/** Una toma del plan: qué generar y por qué. La devuelve el planner del backend. */
+export interface CampaignShot {
+    id: string;
+    label: string;
+    why: string;
+    framing: string;
+    prompt: string;
+}
+
+export interface CampaignPlan {
+    interpretation: string;
+    assumptions: string[];
+    shots: CampaignShot[];
+    /** true si Gemini falló y vino un plan mínimo de emergencia. */
+    degraded?: boolean;
+}
+
+/** Convierte el brief de la campaña en un plan de tomas. Solo planifica: no genera
+ *  ni gasta nada. El usuario revisa el plan y después dispara la generación. */
+export async function planCampaign(campaignId: string): Promise<CampaignPlan> {
+    const res = await fetch(`${API_BASE}/api/campaigns/${encodeURIComponent(campaignId)}/plan`, {
+        method: "POST",
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "No se pudo armar el plan");
+    }
     return res.json();
 }
 
