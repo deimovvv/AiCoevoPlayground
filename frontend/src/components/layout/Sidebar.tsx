@@ -2,13 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
     LayoutGrid, Wand2, FolderOpen, Settings,
-    FlaskConical, Loader2, Moon, Sun, PanelLeft, Home, Compass, ListTodo, ArrowLeft, ChevronRight } from "lucide-react";
+    FlaskConical, Moon, Sun, PanelLeft, Home, Compass, ListTodo, ArrowLeft, ChevronRight } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
 import { fetchInboxCount } from "../../lib/api";
 import { useTheme } from "../../lib/theme";
 import { cn } from "../../lib/utils";
+import { BrandPicker } from "./BrandPicker";
 
-const API_BASE = "http://127.0.0.1:8000";
 
 // ── Sidebar (Left Rail) ──────────────────────────────────────────
 // 60px-wide vertical rail con icon-only nav. Reemplaza al TopNav horizontal
@@ -71,7 +71,7 @@ const SETTINGS_NAV: NavItem[] = [
 export function Sidebar() {
     const location = useLocation();
     const navigate = useNavigate();
-    const { activeBrand, loading } = useBrand();
+    const { activeBrand } = useBrand();
     const { theme, toggle: toggleTheme } = useTheme();
     const [settingsOpen, setSettingsOpen] = useState(false);
     const settingsRef = useRef<HTMLDivElement>(null);
@@ -226,15 +226,11 @@ export function Sidebar() {
             <div className="flex-1" />
 
             {/* Active brand chip */}
-            <div data-tour="brand-chip" className={cn("mb-2 flex", expanded ? "items-center gap-2 px-1" : "justify-center")}>
-                {loading ? (
-                    <div className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-1 text-fg-muted shrink-0">
-                        <Loader2 size={12} className="animate-spin" />
-                    </div>
-                ) : (
-                    <BrandAvatar brand={activeBrand} onClick={() => navigate("/dashboard/brands")} />
-                )}
-                {expanded && !loading && <span className="text-[12px] text-fg-muted truncate">{activeBrand?.name || "Sin marca"}</span>}
+            {/* Selector de marca. Antes era un link que te sacaba a /dashboard/brands:
+                para cambiar de marca había que abandonar la pantalla en la que estabas.
+                Ahora despliega y cambia el contexto en el lugar, desde donde sea. */}
+            <div data-tour="brand-chip" className="mb-2">
+                <BrandPicker collapsed={!expanded} />
             </div>
 
             {/* Theme + Settings */}
@@ -305,43 +301,3 @@ export function Sidebar() {
     );
 }
 
-// ── Brand Avatar ─────────────────────────────────────────────────
-// Versión circular del BrandChip de TopNav: solo el avatar (sin nombre ni
-// chevron) porque en vertical no entra. Click navega a /dashboard/brands
-// que es donde está el listado completo + crear nueva. Tooltip muestra el
-// nombre activo para que no quede ambiguo.
-
-function BrandAvatar({ brand, onClick }: { brand: ReturnType<typeof useBrand>["activeBrand"]; onClick: () => void }) {
-    const isSandbox = brand?.id === "__sandbox__";
-    const hasLogo = !!brand?.logo?.imageUrl;
-    const initials = brand?.name
-        ? brand.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()
-        : "?";
-    const primaryColor = brand?.dna?.colors?.[0]?.hex;
-
-    return (
-        <button
-            onClick={onClick}
-            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden border border-[var(--glass-border)] hover:border-[var(--glass-border-hover)] transition-colors cursor-pointer"
-            title={brand?.name ? `Marca activa: ${brand.name} — click para ver todas` : "Ver todas las marcas"}
-            style={{ backgroundColor: !isSandbox && !hasLogo ? (primaryColor || "var(--color-action-muted)") : undefined }}
-        >
-            {hasLogo && brand ? (
-                <img
-                    src={`${API_BASE}${brand.logo!.imageUrl}`}
-                    alt={brand.name}
-                    className="w-full h-full object-contain bg-white p-0.5"
-                />
-            ) : isSandbox ? (
-                <FlaskConical size={13} className="text-fg-faint" />
-            ) : (
-                <span
-                    className="text-[11px] font-bold leading-none"
-                    style={{ color: primaryColor ? "#fff" : "var(--color-action)" }}
-                >
-                    {initials}
-                </span>
-            )}
-        </button>
-    );
-}
