@@ -14,12 +14,15 @@
   /* Surfaces — stepped contrast so cards clearly separate from the canvas.
      Canvas is near-black; each surface is a visibly lighter step (not a hair). */
   /* Surfaces dark mode — más contraste entre niveles para que las cards de imagen
-     "floten" sobre el bg (antes los pasos eran muy parejos y todo se veía liso). */
-  --color-canvas: #060608;
-  --color-surface-0: #131318;
-  --color-surface-1: #1f1f26;
-  --color-surface-2: #2d2d35;
-  --color-surface-3: #3c3c45;
+     "floten" sobre el bg (antes los pasos eran muy parejos y todo se veía liso).
+     Neutro CÁLIDO: R apenas por encima de B. Antes era al revés (#131318 = 19·19·24)
+     y toda la app leía azulada. El sesgo es mínimo a propósito — alcanza para sacar
+     el frío sin irse a marrón. Los saltos entre niveles no cambiaron. */
+  --color-canvas: #070606;
+  --color-surface-0: #171514;
+  --color-surface-1: #232120;
+  --color-surface-2: #312f2d;
+  --color-surface-3: #413e3b;
 
   /* Foreground — brighter muted/faint so secondary text is actually readable. */
   --color-fg: #f4f4f5;
