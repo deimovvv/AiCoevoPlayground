@@ -1773,7 +1773,7 @@ export async function updateGeneration(genId: string, gen: {
     return res.json();
 }
 
-/** Una toma del plan: qué generar y por qué. La devuelve el planner del backend. */
+/** Una toma del plan: qué generar y por qué. */
 export interface CampaignShot {
     id: string;
     label: string;
@@ -1782,23 +1782,45 @@ export interface CampaignShot {
     prompt: string;
 }
 
+/** Los assets que el intérprete eligió del banco de la marca. */
+export interface CampaignPlanAssets {
+    clothingIds?: string[];
+    productIds?: string[];
+    avatarId?: string;
+    backgroundId?: string;
+    moodboardId?: string;
+    lookFeelId?: string;
+    poseId?: string;
+}
+
 export interface CampaignPlan {
     interpretation: string;
     assumptions: string[];
+    /** true si el pedido menciona reel / video / animación. */
+    needs_video: boolean;
+    aspect_ratios: string[];
+    assets: CampaignPlanAssets;
+    asset_reasons: string[];
     shots: CampaignShot[];
-    /** true si Gemini falló y vino un plan mínimo de emergencia. */
+    /** true si el intérprete falló y esto es un plan mínimo de emergencia. */
     degraded?: boolean;
 }
 
-/** Convierte el brief de la campaña en un plan de tomas. Solo planifica: no genera
- *  ni gasta nada. El usuario revisa el plan y después dispara la generación. */
-export async function planCampaign(campaignId: string): Promise<CampaignPlan> {
-    const res = await fetch(`${API_BASE}/api/campaigns/${encodeURIComponent(campaignId)}/plan`, {
+/** Lee un brief y devuelve el pedido armado: qué assets usar, en qué formatos y
+ *  qué tomas generar. No crea la campaña ni genera nada — solo propone. */
+export async function planCampaign(
+    brandId: string,
+    brief: string,
+    hints?: Record<string, unknown>,
+): Promise<CampaignPlan> {
+    const res = await fetch(`${API_BASE}/api/campaigns/plan`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brandId, brief, hints: hints ?? null }),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "No se pudo armar el plan");
+        throw new Error(err.detail || "No se pudo interpretar el pedido");
     }
     return res.json();
 }

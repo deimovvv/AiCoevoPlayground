@@ -680,27 +680,29 @@ async def upload_campaign_pieces(campaign_id: str, files: list[UploadFile] = Fil
     return {"added": added, "campaign": campaign}
 
 
-@app.post("/api/campaigns/{campaign_id}/plan")
-async def plan_campaign_endpoint(campaign_id: str):
-    """Convierte el brief de la campaña en un plan de tomas concreto.
+class PlanRequest(BaseModel):
+    brandId: str
+    brief: str = ""
+    # Lo que el usuario ya tocó a mano. Se le pasa al modelo como contexto.
+    hints: Optional[dict] = None
 
-    Solo PLANIFICA — no genera ni gasta nada. El frontend muestra el plan, el
-    usuario lo ajusta, y recién ahí dispara la generación.
+
+@app.post("/api/campaigns/plan")
+async def plan_campaign_endpoint(req: PlanRequest):
+    """Lee un brief y devuelve el pedido armado: assets, formatos y tomas.
+
+    No necesita que la campaña exista — se usa desde el formulario, mientras se
+    escribe. Solo PROPONE: no crea nada, no genera nada, no gasta nada.
     """
-    items = campaigns_service.load_campaigns()
-    campaign = campaigns_service.find_campaign(items, campaign_id)
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Campaña no encontrada")
-
     all_brands = brands.load_brands()
-    brand = brands.find_brand(all_brands, campaign.get("brandId"))
+    brand = brands.find_brand(all_brands, req.brandId)
     if not brand:
-        raise HTTPException(status_code=404, detail="La marca de esta campaña no existe")
+        raise HTTPException(status_code=404, detail="Marca no encontrada")
 
     if not campaign_planner.is_configured():
-        raise HTTPException(status_code=503, detail="Falta GEMINI_API_KEY para poder planificar")
+        raise HTTPException(status_code=503, detail="Falta GEMINI_API_KEY para poder interpretar el pedido")
 
-    return await campaign_planner.plan_campaign(brand, campaign)
+    return await campaign_planner.plan_campaign(brand, req.brief, req.hints)
 
 
 @app.delete("/api/campaigns/{campaign_id}")

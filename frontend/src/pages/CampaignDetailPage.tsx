@@ -169,7 +169,7 @@ export function CampaignDetailPage() {
     setPlanning(true);
     setPlanError(null);
     try {
-      setPlan(await planCampaign(campaign.id));
+      setPlan(await planCampaign(campaign.brandId, campaign.brief || ""));
     } catch (e) {
       setPlanError(e instanceof Error ? e.message : "No se pudo armar el plan");
     } finally {

@@ -19,7 +19,7 @@
  * cosas hasta no significar ninguna.
  */
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import { ArrowLeft, Loader2, Paperclip } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
@@ -27,6 +27,7 @@ import {
   createCampaign,
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl,
   moodboardImageUrl, lookAndFeelImageUrl, poseImageUrl,
+  planCampaign, type CampaignPlan,
 } from "../lib/api";
 import { imagesUsd, formatUsd } from "../lib/pricing";
 
@@ -168,6 +169,13 @@ export function NewCampaignPage() {
 
   const [name, setName] = useState("");
   const [brief, setBrief] = useState("");
+  // Interpretación del pedido. El brief ya decía qué prenda, sobre quién, con qué
+  // fondo y en qué formato — y el formulario te lo volvía a preguntar en tres
+  // bloques. Ahora se completan solos al terminar de escribir, y quedan editables.
+  const [plan, setPlan] = useState<CampaignPlan | null>(null);
+  const [reading, setReading] = useState(false);
+  /** Campos que tocó el usuario a mano: la interpretación no los pisa. */
+  const touched = useRef<Set<string>>(new Set());
   const [avatarId, setAvatarId] = useState<string | null>(null);
   const [productIds, setProductIds] = useState<string[]>([]);
   const [clothingIds, setClothingIds] = useState<string[]>([]);
@@ -192,6 +200,42 @@ export function NewCampaignPage() {
   // Cuánto va a costar, con los precios reales y ANTES de crear nada.
   const pieceCount = Math.max(1, aspectRatios.length) * variationsPerShot;
   const estimate = imagesUsd(pieceCount, resolution);
+
+  // Se dispara sola al dejar de escribir. Sin botón: el pedido se lee mientras
+  // trabajás, no en un paso aparte.
+  useEffect(() => {
+    const text = brief.trim();
+    if (!b || text.length < 15) { setPlan(null); return; }
+    const t = setTimeout(async () => {
+      setReading(true);
+      try {
+        const p = await planCampaign(b.id, text);
+        setPlan(p);
+        // Solo completa lo que no tocaste a mano.
+        const a = p.assets || {};
+        if (!touched.current.has("clothing") && a.clothingIds?.length) setClothingIds(a.clothingIds);
+        if (!touched.current.has("products") && a.productIds?.length) setProductIds(a.productIds);
+        if (!touched.current.has("avatar") && a.avatarId) setAvatarId(a.avatarId);
+        if (!touched.current.has("background") && a.backgroundId) setBackgroundId(a.backgroundId);
+        if (!touched.current.has("moodboard") && a.moodboardId) setMoodboardId(a.moodboardId);
+        if (!touched.current.has("lookFeel") && a.lookFeelId) setLookFeelId(a.lookFeelId);
+        if (!touched.current.has("pose") && a.poseId) setPoseId(a.poseId);
+        if (!touched.current.has("ratios") && p.aspect_ratios?.length) setAspectRatios(p.aspect_ratios);
+      } catch {
+        // Si la interpretación falla, el formulario sigue funcionando a mano.
+      } finally {
+        setReading(false);
+      }
+    }, 900);
+    return () => clearTimeout(t);
+  }, [brief, b?.id]);
+
+  /** Marca el campo como tocado a mano y aplica el cambio. La interpretación
+   *  automática respeta todo lo que hayas elegido vos. */
+  const mark = <T,>(key: string, setter: (v: T) => void) => (v: T) => {
+    touched.current.add(key);
+    setter(v);
+  };
 
   const submit = async () => {
     setSaving(true); setError(null);
@@ -257,7 +301,50 @@ export function NewCampaignPage() {
                 <Paperclip size={11} /> Adjuntar algo
               </span>
               <span className="text-[11.5px]" style={{ color: C.ink3 }}>o dictalo</span>
+              {reading && (
+                <span className="inline-flex items-center gap-1.5 text-[11.5px]" style={{ color: C.ink3 }}>
+                  <Loader2 size={10} className="animate-spin" /> leyendo el pedido…
+                </span>
+              )}
             </div>
+
+            {/* Lo que entendió. Los bloques de abajo ya quedaron completados con esto. */}
+            {plan && !reading && (
+              <div className="mt-5 max-w-[60ch] flex flex-col gap-2.5">
+                <p className="text-[13px] leading-snug" style={{ color: C.ink2 }}>{plan.interpretation}</p>
+
+                <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11.5px]" style={{ color: C.ink3 }}>
+                  <span><strong style={{ color: C.ink2 }}>{plan.shots.length}</strong> tomas</span>
+                  <span><strong style={{ color: C.ink2 }}>{plan.aspect_ratios.join(" · ")}</strong></span>
+                  {plan.needs_video && <span style={{ color: C.ink2 }}>· pide video</span>}
+                </div>
+
+                {plan.shots.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {plan.shots.map((sh) => (
+                      <span key={sh.id} className="text-[11px] px-2 py-[3px] rounded-full"
+                            style={{ color: C.ink2, border: `1px solid ${C.hair}` }}>
+                        {sh.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {plan.assumptions.length > 0 && (
+                  <ul className="flex flex-col gap-0.5">
+                    {plan.assumptions.slice(0, 3).map((a, i) => (
+                      <li key={i} className="text-[11px] leading-snug" style={{ color: C.ink3 }}>· {a}</li>
+                    ))}
+                  </ul>
+                )}
+
+                {plan.needs_video && (
+                  <p className="text-[11px] leading-snug" style={{ color: C.ink3 }}>
+                    El pedido menciona video. Por ahora salen las imágenes; el reel se arma después desde Fashion Reel.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -268,17 +355,17 @@ export function NewCampaignPage() {
             <Picker
               label="Moodboard" hint="dirección"
               items={(b.moodboards || []).map((m) => ({ id: m.id, name: m.name, thumb: m.imageUrl ? moodboardImageUrl(m.imageUrl) : undefined }))}
-              selectedId={moodboardId} onSingle={setMoodboardId}
+              selectedId={moodboardId} onSingle={mark("moodboard", setMoodboardId)}
             />
             <Picker
               label="Look & feel" hint="color y textura"
               items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
-              selectedId={lookFeelId} onSingle={setLookFeelId}
+              selectedId={lookFeelId} onSingle={mark("lookFeel", setLookFeelId)}
             />
             <Picker
               label="Poses" hint="estrictas"
               items={(b.poses || []).map((p) => ({ id: p.id, name: p.name, thumb: p.imageUrl ? poseImageUrl(p.imageUrl) : undefined }))}
-              selectedId={poseId} onSingle={setPoseId}
+              selectedId={poseId} onSingle={mark("pose", setPoseId)}
             />
           </div>
         </div>
@@ -291,23 +378,23 @@ export function NewCampaignPage() {
               label="Prendas" hint={String((b.clothing || []).length)}
               multi
               items={(b.clothing || []).map((c) => ({ id: c.id, name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined }))}
-              selectedIds={clothingIds} onToggle={toggle(setClothingIds)}
+              selectedIds={clothingIds} onToggle={mark("clothing", toggle(setClothingIds))}
             />
             <Picker
               label="Productos" hint={String((b.products || []).length)}
               multi
               items={(b.products || []).map((p) => ({ id: p.id, name: p.name, thumb: p.imageUrl ? productImageUrl(p.imageUrl) : undefined }))}
-              selectedIds={productIds} onToggle={toggle(setProductIds)}
+              selectedIds={productIds} onToggle={mark("products", toggle(setProductIds))}
             />
             <Picker
               label="Modelo" hint={String((b.avatars || []).length)}
               items={(b.avatars || []).map((a) => ({ id: a.id, name: a.name, thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined }))}
-              selectedId={avatarId} onSingle={setAvatarId}
+              selectedId={avatarId} onSingle={mark("avatar", setAvatarId)}
             />
             <Picker
               label="Fondo" hint="opcional"
               items={(b.backgrounds || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))}
-              selectedId={backgroundId} onSingle={setBackgroundId}
+              selectedId={backgroundId} onSingle={mark("background", setBackgroundId)}
             />
           </div>
         </div>
@@ -318,7 +405,7 @@ export function NewCampaignPage() {
           <div className="flex gap-11 flex-wrap items-start">
             <Options
               label="Formatos" options={AR_OPTIONS} values={aspectRatios}
-              onToggle={(ar) => setAspectRatios((p) => (p.includes(ar) ? p.filter((x) => x !== ar) : [...p, ar]))}
+              onToggle={(ar) => { touched.current.add("ratios"); setAspectRatios((p) => (p.includes(ar) ? p.filter((x) => x !== ar) : [...p, ar])); }}
             />
             <Options label="Variantes" options={[1, 2, 3, 4]} value={variationsPerShot} onPick={setVariationsPerShot} />
             <Options label="Resolución" options={RES_OPTIONS} value={resolution} onPick={setResolution} />
