@@ -309,95 +309,77 @@ function BrandCard({ brand, onOpen, onDelete }: { brand: Brand; onOpen: () => vo
 
     const heroColor = colors[0]?.hex;
 
+    // Lo que la marca tiene cargado. Es el dato que decide si podés trabajar con
+    // ella — más útil que repetir "Activa" dos veces.
+    const counts = ([
+        { n: (brand.clothing || []).length, label: "prendas" },
+        { n: (brand.products || []).length, label: "productos" },
+        { n: (brand.avatars || []).length, label: "modelos" },
+        { n: (brand.moodboards || []).length, label: "moodboards" },
+    ] as Array<{ n: number; label: string }>).filter((c) => c.n > 0);
+
     return (
         <div
             className="glass-sheen group relative bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--glass-border)] rounded-[var(--radius-md)] overflow-hidden cursor-pointer transition-all duration-500 hover:border-[var(--glass-border-hover)] hover:bg-[var(--glass-bg-hover)] hover:shadow-[0_20px_50px_-20px_rgba(250,205,234,0.12)]"
             onClick={onOpen}
         >
-            {/* Hero band — brand color or neutral */}
-            <div
-                className="h-20 relative overflow-hidden"
-                style={{
-                    backgroundColor: heroColor || "var(--color-surface-1)",
-                    backgroundImage: heroColor
-                        ? `linear-gradient(135deg, ${heroColor} 0%, ${colors[1]?.hex || heroColor} 100%)`
-                        : undefined,
-                }}
-            >
-                {/* Delete — subtle, hover only */}
+            {/* Cabecera: logo + nombre + qué tiene la marca.
+                Antes había una banda de color de 80px que en las marcas sin paleta
+                era un rectángulo gris vacío, y dos etiquetas para lo mismo
+                ("Listo para generar" arriba, "Activa" abajo). Ahora la card dice
+                lo único que importa a la hora de elegir: con qué se puede trabajar. */}
+            <div className="p-4">
                 <button
                     onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                    className="absolute top-2.5 right-2.5 w-6 h-6 flex items-center justify-center rounded-full bg-black/30 backdrop-blur text-white/80 hover:bg-black/50 hover:text-white opacity-0 group-hover:opacity-100 transition-all cursor-pointer z-10"
+                    className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full bg-surface-2 text-fg-faint hover:text-fg opacity-0 group-hover:opacity-100 transition-all cursor-pointer z-10"
                     title="Eliminar"
                 >
                     <Trash2 size={10} />
                 </button>
-            </div>
 
-            {/* Logo overlapping the band */}
-            <div className="px-5 relative">
-                <div className="-mt-8 mb-3">
+                <div className="flex items-center gap-3">
                     {brand.logo?.imageUrl ? (
-                        <div className="w-14 h-14 rounded-[var(--radius-md)] bg-white border border-edge shadow-sm flex items-center justify-center overflow-hidden">
-                            <img
-                                src={`${API_BASE}${brand.logo.imageUrl}`}
-                                alt={brand.name}
-                                className="max-w-full max-h-full object-contain p-1.5"
-                            />
+                        <div className="w-11 h-11 shrink-0 rounded-[var(--radius-sm)] bg-white border border-edge flex items-center justify-center overflow-hidden">
+                            <img src={`${API_BASE}${brand.logo.imageUrl}`} alt={brand.name} className="max-w-full max-h-full object-contain p-1" />
                         </div>
                     ) : (
                         <div
-                            className="w-14 h-14 rounded-[var(--radius-md)] bg-surface-0 border border-edge shadow-sm flex items-center justify-center font-semibold text-[16px] tracking-tight"
-                            style={{ color: heroColor || "var(--color-fg)" }}
+                            className="w-11 h-11 shrink-0 rounded-[var(--radius-sm)] border border-edge flex items-center justify-center font-semibold text-[14px] tracking-tight"
+                            style={{ backgroundColor: heroColor ? `${heroColor}1f` : "var(--color-surface-2)", color: heroColor || "var(--color-fg-muted)" }}
                         >
                             {initials}
                         </div>
                     )}
+
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-[14.5px] font-semibold text-fg tracking-tight truncate leading-tight">{brand.name}</h3>
+                        <div className="flex items-center gap-1.5 mt-1">
+                            <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", isReady ? "bg-green-400" : "bg-fg-faint")} />
+                            <span className="text-[10.5px] text-fg-faint">{isReady ? "Lista" : "Sin configurar"}</span>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Name */}
-                <h3 className="text-[15px] font-semibold text-fg tracking-tight truncate leading-tight">
-                    {brand.name}
-                </h3>
-
-                {/* Subtle state line */}
-                <p className="text-[11px] text-fg-faint mt-1">
-                    {isReady ? "Listo para generar" : "Configuración pendiente"}
-                </p>
-            </div>
-
-            {/* Bottom row — color palette + readiness dot */}
-            <div className="px-5 py-4 mt-2 flex items-center justify-between border-t border-edge-subtle">
-                {colors.length > 0 ? (
-                    <div className="flex items-center gap-1">
-                        {colors.slice(0, 5).map((c, i) => (
-                            <div
-                                key={i}
-                                className="w-3 h-3 rounded-full ring-1 ring-edge"
-                                style={{ backgroundColor: c.hex }}
-                                title={`${c.name} — ${c.hex}`}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-1.5 text-fg-faint">
-                        <Palette size={11} />
-                        <span className="text-[10px]">Sin paleta</span>
-                    </div>
-                )}
-
-                <div className="flex items-center gap-1.5">
-                    <div
-                        className={cn(
-                            "w-1.5 h-1.5 rounded-full",
-                            isReady ? "bg-green-400" : "bg-fg-faint"
-                        )}
-                    />
-                    <span className="text-[10px] text-fg-faint uppercase tracking-wider font-medium">
-                        {isReady ? "Activa" : "Borrador"}
-                    </span>
+                {/* Qué tiene cargado — lo que decide si podés trabajar con ella */}
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3.5 text-[11px] text-fg-muted tabular-nums">
+                    {counts.length > 0
+                        ? counts.map((c) => (
+                            <span key={c.label}>
+                                <span className="text-fg-secondary">{c.n}</span> {c.label}
+                            </span>
+                        ))
+                        : <span className="text-fg-faint">Sin assets cargados</span>}
                 </div>
             </div>
+
+            {/* Paleta: una tira fina, solo si hay */}
+            {colors.length > 0 && (
+                <div className="flex h-1.5 w-full overflow-hidden">
+                    {colors.slice(0, 6).map((c, i) => (
+                        <div key={i} className="flex-1" style={{ backgroundColor: c.hex }} title={`${c.name} — ${c.hex}`} />
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

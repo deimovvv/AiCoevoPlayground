@@ -246,7 +246,7 @@ export function WorkPage() {
         <div className="px-6 py-5 max-w-[1400px]">
             {/* Header */}
             <div className="flex items-center gap-3 mb-4">
-                <h1 className="text-[21px] font-semibold tracking-[-.01em]">Trabajo</h1>
+                <h1 className="text-[21px] font-semibold tracking-[-.01em]">Campañas</h1>
                 <div className="ml-auto flex items-center gap-2">
                     <div className="flex items-center gap-2 h-9 px-3 rounded-[var(--radius-sm)] border border-edge">
                         <Search size={13} className="text-fg-faint" />
@@ -258,19 +258,41 @@ export function WorkPage() {
                         />
                     </div>
                     <Link
-                        to="/dashboard/campaigns/new"
+                        to="/dashboard/generate"
                         className="flex items-center gap-1.5 h-9 px-4 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-secondary hover:text-fg"
+                        title="Generar una pieza suelta con una tool, fuera de campaña"
                     >
-                        <Folder size={13} /> Nuevo pedido
+                        <Sparkles size={13} /> Pieza suelta
                     </Link>
                     <Link
-                        to="/dashboard/generate"
+                        to="/dashboard/campaigns/new"
                         className="flex items-center gap-1.5 h-9 px-4 rounded-[var(--radius-sm)] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[12px] font-semibold"
                     >
-                        <Plus size={13} /> Nueva pieza
+                        <Plus size={13} /> Nueva campaña
                     </Link>
                 </div>
             </div>
+
+            {/* Sin campañas en esta marca: el listado de abajo son piezas sueltas de
+                tools, y sin este aviso parecía que la sección "no era de campañas". */}
+            {campaigns.length === 0 && !loading && (
+                <div className="mb-5 rounded-[var(--radius-md)] border border-edge bg-surface-1 px-4 py-3.5 flex items-center gap-4">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[13px] text-fg">
+                            {activeBrand ? `${activeBrand.name} todavía no tiene campañas.` : "Todavía no hay campañas."}
+                        </p>
+                        <p className="text-[11.5px] text-fg-muted mt-0.5">
+                            Una campaña agrupa las piezas de un mismo trabajo. Escribís qué necesitás y se arma con los assets de la marca. Lo de abajo son piezas sueltas generadas con tools.
+                        </p>
+                    </div>
+                    <Link
+                        to="/dashboard/campaigns/new"
+                        className="shrink-0 flex items-center gap-1.5 h-9 px-4 rounded-[var(--radius-sm)] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[12px] font-semibold"
+                    >
+                        <Plus size={13} /> Crear la primera
+                    </Link>
+                </div>
+            )}
 
             {/* Filtros */}
             <div className="flex items-center gap-2 mb-4 flex-wrap">
