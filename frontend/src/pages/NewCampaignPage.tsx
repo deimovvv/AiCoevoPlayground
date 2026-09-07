@@ -19,7 +19,7 @@
  * cosas hasta no significar ninguna.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { ArrowLeft, Loader2, Paperclip } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
@@ -180,6 +180,7 @@ export function NewCampaignPage() {
   const [reading, setReading] = useState(false);
   /** Campos que tocó el usuario a mano: la interpretación no los pisa. */
   const touched = useRef<Set<string>>(new Set());
+  const [showPickers, setShowPickers] = useState(false);
   const [avatarId, setAvatarId] = useState<string | null>(null);
   const [productIds, setProductIds] = useState<string[]>([]);
   const [clothingIds, setClothingIds] = useState<string[]>([]);
@@ -236,6 +237,28 @@ export function NewCampaignPage() {
 
   /** Marca el campo como tocado a mano y aplica el cambio. La interpretación
    *  automática respeta todo lo que hayas elegido vos. */
+  /** Lo que quedó seleccionado del banco de la marca — venga de la interpretación
+   *  del brief o de haberlo elegido a mano. Es lo que se muestra en el bloque 02. */
+  const chosen = useMemo(() => {
+    if (!b) return [];
+    const out: Array<{ kind: string; id: string; name: string; thumb?: string }> = [];
+    (b.clothing || []).filter((c) => clothingIds.includes(c.id))
+      .forEach((c) => out.push({ kind: "Prenda", id: c.id, name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined }));
+    (b.products || []).filter((x) => productIds.includes(x.id))
+      .forEach((x) => out.push({ kind: "Producto", id: x.id, name: x.name, thumb: x.imageUrl ? productImageUrl(x.imageUrl) : undefined }));
+    const av = (b.avatars || []).find((a) => a.id === avatarId);
+    if (av) out.push({ kind: "Modelo", id: av.id, name: av.name, thumb: av.imageUrl ? avatarImageUrl(av.imageUrl) : undefined });
+    const bg = (b.backgrounds || []).find((x) => x.id === backgroundId);
+    if (bg) out.push({ kind: "Fondo", id: bg.id, name: bg.name, thumb: bg.imageUrl ? backgroundImageUrl(bg.imageUrl) : undefined });
+    const mb = (b.moodboards || []).find((x) => x.id === moodboardId);
+    if (mb) out.push({ kind: "Moodboard", id: mb.id, name: mb.name, thumb: mb.imageUrl ? moodboardImageUrl(mb.imageUrl) : undefined });
+    const lf = (b.lookAndFeel || []).find((x) => x.id === lookFeelId);
+    if (lf) out.push({ kind: "Look & feel", id: lf.id, name: lf.name, thumb: lf.imageUrl ? lookAndFeelImageUrl(lf.imageUrl) : undefined });
+    const po = (b.poses || []).find((x) => x.id === poseId);
+    if (po) out.push({ kind: "Pose", id: po.id, name: po.name, thumb: po.imageUrl ? poseImageUrl(po.imageUrl) : undefined });
+    return out;
+  }, [b, clothingIds, productIds, avatarId, backgroundId, moodboardId, lookFeelId, poseId]);
+
   const mark = <T,>(key: string, setter: (v: T) => void) => (v: T) => {
     touched.current.add(key);
     setter(v);
@@ -352,60 +375,94 @@ export function NewCampaignPage() {
           </div>
         </div>
 
-        {/* ── 02 · la dirección de ESTA campaña ── */}
+        {/* ── 02 · lo que se va a usar del banco de la marca ──────────────
+            Antes acá había dos bloques de pickers que te hacían elegir prenda,
+            moodboard, modelo y fondo a mano — cosas que ya cargaste UNA vez en la
+            marca y que el brief ya menciona. Ahora se muestran las elegidas, y los
+            pickers aparecen solo si querés cambiar algo. */}
         <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7" style={rowStyle}>
-          <Gutter n="02" title="Cómo se ve esta vez" hint="La estética de esta campaña, no la de la marca" />
-          <div className="flex gap-9 flex-wrap">
-            <Picker
-              label="Moodboard" hint="dirección"
-              items={(b.moodboards || []).map((m) => ({ id: m.id, name: m.name, thumb: m.imageUrl ? moodboardImageUrl(m.imageUrl) : undefined }))}
-              selectedId={moodboardId} onSingle={mark("moodboard", setMoodboardId)}
-            />
-            <Picker
-              label="Look & feel" hint="color y textura"
-              items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
-              selectedId={lookFeelId} onSingle={mark("lookFeel", setLookFeelId)}
-            />
-            <Picker
-              label="Poses" hint="estrictas"
-              items={(b.poses || []).map((p) => ({ id: p.id, name: p.name, thumb: p.imageUrl ? poseImageUrl(p.imageUrl) : undefined }))}
-              selectedId={poseId} onSingle={mark("pose", setPoseId)}
-            />
-          </div>
-        </div>
+          <Gutter n="02" title="Con qué" hint="Del banco de la marca" />
+          <div>
+            {chosen.length > 0 ? (
+              <div className="flex flex-wrap gap-3">
+                {chosen.map((c) => (
+                  <div key={`${c.kind}-${c.id}`} className="flex flex-col gap-1.5 w-[74px]">
+                    <div className="w-[74px] h-[74px] rounded-[3px] overflow-hidden"
+                         style={{ background: C.paper2, border: `1px solid ${C.hair}` }}>
+                      {c.thumb && <img src={c.thumb} alt={c.name} className="w-full h-full object-cover" />}
+                    </div>
+                    <div className="leading-tight">
+                      <div className="text-[9px] uppercase tracking-[.09em]" style={{ color: C.ink3 }}>{c.kind}</div>
+                      <div className="text-[10.5px] truncate" style={{ color: C.ink2 }} title={c.name}>{c.name}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[12.5px]" style={{ color: C.ink3 }}>
+                {reading
+                  ? "Buscando en el banco de la marca…"
+                  : brief.trim().length < 15
+                    ? "Escribí arriba qué querés hacer y se completa solo con lo que haya en la marca."
+                    : "No encontré assets que coincidan con el pedido. Podés elegirlos a mano."}
+              </p>
+            )}
 
-        {/* ── 03 · el material ── */}
-        <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7" style={rowStyle}>
-          <Gutter n="03" title="Con qué" hint="Del banco de la marca" />
-          <div className="flex gap-9 flex-wrap">
-            <Picker
-              label="Prendas" hint={String((b.clothing || []).length)}
-              multi
-              items={(b.clothing || []).map((c) => ({ id: c.id, name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined }))}
-              selectedIds={clothingIds} onToggle={mark("clothing", toggle(setClothingIds))}
-            />
-            <Picker
-              label="Productos" hint={String((b.products || []).length)}
-              multi
-              items={(b.products || []).map((p) => ({ id: p.id, name: p.name, thumb: p.imageUrl ? productImageUrl(p.imageUrl) : undefined }))}
-              selectedIds={productIds} onToggle={mark("products", toggle(setProductIds))}
-            />
-            <Picker
-              label="Modelo" hint={String((b.avatars || []).length)}
-              items={(b.avatars || []).map((a) => ({ id: a.id, name: a.name, thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined }))}
-              selectedId={avatarId} onSingle={mark("avatar", setAvatarId)}
-            />
-            <Picker
-              label="Fondo" hint="opcional"
-              items={(b.backgrounds || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))}
-              selectedId={backgroundId} onSingle={mark("background", setBackgroundId)}
-            />
+            <button
+              onClick={() => setShowPickers((v) => !v)}
+              className="mt-3 text-[11.5px] pb-[2px] cursor-pointer"
+              style={{ color: C.ink3, borderBottom: `1px solid ${C.hair}` }}
+            >
+              {showPickers ? "Listo" : chosen.length > 0 ? "Cambiar" : "Elegir a mano"}
+            </button>
+
+            {showPickers && (
+              <div className="flex gap-9 flex-wrap mt-5 pt-5" style={{ borderTop: `1px solid ${C.hair}` }}>
+                <Picker
+                  label="Prendas" hint={String((b.clothing || []).length)}
+                  multi
+                  items={(b.clothing || []).map((c) => ({ id: c.id, name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined }))}
+                  selectedIds={clothingIds} onToggle={mark("clothing", toggle(setClothingIds))}
+                />
+                <Picker
+                  label="Productos" hint={String((b.products || []).length)}
+                  multi
+                  items={(b.products || []).map((p) => ({ id: p.id, name: p.name, thumb: p.imageUrl ? productImageUrl(p.imageUrl) : undefined }))}
+                  selectedIds={productIds} onToggle={mark("products", toggle(setProductIds))}
+                />
+                <Picker
+                  label="Modelo" hint={String((b.avatars || []).length)}
+                  items={(b.avatars || []).map((a) => ({ id: a.id, name: a.name, thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined }))}
+                  selectedId={avatarId} onSingle={mark("avatar", setAvatarId)}
+                />
+                <Picker
+                  label="Fondo" hint="opcional"
+                  items={(b.backgrounds || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))}
+                  selectedId={backgroundId} onSingle={mark("background", setBackgroundId)}
+                />
+                <Picker
+                  label="Moodboard" hint="dirección"
+                  items={(b.moodboards || []).map((m) => ({ id: m.id, name: m.name, thumb: m.imageUrl ? moodboardImageUrl(m.imageUrl) : undefined }))}
+                  selectedId={moodboardId} onSingle={mark("moodboard", setMoodboardId)}
+                />
+                <Picker
+                  label="Look & feel" hint="color y textura"
+                  items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
+                  selectedId={lookFeelId} onSingle={mark("lookFeel", setLookFeelId)}
+                />
+                <Picker
+                  label="Poses" hint="estrictas"
+                  items={(b.poses || []).map((p) => ({ id: p.id, name: p.name, thumb: p.imageUrl ? poseImageUrl(p.imageUrl) : undefined }))}
+                  selectedId={poseId} onSingle={mark("pose", setPoseId)}
+                />
+              </div>
+            )}
           </div>
         </div>
 
         {/* ── 04 · la salida ── */}
         <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7" style={rowStyle}>
-          <Gutter n="04" title="Qué sale" />
+          <Gutter n="03" title="Qué sale" />
           <div className="flex gap-11 flex-wrap items-start">
             <Options
               label="Formatos" options={AR_OPTIONS} values={aspectRatios}

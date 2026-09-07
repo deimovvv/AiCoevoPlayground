@@ -39,7 +39,7 @@ interface NavItem {
  */
 const WORLD_NAV: NavItem[] = [
     { label: "Inicio", href: "/dashboard", exact: true, icon: <Home size={18} />, title: "Inicio — pedí algo nuevo y mirá qué está pendiente", tour: "nav-inicio" },
-    { label: "Trabajo", href: "/dashboard/trabajo", exact: true, icon: <ListTodo size={18} />, title: "Trabajo — pedidos y piezas: qué está en curso, qué espera aprobación y qué costó", tour: "nav-campanas" },
+    { label: "Campañas", href: "/dashboard/campanas", exact: true, icon: <ListTodo size={18} />, title: "Campañas — qué está en curso, qué espera aprobación y qué costó", tour: "nav-campanas" },
     { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={18} />, title: "Marcas — gestioná tus marcas y su brand kit" },
 ];
 
@@ -77,7 +77,7 @@ export function Sidebar() {
     const settingsRef = useRef<HTMLDivElement>(null);
     // Sidebar colapsable — icon-only (60px) ↔ con labels (200px). Persistido.
     const [expanded, setExpanded] = useState(() => localStorage.getItem("sidebarExpanded") === "1");
-    // Cuánto espera una acción nuestra. Sin esto, un pedido del cliente entraba a Trabajo
+    // Cuánto espera una acción nuestra. Sin esto, un pedido del cliente entraba a Campañas
     // y no había ninguna señal de que había llegado — reportado por el usuario.
     const [inbox, setInbox] = useState(0);
     const toggleExpanded = () => setExpanded((v) => { const nv = !v; localStorage.setItem("sidebarExpanded", nv ? "1" : "0"); return nv; });
@@ -178,7 +178,7 @@ export function Sidebar() {
                 <>
                     <nav className={cn("flex flex-col gap-1", expanded ? "items-stretch" : "items-center")}>
                         {WORLD_NAV.map((item) => {
-                            const badge = item.href === "/dashboard/trabajo" ? inbox : 0;
+                            const badge = item.href === "/dashboard/campanas" ? inbox : 0;
                             return (
                                 <Link key={item.label} to={item.href} title={item.title} data-tour={item.tour} className={itemCls(isActive(item))}>
                                     <span className="relative shrink-0 flex items-center justify-center w-5">

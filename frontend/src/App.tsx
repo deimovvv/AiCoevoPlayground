@@ -1,6 +1,6 @@
 import { Component } from "react";
 import type { ReactNode, ErrorInfo } from "react";
-import { Routes, Route } from "react-router";
+import { Routes, Route, Navigate} from "react-router";
 import { Home } from "./pages/Home";
 import { AppLayout } from "./components/layout/AppLayout";
 import { Dashboard } from "./pages/Dashboard";
@@ -10,7 +10,6 @@ import PipelineConfigPage from "./pages/PipelineConfigPage";
 import { GeneratePage } from "./pages/GeneratePage";
 import { ToolRunPage } from "./pages/ToolRunPage";
 import { DashboardHome } from "./pages/DashboardHome";
-import { CampaignsPage } from "./pages/CampaignsPage";
 import { NewCampaignPage } from "./pages/NewCampaignPage";
 import { CampaignDetailPage } from "./pages/CampaignDetailPage";
 import { ReviewPage } from "./pages/ReviewPage";
@@ -69,7 +68,10 @@ function App() {
       >
         <Route index element={<DashboardHome />} />
         <Route path="chat" element={<ChatPage />} />
-        <Route path="trabajo" element={<WorkPage />} />
+        {/* Campañas: el tablero por estado. "trabajo" queda como redirect —
+            era la ruta vieja y hay links guardados apuntando ahí. */}
+        <Route path="campanas" element={<WorkPage />} />
+        <Route path="trabajo" element={<Navigate to="/dashboard/campanas" replace />} />
         <Route path="content" element={<ContentPage />} />
         <Route path="brand" element={<BrandSettings />} />
         <Route path="integrations" element={<IntegrationsPage />} />
@@ -79,7 +81,7 @@ function App() {
         <Route path="brands" element={<Dashboard />} />
         <Route path="brands/:brandId" element={<BrandSettings />} />
         <Route path="brands/:brandId/generate" element={<GenerationPipeline />} />
-        <Route path="campaigns" element={<CampaignsPage />} />
+        <Route path="campaigns" element={<Navigate to="/dashboard/campanas" replace />} />
         <Route path="campaigns/new" element={<NewCampaignPage />} />
         <Route path="campaigns/:campaignId" element={<CampaignDetailPage />} />
         <Route path="generate" element={<GeneratePage />} />
