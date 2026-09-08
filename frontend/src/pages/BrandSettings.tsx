@@ -105,35 +105,27 @@ function deriveAssetName(filename: string): string {
     .slice(0, 60);
 }
 
-// Píldoras de navegación — saltan a cada sección de assets (ref: Campaign Settings).
-const BRAND_NAV: Array<{ id: string; label: string; group?: boolean }> = [
-  // `group: true` mete un separador ANTES de esa píldora. Doce ítems sueltos se leen como
-  // doce cosas que entender; agrupados por paso se leen como cuatro. Nada se oculta —
-  // solo se agrupa. Reportado: "la sección de marcas quedó llena de información".
-  { id: "sec-brief", label: "Brief" },
-  { id: "sec-brand", label: "Marca" },
-  { id: "sec-learning", label: "Aprendizaje" },
-  { id: "sec-products", label: "Productos", group: true },
-  { id: "sec-clothing", label: "Prendas" },
-  { id: "sec-avatars", label: "Avatares" },
-  { id: "sec-poses", label: "Poses" },
-  { id: "sec-backgrounds", label: "Fondos" },
-  { id: "sec-logos", label: "Logos" },
-  { id: "sec-moodboard", label: "Moodboard" },
-  { id: "sec-lookfeel", label: "Look & Feel" },
-  { id: "sec-voices", label: "Voces" },
-  { id: "sec-export", label: "Compartir", group: true },
-  { id: "sec-access", label: "Accesos" },
+// Pestañas de verdad: cada una muestra SOLO lo suyo.
+//
+// Antes eran 14 píldoras que hacían scrollIntoView sobre una página que cargaba las
+// 14 secciones a la vez. Parecían pestañas y no filtraban nada: tocabas "Productos"
+// y seguías viendo el textarea de Brand Knowledge, con toda la página abajo.
+// Reportado: "toda esta sección que queda gigante no se entiende nada".
+//
+// Cuatro pestañas siguiendo el flujo real: qué le contás a la marca → qué entendió →
+// con qué trabaja → qué sale hacia afuera.
+type TabId = "input" | "sabe" | "assets" | "compartir";
+
+const BRAND_TABS: Array<{ id: TabId; label: string; hint: string }> = [
+  { id: "input", label: "Lo que le contás", hint: "Brand book, PDFs, links — el material crudo" },
+  { id: "sabe", label: "Lo que entendió", hint: "Brand DNA, negocio, dirección de arte" },
+  { id: "assets", label: "Con qué trabaja", hint: "Productos, prendas, modelos, fondos" },
+  { id: "compartir", label: "Compartir", hint: "El identity y el acceso del cliente" },
 ];
 
 export function BrandSettings() {
   const { activeBrand } = useBrand();
-  const [activeSection, setActiveSection] = useState("sec-products");
-
-  const scrollToSection = (id: string) => {
-    setActiveSection(id);
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  const [tab, setTab] = useState<TabId>("assets");
 
   if (!activeBrand) {
     return (
@@ -153,68 +145,72 @@ export function BrandSettings() {
         </p>
       </div>
 
-      {/* Píldoras de navegación — sticky, saltan a cada sección. */}
-      <div className="sticky top-0 z-30 -mx-1 px-1 py-2 bg-[var(--color-canvas)]/85 backdrop-blur-md border-b border-edge">
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
-          {BRAND_NAV.map((s) => (
-            <span key={s.id} className="contents">
-              {s.group && <span className="shrink-0 w-px h-4 self-center bg-edge mx-1.5" aria-hidden="true" />}
-              <button
-                onClick={() => scrollToSection(s.id)}
-                className={cn(
-                  "shrink-0 px-3 py-1.5 text-[12px] font-medium rounded-full transition-colors cursor-pointer",
-                  activeSection === s.id
-                    ? "bg-[var(--color-action)] text-[var(--color-action-fg)]"
-                    : "bg-surface-2 text-fg-muted hover:text-fg hover:bg-surface-3",
-                )}
-              >
-                {s.label}
-              </button>
-            </span>
+      {/* Pestañas — cada una muestra solo lo suyo */}
+      <div className="sticky top-0 z-30 -mx-1 px-1 pt-2 bg-[var(--color-canvas)]/85 backdrop-blur-md border-b border-edge">
+        <div className="flex gap-1 overflow-x-auto no-scrollbar">
+          {BRAND_TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              title={t.hint}
+              className={cn(
+                "shrink-0 px-3.5 pb-2.5 pt-1 text-[13px] font-medium transition-colors cursor-pointer border-b-2 -mb-px",
+                tab === t.id
+                  ? "text-fg border-[var(--color-action)]"
+                  : "text-fg-muted border-transparent hover:text-fg",
+              )}
+            >
+              {t.label}
+            </button>
           ))}
         </div>
       </div>
 
-      {/* Brand Health — readiness at a glance */}
+      <p className="text-[12px] text-fg-faint -mt-4">
+        {BRAND_TABS.find((t) => t.id === tab)?.hint}
+      </p>
+
+      {/* Brand Health — el estado de la marca, siempre visible */}
       <BrandHealthCard />
 
-      {/* ① INPUT — vos cargás info de marca */}
-      <div id="sec-brief" className="scroll-mt-20">
-        <SectionHeader number="①" title="Input" subtitle="Alimentá Coevo con info de marca. Mínimo 1 doc, después extraés todo con un click." />
+      {tab === "input" && (
         <GuidanceCard />
-      </div>
+      )}
 
-      {/* ② AUTO — extraído por IA, y lo aprendido trabajando.
-           Las dos cosas escriben en el MISMO lugar (el Design System de la marca): una sale
-           del brand book, la otra de lo que devolvió el cliente. Por eso viven juntas y no
-           como pasos separados. */}
-      <div id="sec-brand" className="scroll-mt-20">
-        <SectionHeader number="②" title="Lo que la marca sabe" subtitle="Brand DNA + Negocio + Dirección de arte. Sale del input de arriba con un click, y de trabajar con el cliente." />
-        <BrandDNACard />
-        <BusinessCard />
-        <DesignSystemCard />
-        <div id="sec-learning" className="scroll-mt-20 mt-6">
+      {tab === "sabe" && (
+        <div className="space-y-6">
+          <BrandDNACard />
+          <BusinessCard />
+          <DesignSystemCard />
           <BrandLearningSection />
         </div>
-      </div>
+      )}
 
-      {/* ③ ASSETS — archivos que se usan en cada generación */}
-      <SectionHeader number="③" title="Assets" subtitle="Archivos que las tools usan en cada corrida. Subí lo que tengas." />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div id="sec-products" className="scroll-mt-20"><ProductsCard /></div>
-        <div id="sec-avatars" className="scroll-mt-20"><AvatarsCard /></div>
-        <div id="sec-logos" className="scroll-mt-20"><LogoCard /></div>
-        <div id="sec-moodboard" className="scroll-mt-20"><MoodboardsCard /></div>
-        <div id="sec-lookfeel" className="scroll-mt-20"><LookAndFeelCard /></div>
-        <div id="sec-backgrounds" className="scroll-mt-20"><BackgroundsCard /></div>
-        <div id="sec-voices" className="scroll-mt-20"><VoicesCard /></div>
-        <div id="sec-clothing" className="scroll-mt-20"><ClothingCard /></div>
-        <ClothingCard accessoryMode />
-        <div id="sec-poses" className="scroll-mt-20"><PosesCard /></div>
-      </div>
+      {tab === "assets" && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ProductsCard />
+          <ClothingCard />
+          <ClothingCard accessoryMode />
+          <AvatarsCard />
+          <PosesCard />
+          <BackgroundsCard />
+          <LogoCard />
+          <MoodboardsCard />
+          <LookAndFeelCard />
+          <VoicesCard />
+        </div>
+      )}
 
-      {/* ④ EXTRAS — opcionales, colapsados */}
-      <SectionHeader number="④" title="Extras" subtitle="Enriquecimiento opcional. La marca funciona sin esto." collapsible defaultCollapsed>
+      {tab === "compartir" && (
+        <div className="space-y-6">
+          <BrandIdentityExportCard />
+          <BrandAccessSection />
+        </div>
+      )}
+
+      {/* Extras — opcionales, y solo donde tienen sentido */}
+      {tab === "sabe" && (
+      <SectionHeader title="Extras" subtitle="Enriquecimiento opcional. La marca funciona sin esto." collapsible defaultCollapsed>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-3">
           <CustomerReviewsCard />
           <CompetitorsCard />
@@ -222,15 +218,7 @@ export function BrandSettings() {
           <PromptsCard />
         </div>
       </SectionHeader>
-
-      {/* ⑤ COMPARTIR — lo que sale de acá hacia afuera: el identity y el acceso al portal */}
-      <div id="sec-export" className="scroll-mt-20">
-        <SectionHeader number="⑤" title="Compartir" subtitle="El identity para mandarle al cliente, y quién entra a su portal." />
-        <BrandIdentityExportCard />
-        <div id="sec-access" className="scroll-mt-20 mt-6">
-          <BrandAccessSection />
-        </div>
-      </div>
+      )}
     </div>
   );
 }

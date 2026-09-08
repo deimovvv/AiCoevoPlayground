@@ -26,7 +26,8 @@ export function SectionHeader({
   defaultCollapsed = false,
   children,
 }: {
-  number: string;
+  /** Opcional: con pestañas ya no hay una secuencia numerada que respetar. */
+  number?: string;
   title: string;
   subtitle?: string;
   collapsible?: boolean;
@@ -44,7 +45,7 @@ export function SectionHeader({
           collapsible && "cursor-pointer hover:opacity-80 transition-opacity"
         )}
       >
-        <span className="text-[20px] font-bold text-[var(--color-action-strong)] tabular-nums">{number}</span>
+        {number && <span className="text-[20px] font-bold text-[var(--color-action-strong)] tabular-nums">{number}</span>}
         <div className="flex-1 text-left">
           <h2 className="text-[16px] font-semibold text-fg tracking-tight">{title}</h2>
           {subtitle && <p className="text-[12px] text-fg-faint mt-0.5">{subtitle}</p>}
