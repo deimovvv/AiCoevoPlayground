@@ -7,6 +7,7 @@ Thin routing layer — all logic lives in services/.
 import os
 import io
 import json
+import re
 import uuid
 import asyncio
 import tempfile
@@ -685,6 +686,43 @@ class PlanRequest(BaseModel):
     brief: str = ""
     # Lo que el usuario ya tocó a mano. Se le pasa al modelo como contexto.
     hints: Optional[dict] = None
+
+
+@app.post("/api/campaigns/brief-from-file")
+async def brief_from_file(file: UploadFile = File(...)):
+    """Extrae el texto de un brief adjunto (PDF o texto plano).
+
+    El brief de campaña casi siempre llega como PDF del cliente. Antes había que
+    leerlo y transcribirlo a mano al campo de texto; ahora se adjunta y el
+    intérprete trabaja sobre eso.
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Archivo sin nombre")
+
+    name = file.filename.lower()
+    content = await file.read()
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="El archivo supera los 20MB")
+
+    if name.endswith(".pdf"):
+        from PyPDF2 import PdfReader
+        try:
+            reader = PdfReader(io.BytesIO(content))
+            text = "\n\n".join(t.strip() for t in (pg.extract_text() for pg in reader.pages) if t)
+        except Exception as e:
+            raise HTTPException(status_code=422, detail=f"No se pudo leer el PDF: {str(e)[:160]}")
+    elif name.endswith((".txt", ".md")):
+        text = content.decode("utf-8", errors="replace")
+    else:
+        raise HTTPException(status_code=400, detail="Formato no soportado — subí un PDF, .txt o .md")
+
+    # Los PDFs traen caracteres de control y espaciado roto.
+    text = "".join(c for c in text if c.isprintable() or c in "\n\t ").strip()
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    if not text:
+        raise HTTPException(status_code=422, detail="El archivo no tiene texto legible")
+
+    return {"filename": file.filename, "text": text[:40_000], "chars": len(text)}
 
 
 @app.post("/api/campaigns/plan")

@@ -28,6 +28,7 @@ import {
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl,
   moodboardImageUrl, lookAndFeelImageUrl, poseImageUrl,
   planCampaign, type CampaignPlan,
+  briefFromFile,
 } from "../lib/api";
 import { imagesUsd, formatUsd } from "../lib/pricing";
 
@@ -181,6 +182,11 @@ export function NewCampaignPage() {
   /** Campos que tocó el usuario a mano: la interpretación no los pisa. */
   const touched = useRef<Set<string>>(new Set());
   const [showPickers, setShowPickers] = useState(false);
+  // El brief casi siempre llega como PDF del cliente. Antes había que leerlo y
+  // transcribirlo a mano: "Adjuntar algo" era texto decorativo, no hacía nada.
+  const [attached, setAttached] = useState<{ name: string; chars: number } | null>(null);
+  const [attachErr, setAttachErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [avatarId, setAvatarId] = useState<string | null>(null);
   const [productIds, setProductIds] = useState<string[]>([]);
   const [clothingIds, setClothingIds] = useState<string[]>([]);
@@ -259,6 +265,19 @@ export function NewCampaignPage() {
     return out;
   }, [b, clothingIds, productIds, avatarId, backgroundId, moodboardId, lookFeelId, poseId]);
 
+  const handleAttach = async (f: File | null | undefined) => {
+    if (!f) return;
+    setAttachErr(null);
+    try {
+      const r = await briefFromFile(f);
+      // Se suma a lo que ya escribiste, no lo pisa.
+      setBrief((prev) => (prev.trim() ? `${prev.trim()}\n\n${r.text}` : r.text));
+      setAttached({ name: r.filename, chars: r.chars });
+    } catch (e) {
+      setAttachErr(e instanceof Error ? e.message : "No se pudo leer el archivo");
+    }
+  };
+
   const mark = <T,>(key: string, setter: (v: T) => void) => (v: T) => {
     touched.current.add(key);
     setter(v);
@@ -312,22 +331,38 @@ export function NewCampaignPage() {
 
         {/* ── 01 · el brief ── */}
         <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7 mt-7" style={rowStyle}>
-          <Gutter n="01" title="Qué vamos a hacer" hint="Lo único obligatorio" />
+          <Gutter n="01" title="El brief" hint="Escribilo o adjuntá el PDF" />
           <div>
             <textarea
               autoFocus
               value={brief}
               onChange={(e) => setBrief(e.target.value)}
               rows={4}
-              placeholder="Cápsula de invierno para el drop del 15. Remeras A27 sobre modelo, fondo estudio, y un reel corto para el lanzamiento…"
+              placeholder="Escribí acá lo que hay que hacer — o adjuntá el brief del cliente y lo leemos nosotros."
               className="w-full bg-transparent outline-none resize-none max-w-[60ch]"
               style={{ fontFamily: SERIF, fontSize: 17, lineHeight: 1.62, color: C.ink }}
             />
-            <div className="flex items-center gap-3.5 mt-3">
-              <span className="inline-flex items-center gap-1.5 text-[12px] pb-[3px]" style={{ color: C.ink3, borderBottom: `1px solid ${C.hair}` }}>
-                <Paperclip size={11} /> Adjuntar algo
-              </span>
-              <span className="text-[11.5px]" style={{ color: C.ink3 }}>o dictalo</span>
+            <div className="flex items-center gap-3.5 mt-3 flex-wrap">
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".pdf,.txt,.md"
+                className="hidden"
+                onChange={(e) => { handleAttach(e.target.files?.[0]); e.target.value = ""; }}
+              />
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="inline-flex items-center gap-1.5 text-[12px] pb-[3px] cursor-pointer"
+                style={{ color: C.ink3, borderBottom: `1px solid ${C.hair}` }}
+              >
+                <Paperclip size={11} /> {attached ? "Adjuntar otro" : "Adjuntar el brief"}
+              </button>
+              {attached && (
+                <span className="text-[11.5px]" style={{ color: C.ink2 }}>
+                  {attached.name} · {attached.chars.toLocaleString("es-AR")} caracteres leídos
+                </span>
+              )}
+              {attachErr && <span className="text-[11.5px]" style={{ color: C.err }}>{attachErr}</span>}
               {reading && (
                 <span className="inline-flex items-center gap-1.5 text-[11.5px]" style={{ color: C.ink3 }}>
                   <Loader2 size={10} className="animate-spin" /> leyendo…
@@ -383,7 +418,7 @@ export function NewCampaignPage() {
         <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7" style={rowStyle}>
           <Gutter n="02" title="Con qué" hint="Del banco de la marca" />
           <div>
-            {chosen.length > 0 ? (
+            {showPickers ? null : chosen.length > 0 ? (
               <div className="flex flex-wrap gap-3">
                 {chosen.map((c) => (
                   <div key={`${c.kind}-${c.id}`} className="flex flex-col gap-1.5 w-[74px]">
@@ -413,11 +448,11 @@ export function NewCampaignPage() {
               className="mt-3 text-[11.5px] pb-[2px] cursor-pointer"
               style={{ color: C.ink3, borderBottom: `1px solid ${C.hair}` }}
             >
-              {showPickers ? "Listo" : chosen.length > 0 ? "Cambiar" : "Elegir a mano"}
+              {showPickers ? "← Volver al resumen" : chosen.length > 0 ? "Cambiar" : "Elegir a mano"}
             </button>
 
             {showPickers && (
-              <div className="flex gap-9 flex-wrap mt-5 pt-5" style={{ borderTop: `1px solid ${C.hair}` }}>
+              <div className="flex gap-9 flex-wrap mt-4">
                 <Picker
                   label="Prendas" hint={String((b.clothing || []).length)}
                   multi

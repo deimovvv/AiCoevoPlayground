@@ -1808,6 +1808,19 @@ export interface CampaignPlan {
 
 /** Lee un brief y devuelve el pedido armado: qué assets usar, en qué formatos y
  *  qué tomas generar. No crea la campaña ni genera nada — solo propone. */
+/** Extrae el texto de un brief adjunto (PDF, .txt o .md) para que el intérprete
+ *  trabaje sobre eso en vez de hacerte transcribirlo a mano. */
+export async function briefFromFile(file: File): Promise<{ filename: string; text: string; chars: number }> {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${API_BASE}/api/campaigns/brief-from-file`, { method: "POST", body: fd });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "No se pudo leer el archivo");
+    }
+    return res.json();
+}
+
 export async function planCampaign(
     brandId: string,
     brief: string,
