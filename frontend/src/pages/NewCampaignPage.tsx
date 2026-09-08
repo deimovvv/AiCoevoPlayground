@@ -200,9 +200,6 @@ export function NewCampaignPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!activeBrand) {
-    return <div className="p-10 text-center text-fg-muted text-[14px]">Elegí una marca en el switcher para crear una campaña.</div>;
-  }
 
   const b = activeBrand;
   const toggle = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (id: string) =>
@@ -282,6 +279,13 @@ export function NewCampaignPage() {
     touched.current.add(key);
     setter(v);
   };
+
+  // OJO: este return va DESPUÉS de todos los hooks. Arriba de ellos, React saltea
+  // useEffect/useMemo/useRef cuando no hay marca, la cantidad de hooks cambia entre
+  // renders y la pantalla queda en blanco. Es la regla que avisa CLAUDE.md.
+  if (!activeBrand || !b) {
+    return <div className="p-10 text-center text-fg-muted text-[14px]">Elegí una marca en el switcher para crear una campaña.</div>;
+  }
 
   const submit = async () => {
     setSaving(true); setError(null);
