@@ -3587,6 +3587,11 @@ function ConfigPanel({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   // Qué shot tiene abierto el picker de poses guardadas (librería de la marca).
   const [posePickerShot, setPosePickerShot] = useState<string | null>(null);
+  // Elegir una pose de la librería baja un PNG de ~3 MB y lo pasa a base64 — tarda.
+  // Sin estos dos, el picker se cerraba al instante y no pasaba nada visible: el
+  // usuario creía que no se había seleccionado. Reportado.
+  const [poseLoadingShot, setPoseLoadingShot] = useState<string | null>(null);
+  const [poseError, setPoseError] = useState<string | null>(null);
   // Librería de poses colapsable — el grid de thumbs ocupa mucho; default cerrado. Pedido explícito.
   const [poseLibOpen, setPoseLibOpen] = useState(false);
 
@@ -4551,9 +4556,10 @@ function ConfigPanel({
                               <button
                                 type="button"
                                 onClick={() => setPosePickerShot(posePickerShot === id ? null : id)}
-                                className="flex items-center h-6 px-1.5 rounded-[var(--radius-sm)] border border-dashed border-edge-strong bg-surface-1 text-[10px] text-fg-muted hover:text-fg cursor-pointer"
-                                title="Elegir de la librería de poses guardadas"
-                              >📚</button>
+                                disabled={poseLoadingShot === id}
+                                className="flex items-center h-6 px-1.5 rounded-[var(--radius-sm)] border border-dashed border-edge-strong bg-surface-1 text-[10px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+                                title={poseLoadingShot === id ? "Cargando pose…" : "Elegir de la librería de poses guardadas"}
+                              >{poseLoadingShot === id ? "⏳" : "📚"}</button>
                               {posePickerShot === id && (
                                 <div className="absolute z-20 top-7 right-0 w-52 max-h-56 overflow-auto p-1.5 rounded-[var(--radius-md)] border border-edge bg-surface-1 shadow-lg grid grid-cols-3 gap-1.5">
                                   {(activeBrand?.poses || []).map((ps) => (
@@ -4561,12 +4567,26 @@ function ConfigPanel({
                                       key={ps.id}
                                       type="button"
                                       onClick={async () => {
+                                        setPoseError(null);
+                                        setPoseLoadingShot(id);
                                         try {
-                                          const blob = await fetch(poseImageUrl(ps.imageUrl)).then((r) => r.blob());
-                                          const dataUrl = await new Promise<string>((resolve) => { const rd = new FileReader(); rd.onload = () => resolve(rd.result as string); rd.readAsDataURL(blob); });
+                                          const res = await fetch(poseImageUrl(ps.imageUrl));
+                                          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                                          const blob = await res.blob();
+                                          const dataUrl = await new Promise<string>((resolve, reject) => {
+                                            const rd = new FileReader();
+                                            rd.onload = () => resolve(rd.result as string);
+                                            rd.onerror = () => reject(new Error("no se pudo leer la imagen"));
+                                            rd.readAsDataURL(blob);
+                                          });
                                           setConfig((p) => ({ ...p, ecomShotPoses: { ...p.ecomShotPoses, [id]: dataUrl } }));
-                                        } catch (err) { console.error(err); }
-                                        setPosePickerShot(null);
+                                          setPosePickerShot(null); // cerrar SOLO si se guardó
+                                        } catch (err) {
+                                          console.error(err);
+                                          setPoseError(`No se pudo cargar "${ps.name}". Reintentá.`);
+                                        } finally {
+                                          setPoseLoadingShot(null);
+                                        }
                                       }}
                                       className="aspect-[3/4] rounded-[var(--radius-sm)] overflow-hidden border border-edge hover:border-[var(--color-brand)] cursor-pointer"
                                       title={ps.name}
@@ -4593,6 +4613,9 @@ function ConfigPanel({
             </p>
             {/* Aviso: "Pose custom" sin pose ref adjunta = hace un frente por defecto (clon de Frente).
                 Su razón de ser es seguir la pose que le pasás, así que sin pose no sirve. */}
+            {poseError && (
+              <p className="text-[10px] text-[var(--color-danger,#c45830)]">{poseError}</p>
+            )}
             {config.ecomShots.includes("model_custom") && !config.ecomShotPoses["model_custom"] && (
               <div className="flex items-start gap-1.5 px-2.5 py-2 rounded-[var(--radius-sm)] border border-[var(--color-warning-muted,#7a5b1e)] bg-[var(--color-warning-subtle,#2a2113)] text-[10px] text-[var(--color-warning,#e0b050)] leading-snug">
                 <AlertCircle size={12} className="shrink-0 mt-0.5" />
