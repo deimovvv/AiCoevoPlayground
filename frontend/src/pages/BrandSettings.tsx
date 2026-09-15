@@ -117,9 +117,9 @@ function deriveAssetName(filename: string): string {
 type TabId = "input" | "sabe" | "assets" | "compartir";
 
 const BRAND_TABS: Array<{ id: TabId; label: string; hint: string }> = [
-  { id: "input", label: "Lo que le contás", hint: "Brand book, PDFs, links — el material crudo" },
-  { id: "sabe", label: "Lo que entendió", hint: "Brand DNA, negocio, dirección de arte" },
-  { id: "assets", label: "Con qué trabaja", hint: "Productos, prendas, modelos, fondos" },
+  { id: "input", label: "Material", hint: "Brand book, PDFs, links — el material crudo" },
+  { id: "sabe", label: "Brand DNA", hint: "Identidad, negocio, dirección de arte" },
+  { id: "assets", label: "Assets", hint: "Productos, prendas, modelos, fondos" },
   { id: "compartir", label: "Compartir", hint: "El identity y el acceso del cliente" },
 ];
 
@@ -146,7 +146,7 @@ export function BrandSettings() {
       </div>
 
       {/* Pestañas — cada una muestra solo lo suyo */}
-      <div className="sticky top-0 z-30 -mx-1 px-1 pt-2 bg-[var(--color-canvas)]/85 backdrop-blur-md border-b border-edge">
+      <div className="sticky top-0 z-30 -mx-1 px-1 pt-2 bg-[var(--color-surface-0)]/80 backdrop-blur-md border-b border-edge">
         <div className="flex gap-1 overflow-x-auto no-scrollbar">
           {BRAND_TABS.map((t) => (
             <button
