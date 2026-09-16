@@ -56,6 +56,10 @@ const STUDIO_NAV: NavItem[] = [
     { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} />, title: "Generar — tools de generación de contenido" },
     { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} />, title: "Contenido — biblioteca de generaciones" },
     { label: "Lab", href: "/dashboard/lab", exact: true, icon: <FlaskConical size={18} />, title: "Lab — sandbox SIN marca (Nano Banana + Kling/Seedance directo)" },
+    // Campañas también acá: adentro del Studio, usando una tool, no había ninguna
+    // forma de volver a una campaña sin salir del nivel entero. Reportado:
+    // "desde la tool, ¿cómo encuentro campaña?".
+    { label: "Campañas", href: "/dashboard/campanas", exact: true, icon: <ListTodo size={18} />, title: "Campañas — volver al trabajo en curso" },
 ];
 
 /** Rutas que viven adentro del Studio — definen en qué nivel está parado el sidebar. */
@@ -68,6 +72,14 @@ const SETTINGS_NAV: NavItem[] = [
     { label: "Ajustes", href: "/dashboard/settings", exact: true, icon: <Settings size={15} /> },
 ];
 
+// Rutas con panel propio a la izquierda: acá el sidebar se colapsa solo.
+const WORKSURFACE_ROUTES = [
+    "/dashboard/campaigns/new",
+    "/dashboard/lab",
+    "/dashboard/ecommerce-batch",
+    "/dashboard/generate/",
+];
+
 export function Sidebar() {
     const location = useLocation();
     const navigate = useNavigate();
@@ -77,6 +89,13 @@ export function Sidebar() {
     const settingsRef = useRef<HTMLDivElement>(null);
     // Sidebar colapsable — icon-only (60px) ↔ con labels (200px). Persistido.
     const [expanded, setExpanded] = useState(() => localStorage.getItem("sidebarExpanded") === "1");
+
+    // En las pantallas que ya tienen su propio panel de trabajo a la izquierda
+    // (crear campaña, Lab, Ecommerce Batch), dos paneles apilados son ruido: el
+    // sidebar se achica solo. No pisa tu preferencia — al salir vuelve a como
+    // lo tenías.
+    const worksurface = WORKSURFACE_ROUTES.some((r) => location.pathname.startsWith(r));
+    const showExpanded = expanded && !worksurface;
     // Cuánto espera una acción nuestra. Sin esto, un pedido del cliente entraba a Campañas
     // y no había ninguna señal de que había llegado — reportado por el usuario.
     const [inbox, setInbox] = useState(0);
@@ -118,24 +137,24 @@ export function Sidebar() {
 
     const itemCls = (active: boolean) => cn(
         "flex items-center rounded-[var(--radius-md)] transition-colors h-10",
-        expanded ? "gap-3 px-3 justify-start w-full" : "w-10 justify-center",
+        showExpanded ? "gap-3 px-3 justify-start w-full" : "w-10 justify-center",
         active ? "text-fg bg-[var(--color-surface-2)]" : "text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)]",
     );
 
     return (
         <aside className={cn(
             "h-full border-r border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-xl flex flex-col py-3 shrink-0 z-30 transition-[width] duration-200",
-            expanded ? "w-[200px] px-2 items-stretch" : "w-[60px] items-center",
+            showExpanded ? "w-[200px] px-2 items-stretch" : "w-[60px] items-center",
         )}>
             {/* Top: home + toggle colapsar/expandir */}
-            <div className={cn("flex items-center mb-3", expanded ? "justify-between" : "flex-col gap-1")}>
+            <div className={cn("flex items-center mb-3", showExpanded ? "justify-between" : "flex-col gap-1")}>
                 <Link
                     to="/dashboard/brands"
-                    className={cn("flex items-center gap-2 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-1)] transition-colors group", expanded ? "px-2 py-1.5 flex-1" : "w-9 h-9 justify-center")}
+                    className={cn("flex items-center gap-2 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-1)] transition-colors group", showExpanded ? "px-2 py-1.5 flex-1" : "w-9 h-9 justify-center")}
                     title={inStudio ? "Coevo Studio" : "Coevo World"}
                 >
                     <span className="w-2 h-2 rounded-full bg-[var(--color-action)] opacity-70 group-hover:opacity-100 transition-opacity shrink-0" />
-                    {expanded && (
+                    {showExpanded && (
                         <span className="text-[13px] font-semibold text-fg whitespace-nowrap">
                             Coevo <span className="text-fg-muted font-normal">{inStudio ? "Studio" : "World"}</span>
                         </span>
@@ -143,10 +162,10 @@ export function Sidebar() {
                 </Link>
                 <button
                     onClick={toggleExpanded}
-                    title={expanded ? "Colapsar sidebar" : "Expandir sidebar"}
+                    title={showExpanded ? "Colapsar sidebar" : "Expandir sidebar"}
                     className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)] transition-colors cursor-pointer shrink-0"
                 >
-                    <PanelLeft size={16} className={cn("transition-transform", expanded ? "" : "rotate-180")} />
+                    <PanelLeft size={16} className={cn("transition-transform", showExpanded ? "" : "rotate-180")} />
                 </button>
             </div>
 
@@ -159,36 +178,36 @@ export function Sidebar() {
                         className={cn(
                             "flex items-center rounded-[var(--radius-md)] transition-colors h-9 mb-2 cursor-pointer",
                             "text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)]",
-                            expanded ? "gap-2 px-3 justify-start w-full" : "w-10 justify-center",
+                            showExpanded ? "gap-2 px-3 justify-start w-full" : "w-10 justify-center",
                         )}
                     >
                         <ArrowLeft size={15} className="shrink-0" />
-                        {expanded && <span className="text-[12px] font-medium">Coevo World</span>}
+                        {showExpanded && <span className="text-[12px] font-medium">Coevo World</span>}
                     </button>
-                    <nav className={cn("flex flex-col gap-1", expanded ? "items-stretch" : "items-center")}>
+                    <nav className={cn("flex flex-col gap-1", showExpanded ? "items-stretch" : "items-center")}>
                         {STUDIO_NAV.map((item) => (
                             <Link key={item.label} to={item.href} title={item.title} data-tour={item.tour} className={itemCls(isActive(item))}>
                                 <span className="shrink-0 flex items-center justify-center w-5">{item.icon}</span>
-                                {expanded && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
+                                {showExpanded && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
                             </Link>
                         ))}
                     </nav>
                 </>
             ) : (
                 <>
-                    <nav className={cn("flex flex-col gap-1", expanded ? "items-stretch" : "items-center")}>
+                    <nav className={cn("flex flex-col gap-1", showExpanded ? "items-stretch" : "items-center")}>
                         {WORLD_NAV.map((item) => {
                             const badge = item.href === "/dashboard/campanas" ? inbox : 0;
                             return (
                                 <Link key={item.label} to={item.href} title={item.title} data-tour={item.tour} className={itemCls(isActive(item))}>
                                     <span className="relative shrink-0 flex items-center justify-center w-5">
                                         {item.icon}
-                                        {badge > 0 && !expanded && (
+                                        {badge > 0 && !showExpanded && (
                                             <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-[var(--color-action)]" />
                                         )}
                                     </span>
-                                    {expanded && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
-                                    {expanded && badge > 0 && (
+                                    {showExpanded && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
+                                    {showExpanded && badge > 0 && (
                                         <span className="ml-auto text-[10px] font-semibold tabular-nums bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-full px-1.5 py-[1px]">
                                             {badge}
                                         </span>
@@ -198,7 +217,7 @@ export function Sidebar() {
                         })}
                     </nav>
 
-                    <div className={cn("h-px bg-edge my-3", expanded ? "w-full" : "w-6 mx-auto")} />
+                    <div className={cn("h-px bg-edge my-3", showExpanded ? "w-full" : "w-6 mx-auto")} />
 
                     {/* Puerta al Studio — acentuada porque abre otro nivel, no otra página */}
                     <Link
@@ -208,11 +227,11 @@ export function Sidebar() {
                         className={cn(
                             "flex items-center rounded-[var(--radius-md)] transition-colors h-10",
                             "border border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg hover:bg-[var(--color-action)] hover:text-[var(--color-action-fg)]",
-                            expanded ? "gap-3 px-3 justify-start w-full" : "w-10 justify-center",
+                            showExpanded ? "gap-3 px-3 justify-start w-full" : "w-10 justify-center",
                         )}
                     >
                         <span className="shrink-0 flex items-center justify-center w-5">{STUDIO_ENTRY.icon}</span>
-                        {expanded && (
+                        {showExpanded && (
                             <>
                                 <span className="text-[13px] font-medium whitespace-nowrap">{STUDIO_ENTRY.label}</span>
                                 <ChevronRight size={13} className="ml-auto opacity-60 shrink-0" />
@@ -230,11 +249,11 @@ export function Sidebar() {
                 para cambiar de marca había que abandonar la pantalla en la que estabas.
                 Ahora despliega y cambia el contexto en el lugar, desde donde sea. */}
             <div data-tour="brand-chip" className="mb-2">
-                <BrandPicker collapsed={!expanded} />
+                <BrandPicker collapsed={!showExpanded} />
             </div>
 
             {/* Theme + Settings */}
-            <div className={cn("flex", expanded ? "items-center gap-1" : "flex-col items-center gap-1")}>
+            <div className={cn("flex", showExpanded ? "items-center gap-1" : "flex-col items-center gap-1")}>
             <button
                 onClick={toggleTheme}
                 className="w-9 h-9 flex items-center justify-center rounded-[var(--radius-md)] text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)] transition-colors cursor-pointer shrink-0"

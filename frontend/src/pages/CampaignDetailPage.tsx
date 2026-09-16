@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, Loader2, Trash2, Sparkles, Image as ImageIcon, AlertCircle, X, Download, Upload, RotateCcw, History } from "lucide-react";
+import { useParams, useNavigate, Link } from "react-router";
+import { ArrowLeft, Loader2, Trash2, Sparkles, Image as ImageIcon, AlertCircle, X, Download, Upload, RotateCcw, History, Wand2 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
   getCampaign, deleteCampaign, updateCampaign,
@@ -417,8 +417,17 @@ export function CampaignDetailPage() {
           >
             {generating ? <><Loader2 size={13} className="animate-spin" /> Generando {progress.done}/{progress.total}</> : <><Sparkles size={13} /> {pieces.length > 0 ? "Generar más" : "Generar piezas"}</>}
           </button>
-          {/* El generador de campaña hace imágenes sueltas. Para un reel, un catálogo o un
-              UGC hay que ir a la tool — el brief del pedido viaja con vos. */}
+          {/* El generador de campaña hace imágenes sueltas. Para un reel, un catálogo o
+              un UGC hay que ir a la tool. El link estaba sólo en este comentario: desde
+              una campaña no había NINGUNA forma de saltar a una tool. */}
+          <Link
+            to={`/dashboard/generate?campaign=${campaign.id}`}
+            title="Usar una tool (reel, UGC, catálogo) para esta campaña"
+            className="flex items-center gap-1.5 px-3.5 h-9 rounded-full border border-edge text-[12px] text-fg-secondary hover:text-fg cursor-pointer"
+          >
+            <Wand2 size={13} /> Usar una tool
+          </Link>
+
           <label
             title="Subir un video o una imagen hecha fuera de Coevo"
             className="flex items-center gap-1.5 px-3.5 h-9 rounded-full border border-edge text-[12px] text-fg-secondary hover:text-fg cursor-pointer"
