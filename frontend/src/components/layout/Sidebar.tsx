@@ -56,10 +56,6 @@ const STUDIO_NAV: NavItem[] = [
     { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} />, title: "Generar — tools de generación de contenido" },
     { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} />, title: "Contenido — biblioteca de generaciones" },
     { label: "Lab", href: "/dashboard/lab", exact: true, icon: <FlaskConical size={18} />, title: "Lab — sandbox SIN marca (Nano Banana + Kling/Seedance directo)" },
-    // Campañas también acá: adentro del Studio, usando una tool, no había ninguna
-    // forma de volver a una campaña sin salir del nivel entero. Reportado:
-    // "desde la tool, ¿cómo encuentro campaña?".
-    { label: "Campañas", href: "/dashboard/campanas", exact: true, icon: <ListTodo size={18} />, title: "Campañas — volver al trabajo en curso" },
 ];
 
 /** Rutas que viven adentro del Studio — definen en qué nivel está parado el sidebar. */

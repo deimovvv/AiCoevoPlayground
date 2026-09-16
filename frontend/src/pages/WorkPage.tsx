@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { Loader2, Search, Plus, AlertCircle, Folder, ChevronRight, ChevronDown, Sparkles, MessageSquare } from "lucide-react";
+import { Loader2, Search, Plus, AlertCircle, Folder, Sparkles, MessageSquare } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { fetchGenerations, updateGeneration, listCampaigns, listBrandNotes, resolveBrandNote, WORK_STATUS_LABEL, WORK_STATUS_NEEDS_ACTION } from "../lib/api";
 import type { Generation, WorkStatus, Campaign, PortalNote } from "../lib/api";
@@ -79,7 +79,6 @@ export function WorkPage() {
     // no dejar el recuadro roto en cada re-render.
     const [brokenThumbs, setBrokenThumbs] = useState<Record<string, true>>({});
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-    const [openCampaigns, setOpenCampaigns] = useState<Record<string, true>>({});
     // Notas del cliente: input para el próximo briefing, NO trabajo. No entran a la lista
     // de piezas a propósito — meterlas ahí sería tratar un comentario como una orden.
     const [notes, setNotes] = useState<PortalNote[]>([]);
@@ -345,7 +344,7 @@ export function WorkPage() {
                             <MessageSquare size={13} className="shrink-0 mt-0.5 text-fg-muted" />
                             <div className="min-w-0 flex-1">
                                 <p className="text-[13px] text-fg leading-relaxed">{n.text}</p>
-                                <p className="text-[10.5px] font-mono text-fg-faint mt-1">
+                                <p className="text-[12px] text-fg-muted mt-1">
                                     {n.by || "sin nombre"} · {daysAgo(n.createdAt)}
                                 </p>
                             </div>
@@ -375,69 +374,80 @@ export function WorkPage() {
                     ) : (
                         grouped.map((grp) => (
                             <section key={grp.key} className="mb-7">
-                                <p className="text-[10.5px] font-mono uppercase tracking-[.12em] text-fg-faint pb-2">
+                                <p className="text-[11px] uppercase tracking-[.1em] text-fg-muted pb-2.5">
                                     {grp.label} · {grp.items.length}
                                 </p>
                                 {grp.items.map((row) => {
                                     if (row.kind === "campaign") {
                                         const c = row.campaign;
-                                        const open = !!openCampaigns[c.id];
                                         return (
-                                            <div key={c.id} className="border-b border-edge-subtle">
-                                                <div className={cn(
-                                                    "flex items-center gap-3 px-3 py-3 rounded-[var(--radius-sm)]",
-                                                    grp.key === "action" && "bg-[rgba(228,171,27,.05)]",
-                                                )}>
-                                                    <button
-                                                        onClick={() => setOpenCampaigns((p) => {
-                                                            const n = { ...p };
-                                                            if (n[c.id]) delete n[c.id]; else n[c.id] = true;
-                                                            return n;
-                                                        })}
-                                                        disabled={row.children.length === 0}
-                                                        className="flex items-center gap-2 min-w-0 flex-1 text-left cursor-pointer disabled:cursor-default"
-                                                    >
-                                                        {row.children.length > 0
-                                                            ? (open ? <ChevronDown size={13} className="text-fg-faint shrink-0" /> : <ChevronRight size={13} className="text-fg-faint shrink-0" />)
-                                                            : <span className="w-[13px] shrink-0" />}
-                                                        <Folder size={14} className="text-fg-muted shrink-0" />
-                                                        <span className="min-w-0">
-                                                            <span className="text-[13px] font-medium truncate block">
-                                                                {c.name || "Campaña sin nombre"}
-                                                                <span className="text-fg-faint font-normal ml-1.5">{c.pieces?.length || row.children.length || 0}</span>
-                                                            </span>
-                                                            <span className="text-[10.5px] font-mono text-fg-faint block mt-0.5">
-                                                                {c.source === "portal"
-                                                                    ? `lo pidió el cliente${c.requestedBy ? ` (${c.requestedBy})` : ""}`
-                                                                    : "pedido"} · {daysAgo(c.createdAt)}
-                                                            </span>
-                                                        </span>
-                                                    </button>
-                                                    <span className="text-[11.5px] font-mono tabular-nums text-fg-secondary w-16 text-right shrink-0">
-                                                        {c.cost ? formatUsd(c.cost.usd) : "—"}
+                                            <div
+                                                key={c.id}
+                                                className={cn(
+                                                    "mb-2.5 rounded-[var(--radius-md)] border overflow-hidden transition-colors",
+                                                    grp.key === "action"
+                                                        ? "border-[rgba(228,171,27,.3)] bg-[rgba(228,171,27,.04)]"
+                                                        : "border-edge bg-surface-1 hover:border-edge-strong",
+                                                )}
+                                            >
+                                                <div className="flex items-center gap-3 p-3.5">
+                                                    <Folder size={15} className="text-fg-muted shrink-0" />
+                                                    <div className="min-w-0 flex-1">
+                                                        <Link
+                                                            to={`/dashboard/campaigns/${c.id}`}
+                                                            className="text-[14px] font-medium hover:underline block truncate"
+                                                        >
+                                                            {c.name || "Campaña sin nombre"}
+                                                        </Link>
+                                                        <div className="text-[12px] text-fg-muted mt-0.5">
+                                                            {c.pieces?.length || row.children.length || 0} piezas
+                                                            {" · "}
+                                                            {c.source === "portal"
+                                                                ? `lo pidió el cliente${c.requestedBy ? ` (${c.requestedBy})` : ""}`
+                                                                : "campaña"}
+                                                            {" · "}{daysAgo(c.createdAt)}
+                                                            {c.cost ? ` · ${formatUsd(c.cost.usd)}` : ""}
+                                                        </div>
+                                                    </div>
+                                                    <span className={cn("text-[11.5px] font-medium px-2.5 py-1 rounded-full shrink-0", PILL_CLS[row.status])}>
+                                                        {WORK_STATUS_LABEL[row.status]}
                                                     </span>
                                                     <Link
                                                         to={`/dashboard/campaigns/${c.id}`}
-                                                        title="Abrir el pedido y generar sus piezas"
-                                                        className="h-7 px-3 rounded-[var(--radius-sm)] border border-edge text-[11.5px] text-fg-secondary hover:text-fg hover:border-edge-strong flex items-center gap-1.5 shrink-0"
+                                                        title="Abrir la campaña y generar sus piezas"
+                                                        className="h-8 px-3.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-secondary hover:text-fg hover:border-edge-strong flex items-center gap-1.5 shrink-0"
                                                     >
-                                                        <Sparkles size={11} /> Generar
+                                                        <Sparkles size={12} /> Generar
                                                     </Link>
-                                                    <span className={cn("text-[11px] font-medium px-2.5 py-1 rounded-full shrink-0", PILL_CLS[row.status])}>
-                                                        {WORK_STATUS_LABEL[row.status]}
-                                                    </span>
                                                 </div>
-                                                {open && row.children.map((g) => (
-                                                    <div key={g.id} className="flex items-center gap-3 pl-12 pr-3 py-2 border-t border-edge-subtle">
-                                                        <span className="text-[12.5px] text-fg-secondary truncate flex-1">{g.title}</span>
-                                                        <span className="text-[11px] font-mono tabular-nums text-fg-faint w-16 text-right">
-                                                            {g.cost ? formatUsd(g.cost.usd) : "—"}
-                                                        </span>
+
+                                                {/* Las piezas, a la vista. Antes había que desplegar un acordeón
+                                                    para saber qué tenía adentro una campaña. */}
+                                                {row.children.length > 0 && (
+                                                    <div className="flex gap-1.5 px-3.5 pb-3.5 overflow-x-auto">
+                                                        {row.children.slice(0, 12).map((g) => (
+                                                            <Link
+                                                                key={g.id}
+                                                                to={`/dashboard/generate/${g.toolId}?gen=${g.id}`}
+                                                                title={g.title}
+                                                                className="w-14 h-14 shrink-0 rounded-[4px] overflow-hidden border border-edge bg-surface-2 hover:border-edge-strong"
+                                                            >
+                                                                {g.thumbnailUrl && (
+                                                                    <img src={g.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                                                                )}
+                                                            </Link>
+                                                        ))}
+                                                        {row.children.length > 12 && (
+                                                            <div className="w-14 h-14 shrink-0 rounded-[4px] border border-edge bg-surface-2 flex items-center justify-center text-[11px] text-fg-muted">
+                                                                +{row.children.length - 12}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                ))}
+                                                )}
                                             </div>
                                         );
                                     }
+
 
                                     const g = row.gen;
                                     const st = row.status;
@@ -445,8 +455,10 @@ export function WorkPage() {
                                         <div
                                             key={g.id}
                                             className={cn(
-                                                "flex items-center gap-4 px-3 py-3 border-b border-edge-subtle rounded-[var(--radius-sm)]",
-                                                grp.key === "action" && "bg-[rgba(228,171,27,.05)]",
+                                                "flex items-center gap-4 p-3 mb-2 rounded-[var(--radius-md)] border transition-colors",
+                                                grp.key === "action"
+                                                    ? "border-[rgba(228,171,27,.3)] bg-[rgba(228,171,27,.04)]"
+                                                    : "border-edge bg-surface-1 hover:border-edge-strong",
                                             )}
                                         >
                                             {g.thumbnailUrl && !brokenThumbs[g.id] ? (
@@ -454,17 +466,17 @@ export function WorkPage() {
                                                     src={g.thumbnailUrl.startsWith("http") ? g.thumbnailUrl : `http://127.0.0.1:8000${g.thumbnailUrl}`}
                                                     alt=""
                                                     onError={() => setBrokenThumbs((p) => ({ ...p, [g.id]: true }))}
-                                                    className="w-8 h-11 object-cover rounded-[3px] shrink-0 bg-surface-2"
+                                                    className="w-11 h-14 object-cover rounded-[4px] shrink-0 bg-surface-2"
                                                 />
                                             ) : (
                                                 <span
-                                                    className="w-8 h-11 rounded-[3px] shrink-0 border border-edge-subtle"
+                                                    className="w-11 h-14 rounded-[4px] shrink-0 border border-edge-subtle bg-surface-2"
                                                     title={g.thumbnailUrl ? "La miniatura expiró (fal.media)" : "Sin miniatura"}
                                                 />
                                             )}
                                             <div className="min-w-0 flex-1">
-                                                <p className="text-[13px] font-medium truncate">{g.title}</p>
-                                                <p className="text-[10.5px] font-mono text-fg-faint mt-0.5 truncate">
+                                                <p className="text-[14px] font-medium truncate">{g.title}</p>
+                                                <p className="text-[12px] text-fg-muted mt-0.5 truncate">
                                                     {allBrands && g.brandId ? `${brandName[g.brandId] || g.brandId} · ` : ""}
                                                     {g.toolId} · {daysAgo(g.createdAt)}
                                                 </p>
@@ -514,7 +526,7 @@ export function WorkPage() {
 
                 {/* Rail de costo */}
                 <aside className="lg:border-l lg:border-edge-subtle lg:pl-5">
-                    <p className="text-[10px] font-mono uppercase tracking-[.13em] text-fg-faint mb-3">
+                    <p className="text-[11px] uppercase tracking-[.1em] text-fg-muted mb-3">
                         Costo registrado
                     </p>
                     {spend.rows.length === 0 ? (
@@ -551,7 +563,7 @@ export function WorkPage() {
                         </div>
                     )}
 
-                    <p className="mt-4 text-[10.5px] font-mono text-fg-faint leading-relaxed">{PRICE_NOTE}</p>
+                    <p className="mt-4 text-[11.5px] text-fg-muted leading-relaxed">{PRICE_NOTE}</p>
                 </aside>
             </div>
         </div>
