@@ -1,22 +1,25 @@
 /**
  * NewCampaignPage — donde nace una campaña.
  * ────────────────────────────────────────────────────
- * Rehecha entera. La versión anterior era un formulario de configuración: cuatro
- * acordeones grises que decían "Elegir" (elegías un moodboard sin ver ningún moodboard),
- * y el nombre de la campaña pesaba lo mismo que la resolución.
+ * PANEL + LIENZO, no formulario.
  *
- * Ahora son cuatro filas en orden de importancia — qué necesitamos · cómo se ve esta vez ·
- * con qué · qué sale — con el rótulo en el margen izquierdo y el contenido a la derecha.
- * La jerarquía la hace la grilla, no un borde alrededor de cada cosa.
+ * Era un formulario con bloques numerados que te hacía scrollear hasta el final
+ * para encontrar el botón, y al crear te sacaba a otra pantalla. Reportado:
+ * "esta UI no le encuentro mucho sentido".
  *
- * PALETA: papel claro, sin cajas, líneas finas. Es un piloto deliberado — el resto de la
- * app sigue oscura. Se probó acá primero porque es la pantalla más importante y la que
- * peor estaba. Ver docs/decisions-log.md 2026-08.
+ * Ahora: controles a la izquierda, lienzo a la derecha, y el botón de generar
+ * SIEMPRE visible abajo del panel con el contador de piezas y el costo. Nunca
+ * salís de esta pantalla. (Forma tomada de Genera Space, ver decisions-log 2026-09;
+ * lo que NO copiamos es su flujo — ellos son foto fija de moda, nosotros video
+ * en español con calce.)
  *
- * EL ACENTO ES UNA SOLA VARIABLE (`--accent`, hoy tinta). Cuando haya un color de Coevo va
- * ahí y aparece en los tres únicos lugares donde importa: lo elegido, lo urgente y la
- * acción principal. El problema del diseño viejo era un mismo naranja marcando las tres
- * cosas hasta no significar ninguna.
+ * Lo que se conserva de la versión anterior, que sí funcionaba:
+ *   · el brief se interpreta solo mientras escribís (planCampaign)
+ *   · se puede adjuntar el PDF del cliente en vez de transcribirlo
+ *   · los assets salen del banco de la marca, no te los vuelve a pedir
+ *
+ * EL ACENTO ES UNA SOLA VARIABLE (`--color-action`): lo elegido, lo urgente y la
+ * acción principal. Nada más.
  */
 
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -56,16 +59,6 @@ const SERIF = '"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Geo
 
 type AssetItem = { id: string; name: string; thumb?: string };
 
-/** Rótulo del margen izquierdo. */
-function Gutter({ n, title, hint }: { n: string; title: string; hint?: string }) {
-  return (
-    <div>
-      <p className="font-mono text-[10px] tracking-[.18em]" style={{ color: C.ink3 }}>{n}</p>
-      <p className="text-[13px] font-semibold mt-[7px] tracking-[-.005em]">{title}</p>
-      {hint && <p className="text-[11.5px] mt-[5px] leading-snug" style={{ color: C.ink3 }}>{hint}</p>}
-    </div>
-  );
-}
 
 /**
  * Tira de miniaturas. Todo a la vista: sin acordeón, sin "Elegir".
@@ -309,234 +302,221 @@ export function NewCampaignPage() {
     }
   };
 
-  const rowStyle = { borderTop: `1px solid ${C.hair}` };
+  /** Un control del panel: rótulo + miniatura de lo elegido + acción.
+   *  La miniatura importa — en los acordeones viejos no veías qué habías elegido
+   *  sin abrirlos. */
+  const Control = ({ label, items, onOpen, empty }: {
+    label: string;
+    items: Array<{ id: string; name: string; thumb?: string }>;
+    onOpen: () => void;
+    empty: string;
+  }) => (
+    <button
+      onClick={onOpen}
+      className="w-full text-left px-3 py-2.5 rounded-[5px] transition-colors cursor-pointer hover:bg-[var(--color-surface-2)]"
+    >
+      <div className="flex items-center gap-2.5">
+        <div className="flex -space-x-1.5 shrink-0">
+          {items.length > 0 ? (
+            items.slice(0, 3).map((it) => (
+              <div key={it.id} className="w-7 h-7 rounded-[3px] overflow-hidden ring-1 ring-[var(--color-surface-0)]"
+                   style={{ background: C.paper2, border: `1px solid ${C.hair}` }}>
+                {it.thumb && <img src={it.thumb} alt="" className="w-full h-full object-cover" />}
+              </div>
+            ))
+          ) : (
+            <div className="w-7 h-7 rounded-[3px]" style={{ background: C.paper2, border: `1px dashed ${C.hair}` }} />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[9.5px] uppercase tracking-[.1em]" style={{ color: C.ink3 }}>{label}</div>
+          <div className="text-[12px] truncate" style={{ color: items.length ? C.ink2 : C.ink3 }}>
+            {items.length === 0 ? empty
+              : items.length === 1 ? items[0].name
+              : `${items.length} elegidos`}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+
+  const byKind = (kind: string) => chosen.filter((c) => c.kind === kind);
 
   return (
-    <div className="min-h-screen -m-6 md:-m-8" style={{ background: C.paper, color: C.ink }}>
-      <div className="max-w-[980px] mx-auto px-8 md:px-12 py-9">
-        <button
-          onClick={() => navigate("/dashboard/trabajo")}
-          className="flex items-center gap-1.5 text-[12px] cursor-pointer mb-5"
-          style={{ color: C.ink3 }}
-        >
-          <ArrowLeft size={13} /> Trabajo
-        </button>
+    <div className="flex h-screen -m-6 md:-m-8" style={{ background: C.paper, color: C.ink }}>
 
-        <h1 className="text-[34px] leading-[1.05] tracking-[-.02em] font-normal" style={{ fontFamily: SERIF }}>
-          Nueva campaña
-        </h1>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={`${b.name.toUpperCase()} · ponerle un nombre (opcional)`}
-          className="mt-2 w-full max-w-[440px] bg-transparent text-[12px] tracking-[.02em] outline-none"
-          style={{ color: C.ink2 }}
-        />
+      {/* ── PANEL ─────────────────────────────────────────────────── */}
+      <aside className="w-[340px] shrink-0 flex flex-col h-full" style={{ borderRight: `1px solid ${C.hair}` }}>
 
-        {/* ── 01 · el brief ── */}
-        <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7 mt-7" style={rowStyle}>
-          <Gutter n="01" title="El brief" hint="Escribilo o adjuntá el PDF" />
-          <div>
+        <div className="px-4 pt-4 pb-3" style={{ borderBottom: `1px solid ${C.hair}` }}>
+          <button onClick={() => navigate("/dashboard/campanas")}
+                  className="inline-flex items-center gap-1.5 text-[11.5px] mb-2.5 cursor-pointer" style={{ color: C.ink3 }}>
+            <ArrowLeft size={11} /> Campañas
+          </button>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nueva campaña"
+            className="w-full bg-transparent outline-none"
+            style={{ fontFamily: SERIF, fontSize: 21, color: C.ink }}
+          />
+          <div className="text-[10.5px] uppercase tracking-[.09em] mt-1" style={{ color: C.ink3 }}>{b.name}</div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-2.5 py-3 flex flex-col gap-1">
+
+          {/* El brief — lo primero y lo único obligatorio */}
+          <div className="px-1 pb-1">
+            <div className="text-[9.5px] uppercase tracking-[.1em] mb-1.5" style={{ color: C.ink3 }}>El brief</div>
             <textarea
               autoFocus
               value={brief}
               onChange={(e) => setBrief(e.target.value)}
-              rows={4}
-              placeholder="Escribí acá lo que hay que hacer — o adjuntá el brief del cliente y lo leemos nosotros."
-              className="w-full bg-transparent outline-none resize-none max-w-[60ch]"
-              style={{ fontFamily: SERIF, fontSize: 17, lineHeight: 1.62, color: C.ink }}
+              rows={5}
+              placeholder="Qué hay que hacer. O adjuntá el PDF del cliente."
+              className="w-full bg-transparent outline-none resize-none rounded-[5px] p-2.5"
+              style={{ fontFamily: SERIF, fontSize: 14, lineHeight: 1.5, color: C.ink, border: `1px solid ${C.hair}` }}
             />
-            <div className="flex items-center gap-3.5 mt-3 flex-wrap">
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".pdf,.txt,.md"
-                className="hidden"
-                onChange={(e) => { handleAttach(e.target.files?.[0]); e.target.value = ""; }}
-              />
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="inline-flex items-center gap-1.5 text-[12px] pb-[3px] cursor-pointer"
-                style={{ color: C.ink3, borderBottom: `1px solid ${C.hair}` }}
-              >
-                <Paperclip size={11} /> {attached ? "Adjuntar otro" : "Adjuntar el brief"}
+            <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
+              <input ref={fileRef} type="file" accept=".pdf,.txt,.md" className="hidden"
+                     onChange={(e) => { handleAttach(e.target.files?.[0]); e.target.value = ""; }} />
+              <button onClick={() => fileRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 text-[11px] cursor-pointer" style={{ color: C.ink3 }}>
+                <Paperclip size={10} /> {attached ? "Otro archivo" : "Adjuntar"}
               </button>
-              {attached && (
-                <span className="text-[11.5px]" style={{ color: C.ink2 }}>
-                  {attached.name} · {attached.chars.toLocaleString("es-AR")} caracteres leídos
-                </span>
-              )}
-              {attachErr && <span className="text-[11.5px]" style={{ color: C.err }}>{attachErr}</span>}
               {reading && (
-                <span className="inline-flex items-center gap-1.5 text-[11.5px]" style={{ color: C.ink3 }}>
-                  <Loader2 size={10} className="animate-spin" /> leyendo…
+                <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: C.ink3 }}>
+                  <Loader2 size={9} className="animate-spin" /> leyendo…
                 </span>
               )}
+              {attached && <span className="text-[11px] truncate" style={{ color: C.ink2 }}>{attached.name}</span>}
             </div>
-
-            {/* Lo que entendió. Los bloques de abajo ya quedaron completados con esto. */}
-            {plan && !reading && (
-              <div className="mt-5 max-w-[60ch] flex flex-col gap-2.5">
-                <p className="text-[13px] leading-snug" style={{ color: C.ink2 }}>{plan.interpretation}</p>
-
-                <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11.5px]" style={{ color: C.ink3 }}>
-                  <span><strong style={{ color: C.ink2 }}>{plan.shots.length}</strong> tomas</span>
-                  <span><strong style={{ color: C.ink2 }}>{plan.aspect_ratios.join(" · ")}</strong></span>
-                  {plan.needs_video && <span style={{ color: C.ink2 }}>· pide video</span>}
-                </div>
-
-                {plan.shots.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {plan.shots.map((sh) => (
-                      <span key={sh.id} className="text-[11px] px-2 py-[3px] rounded-full"
-                            style={{ color: C.ink2, border: `1px solid ${C.hair}` }}>
-                        {sh.label}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {plan.assumptions.length > 0 && (
-                  <ul className="flex flex-col gap-0.5">
-                    {plan.assumptions.slice(0, 3).map((a, i) => (
-                      <li key={i} className="text-[11px] leading-snug" style={{ color: C.ink3 }}>· {a}</li>
-                    ))}
-                  </ul>
-                )}
-
-                {plan.needs_video && (
-                  <p className="text-[11px] leading-snug" style={{ color: C.ink3 }}>
-                    Mencionaste video. Por ahora salen las imágenes; el reel se arma después desde Fashion Reel.
-                  </p>
-                )}
-              </div>
-            )}
+            {attachErr && <p className="text-[11px] mt-1" style={{ color: C.err }}>{attachErr}</p>}
           </div>
-        </div>
 
-        {/* ── 02 · lo que se va a usar del banco de la marca ──────────────
-            Antes acá había dos bloques de pickers que te hacían elegir prenda,
-            moodboard, modelo y fondo a mano — cosas que ya cargaste UNA vez en la
-            marca y que el brief ya menciona. Ahora se muestran las elegidas, y los
-            pickers aparecen solo si querés cambiar algo. */}
-        <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7" style={rowStyle}>
-          <Gutter n="02" title="Con qué" hint="Del banco de la marca" />
-          <div>
-            {showPickers ? null : chosen.length > 0 ? (
-              <div className="flex flex-wrap gap-3">
-                {chosen.map((c) => (
-                  <div key={`${c.kind}-${c.id}`} className="flex flex-col gap-1.5 w-[74px]">
-                    <div className="w-[74px] h-[74px] rounded-[3px] overflow-hidden"
-                         style={{ background: C.paper2, border: `1px solid ${C.hair}` }}>
-                      {c.thumb && <img src={c.thumb} alt={c.name} className="w-full h-full object-cover" />}
-                    </div>
-                    <div className="leading-tight">
-                      <div className="text-[9px] uppercase tracking-[.09em]" style={{ color: C.ink3 }}>{c.kind}</div>
-                      <div className="text-[10.5px] truncate" style={{ color: C.ink2 }} title={c.name}>{c.name}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-[12.5px]" style={{ color: C.ink3 }}>
-                {reading
-                  ? "Buscando en el banco de la marca…"
-                  : brief.trim().length < 15
-                    ? "Escribí arriba qué querés hacer y se completa solo con lo que haya en la marca."
-                    : "No encontré assets que coincidan con el pedido. Podés elegirlos a mano."}
-              </p>
-            )}
+          <div className="h-px mx-1 my-2" style={{ background: C.hair }} />
 
-            <button
-              onClick={() => setShowPickers((v) => !v)}
-              className="mt-3 text-[11.5px] pb-[2px] cursor-pointer"
-              style={{ color: C.ink3, borderBottom: `1px solid ${C.hair}` }}
-            >
-              {showPickers ? "← Volver al resumen" : chosen.length > 0 ? "Cambiar" : "Elegir a mano"}
-            </button>
+          {/* Los assets — salen del banco de la marca */}
+          <Control label="Prendas"   items={byKind("Prenda")}    onOpen={() => setShowPickers(true)} empty="del banco de la marca" />
+          <Control label="Productos" items={byKind("Producto")}  onOpen={() => setShowPickers(true)} empty="ninguno" />
+          <Control label="Modelo"    items={byKind("Modelo")}    onOpen={() => setShowPickers(true)} empty="ninguno" />
+          <Control label="Fondo"     items={byKind("Fondo")}     onOpen={() => setShowPickers(true)} empty="estudio" />
+          <Control label="Moodboard" items={byKind("Moodboard")} onOpen={() => setShowPickers(true)} empty="ninguno" />
 
-            {showPickers && (
-              <div className="flex gap-9 flex-wrap mt-4">
-                <Picker
-                  label="Prendas" hint={String((b.clothing || []).length)}
-                  multi
-                  items={(b.clothing || []).map((c) => ({ id: c.id, name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined }))}
-                  selectedIds={clothingIds} onToggle={mark("clothing", toggle(setClothingIds))}
-                />
-                <Picker
-                  label="Productos" hint={String((b.products || []).length)}
-                  multi
-                  items={(b.products || []).map((p) => ({ id: p.id, name: p.name, thumb: p.imageUrl ? productImageUrl(p.imageUrl) : undefined }))}
-                  selectedIds={productIds} onToggle={mark("products", toggle(setProductIds))}
-                />
-                <Picker
-                  label="Modelo" hint={String((b.avatars || []).length)}
-                  items={(b.avatars || []).map((a) => ({ id: a.id, name: a.name, thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined }))}
-                  selectedId={avatarId} onSingle={mark("avatar", setAvatarId)}
-                />
-                <Picker
-                  label="Fondo" hint="opcional"
-                  items={(b.backgrounds || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))}
-                  selectedId={backgroundId} onSingle={mark("background", setBackgroundId)}
-                />
-                <Picker
-                  label="Moodboard" hint="dirección"
-                  items={(b.moodboards || []).map((m) => ({ id: m.id, name: m.name, thumb: m.imageUrl ? moodboardImageUrl(m.imageUrl) : undefined }))}
-                  selectedId={moodboardId} onSingle={mark("moodboard", setMoodboardId)}
-                />
-                <Picker
-                  label="Look & feel" hint="color y textura"
-                  items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
-                  selectedId={lookFeelId} onSingle={mark("lookFeel", setLookFeelId)}
-                />
-                <Picker
-                  label="Poses" hint="estrictas"
-                  items={(b.poses || []).map((p) => ({ id: p.id, name: p.name, thumb: p.imageUrl ? poseImageUrl(p.imageUrl) : undefined }))}
-                  selectedId={poseId} onSingle={mark("pose", setPoseId)}
-                />
-              </div>
-            )}
-          </div>
-        </div>
+          <div className="h-px mx-1 my-2" style={{ background: C.hair }} />
 
-        {/* ── 04 · la salida ── */}
-        <div className="grid grid-cols-1 md:grid-cols-[170px_1fr] gap-x-9 gap-y-4 py-7" style={rowStyle}>
-          <Gutter n="03" title="Qué sale" />
-          <div className="flex gap-11 flex-wrap items-start">
-            <Options
-              label="Formatos" options={AR_OPTIONS} values={aspectRatios}
-              onToggle={(ar) => { touched.current.add("ratios"); setAspectRatios((p) => (p.includes(ar) ? p.filter((x) => x !== ar) : [...p, ar])); }}
-            />
+          {/* La salida */}
+          <div className="px-1 flex flex-col gap-3">
+            <Options label="Formatos" options={AR_OPTIONS} values={aspectRatios}
+                     onToggle={(ar) => { touched.current.add("ratios"); setAspectRatios((prev) => (prev.includes(ar) ? prev.filter((x) => x !== ar) : [...prev, ar])); }} />
             <Options label="Variantes" options={[1, 2, 3, 4]} value={variationsPerShot} onPick={setVariationsPerShot} />
             <Options label="Resolución" options={RES_OPTIONS} value={resolution} onPick={setResolution} />
-            <div className="ml-auto text-right">
-              <p className="text-[10px] font-semibold tracking-[.14em] uppercase mb-1.5" style={{ color: C.ink3 }}>Va a costar</p>
-              <p className="tracking-[-.01em]" style={{ fontFamily: SERIF, fontSize: 26 }}>≈ {formatUsd(estimate)}</p>
-              <p className="text-[11.5px] mt-[3px]" style={{ color: C.ink3 }}>
-                {pieceCount} {pieceCount === 1 ? "pieza" : "piezas"} · {formatUsd(imagesUsd(1, resolution))} c/u
-              </p>
-            </div>
           </div>
         </div>
 
-        {error && <p className="text-[12.5px] mt-4" style={{ color: C.err }}>{error}</p>}
-
-        <div className="flex gap-6 items-center justify-end pt-6 mt-2" style={rowStyle}>
-          <button onClick={() => navigate("/dashboard/trabajo")} className="text-[12.5px] cursor-pointer" style={{ color: C.ink3 }}>
-            Cancelar
-          </button>
+        {/* El botón de generar: SIEMPRE visible, con lo que va a salir y lo que cuesta.
+            Antes había que scrollear hasta el final del formulario para encontrarlo. */}
+        <div className="px-3 py-3" style={{ borderTop: `1px solid ${C.hair}` }}>
+          {error && <p className="text-[11.5px] mb-2" style={{ color: C.err }}>{error}</p>}
           <button
             onClick={submit}
-            disabled={saving || !brief.trim()}
-            title={!brief.trim() ? "Escribí qué necesitamos" : undefined}
-            className="text-[13px] font-semibold px-[26px] py-[11px] rounded-full cursor-pointer disabled:opacity-40 disabled:cursor-default inline-flex items-center gap-2"
+            disabled={saving}
+            className="w-full h-11 rounded-[6px] text-[13px] font-semibold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
             style={{ background: C.accent, color: C.accentFg }}
           >
-            {saving && <Loader2 size={13} className="animate-spin" />}
-            {saving ? "Creando…" : "Crear campaña"}
+            {saving
+              ? <><Loader2 size={13} className="animate-spin" /> Creando…</>
+              : <>Generar · {plan?.shots?.length ? plan.shots.length * Math.max(1, aspectRatios.length) : pieceCount} piezas</>}
           </button>
+          <div className="text-[10.5px] text-center mt-1.5" style={{ color: C.ink3 }}>
+            ≈ {formatUsd(estimate)} · {resolution}
+          </div>
         </div>
-      </div>
+      </aside>
+
+      {/* ── LIENZO ────────────────────────────────────────────────── */}
+      <main className="flex-1 overflow-y-auto">
+        {showPickers ? (
+          /* Los selectores se abren ACÁ, en el lienzo — no empujan el panel */
+          <div className="p-6 max-w-[900px]">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-[16px]" style={{ fontFamily: SERIF, color: C.ink }}>Elegir del banco de {b.name}</h2>
+              <button onClick={() => setShowPickers(false)}
+                      className="text-[12px] px-3 py-1.5 rounded-[5px] cursor-pointer"
+                      style={{ color: C.ink2, border: `1px solid ${C.hair}` }}>Listo</button>
+            </div>
+            <div className="flex gap-9 flex-wrap">
+              <Picker label="Prendas" hint={String((b.clothing || []).length)} multi
+                      items={(b.clothing || []).map((c) => ({ id: c.id, name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined }))}
+                      selectedIds={clothingIds} onToggle={mark("clothing", toggle(setClothingIds))} />
+              <Picker label="Productos" hint={String((b.products || []).length)} multi
+                      items={(b.products || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? productImageUrl(x.imageUrl) : undefined }))}
+                      selectedIds={productIds} onToggle={mark("products", toggle(setProductIds))} />
+              <Picker label="Modelo" hint={String((b.avatars || []).length)}
+                      items={(b.avatars || []).map((a) => ({ id: a.id, name: a.name, thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined }))}
+                      selectedId={avatarId} onSingle={mark("avatar", setAvatarId)} />
+              <Picker label="Fondo" hint="opcional"
+                      items={(b.backgrounds || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))}
+                      selectedId={backgroundId} onSingle={mark("background", setBackgroundId)} />
+              <Picker label="Moodboard" hint="dirección"
+                      items={(b.moodboards || []).map((m) => ({ id: m.id, name: m.name, thumb: m.imageUrl ? moodboardImageUrl(m.imageUrl) : undefined }))}
+                      selectedId={moodboardId} onSingle={mark("moodboard", setMoodboardId)} />
+              <Picker label="Look & feel" hint="color"
+                      items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
+                      selectedId={lookFeelId} onSingle={mark("lookFeel", setLookFeelId)} />
+              <Picker label="Poses" hint="estrictas"
+                      items={(b.poses || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? poseImageUrl(x.imageUrl) : undefined }))}
+                      selectedId={poseId} onSingle={mark("pose", setPoseId)} />
+            </div>
+          </div>
+        ) : plan ? (
+          /* Lo que entendió del brief: el plan de tomas */
+          <div className="p-8 max-w-[680px]">
+            <p className="text-[15px] leading-relaxed mb-6" style={{ fontFamily: SERIF, color: C.ink }}>
+              {plan.interpretation}
+            </p>
+
+            <div className="text-[9.5px] uppercase tracking-[.1em] mb-2.5" style={{ color: C.ink3 }}>
+              {plan.shots.length} tomas
+            </div>
+            <div style={{ borderTop: `1px solid ${C.hair}` }}>
+              {plan.shots.map((sh, i) => (
+                <div key={sh.id} className="flex gap-3.5 py-2.5" style={{ borderBottom: `1px solid ${C.hair}` }}>
+                  <span className="text-[10px] font-mono tabular-nums w-4 shrink-0 pt-0.5" style={{ color: C.ink3 }}>{i + 1}</span>
+                  <div className="min-w-0">
+                    <div className="text-[13px]" style={{ color: C.ink }}>{sh.label}</div>
+                    {sh.why && <div className="text-[11.5px] mt-0.5" style={{ color: C.ink3 }}>{sh.why}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {plan.needs_video && (
+              <p className="text-[11.5px] mt-4" style={{ color: C.ink3 }}>
+                Mencionaste video. Por ahora salen las imágenes; el reel se arma después desde Fashion Reel.
+              </p>
+            )}
+
+            {plan.assumptions.length > 0 && (
+              <div className="mt-6">
+                <div className="text-[9.5px] uppercase tracking-[.1em] mb-1.5" style={{ color: C.ink3 }}>Asumimos</div>
+                {plan.assumptions.slice(0, 4).map((a, i) => (
+                  <p key={i} className="text-[11.5px] leading-snug mb-1" style={{ color: C.ink3 }}>· {a}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* En reposo */
+          <div className="h-full flex items-center justify-center">
+            <p className="text-[13px] max-w-[300px] text-center leading-relaxed" style={{ color: C.ink3 }}>
+              {reading
+                ? "Leyendo el brief…"
+                : "Escribí el brief a la izquierda y acá vas a ver qué entendimos y qué tomas se van a generar."}
+            </p>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
