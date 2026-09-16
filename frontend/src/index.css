@@ -141,14 +141,15 @@
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 [data-theme="light"] {
-  /* Crema cálido marcado (no blanco casi-puro) — el #fafaf7 anterior + cards
-     #ffffff encandilaban ("muy brillante"). Ahora el canvas es un crema visible
-     y las cards son near-white cálido, separadas por sombra. Ref: Campaign Settings. */
-  --color-canvas: #f0ede7;
-  --color-surface-0: #f6f4ef;
-  --color-surface-1: #fbfaf7;
-  --color-surface-2: #ece8e0;
-  --color-surface-3: #e1dcd1;
+  /* Gris cálido, no crema. La versión anterior (#f0ede7 / #f6f4ef) tenía tanto
+     amarillo que la pantalla entera se leía sucia — el mismo problema que el
+     negro azulado en dark, al revés. Se baja el amarillo manteniendo el calor:
+     R-B de +9 pasa a +5. */
+  --color-canvas: #eceae7;
+  --color-surface-0: #f4f3f1;
+  --color-surface-1: #fbfaf9;
+  --color-surface-2: #eae8e5;
+  --color-surface-3: #ddd9d5;
 
   /* Contraste subido para legibilidad sobre warm white. Los grises anteriores
      eran muy claros para `#fafaf7` y la jerarquía de textos perdía contraste
@@ -159,11 +160,11 @@
   --color-fg-muted: #4a4a4a;
   --color-fg-faint: #6b6b6b;
 
-  /* Borders más sutiles (0.08 → 0.05) — alineado con la estética Pletor donde
-     los bordes son casi invisibles y las cards se separan por shadow, no por línea. */
-  --color-edge: rgba(10, 10, 10, 0.05);
-  --color-edge-subtle: rgba(10, 10, 10, 0.025);
-  --color-edge-strong: rgba(10, 10, 10, 0.10);
+  /* Bordes visibles. Con 0.025 de opacidad las cards no se separaban de nada y
+     la lista se leía como un bloque plano. */
+  --color-edge: rgba(10, 10, 10, 0.11);
+  --color-edge-subtle: rgba(10, 10, 10, 0.06);
+  --color-edge-strong: rgba(10, 10, 10, 0.20);
   /* Focus ring también en burgundy para light mode (consistencia con dark) */
   --color-edge-focus: rgba(196, 88, 48, 0.45);
 

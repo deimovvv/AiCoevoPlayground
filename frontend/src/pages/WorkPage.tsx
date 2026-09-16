@@ -385,9 +385,8 @@ export function WorkPage() {
                                                 key={c.id}
                                                 className={cn(
                                                     "mb-2.5 rounded-[var(--radius-md)] border overflow-hidden transition-colors",
-                                                    grp.key === "action"
-                                                        ? "border-[rgba(228,171,27,.3)] bg-[rgba(228,171,27,.04)]"
-                                                        : "border-edge bg-surface-1 hover:border-edge-strong",
+                                                    "border-edge bg-surface-1 hover:border-edge-strong",
+                                                    grp.key === "action" && "border-l-[3px] border-l-[var(--color-warning)]",
                                                 )}
                                             >
                                                 <div className="flex items-center gap-3 p-3.5">
@@ -430,7 +429,7 @@ export function WorkPage() {
                                                                 key={g.id}
                                                                 to={`/dashboard/generate/${g.toolId}?gen=${g.id}`}
                                                                 title={g.title}
-                                                                className="w-14 h-14 shrink-0 rounded-[4px] overflow-hidden border border-edge bg-surface-2 hover:border-edge-strong"
+                                                                className="w-[84px] h-[84px] shrink-0 rounded-[6px] overflow-hidden border border-edge bg-surface-2 hover:border-edge-strong"
                                                             >
                                                                 {g.thumbnailUrl && (
                                                                     <img src={g.thumbnailUrl} alt="" className="w-full h-full object-cover" />
@@ -438,7 +437,7 @@ export function WorkPage() {
                                                             </Link>
                                                         ))}
                                                         {row.children.length > 12 && (
-                                                            <div className="w-14 h-14 shrink-0 rounded-[4px] border border-edge bg-surface-2 flex items-center justify-center text-[11px] text-fg-muted">
+                                                            <div className="w-[84px] h-[84px] shrink-0 rounded-[6px] border border-edge bg-surface-2 flex items-center justify-center text-[12px] text-fg-muted">
                                                                 +{row.children.length - 12}
                                                             </div>
                                                         )}
@@ -456,9 +455,8 @@ export function WorkPage() {
                                             key={g.id}
                                             className={cn(
                                                 "flex items-center gap-4 p-3 mb-2 rounded-[var(--radius-md)] border transition-colors",
-                                                grp.key === "action"
-                                                    ? "border-[rgba(228,171,27,.3)] bg-[rgba(228,171,27,.04)]"
-                                                    : "border-edge bg-surface-1 hover:border-edge-strong",
+                                                "border-edge bg-surface-1 hover:border-edge-strong",
+                                                grp.key === "action" && "border-l-[3px] border-l-[var(--color-warning)]",
                                             )}
                                         >
                                             {g.thumbnailUrl && !brokenThumbs[g.id] ? (
@@ -466,11 +464,11 @@ export function WorkPage() {
                                                     src={g.thumbnailUrl.startsWith("http") ? g.thumbnailUrl : `http://127.0.0.1:8000${g.thumbnailUrl}`}
                                                     alt=""
                                                     onError={() => setBrokenThumbs((p) => ({ ...p, [g.id]: true }))}
-                                                    className="w-11 h-14 object-cover rounded-[4px] shrink-0 bg-surface-2"
+                                                    className="w-[76px] h-[96px] object-cover rounded-[6px] shrink-0 bg-surface-2"
                                                 />
                                             ) : (
                                                 <span
-                                                    className="w-11 h-14 rounded-[4px] shrink-0 border border-edge-subtle bg-surface-2"
+                                                    className="w-[76px] h-[96px] rounded-[6px] shrink-0 border border-edge-subtle bg-surface-2"
                                                     title={g.thumbnailUrl ? "La miniatura expiró (fal.media)" : "Sin miniatura"}
                                                 />
                                             )}
