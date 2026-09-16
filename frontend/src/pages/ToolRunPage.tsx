@@ -3052,6 +3052,12 @@ export function ToolRunPage() {
                     : b
                   ));
                 }) : undefined}
+                onAddBatchImage={tool && BATCHABLE_TOOLS.has(tool.id) ? ((batchId, image) => {
+                  setBatches((prev) => prev.map((b) => b.id === batchId
+                    ? { ...b, images: [...b.images, image] }
+                    : b
+                  ));
+                }) : undefined}
               />
             )}
           </div>
@@ -6957,6 +6963,7 @@ function StepPanel({
   onNewBatch,
   onDeleteBatch,
   onUpdateBatchImage,
+  onAddBatchImage,
 }: {
   tool: ToolEntry;
   step: StepState;
@@ -6979,6 +6986,7 @@ function StepPanel({
   onNewBatch?: () => void;
   onDeleteBatch?: (batchId: string) => void;
   onUpdateBatchImage?: (batchId: string, imageId: string, newUrl: string) => void;
+  onAddBatchImage?: (batchId: string, image: { id: string; url: string; label: string; status: string }) => void;
 }) {
   const meta = STEP_META[step.id] || {
     label: step.id,
@@ -7084,6 +7092,7 @@ function StepPanel({
             onNewBatch={onNewBatch}
             onDeleteBatch={onDeleteBatch}
             onUpdateBatchImage={onUpdateBatchImage}
+            onAddBatchImage={onAddBatchImage}
             getScriptScenes={() => {
               const sr = allSteps.find((s: StepState) => s.id === "script")?.result as Record<string, unknown> | undefined;
               if (!sr?.scenes) return [];
@@ -7108,6 +7117,7 @@ function StepPanel({
               onNewBatch={onNewBatch}
               onDeleteBatch={onDeleteBatch}
               onUpdateBatchImage={onUpdateBatchImage}
+              onAddBatchImage={onAddBatchImage}
               getScriptScenes={() => {
                 const sr = allSteps.find((s: StepState) => s.id === "script")?.result as Record<string, unknown> | undefined;
                 if (!sr?.scenes) return [];
@@ -7766,6 +7776,8 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
   // Imagen que se está "mejorando texturas + 4K" (one-click enhance). Key = `${batchId}__${imgId}`.
   const [enhancingId, setEnhancingId] = useState<string | null>(null);
   const [regenSceneId, setRegenSceneId] = useState<string | null>(null);
+  const [anglingId, setAnglingId] = useState<string | null>(null);
+  const [anglePickerFor, setAnglePickerFor] = useState<string | null>(null);
   // Tracks which scene's base-frame editor panel is open in the Lipsync step DONE view.
   // Lets the user swap the image of a single clip and auto re-run lipsync without
   // going back to multishot/curation.
@@ -7787,6 +7799,48 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
   // ── Mejorar texturas + 4K ────────────────────────────────
   // One-click: re-pasa la imagen YA generada por Nano Banana en modo edit a 4K con un
   // prompt de realce de textura de piel/tela. Reemplaza la imagen in-place en la tanda.
+  // ── Add angle ────────────────────────────────────────────────────
+  // Genera otra toma PARTIENDO de una imagen ya aprobada, en vez de recomponer
+  // desde cero. La imagen aprobada es el mejor ancla de consistencia que hay:
+  // ya tiene la identidad, el outfit y el estudio resueltos. (Ref: Genera Space.)
+  const ANGLE_PRESETS: Array<{ id: string; label: string; instruction: string }> = [
+    { id: "back", label: "Espalda", instruction: "Rotate the subject to show the BACK of the outfit: the model is seen from directly behind, standing naturally. This is a ROTATION of the same person in the same studio, not a new scene." },
+    { id: "side", label: "Perfil", instruction: "Rotate the subject to a FULL 90° SIDE PROFILE (facing left or right), showing the garment's silhouette and side seam. This is a ROTATION, not a crop." },
+    { id: "34", label: "3/4", instruction: "Rotate the subject about 45° to a THREE-QUARTER angle, showing the front and the side of the outfit at once. This is a ROTATION, not a crop." },
+    { id: "detail", label: "Detalle", instruction: "Move the camera CLOSER for a tight detail crop of the garment as worn — fabric, texture, stitching, print — framed on the chest/torso. This is a CROP, not a rotation." },
+    { id: "lower", label: "Detalle inferior", instruction: "Move the camera to a LOWER-BODY crop: from roughly the waist down to mid-calf or the shoes, showing the bottom garment and footwear. This is a CROP, not a rotation." },
+    { id: "medium", label: "Plano medio", instruction: "Re-frame to a MEDIUM shot: cut at roughly the waist, showing head and torso. This is a CROP, not a rotation." },
+  ];
+
+  const handleAddAngle = async (batchId: string, imageId: string, url: string, angleId: string) => {
+    if (!url) return;
+    const preset = ANGLE_PRESETS.find((a) => a.id === angleId);
+    if (!preset) return;
+    const key = `${batchId}__${imageId}`;
+    setAnglingId(key);
+    setAnglePickerFor(null);
+    try {
+      const prompt = `Image 1 is an APPROVED e-commerce photograph. Produce a NEW SHOT of the EXACT SAME subject, wearing the EXACT SAME outfit, in the EXACT SAME studio — only the camera angle or framing changes.\n\nTHE NEW SHOT: ${preset.instruction}\n\nKEEP IDENTICAL, with no reinterpretation: the person's face, hair, skin tone, age and body proportions; every garment with its exact colour, print, fabric, cut and fit; the footwear and accessories; the background tone and gradient; the lighting direction, softness and colour temperature; the overall grade. This must look like another frame from the SAME photo session, taken moments later. Do NOT restyle, do NOT change the clothes, do NOT swap the model, do NOT alter the studio. Single clean photograph, no text, no watermark, no collage, no split panels.`;
+      const job = await createImageEdit([url], prompt, config?.aspectRatio || "4:5", config?.resolution || "2K");
+      const res = await pollImageGen(job.request_id);
+      if (res.image_url) {
+        onAddBatchImage?.(batchId, {
+          id: `${imageId}_${angleId}_${Date.now().toString(36)}`,
+          url: res.image_url,
+          label: `${preset.label} (desde toma aprobada)`,
+          status: "completed",
+        });
+      } else {
+        alert("No devolvió ninguna imagen. Probá de nuevo.");
+      }
+    } catch (err) {
+      console.error("[add-angle] failed:", err);
+      alert(err instanceof Error ? err.message : "No se pudo generar el ángulo.");
+    } finally {
+      setAnglingId(null);
+    }
+  };
+
   const handleEnhance = async (batchId: string, imageId: string, url: string) => {
     if (!url) return;
     const key = `${batchId}__${imageId}`;
@@ -10000,6 +10054,32 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                                   >
                                     <Wand2 size={11} />
                                   </button>
+                                  {/* Add angle — otra toma partiendo de ESTA imagen ya aprobada.
+                                      Mejor consistencia que recomponer desde los assets. */}
+                                  {onAddBatchImage && (
+                                    <div className="relative">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setAnglePickerFor(anglePickerFor === editKey ? null : editKey); }}
+                                        disabled={anglingId === editKey}
+                                        className="w-6 h-6 flex items-center justify-center bg-black/60 hover:bg-[var(--color-action)] text-white rounded cursor-pointer disabled:cursor-wait"
+                                        title="Otra toma desde esta imagen — mismo modelo, mismo outfit, otro ángulo"
+                                      >
+                                        {anglingId === editKey ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                                      </button>
+                                      {anglePickerFor === editKey && (
+                                        <div className="absolute z-30 top-7 right-0 w-36 p-1 rounded-[var(--radius-md)] border border-edge bg-surface-1 shadow-lg">
+                                          <span className="block px-1.5 py-1 text-[9px] uppercase tracking-widest text-fg-faint">Nueva toma</span>
+                                          {ANGLE_PRESETS.map((a) => (
+                                            <button
+                                              key={a.id}
+                                              onClick={(e) => { e.stopPropagation(); handleAddAngle(batch.id, img.id, img.url, a.id); }}
+                                              className="block w-full text-left px-1.5 py-1 rounded text-[10px] text-fg-muted hover:text-fg hover:bg-surface-2 cursor-pointer"
+                                            >{a.label}</button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
