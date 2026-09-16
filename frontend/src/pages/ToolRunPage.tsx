@@ -3675,7 +3675,17 @@ function ConfigPanel({
           {sels.map((s, i) => (
             <div key={i} className="group/sel relative border border-edge rounded-[var(--radius-sm)] p-1 bg-surface-0">
               <div className="aspect-square rounded overflow-hidden bg-surface-2 mb-1">
-                {s.thumb && <img src={s.thumb} alt={s.name} className="w-full h-full object-cover" />}
+                {/* Click → lightbox. Sin esto no había forma de mirar de cerca lo que
+                    estabas por generar (ej. verificar el calce de un pantalón). */}
+                {s.thumb && (
+                  <img
+                    src={s.thumb}
+                    alt={s.name}
+                    onClick={() => setLightboxUrl(s.thumb as string)}
+                    title="Ver en grande"
+                    className="w-full h-full object-cover cursor-zoom-in"
+                  />
+                )}
               </div>
               <span className="block text-[8px] text-fg-faint uppercase tracking-wide leading-tight">{s.kind}</span>
               <span className="block text-[9px] text-fg-muted truncate leading-tight">{s.name}</span>
@@ -4229,7 +4239,7 @@ function ConfigPanel({
                     <option key={g.id} value={g.id}>{g.name}</option>
                   ))}
                 </select>
-                <p className="text-[9px] text-fg-faint leading-snug">Flats y detalle se enfocan en esta prenda; el on-model la prioriza. Ideal cuando la ficha es de un solo producto.</p>
+                <p className="text-[9px] text-fg-faint leading-snug">Elegí una prenda y los <strong className="text-fg-muted">flats salen solo de esa</strong> (el on-model la prioriza). Con &ldquo;Todo el look&rdquo; se genera <strong className="text-fg-muted">un flat por cada prenda</strong> seleccionada.</p>
               </div>
             );
           })()}
@@ -4378,7 +4388,7 @@ function ConfigPanel({
           <div className="space-y-1.5">
             <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Calce (cómo cae · opcional)</span>
             <p className="text-[10px] text-fg-faint leading-snug -mt-0.5">
-              Foto de cómo calza la prenda en un cuerpo. Se usa <strong className="text-fg-muted">solo la caída/silueta</strong> — el color y el diseño salen de las prendas del collage, no del calce.
+              Foto de cómo calza la prenda en un cuerpo. Se usa <strong className="text-fg-muted">solo la caída/silueta</strong> — el color y el diseño salen de las prendas, no del calce.
             </p>
             <div className="grid grid-cols-2 gap-2">
               {([["ecomCalceTop", "Calce arriba (superior)"], ["ecomCalceBottom", "Calce abajo (inferior)"]] as const).map(([key, label]) => {
@@ -4424,7 +4434,7 @@ function ConfigPanel({
           {/* Detalles a respetar — texto libre que se AGREGA al prompt de todas las tomas.
               Para forzar detalles del collage que el modelo suele limpiar (botón, largo, puños…). */}
           <div className="space-y-1.5">
-            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Detalles a respetar (del collage · opcional)</span>
+            <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Detalles a respetar (opcional)</span>
             <textarea
               value={config.ecomDetails || ""}
               onChange={(e) => setConfig((p) => ({ ...p, ecomDetails: e.target.value }))}
@@ -4846,7 +4856,6 @@ function ConfigPanel({
                             onClick={async (e) => {
                               e.stopPropagation();
                               if (!activeBrand) return;
-                              if (!confirm(`Borrar "${item.name}" del Brand Kit? Se quita de TODAS las tools, no se puede deshacer.`)) return;
                               try {
                                 await deleteClothing(activeBrand.id, item.id);
                                 await refreshBrands();
@@ -4922,7 +4931,6 @@ function ConfigPanel({
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              if (!confirm(`Borrar "${item.name}" del Brand Kit? Se quita de TODAS las tools, no se puede deshacer.`)) return;
                               try {
                                 await deleteClothing(activeBrand.id, item.id);
                                 await refreshBrands();
