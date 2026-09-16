@@ -531,12 +531,20 @@ const handleGenerate: StepHandler = async (ctx) => {
     ? ` CRITICAL GARMENT DETAILS — reproduce these EXACT details from the reference images; they are frequently missed and MUST be present and accurate: ${detailsText}. Do NOT omit, simplify or "clean up" any of these details.`
     : "";
 
+  // Si hay CALCE cargado, la foto de producto cede la silueta: sin esto el modelo
+  // toma el corte de la foto del producto (que suele estar colgada o en maniquí) e
+  // ignora el calce, que llega último y encima se autodegrada con "not the real
+  // product". Reportado: "le paso un baggy y me saca un jean recto".
+  const fitDeferClause = (calceTopUrl || calceBottomUrl)
+    ? "IMPORTANT — this photo does NOT define how the garment FITS: its cut, volume, leg/sleeve width, rise, length and drape come from the FIT REFERENCE image(s) below, which OVERRIDE this one on silhouette. Take colour, print and construction from here; take the SHAPE from the fit reference. "
+    : "";
+
   // Style refs (look&feel + moodboard) appended after the content refs, numbered from `start`.
   const styleRefs = (start: number): { urls: string[]; desc: string[] } => {
     const urls: string[] = []; const desc: string[] = []; let idx = start;
     // CALCE primero (queda cerca de las refs de prenda): SOLO caída, el color se ignora.
-    if (calceTopUrl) { urls.push(calceTopUrl); desc.push(`Image ${idx}: FIT REFERENCE — UPPER garment (top). Use this ONLY to copy how the TOP garment FITS and DRAPES on the body: its length, how the shoulders sit, the sleeve fall, the neckline behaviour, how loose or fitted it is and how the fabric hangs. IGNORE its colour, print and fabric COMPLETELY — this is a different colourway and is NOT the real product. The top's real colour, print and design come ONLY from the GARMENT reference(s). Do NOT copy any colour, tone, print or logo from this image; take ONLY the fit, drape and silhouette.`); idx++; }
-    if (calceBottomUrl) { urls.push(calceBottomUrl); desc.push(`Image ${idx}: FIT REFERENCE — LOWER garment (bottom). Use this ONLY for how the BOTTOM garment FITS and DRAPES: the rise, the length, the leg width, the break and how it falls. IGNORE its colour and fabric COMPLETELY — different colourway, NOT the real product. The bottom's real colour and design come ONLY from the GARMENT reference(s). Do NOT copy any colour from this image; take ONLY the fit, drape and silhouette.`); idx++; }
+    if (calceTopUrl) { urls.push(calceTopUrl); desc.push(`Image ${idx}: FIT REFERENCE — UPPER garment (top). THIS IMAGE IS THE AUTHORITY ON SILHOUETTE and OVERRIDES the garment photo's cut. Use it to copy how the TOP garment FITS and DRAPES on the body: its length, how the shoulders sit, the sleeve fall, the neckline behaviour, how loose or fitted it is and how the fabric hangs. IGNORE its colour, print and fabric COMPLETELY — this is a different colourway and is NOT the real product. The top's real colour, print and design come ONLY from the GARMENT reference(s). Do NOT copy any colour, tone, print or logo from this image; take ONLY the fit, drape and silhouette.`); idx++; }
+    if (calceBottomUrl) { urls.push(calceBottomUrl); desc.push(`Image ${idx}: FIT REFERENCE — LOWER garment (bottom). THIS IMAGE IS THE AUTHORITY ON SILHOUETTE and OVERRIDES the garment photo's cut. Use it for how the BOTTOM garment FITS and DRAPES: the rise, the length, the leg width, the break and how it falls. IGNORE its colour and fabric COMPLETELY — different colourway, NOT the real product. The bottom's real colour and design come ONLY from the GARMENT reference(s). Do NOT copy any colour from this image; take ONLY the fit, drape and silhouette.`); idx++; }
     if (lookFeelUrl) { urls.push(lookFeelUrl); desc.push(`Image ${idx}: LOOK & FEEL — match this color grading, lighting and overall treatment ONLY. Do NOT copy its content, layout or people.`); idx++; }
     if (moodboard?.imageUrl) { urls.push(moodboard.imageUrl); desc.push(`Image ${idx}: ART DIRECTION moodboard — aesthetic/palette reference ONLY, do not copy literally.`); idx++; }
     if (bgImageUrl) { urls.push(bgImageUrl); desc.push(`Image ${idx}: BACKGROUND (CRITICAL — this defines the ENTIRE backdrop of the output). The output background MUST BE this exact studio backdrop, reproduced faithfully — same tone, same subtle gradient, same floor sweep and horizon line. Place the model in front of it. Do NOT replace it with a plain flat white, a pure #FFFFFF, or a different/invented studio; do NOT simplify or brighten it away. It contains NO person — copy only the backdrop.`); idx++; }
@@ -754,7 +762,7 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
         desc.push(`Image ${idx}: FACE REPLACEMENT (IDENTITY) — ABSOLUTE HIGHEST PRIORITY. The output face/head/hair MUST be this exact person, overriding whatever face is in the POSE reference. ${IDENTITY_LOCK} ${FACE_REALISM}`);
         idx++;
       }
-      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT REFERENCE — the model wears THIS exact item (this is the real product, NOT whatever the pose reference person wears). Pixel-perfect. ${PIXEL_FIDELITY}`); idx++; });
+      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT REFERENCE — the model wears THIS exact item (this is the real product, NOT whatever the pose reference person wears). Pixel-perfect for COLOUR, print, fabric and construction details. ${fitDeferClause}${PIXEL_FIDELITY}`); idx++; });
       idx = pushGarmentBacks(urls, desc, idx);
       accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: ACCESSORY REFERENCE — same exact complement. ${PIXEL_FIDELITY}`); idx++; });
     } else {
@@ -766,7 +774,7 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
         desc.push(`Image ${idx}: IDENTITY ANCHOR (HIGHEST PRIORITY for face/hair) — the output face must be photographically RECOGNIZABLE as THIS exact person: same eyes, eye color, eyebrows, nose, mouth, jawline, skin tone, age, freckles/marks, hair color and hair style. Do NOT generalize or stylize between shots.`);
         idx++;
       }
-      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT (hero product) — same exact item. ${PIXEL_FIDELITY}`); idx++; });
+      garmentUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: GARMENT (hero product) — same exact item. Pixel-perfect for COLOUR, print, fabric and construction. ${fitDeferClause}${PIXEL_FIDELITY}`); idx++; });
       idx = pushGarmentBacks(urls, desc, idx);
       accessoryUrls.forEach((u) => { urls.push(u); desc.push(`Image ${idx}: STYLING ACCESSORY — same exact complement, identical to anchor. ${PIXEL_FIDELITY}`); idx++; });
     }
