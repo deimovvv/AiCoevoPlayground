@@ -39,7 +39,7 @@ const GROUPS: Array<{ key: string; label: string; statuses: WorkStatus[] }> = [
 ];
 
 const PILL_CLS: Record<WorkStatus, string> = {
-    review: "bg-[rgba(228,171,27,.14)] text-[var(--color-warning)]",
+    review: "bg-[var(--color-brand-subtle)] text-[var(--color-brand)]",
     changes: "bg-[rgba(233,101,101,.14)] text-[var(--color-error)]",
     in_progress: "bg-white/[.06] text-fg-secondary",
     draft: "bg-white/[.04] text-fg-faint",
@@ -300,7 +300,7 @@ export function WorkPage() {
                     className={cn(
                         "h-7 px-3 rounded-full text-[11.5px] border transition-colors cursor-pointer",
                         onlyAction
-                            ? "border-[rgba(228,171,27,.32)] bg-[rgba(228,171,27,.09)] text-[var(--color-warning)]"
+                            ? "border-[var(--color-brand)] bg-[var(--color-brand-subtle)] text-[var(--color-brand)]"
                             : "border-edge-subtle bg-surface-1 text-fg-muted hover:text-fg-secondary",
                     )}
                 >
@@ -377,7 +377,10 @@ export function WorkPage() {
                                 <p className="text-[11px] uppercase tracking-[.1em] text-fg-muted pb-2.5">
                                     {grp.label} · {grp.items.length}
                                 </p>
-                                {grp.items.map((row) => {
+                                {/* Las campañas van a ancho completo (agrupan piezas adentro);
+                                    las piezas van en grilla, que es lo que corresponde a
+                                    contenido visual. */}
+                                {grp.items.filter((r) => r.kind === "campaign").map((row) => {
                                     if (row.kind === "campaign") {
                                         const c = row.campaign;
                                         return (
@@ -386,7 +389,7 @@ export function WorkPage() {
                                                 className={cn(
                                                     "mb-2.5 rounded-[var(--radius-md)] border overflow-hidden transition-colors",
                                                     "border-edge bg-surface-1 hover:border-edge-strong",
-                                                    grp.key === "action" && "border-l-[3px] border-l-[var(--color-warning)]",
+                                                    grp.key === "action" && "border-l-[3px] border-l-[var(--color-brand)]",
                                                 )}
                                             >
                                                 <div className="flex items-center gap-3 p-3.5">
@@ -446,69 +449,88 @@ export function WorkPage() {
                                             </div>
                                         );
                                     }
+                                    return null;
+                                })}
 
-
+                                <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))" }}>
+                                {grp.items.filter((r) => r.kind === "piece").map((row) => {
+                                    if (row.kind !== "piece") return null;
                                     const g = row.gen;
                                     const st = row.status;
                                     return (
+
                                         <div
                                             key={g.id}
                                             className={cn(
-                                                "flex items-center gap-4 p-3 mb-2 rounded-[var(--radius-md)] border transition-colors",
+                                                "group rounded-[var(--radius-md)] border overflow-hidden transition-colors flex flex-col",
                                                 "border-edge bg-surface-1 hover:border-edge-strong",
-                                                grp.key === "action" && "border-l-[3px] border-l-[var(--color-warning)]",
+                                                grp.key === "action" && "border-l-[3px] border-l-[var(--color-brand)]",
                                             )}
                                         >
-                                            {g.thumbnailUrl && !brokenThumbs[g.id] ? (
-                                                <img
-                                                    src={g.thumbnailUrl.startsWith("http") ? g.thumbnailUrl : `http://127.0.0.1:8000${g.thumbnailUrl}`}
-                                                    alt=""
-                                                    onError={() => setBrokenThumbs((p) => ({ ...p, [g.id]: true }))}
-                                                    className="w-[76px] h-[96px] object-cover rounded-[6px] shrink-0 bg-surface-2"
-                                                />
-                                            ) : (
-                                                <span
-                                                    className="w-[76px] h-[96px] rounded-[6px] shrink-0 border border-edge-subtle bg-surface-2"
-                                                    title={g.thumbnailUrl ? "La miniatura expiró (fal.media)" : "Sin miniatura"}
-                                                />
-                                            )}
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-[14px] font-medium truncate">{g.title}</p>
-                                                <p className="text-[12px] text-fg-muted mt-0.5 truncate">
-                                                    {allBrands && g.brandId ? `${brandName[g.brandId] || g.brandId} · ` : ""}
-                                                    {g.toolId} · {daysAgo(g.createdAt)}
-                                                </p>
-                                            </div>
-
-                                            <span
-                                                className="text-[11.5px] font-mono tabular-nums text-fg-secondary w-16 text-right shrink-0"
-                                                title={
-                                                    g.cost
-                                                        ? `${g.cost.images} img · ${g.cost.videoSeconds}s video${g.cost.verified ? "" : " · incluye precios estimados"}`
-                                                        : "Sin costo registrado — corrida anterior al costing layer"
-                                                }
+                                            {/* La imagen manda: es contenido visual, no una fila de tabla */}
+                                            <Link
+                                                to={`/dashboard/generate/${g.toolId}?gen=${g.id}`}
+                                                className="block aspect-[3/4] bg-surface-2 overflow-hidden"
                                             >
-                                                {g.cost ? formatUsd(g.cost.usd) : "—"}
-                                            </span>
-
-                                            <select
-                                                value={st}
-                                                disabled={saving === g.id}
-                                                onChange={(e) => setStatus(g, e.target.value as WorkStatus)}
-                                                className={cn(
-                                                    "text-[11px] font-medium px-2.5 py-1 rounded-full border-0 outline-none cursor-pointer shrink-0",
-                                                    PILL_CLS[st],
+                                                {g.thumbnailUrl && !brokenThumbs[g.id] ? (
+                                                    <img
+                                                        src={g.thumbnailUrl.startsWith("http") ? g.thumbnailUrl : `http://127.0.0.1:8000${g.thumbnailUrl}`}
+                                                        alt=""
+                                                        loading="lazy"
+                                                        onError={() => setBrokenThumbs((p) => ({ ...p, [g.id]: true }))}
+                                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                                                    />
+                                                ) : (
+                                                    <span
+                                                        className="w-full h-full flex items-center justify-center text-[11px] text-fg-faint"
+                                                        title={g.thumbnailUrl ? "La miniatura expiró (fal.media)" : "Sin miniatura"}
+                                                    >
+                                                        {g.thumbnailUrl ? "miniatura expirada" : "sin imagen"}
+                                                    </span>
                                                 )}
-                                            >
-                                                {(Object.keys(WORK_STATUS_LABEL) as WorkStatus[]).map((sv) => (
-                                                    <option key={sv} value={sv} className="bg-surface-1 text-fg">
-                                                        {WORK_STATUS_LABEL[sv]}
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            </Link>
+
+                                            <div className="p-3 flex flex-col gap-2 flex-1">
+                                                <div className="min-w-0">
+                                                    <p className="text-[13px] font-medium truncate leading-tight">{g.title}</p>
+                                                    <p className="text-[11.5px] text-fg-muted mt-1 truncate">
+                                                        {allBrands && g.brandId ? `${brandName[g.brandId] || g.brandId} · ` : ""}
+                                                        {g.toolId} · {daysAgo(g.createdAt)}
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex items-center justify-between gap-2 mt-auto">
+                                                    <select
+                                                        value={st}
+                                                        disabled={saving === g.id}
+                                                        onChange={(e) => setStatus(g, e.target.value as WorkStatus)}
+                                                        className={cn(
+                                                            "text-[11px] font-medium px-2 py-1 rounded-full border-0 outline-none cursor-pointer min-w-0",
+                                                            PILL_CLS[st],
+                                                        )}
+                                                    >
+                                                        {(Object.keys(WORK_STATUS_LABEL) as WorkStatus[]).map((sv) => (
+                                                            <option key={sv} value={sv} className="bg-surface-1 text-fg">
+                                                                {WORK_STATUS_LABEL[sv]}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <span
+                                                        className="text-[11.5px] tabular-nums text-fg-muted shrink-0"
+                                                        title={
+                                                            g.cost
+                                                                ? `${g.cost.images} img · ${g.cost.videoSeconds}s video${g.cost.verified ? "" : " · incluye precios estimados"}`
+                                                                : "Sin costo registrado"
+                                                        }
+                                                    >
+                                                        {g.cost ? formatUsd(g.cost.usd) : "—"}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
                                     );
                                 })}
+                                </div>
                                 {grp.hidden > 0 && (
                                     <p className="text-[11.5px] text-fg-faint pt-3">
                                         + {grp.hidden} corridas más en el historial —{" "}
