@@ -10,7 +10,7 @@
  */
 
 import type { ToolDefinition, StepHandler } from "../types";
-import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, guessFramingFromImage, cropImageTop, cropImageBottom, repaintBgToColor, type ImageModel } from "../../lib/api";
+import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, guessFramingFromImage, measureSubjectRatio, cropImageTop, cropImageBottom, repaintBgToColor, type ImageModel } from "../../lib/api";
 
 // Shot catalog. `onModel` shots feature the model wearing the garment; the rest are
 // product-only packshots. Each entry's `framing` is appended to the studio prompt.
@@ -864,6 +864,12 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
     // "Detalle inferior" con pose ref: la pose manda el crop, pero además hay que decirle
     // QUÉ parte del tren inferior entra. Sin esto Nano cerraba a los PIES/zapatillas y perdía
     // la prenda. Reportado: "le paso una pose de la cintura para abajo y me hace los pies".
+    // Si la pose ref es de cintura-para-abajo, el riesgo #1 es que el modelo cierre DE MÁS
+    // y entregue rodilla-a-pies, dejando la prenda fuera de cuadro (reportado con el short).
+    // Esto fija el borde SUPERIOR del encuadre, que es lo que se corría.
+    const waistDownAnchor = (shotPoseUrl && poseCur.framing === "waist_down")
+      ? ` WAIST-DOWN FRAMING — WHERE THE TOP EDGE SITS (mandatory): the top edge of the frame must land at the WAIST / HIP line, exactly like the pose reference. The WHOLE bottom garment must be inside the frame: its waistband at the top, then the hips, both thighs, the knees and the hem — down to the feet. Do NOT start the frame at the thighs, at the knees or at the calves: a crop that begins below the garment's hem is WRONG, because the garment is the product being sold and must be fully visible. If in doubt, include MORE of the waist rather than less.`
+      : "";
     const lowerAnchorClause = (sid === "model_detail_lower" && shotPoseUrl)
       ? ` LOWER-BODY ANCHOR (mandatory for this shot): the frame MUST start at the WAIST / HIP line and include the bottom garment ALMOST IN FULL — waistband, hips, both thighs, knees and the hem. This is NOT a shoe shot and NOT a calves-and-feet crop: do NOT frame only the feet, ankles, shoes or the lower calves. The bottom garment (trousers, jeans, skirt, shorts) is the SUBJECT and must occupy most of the frame; footwear may appear at the bottom edge but is never the subject. Keep the leg posture from the pose reference.`
       : "";
@@ -874,7 +880,7 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
     // La toma "Pose custom" (model_custom) sigue la pose ref EXACTA (sin naturalizar); el resto,
     // energía natural. Es la toma dedicada a "seguí la pose tal cual la paso".
     const naturalOrStrict = (sid === "model_custom" && shotPoseUrl) ? STRICT_POSE : NATURAL_ENERGY;
-    const prompt = `Professional e-commerce studio fashion photograph. ${posePriorityLead}${BODY_PROPORTIONS} ${naturalOrStrict} ${studioClause} ${framingClause}${lowerAnchorClause}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${detailIdentityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${heroFocusClause}${completeLookClause}${detailsClause}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    const prompt = `Professional e-commerce studio fashion photograph. ${posePriorityLead}${BODY_PROPORTIONS} ${naturalOrStrict} ${studioClause} ${framingClause}${lowerAnchorClause}${waistDownAnchor}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${detailIdentityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${heroFocusClause}${completeLookClause}${detailsClause}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution, imageModel) : await createTextToImage(prompt, config.aspectRatio, config.resolution, imageModel);
       const res = await pollImageGen(job.request_id);
@@ -891,10 +897,19 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
       } else if (url && sid === "model_detail_lower" && !shotPoseUrl) {
         url = await cropImageBottom(url, 0.6);   // detalle inferior = de la cintura para abajo
       } else if (url && (sid === "model_custom" || sid === "model_detail_lower") && shotPoseUrl) {
-        // Con pose ref, el recorte lo manda el encuadre DE LA POSE (detectado por Gemini),
-        // no el preset del shot — la pose es la fuente de la verdad.
+        // Con pose ref, el recorte lo manda el encuadre DE LA POSE — la pose es la fuente
+        // de la verdad. PERO el prompt YA le pidió al modelo reproducir ese encuadre, así
+        // que primero medimos lo que entregó: si ya viene encuadrado, recortar de nuevo
+        // corta DOS veces y se come la prenda (reportado: pose de cintura-para-abajo →
+        // salida de la rodilla a los pies, sin el short). Solo recortamos si el modelo
+        // ignoró el encuadre y devolvió una figura entera.
         const f = poseCur.framing;
-        if (f === "waist_down") url = await cropImageBottom(url, 0.6);
+        // ratio alto/ancho del sujeto: >=2.2 es una figura completa; menos ya viene cortada.
+        const outRatio = await measureSubjectRatio(url);
+        const outIsFullBody = outRatio === null || outRatio >= 2.2;
+        if (!outIsFullBody) {
+          // el modelo ya respetó el encuadre de la pose: no tocar.
+        } else if (f === "waist_down") url = await cropImageBottom(url, 0.6);
         else if (f === "waist_up") url = await cropImageTop(url, 0.55);
         else if (f === "knee") url = await cropImageTop(url, 0.8);
         else if (f === "closeup") url = await cropImageTop(url, 0.45);

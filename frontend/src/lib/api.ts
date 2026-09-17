@@ -2694,6 +2694,55 @@ export async function guessFramingFromImage(dataUrl: string): Promise<string> {
     }
 }
 
+/** Mide el encuadre de una imagen YA GENERADA, para decidir si hace falta recortarla.
+ *  Reusa el mismo bounding-box que guessFramingFromImage pero responde otra pregunta:
+ *  no "qué encuadre pidió el usuario" sino "qué encuadre entregó el modelo".
+ *
+ *  Existe porque el prompt YA le pide al modelo reproducir el encuadre de la pose ref.
+ *  Cuando obedece (que es el objetivo), aplicarle además el crop determinístico recorta
+ *  DOS veces: el usuario pasa una pose de cintura-para-abajo, el modelo entrega
+ *  cintura-para-abajo, y el crop se queda con el 60% inferior de ESO — o sea de la
+ *  rodilla a los pies, comiéndose la prenda. Reportado con el short mostaza.
+ */
+export async function measureSubjectRatio(imageUrl: string): Promise<number | null> {
+    try {
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const i = new Image();
+            i.crossOrigin = "anonymous";
+            i.onload = () => resolve(i);
+            i.onerror = () => reject(new Error("load"));
+            i.src = imageUrl;
+        });
+        const W = 160;
+        const H = Math.max(1, Math.round((img.height / img.width) * W));
+        const cv = document.createElement("canvas");
+        cv.width = W; cv.height = H;
+        const ctx = cv.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return null;
+        ctx.drawImage(img, 0, 0, W, H);
+        const px = ctx.getImageData(0, 0, W, H).data;
+        const at = (x: number, y: number) => { const o = (y * W + x) * 4; return [px[o], px[o + 1], px[o + 2]]; };
+        const corners = [at(0, 0), at(W - 1, 0), at(0, H - 1), at(W - 1, H - 1)];
+        const bg = [0, 1, 2].map((c) => corners.reduce((a, k) => a + k[c], 0) / 4);
+        let minY = H, maxY = -1, minX = W, maxX = -1;
+        for (let y = 0; y < H; y++) {
+            for (let x = 0; x < W; x++) {
+                const [r, g, b] = at(x, y);
+                if (Math.abs(r - bg[0]) + Math.abs(g - bg[1]) + Math.abs(b - bg[2]) > 38) {
+                    if (y < minY) minY = y; if (y > maxY) maxY = y;
+                    if (x < minX) minX = x; if (x > maxX) maxX = x;
+                }
+            }
+        }
+        const h = maxY - minY, w = maxX - minX;
+        if (h <= 0 || w <= 0) return null;
+        if ((h * w) / (W * H) < 0.04) return null;
+        return h / w;
+    } catch {
+        return null;
+    }
+}
+
 /** Composite determinístico de fondo: recorta el sujeto (BiRefNet) y lo pega sobre el fondo
  *  real (seamless) con sombra de contacto. Garantiza fondo consistente sin depender de Nano.
  *  Fail-open: devuelve la imagen original si algo falla. */
