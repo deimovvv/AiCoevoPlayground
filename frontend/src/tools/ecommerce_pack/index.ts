@@ -263,10 +263,20 @@ const POSE_POOLS_MALE: Record<string, string[]> = {
   model_back:     ["fbm_back_pockets", "back_clean", "back_walk_away"],
 };
 
-// Close-ups: NO reciben pose preset. Las poses están escritas "full body in frame",
-// que contradice un crop cerrado. Para estos planos manda el encuadre (la framing
+// Close-ups: NO reciben pose preset TEXTUAL. Las poses preset están escritas "full body in
+// frame", que contradice un crop cerrado. Para estos planos manda el encuadre (la framing
 // clause ya describe el crop y, en primer plano, la cara mirando a cámara).
 const CLOSEUP_SHOTS = new Set(["model_detail", "model_detail_lower"]);
+
+// Shots cuyo encuadre queda BLINDADO contra la pose ref: la pose aporta orientación/postura
+// pero NO puede reencuadrar. Solo "Detalle prenda", que es un macro de la tela y se abría a
+// cuerpo entero cuando le pasaban una pose ("le pasé una pose y me generó cuerpo entero").
+//
+// "Detalle inferior" QUEDA FUERA a propósito: es un plano de cintura-para-abajo, y el usuario
+// justamente le pasa poses de cintura-para-abajo para dictar la postura de piernas. Blindarlo
+// hacía que ignorara la pose y, encima, el cropImageBottom ciego recortaba a los PIES.
+// Regla del usuario: "la pose siempre es la fuente de la verdad".
+const POSE_CANNOT_REFRAME = new Set(["model_detail"]);
 
 // Variedad para "On-model · Detalle prenda" (model_detail): rota entre tipos de detalle cool
 // (curados del board de refs de Koxis) en vez de siempre el mismo close-up frontal de pecho.
@@ -800,9 +810,10 @@ Output: the person from image 1, EXACTLY as they appear in image 1 (same skin, s
     const posePriorityLead = shotPoseUrl
       ? `POSE FIDELITY IS THE #1 PRIORITY of this shot (second only to keeping the exact identity): reproduce the POSE REFERENCE's body posture, orientation and every limb placement EXACTLY — a faithful motion-capture of that stance, not an approximation. Do NOT default to a plain symmetric frontal stance.${poseCur.pose ? ` The exact pose to reproduce: ${poseCur.pose}` : ""} `
       : "";
-    // Los shots de detalle/close-up conservan SIEMPRE su encuadre cerrado — la pose ref NO los
-    // abre a cuerpo entero (solo aporta orientación/postura). Ver framingClause abajo.
-    const poseFramesShot = !!shotPoseUrl && !CLOSEUP_SHOTS.has(sid);
+    // "Detalle prenda" conserva SIEMPRE su macro cerrado — la pose ref NO lo abre a cuerpo
+    // entero (solo aporta orientación/postura). El resto, incluido "Detalle inferior", SÍ toma
+    // el encuadre de la pose ref: la pose es la fuente de la verdad. Ver framingClause abajo.
+    const poseFramesShot = !!shotPoseUrl && !POSE_CANNOT_REFRAME.has(sid);
     const poseOverride = shotPoseUrl
       ? `
 
@@ -844,6 +855,12 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
     const effectiveFraming = (heroGarment && CLOSEUP_SHOTS.has(sid))
       ? `Tight CLOSE-UP detail OF the "${heroGarment.name}" specifically — this close-up is OF that exact product and NOTHING else. Crop TIGHTLY to that garment's most relevant detail (its own fabric, weave, seam, pocket, closure, waistband, hem, cuff or trim). Frame it WHERE that garment actually sits on the body: if it is a LOWER-BODY garment (trousers, pants, shorts, skirt) crop to the WAIST / HIP / THIGH area and do NOT crop to the chest; if it is an UPPER-BODY garment crop to the chest/torso; if footwear, crop to the feet. Do NOT default to the chest when the hero garment is not on the upper body. No face needed.`
       : detailFramingBase;
+    // "Detalle inferior" con pose ref: la pose manda el crop, pero además hay que decirle
+    // QUÉ parte del tren inferior entra. Sin esto Nano cerraba a los PIES/zapatillas y perdía
+    // la prenda. Reportado: "le paso una pose de la cintura para abajo y me hace los pies".
+    const lowerAnchorClause = (sid === "model_detail_lower" && shotPoseUrl)
+      ? ` LOWER-BODY ANCHOR (mandatory for this shot): the frame MUST start at the WAIST / HIP line and include the bottom garment ALMOST IN FULL — waistband, hips, both thighs, knees and the hem. This is NOT a shoe shot and NOT a calves-and-feet crop: do NOT frame only the feet, ankles, shoes or the lower calves. The bottom garment (trousers, jeans, skirt, shorts) is the SUBJECT and must occupy most of the frame; footwear may appear at the bottom edge but is never the subject. Keep the leg posture from the pose reference.`
+      : "";
     const framingClause = poseFramesShot
       ? `FRAMING (MANDATORY — the POSE REFERENCE image is the SOURCE OF TRUTH for the crop/zoom/distance): reproduce the EXACT camera framing and crop of the pose reference. If it is a medium / waist-up / American shot, crop the SAME way (do NOT extend to full body); if it is a LOWER-BODY / waist-DOWN crop (framed from the waist or hips down to the legs/feet, with the torso and head NOT shown), output that SAME lower-body crop — do NOT add the torso or head; if it is full-body, output full-body. CRITICAL — the IDENTITY and GARMENT reference images are full-body or torso photos that only tell you WHO the person is and WHAT they wear; they do NOT define the crop. Do NOT widen or extend the framing to show the whole body or the complete outfit just because those references are full-body — the crop is defined ONLY by the pose reference.${faceRequired ? " Only exception: never crop the head/face out — if the pose ref cuts the head, extend upward just enough to keep the whole face visible." : " Match the TOP of the frame too: if the pose reference is cropped at the neck / shoulders / chest with NO head or face visible, the output must ALSO have NO head or face — crop it the SAME way at the top and do NOT extend the framing upward to reveal the face, NOT EVEN to show the identity. Identity fidelity applies ONLY to the body parts that are actually within the pose reference's crop; if the face is not in the pose ref, it is not in the output."}`
       : `FRAMING (MANDATORY — defines the crop/zoom): ${effectiveFraming}`;
@@ -851,7 +868,7 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
     // La toma "Pose custom" (model_custom) sigue la pose ref EXACTA (sin naturalizar); el resto,
     // energía natural. Es la toma dedicada a "seguí la pose tal cual la paso".
     const naturalOrStrict = (sid === "model_custom" && shotPoseUrl) ? STRICT_POSE : NATURAL_ENERGY;
-    const prompt = `Professional e-commerce studio fashion photograph. ${posePriorityLead}${BODY_PROPORTIONS} ${naturalOrStrict} ${studioClause} ${framingClause}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${detailIdentityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${heroFocusClause}${completeLookClause}${detailsClause}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
+    const prompt = `Professional e-commerce studio fashion photograph. ${posePriorityLead}${BODY_PROPORTIONS} ${naturalOrStrict} ${studioClause} ${framingClause}${lowerAnchorClause}${presetPoseClause} ${wardrobe}${cameraLighting} ${identityClause}${detailIdentityClause}${FACE_REALISM} ${FABRIC_REALISM} ${GARMENT_ORIENTATION} ${PIXEL_FIDELITY} ${REALISM_NEGATIVES}${heroFocusClause}${completeLookClause}${detailsClause}${NO_TEXT}${poseOverride}\n\nREFERENCE IMAGES:\n${desc.join("\n")}`;
     try {
       const job = urls.length ? await createImageEdit(urls, prompt, config.aspectRatio, config.resolution, imageModel) : await createTextToImage(prompt, config.aspectRatio, config.resolution, imageModel);
       const res = await pollImageGen(job.request_id);
@@ -865,16 +882,20 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
         url = await cropImageTop(url, 0.8);   // americano = corte a la RODILLA
       } else if (url && sid === "model_medium" && !shotPoseUrl) {
         url = await cropImageTop(url, 0.55);  // plano medio = corte a la CINTURA
-      } else if (url && sid === "model_detail_lower") {
+      } else if (url && sid === "model_detail_lower" && !shotPoseUrl) {
         url = await cropImageBottom(url, 0.6);   // detalle inferior = de la cintura para abajo
-      } else if (url && sid === "model_custom" && shotPoseUrl) {
-        // Pose custom: recorta al MISMO encuadre que la pose ref (detectado por Gemini).
+      } else if (url && (sid === "model_custom" || sid === "model_detail_lower") && shotPoseUrl) {
+        // Con pose ref, el recorte lo manda el encuadre DE LA POSE (detectado por Gemini),
+        // no el preset del shot — la pose es la fuente de la verdad.
         const f = poseCur.framing;
         if (f === "waist_down") url = await cropImageBottom(url, 0.6);
         else if (f === "waist_up") url = await cropImageTop(url, 0.55);
         else if (f === "knee") url = await cropImageTop(url, 0.8);
         else if (f === "closeup") url = await cropImageTop(url, 0.45);
-        // "full" o desconocido → sin recorte (cuerpo entero)
+        else if (sid === "model_detail_lower") url = await cropImageBottom(url, 0.6);
+        // "full" o desconocido en pose custom → sin recorte (cuerpo entero). En "detalle
+        // inferior" NO: ese shot es de cintura para abajo por definición, así que si Gemini
+        // falla o lee "full" igual recortamos, o volvemos a entregar un cuerpo entero.
       }
       // Composite sobre el seamless real (fondo consistente) — solo con el fondo default.
       url = await compositeToSeamless(url);
