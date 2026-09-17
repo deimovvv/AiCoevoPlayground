@@ -316,6 +316,89 @@ Estos tres son ortogonales al layout. Se hacen en el Lab actual sin romper nada.
 
 ---
 
+## 10d. Campañas — cerrar el circuito con las tools
+
+**Estado.** El flujo de campaña quedó rehecho en septiembre 2026 (ver commits
+`65dcc26`, `1e94b03`, `29d6b83`, `c3af59b`). Lo que YA funciona:
+
+- Panel + lienzo en una sola pantalla (forma tomada del módulo de campaña de
+  Genera Space; ver `competitive-research.md`). Botón de generar siempre visible
+  con contador de piezas y costo.
+- El brief se interpreta solo mientras escribís — `services/campaign_planner.py`
+  lee el texto y devuelve tomas concretas, formatos deducidos del destino
+  (reel → 9:16, feed → 4:5) y los assets elegidos del banco de la marca.
+- Se puede adjuntar el PDF del cliente (`POST /api/campaigns/brief-from-file`)
+  en vez de transcribirlo.
+- Los assets NO se vuelven a pedir: salen de la marca y se muestran como
+  miniaturas, editables si hace falta.
+
+**El agujero que queda: campañas y tools son dos formas de producir que no se
+hablan.**
+
+```
+CAMPAÑAS                          TOOLS
+brief → plan → piezas             elegís tool → pipeline → pieza
+  └─ sólo imágenes sueltas          └─ reels, UGC, catálogos, ecommerce
+```
+
+La campaña sabe interpretar un brief pero `handleGenerate` en
+`CampaignDetailPage` arma un prompt genérico y llama a `createImageEdit`
+directo. Las tools saben hacer reels y UGC pero no saben nada de campañas.
+Hoy hay puentes de navegación entre las dos (`d5996a0`) pero nada más.
+
+**Lo que falta para cerrarlo:**
+
+- [ ] El planner devuelve `needs_video: true` cuando el brief menciona reel o
+      animación — **hoy sólo lo avisa en pantalla, no lo produce**. Es el caso
+      más visible: escribís "un reel corto para el lanzamiento" y salen fotos.
+- [ ] Que cada toma del plan declare **qué tool la ejecuta** (`fashion_reel`,
+      `ecommerce_pack`, `ugc_creator`, o generación directa) en vez de asumir
+      imagen suelta. El planner ya tiene el catálogo de la marca; le falta el
+      catálogo de tools.
+- [ ] Disparar la tool desde la campaña y que la generación resultante quede
+      colgada de ella (`campaign.generationIds` existe y está sin usar — las
+      piezas viven en `campaign.pieces`).
+- [ ] Al volver de la tool, que la pieza aparezca en la campaña sin pasos
+      manuales.
+
+**Decisión pendiente:** ¿la campaña ejecuta la tool por dentro (sin salir de la
+pantalla) o te lleva a la tool con el contexto cargado? La segunda es mucho más
+barata y respeta que las tools ya tienen su propio pipeline con curación.
+
+**No requiere:** infraestructura nueva. El planner y las tools ya existen; falta
+el mapeo entre uno y otras.
+
+---
+
+## 10e. Campañas — estados que significan algo
+
+**Problema.** Nada impide que una campaña pase a `review` sin tener una sola
+pieza. Pasó: en agosto había 4 campañas en "En revisión" con cero piezas
+generadas — no había nada que revisar. Hoy (sept 2026) ya no quedan así, pero
+la regla sigue sin existir, así que puede volver a pasar.
+
+- [ ] Regla dura: no se puede pasar a `review` sin al menos una pieza.
+- [ ] `generationIds` quedó huérfano (las piezas viven en `pieces`). O se usa o
+      se saca del modelo.
+- [ ] Las campañas sin nombre se llamaban todas "Campaña sin nombre" — ya se
+      arregló tomando la primera línea del brief, pero las viejas quedaron así.
+      Falta una migración que las renombre.
+
+---
+
+## 10f. Modo claro — auditar el resto de la app
+
+**Contexto.** Todo el desarrollo reciente se probó en modo oscuro. Cuando se
+miró en claro aparecieron problemas acumulados: crema demasiado amarillo, bordes
+invisibles (0.025 de opacidad), fondos de estado que teñían media pantalla.
+Arreglado en `60ff48c` y `c3af59b` para Campañas.
+
+- [ ] Revisar el resto de las pantallas en claro — sobre todo Brand Settings,
+      ToolRunPage y Manual Lab, que son las más densas.
+- [ ] Verificar contraste en ambos temas al tocar color, no sólo en uno.
+
+---
+
 ## 11. Remotion Export
 
 - Actualmente: FFmpeg burns subtítulos simples, Remotion solo para preview
