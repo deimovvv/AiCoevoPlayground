@@ -10,7 +10,7 @@
  */
 
 import type { ToolDefinition, StepHandler } from "../types";
-import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, cropImageTop, cropImageBottom, repaintBgToColor, type ImageModel } from "../../lib/api";
+import { createImageEdit, createTextToImage, pollImageGen, analyzePoseRefDecoys, guessFramingFromImage, cropImageTop, cropImageBottom, repaintBgToColor, type ImageModel } from "../../lib/api";
 
 // Shot catalog. `onModel` shots feature the model wearing the garment; the rest are
 // product-only packshots. Each entry's `framing` is appended to the studio prompt.
@@ -578,7 +578,13 @@ const handleGenerate: StepHandler = async (ctx) => {
   {
     const uniquePoseUrls = [...new Set([poseUrl, ...Object.values(ecomShotPoses)].filter(Boolean) as string[])];
     await Promise.all(uniquePoseUrls.map(async (u) => {
-      poseRefCuration.set(u, await analyzePoseRefDecoys(u));
+      const cur = await analyzePoseRefDecoys(u);
+      // Gemini es fail-open: si la key esta bloqueada / sin cuota devuelve todo vacio y
+      // el crop no se aplicaba => salia CUERPO ENTERO aunque pasaras un encuadre cerrado.
+      // Verificado en produccion: GEMINI_API_KEY devolviendo 403 PERMISSION_DENIED.
+      // Con framing vacio lo estimamos midiendo la imagen en el browser.
+      if (!cur.framing) cur.framing = await guessFramingFromImage(u);
+      poseRefCuration.set(u, cur);
     }));
   }
 
@@ -893,9 +899,10 @@ POSE-TRANSFER INSTRUCTIONS (keep the SUBJECT, borrow ONLY the pose):
         else if (f === "knee") url = await cropImageTop(url, 0.8);
         else if (f === "closeup") url = await cropImageTop(url, 0.45);
         else if (sid === "model_detail_lower") url = await cropImageBottom(url, 0.6);
-        // "full" o desconocido en pose custom → sin recorte (cuerpo entero). En "detalle
-        // inferior" NO: ese shot es de cintura para abajo por definición, así que si Gemini
-        // falla o lee "full" igual recortamos, o volvemos a entregar un cuerpo entero.
+        // "full" o desconocido en pose custom → sin recorte (cuerpo entero), que es lo
+        // correcto SOLO si la pose ref es de cuerpo entero. En "detalle inferior" nunca:
+        // ese shot es de cintura para abajo por definición, así que si el framing no se
+        // pudo determinar igual recortamos en vez de devolver un cuerpo entero.
       }
       // Composite sobre el seamless real (fondo consistente) — solo con el fondo default.
       url = await compositeToSeamless(url);

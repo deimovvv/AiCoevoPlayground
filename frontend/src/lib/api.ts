@@ -2637,6 +2637,63 @@ export async function cropImageBottom(imageUrl: string, keepBottom = 0.6): Promi
     }
 }
 
+/** Estima el ENCUADRE de una pose ref midiendo la imagen en el browser, SIN Gemini.
+ *  Existe como red de seguridad: `analyzePoseRefDecoys` es fail-open y devuelve
+ *  framing:"" cuando Gemini falla o se pasa de cuota. Con "" el caller no aplicaba
+ *  ningún recorte y devolvía CUERPO ENTERO — el peor resultado posible cuando el
+ *  usuario justamente pasó un encuadre cerrado ("le paso cintura para abajo y me
+ *  devuelve el cuerpo entero").
+ *
+ *  Heurística: recorta el sujeto contra el fondo (la pose ref de e-commerce siempre
+ *  viene sobre fondo claro y plano) y mira la relación alto/ancho del bounding box.
+ *  Una figura entera es MUCHO más alta que ancha (~2.5:1); un plano medio o un
+ *  waist-down real ronda 1.2–1.8:1; un close-up queda casi cuadrado o apaisado.
+ *  Devuelve "" si no puede medir con confianza — nunca adivina.
+ */
+export async function guessFramingFromImage(dataUrl: string): Promise<string> {
+    try {
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const i = new Image();
+            i.onload = () => resolve(i);
+            i.onerror = () => reject(new Error("load"));
+            i.src = dataUrl;
+        });
+        const W = 160;
+        const H = Math.max(1, Math.round((img.height / img.width) * W));
+        const cv = document.createElement("canvas");
+        cv.width = W; cv.height = H;
+        const ctx = cv.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return "";
+        ctx.drawImage(img, 0, 0, W, H);
+        const px = ctx.getImageData(0, 0, W, H).data;
+        // Fondo = color de las 4 esquinas (la pose ref viene sobre fondo plano claro).
+        const at = (x: number, y: number) => { const o = (y * W + x) * 4; return [px[o], px[o + 1], px[o + 2]]; };
+        const corners = [at(0, 0), at(W - 1, 0), at(0, H - 1), at(W - 1, H - 1)];
+        const bg = [0, 1, 2].map((c) => corners.reduce((a, k) => a + k[c], 0) / 4);
+        let minY = H, maxY = -1, minX = W, maxX = -1;
+        for (let y = 0; y < H; y++) {
+            for (let x = 0; x < W; x++) {
+                const [r, g, b] = at(x, y);
+                // distancia al fondo; 38 tolera sombras suaves sin comerse el sujeto
+                if (Math.abs(r - bg[0]) + Math.abs(g - bg[1]) + Math.abs(b - bg[2]) > 38) {
+                    if (y < minY) minY = y; if (y > maxY) maxY = y;
+                    if (x < minX) minX = x; if (x > maxX) maxX = x;
+                }
+            }
+        }
+        const h = maxY - minY, w = maxX - minX;
+        if (h <= 0 || w <= 0) return "";
+        const cover = (h * w) / (W * H);
+        if (cover < 0.04) return "";            // no se detectó sujeto: no adivinamos
+        const ratio = h / w;
+        if (ratio >= 2.2) return "full";        // figura completa, muy esbelta
+        if (ratio >= 1.15) return "waist_down"; // medio cuerpo (piernas o torso)
+        return "closeup";                        // casi cuadrado / apaisado
+    } catch {
+        return "";
+    }
+}
+
 /** Composite determinístico de fondo: recorta el sujeto (BiRefNet) y lo pega sobre el fondo
  *  real (seamless) con sombra de contacto. Garantiza fondo consistente sin depender de Nano.
  *  Fail-open: devuelve la imagen original si algo falla. */
