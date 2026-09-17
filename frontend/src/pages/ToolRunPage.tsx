@@ -3597,7 +3597,10 @@ function ConfigPanel({
   // Sin estos dos, el picker se cerraba al instante y no pasaba nada visible: el
   // usuario creía que no se había seleccionado. Reportado.
   const [poseLoadingShot, setPoseLoadingShot] = useState<string | null>(null);
-  const [poseError, setPoseError] = useState<string | null>(null);
+  /** Error de carga de pose, POR SHOT. Antes era un string global que se pintaba al pie
+   *  de toda la lista de tomas y no se limpiaba nunca: un fallo al cargar una pose
+   *  quedaba en pantalla aunque despues generaras un Flat, donde no hay pose. */
+  const [poseErrors, setPoseErrors] = useState<Record<string, string>>({});
   // Librería de poses colapsable — el grid de thumbs ocupa mucho; default cerrado. Pedido explícito.
   const [poseLibOpen, setPoseLibOpen] = useState(false);
 
@@ -4577,16 +4580,23 @@ function ConfigPanel({
                                 title={poseLoadingShot === id ? "Cargando pose…" : "Elegir de la librería de poses guardadas"}
                               >{poseLoadingShot === id ? "⏳" : "📚"}</button>
                               {posePickerShot === id && (
-                                <div className="absolute z-20 top-7 right-0 w-52 max-h-56 overflow-auto p-1.5 rounded-[var(--radius-md)] border border-edge bg-surface-1 shadow-lg grid grid-cols-3 gap-1.5">
+                                <div className="absolute z-20 top-7 right-0 w-52 max-h-56 overflow-auto p-1.5 rounded-[var(--radius-md)] border border-edge bg-surface-1 shadow-lg">
+                                  {poseErrors[id] && (
+                                    <p className="px-1 pb-1.5 text-[10px] text-[var(--color-danger,#c45830)] leading-snug">{poseErrors[id]}</p>
+                                  )}
+                                  <div className="grid grid-cols-3 gap-1.5">
                                   {(activeBrand?.poses || []).map((ps) => (
                                     <button
                                       key={ps.id}
                                       type="button"
                                       onClick={async () => {
-                                        setPoseError(null);
+                                        setPoseErrors((p) => { const n = { ...p }; delete n[id]; return n; });
                                         setPoseLoadingShot(id);
                                         try {
-                                          const res = await fetch(poseImageUrl(ps.imageUrl));
+                                          // cache: "reload" evita que un 4xx/5xx cacheado de una
+                                          // sesion anterior (ej. backend caido) siga fallando para
+                                          // siempre aunque el archivo ya se sirva bien.
+                                          const res = await fetch(poseImageUrl(ps.imageUrl), { cache: "reload" });
                                           if (!res.ok) throw new Error(`HTTP ${res.status}`);
                                           const blob = await res.blob();
                                           const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -4599,7 +4609,7 @@ function ConfigPanel({
                                           setPosePickerShot(null); // cerrar SOLO si se guardó
                                         } catch (err) {
                                           console.error(err);
-                                          setPoseError(`No se pudo cargar "${ps.name}". Reintentá.`);
+                                          setPoseErrors((p) => ({ ...p, [id]: `No se pudo cargar "${ps.name}". Reintentá.` }));
                                         } finally {
                                           setPoseLoadingShot(null);
                                         }
@@ -4610,6 +4620,7 @@ function ConfigPanel({
                                       <img src={poseImageUrl(ps.imageUrl)} alt={ps.name} className="w-full h-full object-cover" />
                                     </button>
                                   ))}
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -4629,9 +4640,6 @@ function ConfigPanel({
             </p>
             {/* Aviso: "Pose custom" sin pose ref adjunta = hace un frente por defecto (clon de Frente).
                 Su razón de ser es seguir la pose que le pasás, así que sin pose no sirve. */}
-            {poseError && (
-              <p className="text-[10px] text-[var(--color-danger,#c45830)]">{poseError}</p>
-            )}
             {config.ecomShots.includes("model_custom") && !config.ecomShotPoses["model_custom"] && (
               <div className="flex items-start gap-1.5 px-2.5 py-2 rounded-[var(--radius-sm)] border border-[var(--color-warning-muted,#7a5b1e)] bg-[var(--color-warning-subtle,#2a2113)] text-[10px] text-[var(--color-warning,#e0b050)] leading-snug">
                 <AlertCircle size={12} className="shrink-0 mt-0.5" />
@@ -11910,7 +11918,6 @@ function AssetSelector({
   multi,
   onUpload,
   onDelete,
-  deleteConfirm,
   collapsible,
   defaultCollapsed,
 }: {
@@ -11927,8 +11934,6 @@ function AssetSelector({
   /** Borra el item del Brand Kit (propaga a todas las tools). Si se provee,
    *  cada card muestra un trash en hover. */
   onDelete?: (id: string) => Promise<void> | void;
-  /** Mensaje de confirmación. `{name}` se reemplaza por el nombre del item. */
-  deleteConfirm?: string;
   /** Permite plegar/desplegar el cuerpo (útil cuando la lista es larga, ej. Prendas). */
   collapsible?: boolean;
   /** Si es colapsable, arranca plegado. */
@@ -12114,14 +12119,14 @@ function AssetSelector({
                     {item.name}
                   </span>
                 </button>
-                {/* Trash en hover — borra el item del Brand Kit (propaga a todas
-                    las tools). Con confirm porque es destructivo. */}
+                {/* Trash en hover — borra el item del Brand Kit (propaga a todas las tools).
+                    SIN confirm: el usuario borra de a muchos y el dialog del browser lo
+                    frenaba en cada uno. El boton solo aparece en hover, asi que no se
+                    dispara por accidente. */}
                 {onDelete && (
                   <button
                     onClick={async (e) => {
                       e.stopPropagation();
-                      const msg = (deleteConfirm || `Borrar "{name}" del Brand Kit? Se quita de TODAS las tools, no se puede deshacer.`).replace("{name}", item.name);
-                      if (!confirm(msg)) return;
                       try {
                         await onDelete(item.id);
                       } catch (err) {
