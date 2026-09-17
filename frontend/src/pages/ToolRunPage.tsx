@@ -7737,7 +7737,7 @@ function UsedInputsStrip({ config, toolId, result }: { config?: ToolConfig; tool
 
 // ── Done step ──────────────────────────────────────────────
 
-function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, onInvalidateDownstream, toolId, batches, onNewBatch, onDeleteBatch, onUpdateBatchImage }: {
+function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, onInvalidateDownstream, toolId, batches, onNewBatch, onDeleteBatch, onUpdateBatchImage, onAddBatchImage }: {
   stepId: string;
   result?: unknown;
   audioCache?: Record<string, { url: string; blob: Blob }>;
@@ -7760,6 +7760,9 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
   /** Reemplaza la URL de una imagen específica dentro de una tanda. Lo dispara
    *  el ImageEditPanel cuando el usuario edita una toma generada. */
   onUpdateBatchImage?: (batchId: string, imageId: string, newUrl: string) => void;
+  /** Agrega una imagen NUEVA al final de una tanda. Lo usa "otra toma" (add angle),
+   *  que genera a partir de una imagen ya aprobada. */
+  onAddBatchImage?: (batchId: string, image: { id: string; url: string; label: string; status: string }) => void;
 }) {
   const meta = STEP_META[stepId];
   const { activeBrand } = useBrand();
