@@ -622,6 +622,87 @@ los hechos, un seguro contra bans.
 
 ---
 
+## 2026-09 — Output primero, SaaS como destilación: se concilia julio con septiembre
+
+**Por qué esta entrada.** En 2026-07 se decidió, avalado, *vender OUTPUT (servicio
+productizado), NO SaaS horizontal*. En 2026-09 se escribieron
+`market-positioning.md` y `financial-model.md`, que modelan "el SaaS", tres
+tiers de precio "estructural, no opcional" y una ronda de $200-300K — **sin
+registrar entrada acá**. Quedaron dos caminos conviviendo y ninguno marcado como
+vigente. Resultado práctico: cada vez que aparece un cliente nuevo se
+re-discute desde cero si construirle algo propio o algo genérico. Esta entrada
+cierra eso.
+
+**La decisión: no son dos caminos, es una secuencia.**
+
+Vender output es el modelo vigente. El SaaS no es una alternativa ni un pivote
+pendiente: es lo que queda **después** de producir para clientes reales y
+destilar lo que se repite. El orden importa y no se invierte.
+
+La evidencia de que funciona así ya está en el repo, tres veces:
+- **Clara Ibarguren** → sus correcciones (morley, calce, tiro) son hoy Ecommerce
+  Pack. La tool no se diseñó y después se validó; salió de resolver un caso bien.
+- **Garçon García** → el sistema de proporciones adolescentes y el banco de poses
+  por plano.
+- **PROMAN** → el SOP de video documental en `docs/video-ad-production-sop.md`.
+
+Ninguna de esas capacidades se podría haber especificado por adelantado. Salieron
+de que un cliente exigente señalara un error concreto.
+
+**La regla operativa (el criterio que faltaba).** Ante cualquier pedido de un
+cliente, la pregunta NO es "¿esto es producto o es para este cliente?" sino:
+
+> ¿Esto lo voy a volver a necesitar con el próximo cliente?
+
+- **Lleva el nombre del cliente adentro** (sus líneas de producto, su tono, su
+  formato) → es contexto de marca, va al Brand Kit. Nunca al código.
+- **Lo vas a repetir con el que viene** (producir N piezas/mes, saber en qué
+  estado está cada una, medir el costo) → va a la plataforma.
+
+Es el mismo criterio ya ejercido en 2026-08 con el portal ("la caja prometía
+algo que el modelo comercial no puede sostener") y con los accesos (links por
+persona en vez de Clerk, con tres gatillos escritos). El patrón: **construir la
+versión mínima que el modelo comercial actual sostiene, y dejar escrito el
+gatillo que dispara la completa.**
+
+**Qué NO cambia.**
+- App-first sigue vigente (2026-07): la App es lo que ya somos; el Studio donde
+  la agencia compone es fase posterior. NO invertir el orden.
+- La capa de operación vive en módulos propios que CONSUMEN las tools. Ni una
+  línea dentro de `ToolRunPage.tsx` (2026-08).
+- Todo lo que es de una marca vive adentro de la marca (2026-08).
+
+**Qué queda como hipótesis, no como plan.** El SaaS sigue sin evidencia. El
+propio `market-positioning.md` lo dice: *"ninguna marca usó la herramienta sin
+Gonzalo operando"*, y define el experimento — 2-3 marcas con acceso directo,
+medir si la usan solas. Ese experimento NO se corrió. Hasta que se corra, "el
+SaaS" es una sección de un doc, no una decisión. Los tres tiers de precio y la
+ronda de `financial-model.md` se leen en ese marco: escenarios, no roadmap.
+
+**Gatillos que moverían esto a decisión.** Los mismos tres de 2026-08 para auth,
+porque son los que convierten a un cliente en usuario: que el cliente suba sus
+propios assets, que haya que cobrarle por uso, o que distintas personas
+necesiten permisos distintos. Sumo un cuarto, específico de este debate: que una
+agencia (tipo Delfi) pida usar la herramienta para producirle a SUS clientes.
+Ese es el caso que `market-positioning.md` marca como durable, y el único que
+justifica multi-tenant.
+
+**Lo que es previo a todo esto.** `market-positioning.md` §8 marca en rojo:
+*"Calce no se resuelve — Consistencia sigue siendo prompt engineering → sin foso
+técnico no hay producto defendible"*. Da igual qué modelo de negocio se elija si
+eso no está resuelto. Ver la entrada 2026-09 sobre pose/calce y endpoints
+especializados.
+
+**Docs a corregir** (quedaron desactualizados y contradicen lo que ya existe):
+- `CLAUDE.md` y `pending-features.md` listan Client Portal como *Planned*: existe
+  desde 2026-08 (links por persona, aprobación por clip, estados de trabajo).
+- `campaigns.md` da la Fase 1 (entidad Campaign + CRUD) como pendiente: está
+  implementada en `backend/main.py`.
+- `product_vision_ux.md` (abril 2026) describe la plataforma como herramienta
+  interna pura, framing anterior a todo lo demás.
+
+---
+
 ## Cómo usar este archivo
 
 - **Agregar entrada cuando.** Tomamos una decisión que: (a) descarta otra opción razonable, (b) no es obvia leyendo el código, (c) podría confundir a otro dev futuro o re-discutir en 3 meses.
