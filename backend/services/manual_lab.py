@@ -302,13 +302,35 @@ async def enhance_prompt(
 
     full_prompt = f"{system}\n\n{refs_block}\n\nUser request:\n{user_input}\n\nOutput:".strip()
 
-    if not images:
-        # No images resolved — fall back to text-only Gemini (fast model is fine here).
-        raw = await _call_gemini(system, f"{refs_block}\n\nUser request:\n{user_input}\n\nOutput:")
-    else:
-        raw = await _call_vision(full_prompt, images, model=ENHANCE_MODEL,
-                                 task=llm_router.TASK_WRITE_PROMPT)
+    # DEGRADAR, NUNCA BLOQUEAR. Curar es una AYUDA para escribir el prompt: si el
+    # proveedor esta caido, el usuario tiene que poder generar igual con su texto
+    # tal cual. Antes esto tiraba la excepcion y dejaba el Lab inutilizable con un
+    # error rojo (reportado: "no quiero que me siga fallando el lab").
+    raw = None
+    degraded = None
+    try:
+        if not images:
+            raw = await _call_gemini(system, f"{refs_block}\n\nUser request:\n{user_input}\n\nOutput:")
+        else:
+            raw = await _call_vision(full_prompt, images, model=ENHANCE_MODEL,
+                                     task=llm_router.TASK_WRITE_PROMPT)
+    except Exception as e:
+        print(f"[manual_lab] enhance fallo, se usa el texto tal cual: {str(e)[:200]}", flush=True)
+        degraded = str(e)[:200]
+
+    if raw is None:
+        # Sin curacion: devolvemos el texto del usuario sin tocar, con el aviso.
+        return {
+            "enhanced": user_input,
+            "interpretation": "",
+            "degraded": True,
+            "degraded_reason": degraded or "el curador no respondio",
+        }
 
     interpretation, enhanced = _split_interpretation(raw)
+    # Si el curador devolvio vacio, tampoco pisamos lo que escribio el usuario.
+    if not (enhanced or "").strip():
+        return {"enhanced": user_input, "interpretation": interpretation,
+                "degraded": True, "degraded_reason": "el curador devolvio vacio"}
     return {"enhanced": enhanced, "interpretation": interpretation}
 

@@ -138,16 +138,65 @@ async def _call_google(prompt: str, images, model: str, max_tokens: int, timeout
     return cands[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
 
 
+# Tipos que aceptan los modelos de visión detrás del router. Cualquier otra cosa
+# (webp, svg, octet-stream, un content-type vacío) hay que convertirla ANTES de
+# mandarla o el proveedor rechaza el request con
+# "messages.0.content.1.image.source" — error real reportado desde el Lab.
+_MIMES_OK = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+
+def _normalize_image(data: bytes, mime: str) -> tuple:
+    """Devuelve (bytes, mime) en un formato que el proveedor acepta.
+
+    El mime de entrada puede venir del header HTTP del servidor de origen, que
+    no siempre dice la verdad (y a veces manda application/octet-stream). Así
+    que lo verificamos contra los magic bytes reales y, si hace falta,
+    convertimos a PNG con Pillow.
+    """
+    m = (mime or "").split(";")[0].strip().lower()
+
+    # magic bytes — mandan sobre el header
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        real = "image/png"
+    elif data[:3] == b"\xff\xd8\xff":
+        real = "image/jpeg"
+    elif data[:6] in (b"GIF87a", b"GIF89a"):
+        real = "image/gif"
+    elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        real = "image/webp"
+    else:
+        real = m if m in _MIMES_OK else ""
+
+    if real in _MIMES_OK:
+        return data, real
+
+    # formato desconocido o no soportado → convertir a PNG
+    try:
+        import io
+        from PIL import Image
+        im = Image.open(io.BytesIO(data))
+        if im.mode not in ("RGB", "RGBA"):
+            im = im.convert("RGB")
+        buf = io.BytesIO()
+        im.save(buf, format="PNG")
+        return buf.getvalue(), "image/png"
+    except Exception as e:
+        raise Exception(
+            f"Imagen en formato no soportado ({m or 'desconocido'}) y no se pudo "
+            f"convertir: {str(e)[:100]}"
+        )
+
+
 async def _call_fal(prompt: str, images, model: str, max_tokens: int, timeout: int) -> str:
     key = _env("FAL_KEY")
     if not key:
         raise RuntimeError("FAL_KEY no configurada")
 
     # El router de fal toma las imágenes como data URLs en image_urls.
-    image_urls = [
-        f"data:{mime};base64,{base64.b64encode(b).decode()}"
-        for b, mime in images
-    ]
+    image_urls = []
+    for b, mime in images:
+        nb, nm = _normalize_image(b, mime)
+        image_urls.append(f"data:{nm};base64,{base64.b64encode(nb).decode()}")
     payload = {"model": model, "prompt": prompt, "max_tokens": max_tokens}
     if image_urls:
         payload["image_urls"] = image_urls

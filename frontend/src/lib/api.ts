@@ -1945,7 +1945,7 @@ export async function enhanceManualPrompt(opts: {
     refs: Array<{ tag: string; label: string; url: string }>;
     mode: "image" | "video";
     targetModel: ImageModel;
-}): Promise<{ enhanced: string; interpretation?: string }> {
+}): Promise<{ enhanced: string; interpretation?: string; degraded?: boolean; degraded_reason?: string }> {
     const res = await fetch(`${API_BASE}/api/manual/enhance-prompt`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

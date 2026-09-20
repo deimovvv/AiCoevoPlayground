@@ -711,8 +711,10 @@ export function ManualLabV2() {
             setEnhancedPrompt(enh.enhanced);
             if (enh.interpretation) setInterpretation(enh.interpretation);
         } catch (e) {
+            // No bloqueamos: la recomendacion es opcional, el usuario puede escribir
+            // el motion a mano. Un alert() acá frenaba todo el flujo.
             console.error("[recommend-animation] failed:", e);
-            alert(e instanceof Error ? e.message : "No se pudo generar la recomendación");
+            setInterpretation("No se pudo generar la recomendación automática — escribí el movimiento a mano y generá igual.");
         } finally {
             setEnhancing(false);
             setBusyLabel("Generando…");
@@ -941,6 +943,12 @@ export function ManualLabV2() {
                 finalPrompt = enh.enhanced;
                 if (enh.interpretation) setInterpretation(enh.interpretation);
                 setEnhancedPrompt(enh.enhanced);
+                // Curar es una ayuda, no un requisito: si el curador esta caido el
+                // backend devuelve degraded:true con el texto tal cual y seguimos
+                // generando. Antes tiraba y dejaba el Lab bloqueado con error rojo.
+                if (enh.degraded) {
+                    setInterpretation(`Se generó con tu texto tal cual (el curador no respondió${enh.degraded_reason ? `: ${enh.degraded_reason}` : ""}).`);
+                }
             }
 
             const baseName =
