@@ -28,6 +28,7 @@ load_dotenv()
 from services import tts, heygen, copy_gen, brands
 from services import campaigns as campaigns_service
 from services import stt
+from services import llm_router
 from services import fal_lipsync
 from services import kling_video
 from services import image_gen
@@ -3128,6 +3129,17 @@ async def repaint_bg(payload: dict = Body(...)):
     except Exception as e:
         print(f"[repaint-bg] fail-open ({e}) — devuelvo original")
         return {"url": image}
+
+
+@app.get("/api/llm/health")
+async def llm_health():
+    """Estado real de cada proveedor de LLM + que modelo usa cada tarea.
+
+    Nace del incidente 2026-09: el analisis fallaba en silencio (fail-open) y no
+    habia forma de distinguir "proveedor caido" de "prompt malo". Con esto se ve
+    en una llamada.
+    """
+    return await llm_router.health()
 
 
 @app.post("/api/analyze/pose-ref")

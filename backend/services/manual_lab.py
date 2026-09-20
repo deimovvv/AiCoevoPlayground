@@ -14,6 +14,7 @@ import httpx
 
 from services.copy_gen import _call_gemini
 from services.image_analysis import _call_vision
+from services import llm_router
 
 
 SUGGESTABLE_TOOLS = {
@@ -227,8 +228,11 @@ async def _fetch_image_bytes(url: str) -> tuple[bytes, str]:
         return res.content, mime
 
 
-# Prompt interpretation/curation benefits from the stronger model (better at nuanced edits
-# like "más porosa", "sin tocar el fondo"). Kept separate from the fast 2.5-flash used elsewhere.
+# "Curar con Gemini" = REDACTAR el prompt final. Es la tarea que mas define la calidad
+# de la imagen que sale, y se ejecuta UNA vez por generacion (no por asset), asi que
+# conviene el modelo fuerte aunque cueste mas. El modelo concreto lo decide llm_router
+# via TASK_WRITE_PROMPT y es configurable por env (LLM_WRITE_PROMPT_MODEL).
+# Se mantiene el nombre por compatibilidad; ya no fija proveedor.
 ENHANCE_MODEL = "gemini-3.1-pro-preview"
 
 
@@ -302,7 +306,8 @@ async def enhance_prompt(
         # No images resolved — fall back to text-only Gemini (fast model is fine here).
         raw = await _call_gemini(system, f"{refs_block}\n\nUser request:\n{user_input}\n\nOutput:")
     else:
-        raw = await _call_vision(full_prompt, images, model=ENHANCE_MODEL)
+        raw = await _call_vision(full_prompt, images, model=ENHANCE_MODEL,
+                                 task=llm_router.TASK_WRITE_PROMPT)
 
     interpretation, enhanced = _split_interpretation(raw)
     return {"enhanced": enhanced, "interpretation": interpretation}

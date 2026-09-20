@@ -9,24 +9,35 @@ Used for:
 - Extracting visual guides from reference images (Ad Creative Lab)
 """
 
+from __future__ import annotations
+
 import os
 import json
 import base64
 import httpx
 from pathlib import Path
 
+from . import llm_router
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = "gemini-2.5-flash"                # image vision + fast tasks
+GEMINI_MODEL = "gemini-2.5-flash"                # legacy: solo para deducir la tarea en _call_vision
 GEMINI_VIDEO_MODEL = "gemini-3.1-pro-preview"    # video analysis (motion, scene manifests, multi-frame reasoning)
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 def is_configured() -> bool:
-    return bool(GEMINI_API_KEY)
+    """Hay análisis disponible si CUALQUIER proveedor tiene credencial.
+
+    Antes era `bool(GEMINI_API_KEY)`: con Google bloqueado devolvía True (la key
+    existía) y las llamadas fallaban igual. Ahora refleja la realidad.
+    """
+    return llm_router.is_configured()
 
 
 def _gemini_url(model: str = GEMINI_MODEL) -> str:
-    return f"{GEMINI_BASE}/{model}:generateContent?key={GEMINI_API_KEY}"
+    # key leida EN CADA LLAMADA: a nivel modulo, cambiar el .env no surtia efecto
+    # hasta reiniciar el proceso.
+    return f"{GEMINI_BASE}/{model}:generateContent?key={os.getenv('GEMINI_API_KEY', '')}"
 
 
 def _image_to_part(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
@@ -708,9 +719,20 @@ Los "stateful_elements" deben estar en INGLÉS (van directo al prompt de Nano Ba
 
 
 async def _call_vision_with_video(prompt: str, video_bytes: bytes, mime_type: str) -> str:
-    """Call Gemini with a video file. Uses the video-specific pro model."""
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY not configured")
+    """Analiza un ARCHIVO de video completo. Único camino que sigue atado a Google.
+
+    No pasa por llm_router a propósito: el router de visión toma imágenes, no un
+    video inline. Migrar esto implica extraer frames y mandarlos como imágenes
+    (ya existe `analyze_video_frames` para eso) o usar un endpoint de video.
+    Mientras tanto, si Google está bloqueado esta función falla con un mensaje
+    explícito en vez de un 403 críptico.
+    """
+    if not os.getenv("GEMINI_API_KEY"):
+        raise RuntimeError(
+            "El análisis de video directo requiere GEMINI_API_KEY (es el único camino "
+            "que aún depende de Google). Alternativa sin Google: usar analyze_video_frames, "
+            "que extrae frames y los manda como imágenes por llm_router."
+        )
 
     b64 = base64.b64encode(video_bytes).decode("utf-8")
 
@@ -1020,42 +1042,20 @@ async def refine_edit_instruction(text: str) -> str:
         return text
 
 
-async def _call_vision(prompt: str, images: list[tuple[bytes, str]], model: str = GEMINI_MODEL) -> str:
-    """Call Gemini Vision with text prompt + images."""
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY not configured")
+async def _call_vision(prompt: str, images: list[tuple[bytes, str]], model: str = GEMINI_MODEL,
+                       task: str | None = None) -> str:
+    """Punto único de salida al LLM — delega en llm_router.
 
-    parts = [{"text": prompt}]
-    for img_bytes, mime in images:
-        parts.append(_image_to_part(img_bytes, mime))
+    Antes pegaba directo a la API de Gemini con el modelo hardcodeado. Cuando el
+    proyecto de Google recibió 403 PERMISSION_DENIED (2026-09) se cayeron las 18
+    funciones de este archivo a la vez. Ahora el router elige proveedor+modelo por
+    TAREA y cae a otro proveedor si el primario falla.
 
-    # 3.x Pro models reserve tokens for internal "thinking" — bump budgets when using one.
-    # Cap del flash subido de 4000 → 8000 porque el brief de product_sheet con 8 fotos
-    # + classifications + materials/colors/distinctive_details arrays superaba el
-    # límite y devolvía JSON truncado. Reportado: "Expecting value: line 14".
-    is_pro = "pro" in model.lower()
-    payload = {
-        "contents": [{"role": "user", "parts": parts}],
-        "generationConfig": {
-            "temperature": 0.4,
-            "maxOutputTokens": 16000 if is_pro else 8000,
-        },
-    }
-    timeout = 180 if is_pro else 60
-
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        res = await client.post(
-            _gemini_url(model),
-            headers={"Content-Type": "application/json"},
-            json=payload,
-        )
-
-    if res.status_code != 200:
-        raise Exception(f"Gemini Vision error ({res.status_code}): {res.text[:300]}")
-
-    result = res.json()
-    candidates = result.get("candidates", [])
-    if not candidates:
-        raise Exception("No response from Gemini Vision")
-
-    return candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+    El parámetro `model` se mantiene por compatibilidad: solo se usa para deducir
+    si la tarea es de video (los callers pasan GEMINI_VIDEO_MODEL para eso).
+    """
+    if task is None:
+        # Compat: los callers viejos solo pasan `model`. Un id "pro" significaba
+        # "tarea pesada" (video). El que redacta prompts pasa task explicito.
+        task = llm_router.TASK_VISION_VIDEO if "pro" in (model or "").lower() else llm_router.TASK_VISION_FAST
+    return await llm_router.call(prompt, images, task=task)
