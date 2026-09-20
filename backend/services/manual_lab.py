@@ -31,7 +31,8 @@ SUGGESTABLE_TOOLS = {
 
 def is_configured() -> bool:
     import os
-    return bool(os.getenv("GEMINI_API_KEY"))
+    # Con el router, alcanza con que CUALQUIER proveedor tenga credencial.
+    return llm_router.is_configured()
 
 
 async def suggest_tool(prompt: str, mode: str, has_refs: bool) -> dict:

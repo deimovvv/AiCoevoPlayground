@@ -10,21 +10,24 @@ import json
 import os
 import re
 import httpx
+
+from services import llm_router
 from typing import List, Dict
 
 from services.prompt_builder import build_chat_system_prompt
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 def is_configured() -> bool:
-    return bool(GEMINI_API_KEY)
+    # Dos keys de Google en el .env: la de GEMINI_API_KEY apunta a un proyecto
+    # bloqueado. llm_router.google_key() elige la que funciona.
+    return bool(llm_router.google_key())
 
 
 def _gemini_url() -> str:
-    return f"{GEMINI_BASE}/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    return f"{GEMINI_BASE}/{GEMINI_MODEL}:generateContent?key={llm_router.google_key()}"
 
 
 def _image_to_part(img: dict) -> dict:
@@ -64,8 +67,8 @@ async def chat(
     messages: list of {"role": "user"|"assistant", "content": "...", "images"?: [{data,mime}]}
     Returns the assistant's reply text.
     """
-    if not GEMINI_API_KEY:
-        raise RuntimeError("Gemini API key not configured. Add GEMINI_API_KEY to your .env file.")
+    if not llm_router.google_key():
+        raise RuntimeError("Falta una key de Google: agregá NANOBANANA_API_KEY (preferida) o GEMINI_API_KEY al .env")
 
     system_prompt = build_chat_system_prompt(brand)
 
@@ -152,7 +155,7 @@ async def chat_prompts(brand: dict, messages: List[Dict]) -> dict:
     """Suggest 1-3 image prompt candidates based on the chat + any attached refs.
     Output JSON: {reply, prompts:[{title, prompt, why?}]}. Falls back to {reply, prompts:[]}
     on parse failure (the chat surfaces the reply text)."""
-    if not GEMINI_API_KEY:
+    if not llm_router.google_key():
         raise RuntimeError("Gemini API key not configured.")
 
     brand_context = (brand or {}).get("brandContext", "") or "(no specific brand context — use a tasteful default editorial look)"
@@ -234,7 +237,7 @@ CONTEXTO DE MARCA (usalo cuando aplique, no lo recites):
 
 async def chat_voice(brand: dict, messages: List[Dict]) -> str:
     """Generate a short spoken reply for the Voice Lab. Returns plain text — caller pipes to TTS."""
-    if not GEMINI_API_KEY:
+    if not llm_router.google_key():
         raise RuntimeError("Gemini API key not configured.")
 
     brand_context = (brand or {}).get("brandContext", "") or "(sin marca activa — respondé como asistente creativo genérico)"

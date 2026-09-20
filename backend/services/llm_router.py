@@ -103,7 +103,7 @@ def available_providers() -> list[str]:
     out = []
     if _env("FAL_KEY"):
         out.append("fal")
-    if _env("GEMINI_API_KEY"):
+    if google_key():
         out.append("google")
     return out
 
@@ -114,10 +114,22 @@ def is_configured() -> bool:
 
 # ── Backends ──────────────────────────────────────────────────────────────
 
+def google_key() -> str:
+    """La key de Google que se usa, en orden de preferencia.
+
+    Hay DOS en el .env y no son intercambiables hoy: el proyecto de
+    GEMINI_API_KEY recibio un bloqueo automatico de Google (403
+    PERMISSION_DENIED en todo lo que consume cuota), mientras que
+    NANOBANANA_API_KEY apunta a otro proyecto y funciona con los mismos
+    modelos. Verificado 2026-09-20.
+    """
+    return _env("NANOBANANA_API_KEY") or _env("GEMINI_API_KEY")
+
+
 async def _call_google(prompt: str, images, model: str, max_tokens: int, timeout: int) -> str:
-    key = _env("GEMINI_API_KEY")
+    key = google_key()
     if not key:
-        raise RuntimeError("GEMINI_API_KEY no configurada")
+        raise RuntimeError("Falta NANOBANANA_API_KEY o GEMINI_API_KEY")
 
     parts = [{"text": prompt}]
     for img_bytes, mime in images:
@@ -266,6 +278,41 @@ def _fallback_model(provider: str, task: str) -> str:
     if provider == "google":
         return "gemini-3.1-pro-preview" if task == TASK_VISION_VIDEO else "gemini-2.5-flash"
     return "anthropic/claude-sonnet-5"
+
+
+async def call_audio(prompt: str, audio_bytes: bytes, mime: str = "audio/webm",
+                     max_tokens: int = 2000, timeout: int = 60) -> str:
+    """Transcribe / analiza AUDIO. Camino propio, no pasa por `call`.
+
+    El router de vision de fal toma imagenes, no audio inline. Gemini si lo
+    acepta, asi que esta ruta va directo a Google — pero con `google_key()`, que
+    elige la key que funciona. Si algun dia hace falta sacarla de Google, el
+    reemplazo natural es un endpoint de STT dedicado (Whisper en fal).
+    """
+    key = google_key()
+    if not key:
+        raise RuntimeError(
+            "La transcripcion de audio necesita una key de Google "
+            "(NANOBANANA_API_KEY o GEMINI_API_KEY)."
+        )
+    model = _env("LLM_AUDIO_MODEL", "gemini-2.5-flash")
+    payload = {
+        "contents": [{"role": "user", "parts": [
+            {"inlineData": {"mimeType": mime, "data": base64.b64encode(audio_bytes).decode("ascii")}},
+            {"text": prompt},
+        ]}],
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": max_tokens},
+    }
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        res = await client.post(f"{GEMINI_BASE}/{model}:generateContent?key={key}",
+                                headers={"Content-Type": "application/json"}, json=payload)
+    if res.status_code != 200:
+        raise Exception(f"Audio ({res.status_code}): {res.text[:300]}")
+    cands = res.json().get("candidates", [])
+    if not cands:
+        return ""
+    parts = cands[0].get("content", {}).get("parts", [{}])
+    return "".join(p.get("text", "") for p in parts).strip()
 
 
 async def health() -> dict:

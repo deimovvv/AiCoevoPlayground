@@ -16,12 +16,13 @@ import os
 import json
 import base64
 import httpx
+
+from services import llm_router
 import hashlib
 from pathlib import Path
 from typing import Optional
 
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 GEMINI_MODEL = "gemini-2.5-flash"
 
@@ -284,7 +285,7 @@ async def analyze_carousel_for_replication(
 
     async with httpx.AsyncClient(timeout=120) as client:
         res = await client.post(
-            f"{GEMINI_BASE}/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}",
+            f"{GEMINI_BASE}/{GEMINI_MODEL}:generateContent?key={llm_router.google_key()}",
             headers={"Content-Type": "application/json"},
             json=payload,
         )

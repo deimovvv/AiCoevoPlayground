@@ -18,7 +18,10 @@ from services.copy_gen import _call_gemini
 
 def is_configured() -> bool:
     import os
-    return bool(os.getenv("GEMINI_API_KEY"))
+    # Dos keys de Google en el .env: GEMINI_API_KEY apunta a un proyecto
+    # bloqueado por Google. google_key() devuelve la que funciona.
+    from services import llm_router
+    return bool(llm_router.google_key())
 
 
 def _brand_assets_summary(brand: dict) -> Dict[str, List[Dict[str, str]]]:

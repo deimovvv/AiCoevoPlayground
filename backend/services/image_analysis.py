@@ -19,7 +19,6 @@ from pathlib import Path
 
 from . import llm_router
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-2.5-flash"                # legacy: solo para deducir la tarea en _call_vision
 GEMINI_VIDEO_MODEL = "gemini-3.1-pro-preview"    # video analysis (motion, scene manifests, multi-frame reasoning)
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -37,7 +36,7 @@ def is_configured() -> bool:
 def _gemini_url(model: str = GEMINI_MODEL) -> str:
     # key leida EN CADA LLAMADA: a nivel modulo, cambiar el .env no surtia efecto
     # hasta reiniciar el proceso.
-    return f"{GEMINI_BASE}/{model}:generateContent?key={os.getenv('GEMINI_API_KEY', '')}"
+    return f"{GEMINI_BASE}/{model}:generateContent?key={llm_router.google_key()}"
 
 
 def _image_to_part(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
@@ -727,9 +726,9 @@ async def _call_vision_with_video(prompt: str, video_bytes: bytes, mime_type: st
     Mientras tanto, si Google está bloqueado esta función falla con un mensaje
     explícito en vez de un 403 críptico.
     """
-    if not os.getenv("GEMINI_API_KEY"):
+    if not llm_router.google_key():
         raise RuntimeError(
-            "El análisis de video directo requiere GEMINI_API_KEY (es el único camino "
+            "El análisis de video directo requiere una key de Google (es el único camino "
             "que aún depende de Google). Alternativa sin Google: usar analyze_video_frames, "
             "que extrae frames y los manda como imágenes por llm_router."
         )
