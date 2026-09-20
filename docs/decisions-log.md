@@ -517,6 +517,111 @@ configurar sin decir para qué. Ahora el brief es la primera fila y lo único ob
 
 ---
 
+## 2026-09 — Pose y calce: dejar de pelear por prompt, ir a endpoints especializados
+
+**Contexto.** Durante meses fuimos acumulando constantes de prompt en
+`frontend/src/tools/ecommerce_pack/index.ts` para forzar dos cosas que Nano
+Banana no respeta: la POSE de una imagen de referencia y el ENCUADRE pedido
+(plano medio, cintura-abajo). Hoy hay ~15 constantes (`POSE_FIDELITY`,
+`STRICT_POSE`, `POSE_FULL_BODY`, `POSE_INHABIT`, `POSE_SUPPORT_AND_SILHOUETTE`,
+`IDENTITY_LOCK`, `FACE_MUST_STAY`...). Cada reporte del cliente sumaba otra.
+Un comentario en el propio código ya tenía el diagnóstico escrito sin sacar la
+conclusión: "Nano Banana tiende a 'neutralizar' la pose hacia un parado
+frontal default".
+
+A eso se sumaban parches determinísticos: `cropImageTop`/`cropImageBottom` para
+garantizar planos que el modelo ignora, y después `measureSubjectRatio` para
+evitar que ese crop recorte DOS veces cuando el modelo sí obedeció.
+
+**Lo que encontramos.** FitVTON (arXiv 2606.12012) nombra a Nano Banana
+explícitamente y concluye que "el prompt engineering por sí solo es
+insuficiente para dotar a los modelos comerciales de generación de imagen de
+capacidad de calce confiable". Demuestra que aun con instrucciones explícitas
+de talle y cuerpo, produce "calce neutro" entre cuerpos distintos. Scores de
+calce: FitVTON 3.08 vs Nano Banana 2.82.
+
+O sea: no prompteábamos mal. Es una limitación de la clase de modelo.
+
+**Decisión.** Para pose, encuadre y calce, migrar a endpoints ESPECIALIZADOS
+con parámetros reales en vez de seguir escribiendo párrafos:
+- FASHN **Product to Model** — `image_prompt` guía la pose de forma nativa.
+- FASHN **Reframe** — encuadre como operación dedicada, no como pedido al modelo.
+- FASHN **Try-On Max** — prenda real sobre modelo preservando identidad y pose.
+Costo ~$0.15-0.30/imagen; se arranca con $7.50 de créditos.
+
+Confirma el enfoque que los productos comerciales del rubro (Botika, Veesual,
+Lalaland) usan "controles por clic en vez de prompting de texto abierto".
+Parámetros, no párrafos.
+
+**Alternativas descartadas.**
+- *Seguir iterando prompts*: es lo que veníamos haciendo; el paper explica por
+  qué tiene techo.
+- *Cambiar de generalista* (Nano Banana 2 → GPT Image 2.5, que hoy lidera el
+  leaderboard de edición con Elo 1176 vs 1105): el paper implica a toda la
+  clase de modelos, así que no esperamos que arregle pose ni calce. Vale un
+  A/B, pero no presupuestar la mejora ahí.
+- *Más crops determinísticos*: ya tenemos dos capas y se pisaban entre sí
+  (bug del short mostaza: pose de cintura-abajo → salida rodilla-a-pies).
+
+**Pendiente antes de migrar.** A/B contra el pipeline actual con prendas
+REALES de cliente. No migrar a ciegas.
+
+---
+
+## 2026-09 — Gemini hardcodeado en 5 servicios: un bloqueo tumbó cinco features
+
+**Contexto.** El proyecto de Google de la `GEMINI_API_KEY` recibió
+`403 PERMISSION_DENIED — "Your project has been denied access"`. Diagnóstico
+por sondeo: `models.list` y `countTokens` responden OK, `generateContent`
+devuelve 403. No es auth ni proyecto apagado: es un bloqueo sobre las
+operaciones que consumen cuota.
+
+Se cayeron a la vez: análisis de pose ref y auto-describe de assets
+(`image_analysis.py`), chat con contexto de marca (`chat.py`), generación de
+guiones (`copy_gen.py`), dictado (`stt.py`) y análisis de IG
+(`instagram_scraper.py`). Cinco archivos, cada uno con
+`GEMINI_MODEL = "gemini-2.5-flash"` hardcodeado.
+
+El costo de eso ya estaba anotado en `copy_gen.py:13`: *"reverted from 3-flash
+— verify exact 3.x name before upgrading"*. Subir de modelo obliga a tocar
+cinco archivos y basta que uno quede mal.
+
+**Qué lo hace peor.** El análisis de pose es fail-open a propósito (para que un
+fallo de Gemini no rompa la generación), así que devolvía `framing:""` y
+`pose:""` EN SILENCIO. El pack seguía generando, pero sin encuadre ni
+descripción de postura — el usuario veía "la pose no se respeta", no un error.
+Un fail-open sin telemetría es indistinguible de un bug de calidad.
+
+**Contexto del incidente (no es culpa nuestra).** +40 hilos en el foro oficial
+de Google con el error exacto entre jun y sep 2026, alcanzando proyectos pagos
+y proyectos nuevos sin una sola request. Staff de Google: "automated security
+evaluations currently restrict unbilled Free Tier access". En ~10 hilos
+revisados, CERO restauraciones confirmadas y ningún proceso de apelación
+documentado.
+
+**Decisión.**
+1. No esperar la apelación. Proyecto nuevo bajo la cuenta de Coevo con
+   facturación propia. (El proyecto afectado pertenece a una cuenta distinta
+   de la que administra el equipo, sin billing vinculable.)
+2. Abstraer el proveedor de texto/visión detrás de una interfaz, con el modelo
+   en config y no hardcodeado por archivo. Un bloqueo debe degradar features,
+   no tumbar la plataforma.
+3. Donde el fail-open tenga sentido, que además LOGUEE y avise en UI. El
+   silencio fue lo que hizo que el síntoma se leyera como error de prompting.
+
+**Alternativas descartadas.**
+- *Migrar a Vertex AI*: no encontramos NI UN caso verificado de alguien que,
+  tras este bloqueo, migrara a Vertex y le funcionara. Si el flag es a nivel
+  identidad de Google, Vertex cae igual. No presupuestar Vertex como escape.
+- *Esperar a que Google lo destrabe*: apelaciones de >1 mes sin respuesta.
+
+**Mitigación que ya teníamos sin saberlo.** La generación de imágenes no se
+cayó porque va por fal, que sirve Nano Banana bajo su cuenta enterprise
+(~12% de sobreprecio: $0.08/img vs ~$0.067 directo). Ese sobreprecio es, en
+los hechos, un seguro contra bans.
+
+---
+
 ## Cómo usar este archivo
 
 - **Agregar entrada cuando.** Tomamos una decisión que: (a) descarta otra opción razonable, (b) no es obvia leyendo el código, (c) podría confundir a otro dev futuro o re-discutir en 3 meses.
