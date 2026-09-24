@@ -275,6 +275,10 @@ KLING_API_KEY=...      # optional
 - **[design.md](docs/design.md)**: Design system, color tokens, typography
 - **[planning.md](docs/planning.md)**: Development roadmap (7 phases)
 - **[pending-features.md](docs/pending-features.md)**: Backlog with detailed plans per feature
+- **[fashion-reel-recipes.md](docs/fashion-reel-recipes.md)**: recetas de movimiento derivadas de video real — el giro de Fashion Reel de "campos vacíos" a "elegís un movimiento validado y lo completás", con la métrica de calidad y por qué no un Marketing Studio genérico
+- **[workspace-template.md](docs/workspace-template.md)**: el patrón de pantalla que comparten Lab, Campañas y (pendiente) las tools — las 5 zonas, los componentes, y el orden de migración
+- **[market-positioning.md](docs/market-positioning.md)**: nicho, competencia y ventaja — el ranking de mercado (moda #1, UGC #2, ecommerce #3), el gap video×español×calce, precios de mercado y riesgos a monitorear
+- **[competitive-research.md](docs/competitive-research.md)**: investigación verificada de competidores (Pletor, Superside, Genera.Space, landscape completo de AI fashion)
 - **[decisions-log.md](docs/decisions-log.md)**: Chronological log of design/product decisions with rationale — read this when something in the codebase seems weird or when you're about to revisit a closed discussion
 - **[setup.md](docs/setup.md)**: How to run locally, environment variables
 

@@ -423,6 +423,8 @@ export interface Campaign {
     clothingIds: string[];
     backgroundId: string | null;
     lookFeelId: string | null;
+    /** Preset de iluminación del sistema (ver `/api/system/lighting`). */
+    lightingId?: string | null;
     shotPlan: "ai" | "manual";
     customShots: string[];
     variationsPerShot: number;
@@ -459,6 +461,8 @@ export async function createCampaign(payload: {
     clothingIds?: string[];
     backgroundId?: string | null;
     lookFeelId?: string | null;
+    /** Preset de iluminación del sistema (ver `/api/system/lighting`). */
+    lightingId?: string | null;
     shotPlan?: "ai" | "manual";
     customShots?: string[];
     variationsPerShot?: number;
@@ -1343,6 +1347,36 @@ export function poseImageUrl(relativeUrl: string): string {
     return `${API_BASE}${relativeUrl}`;
 }
 
+/**
+ * Segmenta el objeto que está en (x, y) y devuelve la URL de su máscara.
+ * Es el "tocás el objeto y se selecciona solo" del editor de zona.
+ *
+ * `x`/`y` van en píxeles de la imagen ORIGINAL — si se muestra escalada, hay que
+ * convertir antes de llamar.
+ *
+ * La máscara viene en escala de grises con el objeto en BLANCO; el canvas la
+ * invierte al componer (GPT Image espera la zona editable transparente).
+ */
+export async function segmentAtPoint(imageUrl: string, x: number, y: number): Promise<string> {
+    const res = await fetch(`${API_BASE}/api/segment/point`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl, x: Math.round(x), y: Math.round(y) }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "No se pudo seleccionar el objeto");
+    }
+    const data = await res.json();
+    return data.maskUrl as string;
+}
+
+/** URL absoluta de un asset del SISTEMA (presets de iluminación y lo que venga). */
+export function systemAssetUrl(relativeUrl: string): string {
+    if (relativeUrl.startsWith("http")) return relativeUrl;
+    return `${API_BASE}${relativeUrl}`;
+}
+
 // ══════════════════════════════════════════════════════════════
 //  Moodboards API
 // ══════════════════════════════════════════════════════════════
@@ -1686,6 +1720,8 @@ export async function cloneVoice(opts: {
 export interface Generation {
     id: string;
     brandId: string | null;  // null for brand-agnostic Manual Lab runs
+    /** Campaña de la que cuelga esta corrida, si salió de una. */
+    campaignId?: string | null;
     toolId: string;
     title: string;
     type: "video" | "image" | "copy";
@@ -1724,6 +1760,9 @@ export async function fetchGenerations(brandId?: string): Promise<Generation[]> 
 
 export async function saveGeneration(gen: {
     brandId: string | null;  // null for brand-agnostic Manual Lab runs
+    /** Campaña de la que cuelga. Hace que la pieza aparezca en la biblioteca
+     *  (Contenido) además de dentro de la campaña. */
+    campaignId?: string | null;
     toolId: string;
     title: string;
     type: "video" | "image" | "copy";
@@ -2568,11 +2607,15 @@ export async function createImageEdit(
     aspectRatio: string = "9:16",
     resolution: string = "1K",
     model: ImageModel = "nano-banana-2",
+    /** Máscara para edición LOCAL (data URL PNG, zonas editables transparentes).
+     *  Sólo la soporta `gpt-image-2` — Nano Banana no acepta máscara. */
+    maskDataUrl?: string | null,
 ): Promise<ImageGenResult> {
     const formData = new FormData();
     formData.append("prompt", prompt);
     formData.append("image_urls", JSON.stringify(imageUrls));
     formData.append("aspect_ratio", aspectRatio);
+    if (maskDataUrl) formData.append("mask_url", maskDataUrl);
     formData.append("resolution", resolution);
     formData.append("model", model);
 
@@ -3423,6 +3466,29 @@ export async function fetchSystemVoices(): Promise<SystemVoice[]> {
     const data = await res.json();
     return data.voices || [];
 }
+
+/** Preset de iluminación del sistema — disponible para todas las marcas. */
+export interface LightingPreset {
+    id: string;
+    name: string;
+    /** Fragmento de prompt que describe esta luz. Es lo que se inyecta al generar. */
+    prompt: string;
+    imageUrl: string;
+}
+
+/** Presets de iluminación globales. Fail-open: si falla, devuelve lista vacía y la
+ *  UI simplemente no ofrece presets — no rompe la generación. */
+export async function fetchSystemLighting(): Promise<LightingPreset[]> {
+    try {
+        const res = await fetch(`${API_BASE}/api/system/lighting`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.presets || [];
+    } catch {
+        return [];
+    }
+}
+
 
 // ══════════════════════════════════════════════════════════════
 //  Health check

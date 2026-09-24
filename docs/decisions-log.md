@@ -7,6 +7,86 @@ Cada entrada tiene fecha, contexto, decisión tomada, alternativas descartadas y
 
 ---
 
+## 2026-09 — Workspace de 3 columnas, sistema visual unificado y assets del sistema
+
+**Contexto.** El dashboard y la landing se veían como dos productos distintos, la navegación
+tenía dos niveles (World → Studio) que obligaban a "entrar dos veces" para llegar a las tools,
+y cada pantalla resolvía la elección de assets a su manera.
+
+### Decisiones
+
+**1. Navegación PLANA — se elimina World/Studio.**
+Un solo nivel en el sidebar: arriba operar (Inicio · Campañas · Marcas), divider, abajo producir
+(Generar · Contenido · Lab). El logo vuelve siempre a `/` (la landing); antes iba a
+`/dashboard/brands` y no había salida del dashboard.
+Referencia: Flora usa sidebar plano. Ver `docs/dashboard-architecture-research.md` §2.1.
+
+**2. Workspace de 3 columnas — `components/workspace/SelectorPanel.tsx`.**
+Patrón de Genera.Space: panel de controles · selector que se despliega · canvas persistente.
+La regla que lo define: **el canvas NUNCA desaparece**. Tocás un campo y el selector se abre al
+lado empujando el canvas, no navegás ni se abre un modal.
+*Por qué empuja y no tapa:* mientras elegís una cara querés seguir viendo lo generado, para comparar.
+Aplicado en Lab y Crear campaña. El componente no sabe qué contiene — cada pantalla le pasa sus hijos.
+
+**3. Un picker por vez + pestañas de origen.**
+El selector mostraba TODOS los pickers juntos (prendas, productos, modelos…) porque los ocho
+`Control` disparaban el mismo booleano. Ahora el estado guarda qué campo lo abrió. Iluminación y
+Poses tienen pestañas de origen (Presets / De la marca / Pinterest).
+
+**4. Parámetros de corrida separados del brief.**
+Formato / Resolución / Variantes salieron del panel de controles y viven en una barra sobre el
+canvas. Racional tomado del panel RUN SETTINGS de Invent: *"run parameters live here, what defines
+WHAT gets generated lives in the brief"*. Va como barra y no como cuarta columna para no robarle
+ancho a la galería.
+
+**5. Sistema visual unificado — el dashboard adopta los tokens de la landing.**
+De grises CÁLIDOS (`#070606`, R sobre B) a grises FRÍOS (`#0b0b0c`). El acento burgundy `#C45830`
+pasa a ser señal funcional rosa `#ff5f8f`: marca estado (activo / nuevo / en curso / focus), nunca
+decoración ni fondo de bloque. Radios 22px → 14px.
+⚠️ **Los bordes NO se bajan más de 14%/8%.** Se probó 9%/5% copiando la landing y los inputs, selects
+y chips se volvían indistinguibles del fondo: la landing muestra imágenes, el dashboard es una
+herramienta y sus controles necesitan contorno.
+⚠️ **Instrument Serif tiene UN solo peso (400).** `font-semibold` sobre ella fuerza bold sintético
+y el navegador deforma los trazos — era la causa de "los textos se ven feos". Corregido en 7 lugares.
+
+**6. Assets del SISTEMA — `backend/data/system/`.**
+Presets disponibles para todas las marcas, no pertenecen a ninguna. Precedente: `system_voices.json`.
+Hoy: 12 presets de iluminación (`/api/system/lighting`, servidos en `/static/system/`).
+**Cada preset lleva su fragmento de prompt**, que se inyecta al generar — sin eso sería sólo una
+miniatura decorativa.
+*Cómo se generaron:* dos intentos fallaron (esfera gris → "parece render 3D"; persona sin ancla →
+el pelo cambiaba en cada foto). Lo que funcionó: generar una foto base y usarla como **ancla** para
+las otras once, así sólo cambia la luz.
+
+**7. Crear campaña genera SIN navegar.**
+`submit` creaba la campaña y hacía `navigate('/campaigns/:id')` — te sacaba de la pantalla. Ahora
+las piezas se dibujan en el canvas de la misma pantalla, con progreso y placeholders. La campaña se
+crea en la primera corrida y después se reusa (regenerar no deja campañas huérfanas). Cada pieza
+tiene **Editar** (reusa `ImageEditPanel`) y **Animar** (Kling + `curateMotionPrompt`).
+
+### Gotchas encontrados
+
+- **`AppLayout` tiene dos ramas.** Una página con panel fijo que NO esté en `FULL_BLEED_ROUTES`
+  queda dentro de un wrapper con padding y `max-w-[1400px]`: nunca ocupa la pantalla. Le pasó al Lab
+  antes y le volvió a pasar a `/dashboard/campaigns/new`.
+- **El endpoint `/edit` de Fal devuelve `status_url` SIN el sufijo `/edit`.** Armar la URL a mano da
+  405 en cada poll. Hay que usar la que viene en la respuesta.
+- **`createKlingVideo` devuelve `request_id`, no `video_id`**, y a veces resuelve en la misma
+  respuesta sin necesidad de pollear.
+- **`GEMINI_API_KEY` de esta cuenta devuelve 403** ("project has been denied access").
+  `NANOBANANA_API_KEY` funciona con los mismos modelos. Por eso se sacó "Nano Banana (Google)" del
+  Lab y de Ecommerce Pack, **donde era el default** — esa tool fallaba en cada corrida.
+
+### Qué NO se hizo (a propósito)
+
+- **No se migraron las 17 tools** al layout de 3 columnas. `ToolRunPage.tsx` (15.029 líneas) se queda
+  con el wizard: obliga a aprobar paso por paso, que es la regla de trabajo del proyecto
+  (*una toma → mostrar → confirmar → siguiente*). Migrar 2-3 tools, no todas.
+- **`CampaignDetailPage` no se rehizo** al patrón nuevo. No tiene estructura de columnas y es
+  trabajo aparte.
+
+---
+
 ## 2026-06 — Voice Lab (oculto del nav)
 
 **Contexto.** Se construyó un prototipo de conversación por voz: browser STT → Gemini → ElevenLabs → autoplay. Funcional, pero no validado con usuarios reales. El piloto reveló que la latencia (1-2s por turno) y la dependencia del navegador (no anda en Firefox) lo vuelven más curiosidad que herramienta de trabajo.

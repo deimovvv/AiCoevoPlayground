@@ -33,7 +33,7 @@ import {
     Download, RotateCcw, Sparkles, FlaskConical, AlertTriangle,
     Mic, MicOff, Video, Eye, ChevronLeft, ChevronRight, Target,
     AudioLines, Upload, Link2, Play,
-    ChevronDown, Check, Pencil,
+    ChevronDown, Check, Pencil, Brush,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useDictation } from "../lib/useDictation";
@@ -54,6 +54,9 @@ import {
 } from "../lib/api";
 import { cn } from "../lib/utils";
 import { downloadFile } from "../lib/download";
+import { SelectorPanel, SelectorTrigger } from "../components/workspace/SelectorPanel";
+import { EditOverlay } from "../components/workspace/EditOverlay";
+import { imagesUsd, usdToCredits, type Resolution as PriceResolution } from "../lib/pricing";
 import { ModelDropdown } from "../components/ui/ModelDropdown";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -128,6 +131,16 @@ function estimateVideoCost(modelId: string, resolution: string, durationSec: str
     return perSec * secs;
 }
 
+/** Etiquetas legibles por tipo de asset, para el título del selector. */
+const SELECTOR_LABELS: Record<string, string> = {
+    avatar: "Avatares",
+    product: "Productos",
+    clothing: "Prendas",
+    background: "Fondos",
+    pose: "Poses",
+    moodboard: "Moodboards",
+};
+
 type Mode = "image" | "video";
 type VideoMode = "i2v" | "f2f" | "rtv";
 type VideoModelId = KlingModel | "seedance-2";
@@ -197,6 +210,15 @@ export function ManualLabV2() {
 
     // Composer state — what the user is building right now
     const [refs, setRefs] = useState<RefImage[]>([]);
+
+    /**
+     * Selector del medio (workspace de 3 columnas, patrón Genera).
+     * `null` = cerrado. Guarda el KIND de asset que se está eligiendo.
+     * El canvas de la derecha NO se va: el panel lo empuja.
+     */
+    /** Imagen abierta en el editor de retoque (con brush de máscara). */
+    const [retouching, setRetouching] = useState<string | null>(null);
+    const [selectorKind, setSelectorKind] = useState<null | "avatar" | "product" | "clothing" | "background" | "pose" | "moodboard">(null);
     const [prompt, setPrompt] = useState("");
     // Inspire-from-video state — el usuario pasa URL o sube video corto (~5-10s)
     // y Gemini Vision saca el motion para inyectar en el prompt principal.
@@ -205,7 +227,6 @@ export function ManualLabV2() {
     const [inspireFile, setInspireFile] = useState<File | null>(null);
     const [inspireLoading, setInspireLoading] = useState(false);
     const [inspireError, setInspireError] = useState<string | null>(null);
-    const [useBrandAssets, setUseBrandAssets] = useState(false);
 
     // Mode (image | video)
     const [mode, setMode] = useState<Mode>("image");
@@ -214,7 +235,9 @@ export function ManualLabV2() {
     const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
     const [resolution, setResolution] = useState<Resolution>("2K");
     // Default temporal: Nano Banana vía Google directo (cuenta Monks). El de Fal queda como opción.
-    const [model, setModel] = useState<ImageModel>("nano-banana-google");
+    // Default por Fal: la ruta directa a Google (`nano-banana-google`) devuelve 403
+    // con la GEMINI_API_KEY de esta cuenta — el proyecto tiene el acceso denegado.
+    const [model, setModel] = useState<ImageModel>("nano-banana-2");
     const [variantCount, setVariantCount] = useState<number>(1);
 
     // Video params — defaults matchean los más usados de v1.
@@ -287,10 +310,23 @@ export function ManualLabV2() {
     // Intensidad del grade L&F — el modo imagen salía muy brusco. Default medio.
     const [lfIntensity, setLfIntensity] = useState<"subtle" | "medium" | "strong">("medium");
     // Loading de la consistencia inteligente (Gemini Vision analizando la ref).
+/* ── Consistencia: PAUSADA, no borrada ────────────────────────────────────
+   El usuario pidió sacarla del panel "por el momento" (2026-09-23). La lógica
+   queda entera —buildConsistencyPrompt, applyConsistencyRef, applyConsistencySmart,
+   clearConsistency y su state— porque borrarla serían ~200 líneas que habría que
+   reescribir para reactivarla, incluido el análisis de Gemini Vision que detecta
+   el tipo de ancla.
+   Para reactivar: volver a montar una fila <SelectorTrigger label="Consistencia">
+   en la sección Referencias y renderizar su panel DENTRO del <SelectorPanel> de la
+   columna del medio (igual que Look & Feel) — nunca inline en el sidebar, ver
+   docs/workspace-template.md §2.
+   Los @ts-expect-error / eslint-disable de abajo existen sólo mientras esté pausada. */
+    // @ts-expect-error -- pausado, ver nota de Consistencia arriba
     const [consistencyAnalyzing, setConsistencyAnalyzing] = useState(false);
 
     // Consistency panel — anchor de identidad. 3 caminos: avatar guardado, producto
     // guardado, o subir ad-hoc. Solo una activa a la vez. Solo modo imagen.
+    // @ts-expect-error -- pausado, ver nota de Consistencia arriba
     const [showConsistency, setShowConsistency] = useState(false);
 
 
@@ -325,6 +361,7 @@ export function ManualLabV2() {
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const replaceFileRef = useRef<HTMLInputElement | null>(null);
     const lookFeelFileRef = useRef<HTMLInputElement | null>(null);
+    // @ts-expect-error -- pausado, ver nota de Consistencia arriba
     const consistencyFileRef = useRef<HTMLInputElement | null>(null);
     const galleryRef = useRef<HTMLDivElement | null>(null);
     const promptRef = useRef<HTMLTextAreaElement | null>(null);
@@ -795,6 +832,7 @@ export function ManualLabV2() {
     /** Agrega una imagen como ANCHOR DE CONSISTENCIA. Reemplaza la consistency activa
      *  si ya hay una (solo una a la vez). Inyecta un prompt template específico para
      *  el tipo declarado (avatar/cara o producto). */
+    // @ts-expect-error -- pausado, ver nota de Consistencia arriba
     const applyConsistencyRef = useCallback((opts: {
         url: string;
         label: string;
@@ -848,6 +886,7 @@ export function ManualLabV2() {
 
     /** Consistencia INTELIGENTE — subís cualquier imagen y Gemini Vision detecta solo
      *  qué es y qué define al sujeto; arma el lock a medida. Un solo botón, sin elegir tipo. */
+    // @ts-expect-error -- pausado, ver nota de Consistencia arriba
     const applyConsistencySmart = useCallback(async (file: File) => {
         if (refs.length === 0) {
             alert("Primero subí la imagen base como [img1]. La consistencia reemplaza un aspecto de esa base — sin base no hay nada que reemplazar.");
@@ -893,6 +932,7 @@ export function ManualLabV2() {
     }, [refs, buildConsistencyPromptSmart]);
 
     /** Quita la consistency activa (si la hay) y limpia el prompt template. */
+    // @ts-expect-error -- pausado, ver nota de Consistencia arriba
     const clearConsistency = useCallback(() => {
         setRefs((prev) => prev.filter((r) => !r.isConsistency).map((r, i) => ({ ...r, tag: `img${i + 1}` })));
         setEnhancedPrompt(null);
@@ -907,6 +947,25 @@ export function ManualLabV2() {
     );
 
     const canGenerate = hasContent && !busy;
+
+    /**
+     * Créditos estimados de la PRÓXIMA corrida — se muestran en el botón antes de
+     * apretar. Usa `pricing.ts` (la misma fuente que el costo real registrado en
+     * `costLedger.ts`), así el estimado y el cobro no se desincronizan.
+     *
+     * Es el costo de UN INTENTO, no de la pieza terminada: el descarte real ronda
+     * 1.6× en imágenes (ver financial-model.md). La UI lo dice explícitamente.
+     *
+     * `null` = no sabemos estimar (modelo de video sin tarifa en la tabla). En ese
+     * caso no se muestra nada, que es mejor que mostrar un número inventado.
+     */
+    const estimatedCredits = useMemo<number | null>(() => {
+        if (mode === "image") {
+            return usdToCredits(imagesUsd(variantCount, resolution as PriceResolution));
+        }
+        const usd = estimateVideoCost(videoModelId, vidResolution, vidDuration);
+        return usd == null ? null : usdToCredits(usd);
+    }, [mode, variantCount, resolution, videoModelId, vidResolution, vidDuration]);
 
     // Cuando pendingSubmit incrementa, React ya aplicó los setPrompt/setRefs
     // anteriores → submit() lee del closure actualizado y dispara la corrida.
@@ -1241,7 +1300,11 @@ export function ManualLabV2() {
 
                         {/* Mode toggle (Imagen / Video) — funcional, no link a v1.
                             Cambia la sección Modelo y los Parámetros según el modo. */}
-                        <div className="grid grid-cols-2 gap-1 p-1 rounded-[var(--radius-md)] bg-surface-2 border border-edge">
+                        {/* El tab activo usaba --color-action (blanco sólido) + font-semibold:
+                            un bloque de alto contraste para una decisión menor. Ahora el activo
+                            se marca con superficie apenas elevada + texto full, que es como se
+                            marca la selección en el resto de la app. */}
+                        <div className="grid grid-cols-2 gap-0.5 p-0.5 rounded-[var(--radius-sm)] bg-surface-2 border border-edge">
                             {([
                                 { id: "image" as Mode, label: "Imagen", icon: <ImageIcon size={13} /> },
                                 { id: "video" as Mode, label: "Video", icon: <Wand2 size={13} /> },
@@ -1252,10 +1315,10 @@ export function ManualLabV2() {
                                         key={m.id}
                                         onClick={() => setMode(m.id)}
                                         className={cn(
-                                            "flex items-center justify-center gap-1.5 py-1.5 rounded text-[12px] font-medium cursor-pointer transition-colors",
+                                            "flex items-center justify-center gap-1.5 py-1.5 rounded-[var(--radius-xs)] text-[12px] cursor-pointer transition-colors",
                                             active
-                                                ? "bg-[var(--color-action)] text-[var(--color-action-fg)] font-semibold"
-                                                : "text-fg-muted hover:text-fg hover:bg-surface-1"
+                                                ? "bg-[var(--color-surface-0)] text-fg font-medium shadow-[0_1px_2px_rgba(0,0,0,0.3)]"
+                                                : "text-fg-faint hover:text-fg-muted"
                                         )}
                                     >
                                         {m.icon} {m.label}
@@ -1274,7 +1337,6 @@ export function ManualLabV2() {
                                     value={model}
                                     onChange={(next) => setModel(next as ImageModel)}
                                     options={[
-                                        { id: "nano-banana-google", label: "Nano Banana (Google)", sub: "Directo · cuenta Monks" },
                                         { id: "nano-banana-2", label: "Nano Banana 2 (Fal)", sub: "Multi-ref · vía Fal" },
                                         { id: "gpt-image-2", label: "GPT Image 2", sub: "Base + edit · OpenAI" },
                                     ]}
@@ -1315,24 +1377,56 @@ export function ManualLabV2() {
                             </div>
                         )}
 
-                        {/* Brand assets toggle */}
-                        {activeBrand && !isSandbox && (
-                            <label className="flex items-center gap-2 text-[12px] text-fg cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={useBrandAssets}
-                                    onChange={(e) => setUseBrandAssets(e.target.checked)}
-                                    className="cursor-pointer"
-                                />
-                                Usar assets de <span className="font-semibold">{activeBrand.name}</span>
-                            </label>
-                        )}
-
                         {/* Refs section — grid de slots cuadrados iguales tipo Freepik.
                             Cada ref subida + "Subir" + "Look & Feel" son cuadrados del mismo tamaño
                             en el mismo grid, sin labels textuales largos por afuera. Más prolijo,
                             más integrado visualmente. */}
                         <Section title="Referencias" hint="Tageá con @img1 / @img2 en el prompt.">
+                            {/* Traer de la marca — abre el selector del MEDIO (no un popover
+                                ni un modal): la galería de la derecha sigue visible mientras
+                                elegís. Solo aparecen las categorías que tienen algo cargado. */}
+                            {brandAssets.length > 0 && (
+                                <div className="flex flex-col gap-1 mb-2.5">
+                                    {(["avatar", "product", "clothing", "pose", "background"] as const)
+                                        .filter((k) => brandAssets.some((a) => a.kind === k))
+                                        .map((k) => {
+                                            const items = brandAssets.filter((a) => a.kind === k);
+                                            return (
+                                                <SelectorTrigger
+                                                    key={k}
+                                                    label={SELECTOR_LABELS[k]}
+                                                    value={`${items.length} en ${activeBrand?.name ?? "la marca"}`}
+                                                    thumb={items[0]?.displayUrl}
+                                                    active={selectorKind === k}
+                                                    onClick={() => setSelectorKind((cur) => (cur === k ? null : k))}
+                                                />
+                                            );
+                                        })}
+                                </div>
+                            )}
+                            {/* Look & Feel y Consistencia son INPUTS DE MARCA, no acciones:
+                                los dos leen del Brand Kit igual que Avatares/Prendas/Fondos.
+                                Dibujarlos como cuadraditos punteados junto a "Subir" los hacía
+                                leer como botones de upload y mezclaba dos lenguajes visuales en
+                                la misma sección. Van como filas, con el mismo peso que el resto
+                                de los inputs de marca. (Pedido del usuario.) */}
+                            {mode === "image" && (
+                                <div className="flex flex-col gap-1 mb-2.5">
+                                    <SelectorTrigger
+                                        label="Look & Feel"
+                                        value={lookFeelMode === "image" ? "referencia de imagen" : "receta de color"}
+                                        icon={<Sun size={14} />}
+                                        active={showLookFeel}
+                                        onClick={() => {
+                                            // Abre en la columna del medio, no hacia abajo:
+                                            // docs/workspace-template.md §2 — "el selector no se
+                                            // despliega hacia abajo dentro del panel".
+                                            setShowLookFeel((v) => !v);
+                                            setSelectorKind(null);
+                                        }}
+                                    />
+                                </div>
+                            )}
                             <div className="grid grid-cols-4 gap-1.5">
                                 {refs.map((r) => (
                                     <RefCard
@@ -1353,42 +1447,6 @@ export function ManualLabV2() {
                                     <Plus size={14} />
                                     <span className="text-[9px] font-medium leading-none">Subir</span>
                                 </button>
-                                {/* Look & Feel — slot cuadrado solo en modo IMAGEN.
-                                    En video no aplica (Kling/Seedance no usan color grade transfer
-                                    de la misma manera y el feature está pensado para imagen fija). */}
-                                {mode === "image" && (
-                                    <button
-                                        onClick={() => setShowLookFeel((v) => !v)}
-                                        className={cn(
-                                            "aspect-square flex flex-col items-center justify-center gap-1 border border-dashed rounded-[var(--radius-sm)] cursor-pointer transition-colors text-center px-1",
-                                            showLookFeel
-                                                ? "border-[var(--color-action-muted)] bg-[var(--color-action-subtle)] text-fg"
-                                                : "border-edge text-fg-muted hover:text-fg hover:border-edge-strong hover:bg-surface-1"
-                                        )}
-                                        title="Aplicar un color grade / mood a la primera referencia"
-                                    >
-                                        <Sun size={14} />
-                                        <span className="text-[9px] font-medium leading-tight">Look &amp; Feel</span>
-                                    </button>
-                                )}
-                                {/* Consistencia — anchor de identidad. Solo modo IMAGEN.
-                                    Si hay una ref marcada como consistency, el slot se ve
-                                    "activo" con burgundy. Click → abre panel con 3 opciones. */}
-                                {mode === "image" && (
-                                    <button
-                                        onClick={() => setShowConsistency((v) => !v)}
-                                        className={cn(
-                                            "aspect-square flex flex-col items-center justify-center gap-1 border border-dashed rounded-[var(--radius-sm)] cursor-pointer transition-colors text-center px-1",
-                                            (showConsistency || refs.some((r) => r.isConsistency))
-                                                ? "border-[var(--color-brand-muted)] bg-[var(--color-brand-subtle)] text-fg"
-                                                : "border-edge text-fg-muted hover:text-fg hover:border-edge-strong hover:bg-surface-1"
-                                        )}
-                                        title="Anclar identidad — esta imagen es la fuente de verdad para el sujeto/producto"
-                                    >
-                                        <Target size={14} />
-                                        <span className="text-[9px] font-medium leading-tight">Consistencia</span>
-                                    </button>
-                                )}
                             </div>
                             <input
                                 ref={fileInputRef}
@@ -1415,276 +1473,8 @@ export function ManualLabV2() {
                                 }}
                             />
 
-                            {/* Look & Feel panel inline — clone exacto del de v1 para coherencia.
-                                Layout compacto: línea-resumen + toggle Receta/Imagen-ref + botón "Subir
-                                una (solo esta vez)" + lista de L&F guardados de la marca. Cuando
-                                el modo es "image" se muestra un warning amarillo porque Nano Banana
-                                a veces devuelve la imagen del L&F en vez de aplicarla como grade. */}
-                            {showLookFeel && (
-                                <div className="mt-2 border border-edge rounded-[var(--radius-sm)] bg-surface-1 p-1.5 space-y-1.5">
-                                    <p className="text-[10px] text-fg-faint px-1.5 pt-1 leading-snug">
-                                        Aplica color/mood a <code className="px-1 rounded bg-surface-2">img1</code> sin cambiar su contenido.
-                                    </p>
-                                    {/* Mode toggle: text recipe (default, reliable) vs image ref (faster but copies scene). */}
-                                    <div className="flex gap-1 p-1">
-                                        {([
-                                            { v: "recipe" as const, label: "Receta (auto)", title: "Click → Gemini analiza la referencia y aplica solo color/mood. La imagen NO se manda al generador. Recomendado." },
-                                            { v: "image" as const, label: "Imagen ref", title: "Pasa la imagen como ref. Más rápido pero Nano Banana suele copiar la escena, incluso con prompts restrictivos." },
-                                        ]).map((m) => (
-                                            <button
-                                                key={m.v}
-                                                onClick={() => setLookFeelMode(m.v)}
-                                                title={m.title}
-                                                className={cn(
-                                                    "flex-1 text-[10px] py-1 rounded cursor-pointer transition-colors",
-                                                    lookFeelMode === m.v ? "bg-[var(--color-action-subtle)] text-fg border border-[var(--color-action-muted)]" : "text-fg-muted hover:text-fg border border-transparent",
-                                                )}
-                                            >
-                                                {m.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    {/* Intensidad del grade — el modo imagen salía muy brusco; ahora se gradúa. */}
-                                    <div className="px-1">
-                                        <span className="block text-[9px] font-bold text-fg-faint uppercase tracking-widest mb-1">Intensidad</span>
-                                        <div className="flex gap-1">
-                                            {([
-                                                { v: "subtle" as const, label: "Sutil" },
-                                                { v: "medium" as const, label: "Medio" },
-                                                { v: "strong" as const, label: "Fuerte" },
-                                            ]).map((it) => (
-                                                <button
-                                                    key={it.v}
-                                                    onClick={() => setLfIntensity(it.v)}
-                                                    className={cn(
-                                                        "flex-1 text-[10px] py-1 rounded cursor-pointer transition-colors",
-                                                        lfIntensity === it.v ? "bg-[var(--color-action-subtle)] text-fg border border-[var(--color-action-muted)]" : "text-fg-muted hover:text-fg border border-transparent",
-                                                    )}
-                                                >
-                                                    {it.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    {/* Honest warning para el modo "image" */}
-                                    {lookFeelMode === "image" && (
-                                        <p className="text-[10px] text-[var(--color-warning,#f5a623)] px-1.5 pb-1 leading-snug">
-                                            ⚠ Nano Banana puede devolverte la imagen del look&feel en vez de aplicarla. Si pasa, cambiá a Receta.
-                                        </p>
-                                    )}
-                                    {/* Ad-hoc: upload one-off (no se guarda en la marca) */}
-                                    <button
-                                        onClick={() => lookFeelFileRef.current?.click()}
-                                        disabled={lfAnalyzing !== null}
-                                        className="w-full flex items-center gap-2 p-1 mb-1 rounded border border-dashed border-edge hover:bg-surface-2 cursor-pointer text-left disabled:opacity-50"
-                                    >
-                                        <span className="w-9 h-9 rounded bg-surface-2 flex items-center justify-center text-fg-faint shrink-0"><Plus size={14} /></span>
-                                        <span className="text-[12px] text-fg flex-1">Subir una (solo esta vez)</span>
-                                        {(lfAnalyzing || "").startsWith("adhoc_") && <RefreshCw size={11} className="animate-spin text-fg-faint shrink-0" />}
-                                    </button>
-                                    {(activeBrand?.lookAndFeel || []).map((item) => (
-                                        <button
-                                            key={item.id}
-                                            onClick={() => applyLookFeel(item)}
-                                            disabled={lfAnalyzing !== null}
-                                            className="w-full flex items-center gap-2 p-1 rounded hover:bg-surface-2 cursor-pointer text-left disabled:opacity-50"
-                                        >
-                                            <img src={lookAndFeelImageUrl(item.imageUrl)} alt={item.name} className="w-9 h-9 rounded object-cover shrink-0" />
-                                            <span className="text-[12px] text-fg truncate flex-1">{item.name}</span>
-                                            {lfAnalyzing === item.id && <RefreshCw size={11} className="animate-spin text-fg-faint shrink-0" />}
-                                        </button>
-                                    ))}
-                                    {(activeBrand?.lookAndFeel?.length ?? 0) === 0 && (
-                                        <p className="text-[10px] text-fg-faint px-1.5 py-1">Esta marca no tiene Look & Feel guardados. Subí uno arriba, o cargalos en Brand Kit para reusarlos.</p>
-                                    )}
-                                    <input
-                                        ref={lookFeelFileRef}
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={async (e) => {
-                                            const f = e.target.files?.[0];
-                                            if (!f) return;
-                                            const dataUrl = await fileToDataUrl(f);
-                                            await applyLookFeel({
-                                                id: `adhoc_${Date.now()}`,
-                                                name: f.name.replace(/\.[^.]+$/, ""),
-                                                filename: f.name,
-                                                imageUrl: dataUrl,
-                                                adhocFile: f,
-                                            });
-                                            e.target.value = "";
-                                        }}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Consistencia panel inline. Tres caminos según TIPO declarado
-                                (avatar/cara vs producto), porque cada uno construye un prompt
-                                template distinto: el output es [img1] tal cual, EXCEPTO el
-                                aspecto declarado que se reemplaza para matchear esta imagen.
-                                Requiere que ya haya una [img1] base — sino la consistencia
-                                no tiene sobre qué actuar. */}
-                            {showConsistency && mode === "image" && (
-                                <div className="mt-2 border border-edge rounded-[var(--radius-sm)] bg-surface-1 p-2 space-y-2">
-                                    <div className="flex items-start gap-1.5 px-1">
-                                        <Target size={11} className="text-[var(--color-brand-strong)] shrink-0 mt-0.5" />
-                                        <p className="text-[10px] text-fg-faint leading-snug">
-                                            El output va a ser <strong className="text-fg">[img1] tal cual</strong>, pero <strong className="text-fg">el elemento que verifiques</strong> (cara, producto, objeto, lo que sea) se reemplaza para matchear esta imagen. Subí cualquier imagen en <strong className="text-fg">Verificar esto</strong> y Gemini detecta solo qué es. Una activa a la vez.
-                                        </p>
-                                    </div>
-
-                                    {/* Warning si no hay base */}
-                                    {refs.filter((r) => !r.isConsistency).length === 0 && (
-                                        <p className="text-[10px] text-[var(--color-warning,#f5a623)] px-1.5 py-1 leading-snug bg-[var(--color-warning-muted,rgba(245,166,35,0.1))] rounded">
-                                            ⚠ Necesitás una imagen base como [img1] primero. Subila desde el slot "Subir" arriba.
-                                        </p>
-                                    )}
-
-                                    {/* Chip de la activa + botón quitar */}
-                                    {refs.some((r) => r.isConsistency) && (
-                                        <div className="flex items-center gap-2 px-1.5 py-1 rounded bg-[var(--color-brand-subtle)] border border-[var(--color-brand-muted)]">
-                                            <img
-                                                src={refs.find((r) => r.isConsistency)!.url}
-                                                alt="consistency"
-                                                className="w-8 h-8 rounded object-cover shrink-0"
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-[10px] font-semibold text-fg truncate">
-                                                    {refs.find((r) => r.isConsistency)!.label}
-                                                </p>
-                                                <p className="text-[9px] text-fg-faint flex items-center gap-1">
-                                                    {consistencyAnalyzing && <RefreshCw size={9} className="animate-spin shrink-0" />}
-                                                    {(() => {
-                                                        const c = refs.find((r) => r.isConsistency);
-                                                        if (c?.consistencyDesc) return c.consistencyDesc;
-                                                        return c?.consistencyType === "avatar"
-                                                            ? "reemplaza la cara/identidad de [img1]"
-                                                            : "reemplaza el producto de [img1]";
-                                                    })()}
-                                                </p>
-                                            </div>
-                                            <button
-                                                onClick={clearConsistency}
-                                                title="Quitar"
-                                                className="w-6 h-6 rounded-full text-fg-faint hover:text-fg hover:bg-surface-2 flex items-center justify-center cursor-pointer"
-                                            >
-                                                <X size={12} />
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {/* Avatares del Brand Kit → type "avatar" (reemplaza cara) */}
-                                    {activeBrand && (activeBrand.avatars?.length ?? 0) > 0 && (
-                                        <div className="space-y-1">
-                                            <p className="text-[9px] font-bold text-fg-faint uppercase tracking-widest px-1">
-                                                Avatares <span className="text-fg-secondary normal-case font-normal">— reemplaza la cara de [img1]</span>
-                                            </p>
-                                            <div className="grid grid-cols-4 gap-1.5">
-                                                {(activeBrand.avatars || []).map((a) => (
-                                                    <button
-                                                        key={a.id}
-                                                        onClick={() => applyConsistencyRef({
-                                                            url: a.imageUrl?.startsWith("http") ? a.imageUrl : avatarImageUrl(a.imageUrl!),
-                                                            label: a.name,
-                                                            baseName: sanitizeName(a.name) || undefined,
-                                                            type: "avatar",
-                                                        })}
-                                                        className="group relative aspect-square overflow-hidden rounded-sm border border-edge-subtle hover:border-[var(--color-brand)] cursor-pointer"
-                                                        title={a.name}
-                                                    >
-                                                        {a.imageUrl ? (
-                                                            <img src={avatarImageUrl(a.imageUrl)} alt={a.name} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-full h-full bg-surface-2" />
-                                                        )}
-                                                        <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] truncate px-1 py-0.5 opacity-0 group-hover:opacity-100">
-                                                            {a.name}
-                                                        </span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Productos del Brand Kit → type "product" (reemplaza producto) */}
-                                    {activeBrand && (activeBrand.products?.length ?? 0) > 0 && (
-                                        <div className="space-y-1">
-                                            <p className="text-[9px] font-bold text-fg-faint uppercase tracking-widest px-1">
-                                                Productos <span className="text-fg-secondary normal-case font-normal">— reemplaza el producto de [img1]</span>
-                                            </p>
-                                            <div className="grid grid-cols-4 gap-1.5">
-                                                {(activeBrand.products || []).map((p) => (
-                                                    <button
-                                                        key={p.id}
-                                                        onClick={() => applyConsistencyRef({
-                                                            url: p.imageUrl.startsWith("http") ? p.imageUrl : productImageUrl(p.imageUrl),
-                                                            label: p.name,
-                                                            baseName: sanitizeName(p.name) || undefined,
-                                                            type: "product",
-                                                        })}
-                                                        className="group relative aspect-square overflow-hidden rounded-sm border border-edge-subtle hover:border-[var(--color-brand)] cursor-pointer"
-                                                        title={p.name}
-                                                    >
-                                                        <img src={productImageUrl(p.imageUrl)} alt={p.name} className="w-full h-full object-cover" />
-                                                        <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] truncate px-1 py-0.5 opacity-0 group-hover:opacity-100">
-                                                            {p.name}
-                                                        </span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Subir ad-hoc — DOS botones, uno por tipo, así el sistema
-                                        sabe qué prompt construir. Cada uno usa un dataset distinto
-                                        del file input que está abajo, recordando el tipo elegido. */}
-                                    <div className="space-y-1">
-                                        <p className="text-[9px] font-bold text-fg-faint uppercase tracking-widest px-1">Verificar cualquier cosa</p>
-                                        <button
-                                            onClick={() => consistencyFileRef.current?.click()}
-                                            disabled={consistencyAnalyzing}
-                                            className="w-full flex items-center gap-2 p-2 rounded border border-dashed border-edge hover:border-[var(--color-brand)] hover:bg-[var(--color-brand-subtle)] cursor-pointer text-left transition-colors disabled:opacity-50"
-                                        >
-                                            <span className="w-7 h-7 rounded bg-surface-2 flex items-center justify-center text-fg-faint shrink-0">
-                                                {consistencyAnalyzing ? <RefreshCw size={11} className="animate-spin" /> : <Target size={11} />}
-                                            </span>
-                                            <span className="flex-1 min-w-0">
-                                                <span className="block text-[10px] font-semibold text-fg">Verificar esto</span>
-                                                <span className="block text-[9px] text-fg-faint">subí cara, producto, objeto, logo… — Gemini detecta solo qué es</span>
-                                            </span>
-                                        </button>
-                                    </div>
-
-                                    {/* Empty hint si no hay avatares ni productos guardados */}
-                                    {activeBrand && (activeBrand.avatars?.length ?? 0) === 0 && (activeBrand.products?.length ?? 0) === 0 && (
-                                        <p className="text-[10px] text-fg-faint px-1.5 py-1 leading-snug">
-                                            Esta marca no tiene avatares ni productos guardados. Usá <strong>Verificar esto</strong> para subir cualquier imagen, o cargá assets en Brand Kit para reusarlos.
-                                        </p>
-                                    )}
-
-                                    <input
-                                        ref={consistencyFileRef}
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={async (e) => {
-                                            const f = e.target.files?.[0];
-                                            if (!f) return;
-                                            await applyConsistencySmart(f);
-                                            e.target.value = "";
-                                        }}
-                                    />
-                                </div>
-                            )}
                         </Section>
 
-                        {/* Asset picker inline (cuando se activa "Usar assets de marca") */}
-                        {useBrandAssets && activeBrand && !isSandbox && (
-                            <Section title="Assets de la marca">
-                                <AssetPickerInline brand={activeBrand} onPick={addAssetRef} />
-                            </Section>
-                        )}
 
                         {/* Prompt */}
                         <Section title="Prompt">
@@ -1852,7 +1642,7 @@ export function ManualLabV2() {
                                         onClick={generateSketch}
                                         disabled={busy}
                                         title="Genera un sketch B&N de composición (barato): fija layout, cámara y dirección de luz. Después 'usá como ref' el sketch para anclar la estructura."
-                                        className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full border border-edge text-fg-muted hover:text-fg hover:bg-surface-2 cursor-pointer transition-colors disabled:opacity-40"
+                                        className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-[var(--radius-xs)] border border-edge text-fg-muted hover:text-fg hover:bg-surface-2 cursor-pointer transition-colors disabled:opacity-40"
                                     >
                                         <Pencil size={11} /> Sketch
                                     </button>
@@ -1865,7 +1655,7 @@ export function ManualLabV2() {
                                     <button
                                         onClick={recommendAnimation}
                                         disabled={enhancing}
-                                        className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full border border-edge text-fg-muted hover:text-fg hover:bg-surface-2 cursor-pointer transition-colors disabled:opacity-40"
+                                        className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-[var(--radius-xs)] border border-edge text-fg-muted hover:text-fg hover:bg-surface-2 cursor-pointer transition-colors disabled:opacity-40"
                                         title="Gemini mira la imagen y propone una animación. Respeta lo que escribas; si no escribís nada, la decide él."
                                     >
                                         {enhancing
@@ -1882,7 +1672,7 @@ export function ManualLabV2() {
                                     <button
                                         onClick={() => setInspireOpen((v) => !v)}
                                         className={cn(
-                                            "flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full border cursor-pointer transition-colors",
+                                            "flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-[var(--radius-xs)] border cursor-pointer transition-colors",
                                             inspireOpen
                                                 ? "border-[var(--color-brand)] bg-[var(--color-brand-subtle)] text-[var(--color-brand)]"
                                                 : "border-edge text-fg-muted hover:text-fg hover:bg-surface-2",
@@ -1969,46 +1759,15 @@ export function ManualLabV2() {
                             )}
                         </Section>
 
-                        {/* Params — switch entre imagen y video. Para video, mostrar solo lo
-                            relevante al modelo seleccionado (Kling fija res, Seedance permite elegir). */}
+                        {/* Params de VIDEO. Los de imagen (formato / resolución / variantes)
+                            viven arriba de la galería, no acá: son parámetros de CORRIDA, no
+                            parte del brief. Ref: "Run parameters live here. What defines WHAT
+                            gets generated lives in the brief" (panel RUN SETTINGS de Invent).
+                            Video se queda porque no es un set fijo — cambia según el modelo
+                            (Kling fija la resolución, Seedance la deja elegir). */}
+                        {mode === "video" && (
                         <Section title="Parámetros">
-                            {mode === "image" ? (
-                                <div className="grid grid-cols-3 gap-2">
-                                    <Field label="AR">
-                                        <select
-                                            value={aspectRatio}
-                                            onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
-                                            className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] text-[12px] text-fg px-2 py-1.5 outline-none focus:border-[var(--color-edge-focus)] cursor-pointer"
-                                        >
-                                            {IMG_ASPECT_RATIOS.map((ar) => (
-                                                <option key={ar} value={ar}>{ar}</option>
-                                            ))}
-                                        </select>
-                                    </Field>
-                                    <Field label="Resolución">
-                                        <select
-                                            value={resolution}
-                                            onChange={(e) => setResolution(e.target.value as Resolution)}
-                                            className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] text-[12px] text-fg px-2 py-1.5 outline-none focus:border-[var(--color-edge-focus)] cursor-pointer"
-                                        >
-                                            {IMG_RESOLUTIONS.map((r) => (
-                                                <option key={r} value={r}>{r}</option>
-                                            ))}
-                                        </select>
-                                    </Field>
-                                    <Field label="Variantes">
-                                        <select
-                                            value={variantCount}
-                                            onChange={(e) => setVariantCount(parseInt(e.target.value, 10))}
-                                            className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] text-[12px] text-fg px-2 py-1.5 outline-none focus:border-[var(--color-edge-focus)] cursor-pointer"
-                                        >
-                                            {VARIANT_COUNTS.map((n) => (
-                                                <option key={n} value={n}>{n}×</option>
-                                            ))}
-                                        </select>
-                                    </Field>
-                                </div>
-                            ) : (
+                            {(
                                 <div className="grid grid-cols-3 gap-2">
                                     <Field label="Duración">
                                         <select
@@ -2062,6 +1821,7 @@ export function ManualLabV2() {
                                 </div>
                             )}
                         </Section>
+                        )}
 
                     </div>
 
@@ -2115,19 +1875,193 @@ export function ManualLabV2() {
                                     {variantCount > 1 && (
                                         <span className="text-[11px] opacity-80 ml-0.5">× {variantCount}</span>
                                     )}
+                                    {estimatedCredits != null && (
+                                        <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium tabular-nums bg-black/15">
+                                            ▣ {estimatedCredits}
+                                        </span>
+                                    )}
                                 </>
                             )}
                         </button>
                         <p className="text-[10px] text-fg-faint text-center leading-snug">
+                            {estimatedCredits != null && (
+                                <>
+                                    {/* "por intento", no "por pieza": el descarte real es ~1.6× en
+                                        imágenes (ver financial-model.md). Prometer el costo de la
+                                        pieza terminada sería mentir. */}
+                                    <span title="Costo de esta corrida. Las regeneraciones cuestan aparte.">
+                                        ≈ {estimatedCredits} créditos por intento
+                                    </span>
+                                    {" · "}
+                                </>
+                            )}
                             ⌘+Enter para generar
                         </p>
                     </div>
                 </aside>
 
+                {/* ── Columna del MEDIO: selector de assets ─────────
+                     Workspace de 3 columnas (patrón Genera, ver
+                     docs/dashboard-architecture-research.md §2.2). Se abre al tocar
+                     una fila de "Traer de la marca" y EMPUJA la galería, que nunca
+                     desaparece: mientras elegís una cara podés seguir viendo lo
+                     generado, para comparar. */}
+                <SelectorPanel
+                    open={selectorKind !== null || (showLookFeel && mode === "image")}
+                    title={selectorKind ? (SELECTOR_LABELS[selectorKind] || "Elegir") : "Look & Feel"}
+                    onClose={() => { setSelectorKind(null); setShowLookFeel(false); }}
+                >
+                    {/* Look & Feel vive acá, en la columna del medio, por la misma razón que
+                        los assets: mientras elegís un grade querés seguir viendo lo que ya
+                        generaste para comparar. (docs/workspace-template.md §2) */}
+                    {/* Warning amarillo en modo "image": Nano Banana a veces devuelve la
+                        imagen del L&F en vez de aplicarla como grade. */}
+                    {showLookFeel && mode === "image" && !selectorKind && (
+            <div className="border border-edge rounded-[var(--radius-sm)] bg-surface-1 p-1.5 space-y-1.5">
+                <p className="text-[10px] text-fg-faint px-1.5 pt-1 leading-snug">
+                    Aplica color/mood a <code className="px-1 rounded bg-surface-2">img1</code> sin cambiar su contenido.
+                </p>
+                {/* Mode toggle: text recipe (default, reliable) vs image ref (faster but copies scene). */}
+                <div className="flex gap-1 p-1">
+                    {([
+                        { v: "recipe" as const, label: "Receta (auto)", title: "Click → Gemini analiza la referencia y aplica solo color/mood. La imagen NO se manda al generador. Recomendado." },
+                        { v: "image" as const, label: "Imagen ref", title: "Pasa la imagen como ref. Más rápido pero Nano Banana suele copiar la escena, incluso con prompts restrictivos." },
+                    ]).map((m) => (
+                        <button
+                            key={m.v}
+                            onClick={() => setLookFeelMode(m.v)}
+                            title={m.title}
+                            className={cn(
+                                "flex-1 text-[10px] py-1 rounded cursor-pointer transition-colors",
+                                lookFeelMode === m.v ? "bg-[var(--color-action-subtle)] text-fg border border-[var(--color-action-muted)]" : "text-fg-muted hover:text-fg border border-transparent",
+                            )}
+                        >
+                            {m.label}
+                        </button>
+                    ))}
+                </div>
+                {/* Intensidad del grade — el modo imagen salía muy brusco; ahora se gradúa. */}
+                <div className="px-1">
+                    <span className="block text-[9px] font-bold text-fg-faint uppercase tracking-widest mb-1">Intensidad</span>
+                    <div className="flex gap-1">
+                        {([
+                            { v: "subtle" as const, label: "Sutil" },
+                            { v: "medium" as const, label: "Medio" },
+                            { v: "strong" as const, label: "Fuerte" },
+                        ]).map((it) => (
+                            <button
+                                key={it.v}
+                                onClick={() => setLfIntensity(it.v)}
+                                className={cn(
+                                    "flex-1 text-[10px] py-1 rounded cursor-pointer transition-colors",
+                                    lfIntensity === it.v ? "bg-[var(--color-action-subtle)] text-fg border border-[var(--color-action-muted)]" : "text-fg-muted hover:text-fg border border-transparent",
+                                )}
+                            >
+                                {it.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                {/* Honest warning para el modo "image" */}
+                {lookFeelMode === "image" && (
+                    <p className="text-[10px] text-[var(--color-warning,#f5a623)] px-1.5 pb-1 leading-snug">
+                        ⚠ Nano Banana puede devolverte la imagen del look&feel en vez de aplicarla. Si pasa, cambiá a Receta.
+                    </p>
+                )}
+                {/* Ad-hoc: upload one-off (no se guarda en la marca) */}
+                <button
+                    onClick={() => lookFeelFileRef.current?.click()}
+                    disabled={lfAnalyzing !== null}
+                    className="w-full flex items-center gap-2 p-1 mb-1 rounded border border-dashed border-edge hover:bg-surface-2 cursor-pointer text-left disabled:opacity-50"
+                >
+                    <span className="w-9 h-9 rounded bg-surface-2 flex items-center justify-center text-fg-faint shrink-0"><Plus size={14} /></span>
+                    <span className="text-[12px] text-fg flex-1">Subir una (solo esta vez)</span>
+                    {(lfAnalyzing || "").startsWith("adhoc_") && <RefreshCw size={11} className="animate-spin text-fg-faint shrink-0" />}
+                </button>
+                {(activeBrand?.lookAndFeel || []).map((item) => (
+                    <button
+                        key={item.id}
+                        onClick={() => applyLookFeel(item)}
+                        disabled={lfAnalyzing !== null}
+                        className="w-full flex items-center gap-2 p-1 rounded hover:bg-surface-2 cursor-pointer text-left disabled:opacity-50"
+                    >
+                        <img src={lookAndFeelImageUrl(item.imageUrl)} alt={item.name} className="w-9 h-9 rounded object-cover shrink-0" />
+                        <span className="text-[12px] text-fg truncate flex-1">{item.name}</span>
+                        {lfAnalyzing === item.id && <RefreshCw size={11} className="animate-spin text-fg-faint shrink-0" />}
+                    </button>
+                ))}
+                {(activeBrand?.lookAndFeel?.length ?? 0) === 0 && (
+                    <p className="text-[10px] text-fg-faint px-1.5 py-1">Esta marca no tiene Look & Feel guardados. Subí uno arriba, o cargalos en Brand Kit para reusarlos.</p>
+                )}
+                <input
+                    ref={lookFeelFileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        const dataUrl = await fileToDataUrl(f);
+                        await applyLookFeel({
+                            id: `adhoc_${Date.now()}`,
+                            name: f.name.replace(/\.[^.]+$/, ""),
+                            filename: f.name,
+                            imageUrl: dataUrl,
+                            adhocFile: f,
+                        });
+                        e.target.value = "";
+                    }}
+                />
+            </div>
+                    )}
+
+                    {selectorKind && <div className="grid grid-cols-3 gap-1.5">
+                        {brandAssets.filter((a) => a.kind === selectorKind).map((a) => (
+                            <button
+                                key={a.id}
+                                onClick={() => {
+                                    addAssetRef(a.kind, { id: a.id, name: a.name, imageUrl: a.imageUrl });
+                                    setSelectorKind(null);
+                                }}
+                                title={a.name}
+                                className="group relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-[var(--color-edge-subtle)] hover:border-[var(--color-brand)] transition-colors cursor-pointer bg-[var(--color-surface-1)]"
+                            >
+                                <img src={a.displayUrl} alt={a.name} className="w-full h-full object-cover" />
+                                <span className="absolute inset-x-0 bottom-0 px-1.5 py-1 text-[9px] text-white/90 leading-tight truncate bg-gradient-to-t from-black/80 to-transparent">
+                                    {a.name}
+                                </span>
+                            </button>
+                        ))}
+                        {brandAssets.filter((a) => a.kind === selectorKind).length === 0 && (
+                            <p className="col-span-3 text-[11px] text-fg-faint py-6 text-center leading-relaxed">
+                                No hay {selectorKind ? (SELECTOR_LABELS[selectorKind] || "assets").toLowerCase() : "assets"} en esta marca todavía.
+                            </p>
+                        )}
+                    </div>}
+                </SelectorPanel>
+
                 {/* ── Galería derecha (scroll vertical infinito) ────
                     El drawer de sesión ahora vive a la derecha como overlay (fixed),
                     no ocupa columna del layout cuando está cerrado. Botón flotante
                     para abrirlo cuando hay generaciones. */}
+                {/* Columna derecha: barra de parámetros + galería.
+                    Los parámetros de CORRIDA (formato / resolución / variantes) viven
+                    acá arriba, separados del brief — ref: "Run parameters live here.
+                    What defines WHAT gets generated lives in the brief" (RUN SETTINGS
+                    de Invent). Va como barra horizontal y no como cuarta columna para
+                    no robarle ancho a la galería, que es donde mirás las piezas. */}
+                <div className="flex-1 flex flex-col min-w-0">
+                    {mode === "image" && (
+                        <div className="shrink-0 flex items-center gap-5 px-4 h-12 border-b border-[var(--color-edge-subtle)] overflow-x-auto no-scrollbar">
+                            <ChipRow inline label="Formato" options={IMG_ASPECT_RATIOS} value={aspectRatio}
+                                     onChange={(v) => setAspectRatio(v as AspectRatio)} />
+                            <ChipRow inline label="Resolución" options={IMG_RESOLUTIONS} value={resolution}
+                                     onChange={(v) => setResolution(v as Resolution)} />
+                            <ChipRow inline label="Variantes" options={VARIANT_COUNTS.map(String)} value={String(variantCount)}
+                                     onChange={(v) => setVariantCount(parseInt(v, 10))}
+                                     render={(v) => `${v}×`} />
+                        </div>
+                    )}
                 <main
                     ref={galleryRef}
                     className="flex-1 overflow-y-auto relative"
@@ -2174,6 +2108,7 @@ export function ManualLabV2() {
                                         setLightbox({ urls, activeIdx, label: t.prompt, download });
                                     }}
                                     onUseAsRef={(url) => appendResultAsRef(url, t.baseName, "previous result")}
+                                    onRetouch={(url) => setRetouching(url)}
                                     onEdit={(url) => {
                                         // "Editar": agarrá el resultado como [img1] (limpia refs anteriores) +
                                         // dejá el prompt libre para que el usuario describa qué editar. Este es
@@ -2233,7 +2168,21 @@ export function ManualLabV2() {
                         </div>
                     )}
                 </main>
+                </div>
             </div>
+
+            {/* Editor de retoque — mismo panel que las tools, con el brush de máscara.
+                Al aplicar, el resultado entra como nueva ref para seguir trabajando. */}
+            {retouching && (
+                <EditOverlay
+                    imageUrl={retouching}
+                    aspectRatio={aspectRatio}
+                    resolution={resolution}
+                    title="Retocar"
+                    onImageUpdated={(url) => { appendResultAsRef(url, undefined, "retocada"); setRetouching(null); }}
+                    onClose={() => setRetouching(null)}
+                />
+            )}
 
             {/* Drawer de sesión — overlay fixed sobre toda la página, no dentro del main.
                 Visible SIEMPRE (incluso con 0 generaciones) para que el usuario sepa que
@@ -2398,6 +2347,52 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
     );
 }
 
+/**
+ * Fila de parámetro con opciones como CHIPS.
+ *
+ * Reemplaza a los `<select>` nativos para parámetros de pocas opciones (formato,
+ * resolución, variantes). Con 3-5 valores un dropdown esconde lo que ya entra en
+ * pantalla y obliga a un click extra para ver qué hay.
+ *
+ * Referencia: el panel "RUN SETTINGS" de Invent, que separa los parámetros de
+ * CORRIDA de lo que define QUÉ se genera.
+ */
+function ChipRow({ label, options, value, onChange, render, inline }: {
+    label: string;
+    options: readonly string[];
+    value: string;
+    onChange: (v: string) => void;
+    /** Formato del texto del chip. Por defecto, el valor tal cual. */
+    render?: (v: string) => string;
+    /** `inline`: label al lado de los chips (barra horizontal). Por defecto va arriba. */
+    inline?: boolean;
+}) {
+    return (
+        <div className={inline ? "flex items-center gap-2 shrink-0" : undefined}>
+            <div className={cn(
+                "text-[10px] uppercase tracking-[0.1em] text-fg-faint",
+                inline ? "shrink-0" : "mb-1.5",
+            )}>{label}</div>
+            <div className="flex flex-wrap gap-1">
+                {options.map((o) => (
+                    <button
+                        key={o}
+                        onClick={() => onChange(o)}
+                        className={cn(
+                            "h-7 px-2.5 rounded-[var(--radius-sm)] text-[11.5px] font-medium tabular-nums transition-colors cursor-pointer border",
+                            value === o
+                                ? "bg-[var(--color-action)] border-[var(--color-action)] text-[var(--color-action-fg)]"
+                                : "bg-[var(--color-surface-1)] border-[var(--color-edge)] text-fg-muted hover:text-fg hover:bg-[var(--color-surface-2)]",
+                        )}
+                    >
+                        {render ? render(o) : o}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <div className="space-y-1">
@@ -2466,14 +2461,14 @@ function RefCard({ ref_, onRemove, onInsert, onZoom, onReplace }: {
                 <button
                     onClick={onReplace}
                     title="Reemplazar imagen — mantiene el tag"
-                    className="w-5 h-5 rounded-full bg-black/70 text-white hover:bg-black flex items-center justify-center cursor-pointer"
+                    className="w-5 h-5 rounded-[var(--radius-xs)] bg-black/55 backdrop-blur text-white hover:bg-black/80 flex items-center justify-center cursor-pointer"
                 >
                     <RefreshCw size={10} />
                 </button>
                 <button
                     onClick={onRemove}
                     title="Quitar"
-                    className="w-5 h-5 rounded-full bg-black/70 text-white hover:bg-black flex items-center justify-center cursor-pointer"
+                    className="w-5 h-5 rounded-[var(--radius-xs)] bg-black/55 backdrop-blur text-white hover:bg-black/80 flex items-center justify-center cursor-pointer"
                 >
                     <X size={10} />
                 </button>
@@ -2482,97 +2477,13 @@ function RefCard({ ref_, onRemove, onInsert, onZoom, onReplace }: {
     );
 }
 
-type AssetKind = "avatar" | "product" | "clothing" | "background" | "moodboard" | "lookfeel" | "logo" | "pose";
-const ASSET_TABS: Array<{ id: AssetKind; label: string }> = [
-    { id: "avatar", label: "avatar" },
-    { id: "product", label: "prod" },
-    { id: "clothing", label: "ropa" },
-    { id: "background", label: "fondo" },
-    { id: "pose", label: "poses" },
-    { id: "moodboard", label: "mood" },
-    { id: "lookfeel", label: "L&F" },
-    { id: "logo", label: "logo" },
-];
-
-function AssetPickerInline({
-    brand,
-    onPick,
-}: {
-    brand: NonNullable<ReturnType<typeof useBrand>["activeBrand"]>;
-    onPick: (kind: AssetKind, item: { id: string; name: string; imageUrl?: string }) => void;
-}) {
-    const [tab, setTab] = useState<AssetKind>("avatar");
-    const items: Array<{ id: string; name: string; imageUrl?: string }> =
-        tab === "avatar" ? (brand.avatars || []) :
-        tab === "product" ? (brand.products || []).map((p) => ({ id: p.id, name: p.name, imageUrl: p.imageUrl })) :
-        tab === "clothing" ? (brand.clothing || []) :
-        tab === "background" ? (brand.backgrounds || []) :
-        tab === "pose" ? (brand.poses || []) :
-        tab === "moodboard" ? (brand.moodboards || []) :
-        tab === "lookfeel" ? (brand.lookAndFeel || []) :
-        [
-            ...(brand.logo?.imageUrl ? [{ id: "__legacy_logo__", name: "Logo", imageUrl: brand.logo.imageUrl }] : []),
-            ...((brand.logos || []).map((l) => ({ id: l.id, name: l.name, imageUrl: l.imageUrl }))),
-        ];
-
-    const resolver =
-        tab === "avatar" ? avatarImageUrl :
-        tab === "product" ? productImageUrl :
-        tab === "clothing" ? clothingImageUrl :
-        tab === "background" ? backgroundImageUrl :
-        tab === "pose" ? poseImageUrl :
-        tab === "moodboard" ? moodboardImageUrl :
-        tab === "lookfeel" ? lookAndFeelImageUrl :
-        brandLogoImageUrl;
-
-    return (
-        <div className="border border-edge rounded-[var(--radius-sm)] bg-surface-1 p-2 space-y-2">
-            <div className="flex gap-0.5 flex-wrap">
-                {ASSET_TABS.map((t) => (
-                    <button
-                        key={t.id}
-                        onClick={() => setTab(t.id)}
-                        className={cn(
-                            "text-[10px] px-2 py-1 rounded cursor-pointer",
-                            tab === t.id ? "bg-surface-2 text-fg" : "text-fg-muted hover:bg-surface-2",
-                        )}
-                    >
-                        {t.label}
-                    </button>
-                ))}
-            </div>
-            {items.length === 0 ? (
-                <p className="text-[10px] text-fg-faint p-2">Sin {tab} en esta marca.</p>
-            ) : (
-                <div className="grid grid-cols-4 gap-1.5 max-h-60 overflow-y-auto">
-                    {items.map((it) => (
-                        <button
-                            key={it.id}
-                            onClick={() => onPick(tab, it)}
-                            className="group relative aspect-square overflow-hidden rounded-sm border border-edge-subtle hover:border-edge-strong cursor-pointer"
-                            title={it.name}
-                        >
-                            {it.imageUrl ? (
-                                <img src={resolver(it.imageUrl)} alt={it.name} className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full bg-surface-2" />
-                            )}
-                            <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] truncate px-1 py-0.5 opacity-0 group-hover:opacity-100">
-                                {it.name}
-                            </span>
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
 
 function GenCard({
     turn,
     onZoom,
     onUseAsRef,
     onEdit,
+    onRetouch,
     onAnimate,
     onRegenerate,
     onDownload,
@@ -2584,6 +2495,8 @@ function GenCard({
     onZoom: (urls: string[], activeIdx: number) => void;
     onUseAsRef: (url: string) => void;
     onEdit: (url: string) => void;
+    /** Abre el editor con brush de máscara — corregir UNA zona sin redibujar todo. */
+    onRetouch: (url: string) => void;
     onAnimate: (url: string) => void;
     onRegenerate: () => void;
     onDownload: (url: string, variantIdx?: number) => void;
@@ -2700,6 +2613,7 @@ function GenCard({
                 {urls.length === 1 && !isVideo && (
                     <>
                         <ActionPill onClick={() => onEdit(urls[0])} icon={<Wand2 size={11} />} label="Editar" title="Usar como base y editar con un nuevo prompt" />
+                        <ActionPill onClick={() => onRetouch(urls[0])} icon={<Brush size={11} />} label="Retocar" title="Corregir una zona puntual — pintás encima y se regenera sólo eso" />
                         <ActionPill onClick={() => onUseAsRef(urls[0])} icon={<Plus size={11} />} label="Usar como ref" title="Agregar como nueva referencia" />
                         <ActionPill onClick={() => onAnimate(urls[0])} icon={<Video size={11} />} label="Animar" title="Cambiar a modo video con esta imagen como frame inicial" />
                         <ActionPill onClick={() => onDownload(urls[0])} icon={<Download size={11} />} label="Descargar" />

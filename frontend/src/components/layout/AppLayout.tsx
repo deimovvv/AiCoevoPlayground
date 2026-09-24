@@ -16,6 +16,7 @@ const DASHBOARD_TOUR: CoachStep[] = [
 // con padding rompe el h-full → el sidebar se comprime y los footers sticky desaparecen
 // fuera del viewport. Es lo que pasó cuando movimos Manual Lab a /dashboard/lab.
 const FULL_BLEED_ROUTES: string[] = [
+    "/dashboard/campaigns/new",  // panel + selector + canvas, igual que el Lab
     "/dashboard/chat",
     "/dashboard/voice-lab",
     "/dashboard/ecommerce-batch",
@@ -26,7 +27,8 @@ const FULL_BLEED_ROUTES: string[] = [
 /** Prefijos full-bleed — para rutas dinámicas donde no podemos pre-listar cada subruta.
  *  Ej. `/dashboard/generate/:toolId` cubre 15+ tools con un solo entry. */
 const FULL_BLEED_PREFIXES: string[] = [
-    "/dashboard/generate/",  // ToolRunPage layout split por tool
+    "/dashboard/generate/",   // ToolRunPage layout split por tool
+    "/dashboard/campaigns/",  // detalle de campaña: panel + canvas (ruta dinámica)
 ];
 
 export function AppLayout() {

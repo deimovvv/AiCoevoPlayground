@@ -472,3 +472,147 @@ El Lab v2 demostró que `sidebar control 420px + área principal` funciona mejor
 **Por qué no aplicar a todas las tools indiscriminadamente:** Content Analyzer, Avatar Sheet, Product Sheet tienen flujos lineales que el layout actual cubre bien. El split solo gana en tools con muchos parámetros.
 
 **Cuándo:** Antes del rollout interno definitivo. Cuanto más esperemos, más se nota la inconsistencia entre Lab v2 (nuevo layout) y todas las tools (viejo layout).
+
+---
+
+## 14. Selección por objeto y máscara — capacidad TRANSVERSAL
+
+**Anotado 2026-09-20.** Surgió trabajando en Lab, pero **no es una feature del Lab**.
+Es una capacidad del núcleo de edición que debería estar disponible en todas las tools.
+
+### El problema concreto
+
+Hoy `ImageEditPanel` edita **solo por instrucción de texto**: *"cambiá el televisor"*.
+El modelo tiene que adivinar a qué televisor te referís, y con varios objetos similares
+en escena falla. No hay forma de **señalar dónde**.
+
+Lo que pide el usuario, textual:
+
+> *"Quiero marcarle dónde quiero que me esté poniendo los modulares. Que pase el puntero
+> y, si toco el televisor, se seleccione solo, porque tiene un sistema que lo reconoce, y
+> eso se lo pasa como una capa."*
+
+Eso es **segmentación interactiva** (hover → objeto reconocido → click → máscara), lo que
+Photoshop llama "Selección de objetos". El modelo de referencia es **SAM** (Segment Anything).
+
+### Estado actual — verificado 2026-09-20
+
+| Pieza | Estado |
+|---|---|
+| Máscaras / segmentación en backend | ❌ **no existe** |
+| `ImageEditPanel` (416 líneas) | Solo texto. Sin canvas, sin brush, sin máscara |
+| Alcance del panel | ⚠️ **solo `ToolRunPage`** — el Lab NO lo usa |
+| `birefnet/v2` vía Fal | ✅ existe, pero es *remove background*: separa sujeto/fondo, no objetos arbitrarios |
+
+### Por qué es transversal, no de una tool
+
+Sirve en todos lados donde hoy se edita a ciegas:
+
+- **Lab** — el caso que lo disparó
+- **Ecommerce Pack** — corregir una prenda sin tocar el resto
+- **Fashion Editorial** — cambiar un elemento de escenografía
+- **Consistencia** — apuntar a *qué* aspecto anclar, en vez de describirlo
+- **AutoQA de producto** — recortar la zona con falla y re-generar solo eso
+
+Y habilita algo que hoy no se puede: **edición local de verdad**, sin que el modelo
+re-dibuje la imagen entera y cambie cosas que nadie pidió (el failure mode
+documentado en la skill `generar-imagenes`).
+
+### Arquitectura propuesta — tres capas
+
+```
+1. SERVICIO           backend/services/segmentation.py
+                      SAM vía Fal. Entrada: imagen + punto (x,y) o caja.
+                      Salida: máscara PNG + bounding box.
+
+2. COMPONENTE         frontend/src/components/MaskCanvas.tsx
+                      Canvas sobre la imagen. Modos:
+                        · hover+click  → segmentación automática (SAM)
+                        · brush        → pintar a mano, para lo que SAM no agarra
+                        · caja         → seleccionar región rectangular
+                      Salida: máscara como dataURL.
+
+3. INTEGRACIÓN        ImageEditPanel consume MaskCanvas.
+                      La máscara viaja junto a la instrucción al generador
+                      (inpainting con máscara, no re-generación completa).
+```
+
+**La clave del diseño:** el servicio y el componente no saben nada de tools. Una tool
+nueva que quiera máscaras pide `<MaskCanvas>` y listo — igual que hoy hereda el contexto
+de marca sin configurarlo.
+
+### Orden de implementación
+
+| Paso | Qué | Por qué en ese orden |
+|---|---|---|
+| 1 | `segmentation.py` + endpoint | Sin el servicio no hay nada que probar |
+| 2 | `MaskCanvas` con brush manual | El brush funciona sin SAM — valor inmediato, riesgo cero |
+| 3 | Hover + click con SAM | La parte "mágica", encima de algo que ya funciona |
+| 4 | Cablear a `ImageEditPanel` | Llega a todas las tools de `ToolRunPage` de una |
+| 5 | Llevar `ImageEditPanel` al Lab | ⚠️ hoy el Lab NO lo usa — es trabajo aparte |
+
+### ✅ IMPLEMENTADO 2026-09-21 — brush manual + máscara real
+
+**El hallazgo que lo destrabó:** Nano Banana 2 **no** acepta máscara, pero **GPT Image 2 SÍ**
+(`mask_url` en su API de `/edit`, verificado). Como ya estaba integrado, no hubo que sumar
+ningún modelo al stack.
+
+Lo construido:
+- `components/workspace/MaskCanvas.tsx` — pintás sobre la imagen con el mouse. Dos capas de
+  canvas: una para lo que VES (trazo rosa) y otra para lo que se MANDA (PNG blanco con
+  agujeros transparentes, que es el formato que espera `mask_url`). Pincel ajustable,
+  deshacer con historial de 20 pasos, limpiar.
+- `gpt_image_gen.create_edit(..., mask_url=)` y el parámetro en `POST /api/image-gen/edit`.
+  La máscara llega como data URL y se sube a Fal storage, igual que las refs.
+- `ImageEditPanel` — botón "Editar sólo una zona". **Con máscara fuerza `gpt-image-2`**,
+  porque por Nano Banana la edición saldría global.
+
+Como el panel lo usan todas las pantallas, la capacidad llegó a las tools y a campañas de una.
+
+**Lo que falta (fase 2): segmentación automática.** Hoy la marca se produce a mano con el
+brush. El paso siguiente es click sobre un objeto → SAM genera la silueta → se pinta sola.
+Para el modelo es lo mismo: cambia sólo cómo se produce la máscara, no qué se le manda.
+
+### ⚠️ Contexto: Nano Banana 2 NO acepta máscara (verificado 2026-09-21)
+
+Su API de `/edit` acepta `prompt`, `image_urls`, `resolution`, `aspect_ratio`, `system_prompt`…
+pero **ningún parámetro de inpainting ni `mask_url`**. Verificado en fal.ai/models/fal-ai/nano-banana-2/edit/api.
+
+Eso descarta el camino obvio (mandar imagen + máscara y pedir que respete la región).
+
+**La salida, propuesta por el usuario y es la buena:** mandar **la imagen con la marca PINTADA
+encima**. El modelo ve dónde señalaste sin necesitar un parámetro de máscara — la señal viaja
+en los píxeles. Dos formas de producir esa marca:
+
+1. **Brush manual** — el usuario pinta la zona con el mouse.
+2. **Click sobre el objeto** — segmentación automática (SAM) genera la silueta y el front la
+   pinta. Es lo mismo para el modelo; cambia sólo cómo se produce la marca.
+
+El front compone `imagen + overlay` en un `<canvas>` y manda ESA imagen. Ventaja: no agrega
+modelos al stack ni depende de que el generador soporte inpainting.
+
+**A verificar antes de construir:** si GPT Image 2 (el otro modelo ya integrado) acepta máscara
+de verdad — la API de OpenAI sí tiene `mask` en su endpoint de edits. Si la ruta de Fal lo expone,
+sería la opción limpia para ediciones locales precisas.
+
+### Dependencias y preguntas abiertas
+
+- **¿Qué modelo de SAM en Fal?** Hay que verificar qué endpoints de segmentación
+  ofrece y a qué costo por llamada. No está investigado.
+- **¿El generador soporta inpainting con máscara?** Nano Banana 2 acepta imágenes de
+  referencia, pero hay que confirmar si acepta un canal de máscara o si hay que
+  componer el resultado a mano (generar + pegar la región con la máscara).
+- **Costo:** cada hover que dispare SAM es una llamada. Conviene segmentar al click,
+  no al hover, o cachear la respuesta por imagen.
+- **Relación con el layout de 3 columnas** (`dashboard-architecture-research.md`):
+  el canvas con máscara es justamente lo que justifica un canvas persistente. Las dos
+  cosas se refuerzan.
+
+### Cuándo
+
+**No ahora.** El usuario fue explícito: *"no quiero que nos centremos en esto, pero que
+esté proyectado escalablemente en base al orden que le queremos dar"*.
+
+Entra después del orden acordado en `dashboard-architecture-research.md` §5b
+(costo en el botón → login → sidebar → recetas → layout 3 columnas). Encaja
+naturalmente con el paso 5.

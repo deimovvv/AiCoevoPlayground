@@ -1,11 +1,11 @@
 @import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap");
 
 /* ============================================================
    Coevo Studio — Design Tokens
    Default theme: DARK (editorial, premium)
    Light theme:   activated via [data-theme="light"] on <html>
-   Palette:       Pink #FACDEA · Lime #BCFC11 · Mint #D4FCF1
+   Palette:       grises fríos + señal rosa #ff5f8f (unificada con la landing)
    ============================================================ */
 
 @theme {
@@ -13,16 +13,16 @@
 
   /* Surfaces — stepped contrast so cards clearly separate from the canvas.
      Canvas is near-black; each surface is a visibly lighter step (not a hair). */
-  /* Surfaces dark mode — más contraste entre niveles para que las cards de imagen
-     "floten" sobre el bg (antes los pasos eran muy parejos y todo se veía liso).
-     Neutro CÁLIDO: R apenas por encima de B. Antes era al revés (#131318 = 19·19·24)
-     y toda la app leía azulada. El sesgo es mínimo a propósito — alcanza para sacar
-     el frío sin irse a marrón. Los saltos entre niveles no cambiaron. */
-  --color-canvas: #070606;
-  --color-surface-0: #171514;
-  --color-surface-1: #232120;
-  --color-surface-2: #312f2d;
-  --color-surface-3: #413e3b;
+  /* Surfaces dark mode — grises FRÍOS neutros, unificados con la landing pública
+     (2026-09-20). Antes tenían sesgo cálido (#070606 = 7·6·6, R sobre B) y el
+     dashboard leía amarronado mientras la landing leía fría: dos productos
+     visualmente distintos. Ahora comparten paleta.
+     Los saltos entre niveles se mantienen visibles para que las cards floten. */
+  --color-canvas: #0b0b0c;
+  --color-surface-0: #141416;
+  --color-surface-1: #1c1c1f;
+  --color-surface-2: #26262a;
+  --color-surface-3: #323238;
 
   /* Foreground — brighter muted/faint so secondary text is actually readable. */
   --color-fg: #f4f4f5;
@@ -30,13 +30,16 @@
   --color-fg-muted: #9a9aa2;
   --color-fg-faint: #74747c;
 
-  /* Borders — more present so card boundaries are visible (were near-invisible). */
-  --color-edge: rgba(255, 255, 255, 0.15);
+  /* Bordes — visibles. OJO al bajarlos: se probó 9%/5% (para igualar la landing,
+     que casi no tiene controles) y en el dashboard los inputs, selects y chips
+     se volvían indistinguibles del fondo. La landing muestra imágenes; el
+     dashboard es una herramienta y sus controles necesitan contorno. */
+  --color-edge: rgba(255, 255, 255, 0.14);
   --color-edge-subtle: rgba(255, 255, 255, 0.08);
-  --color-edge-strong: rgba(255, 255, 255, 0.26);
+  --color-edge-strong: rgba(255, 255, 255, 0.24);
   /* Focus ring antes era gris claro neutro — pasa a burgundy con alpha para que
      todos los inputs/textareas/selects compartan el acento brand en focus. */
-  --color-edge-focus: rgba(196, 88, 48, 0.55);
+  --color-edge-focus: rgba(255, 95, 143, 0.5);
 
   /* Accent (neutral) */
   --color-accent: #cccccc;
@@ -66,15 +69,17 @@
   --color-calm-subtle: rgba(212, 252, 241, 0.08);
   --color-calm-fg: #0a0a0a;
 
-  /* Brand burgundy — acento cálido secundario. Para tags importantes, hover de pills,
-     border de "elemento activo", focus rings. NO se usa como fill en CTAs primarios
-     (eso queda con --color-action en off-white) — solo en momentos puntuales que
-     rompen la planicie del minimal. */
-  --color-brand: #C45830;
-  --color-brand-strong: #A8421C;
-  --color-brand-muted: rgba(196, 88, 48, 0.18);
-  --color-brand-subtle: rgba(196, 88, 48, 0.09);
-  --color-brand-fg: #FFFFFF;
+  /* Acento = SEÑAL FUNCIONAL, no decoración (2026-09-20, unificado con la landing).
+     Rosa #ff5f8f. Marca únicamente estado: lo activo, lo nuevo, lo que está en curso,
+     el focus. NUNCA como fondo de bloque ni relleno de CTA primario (eso sigue en
+     --color-action off-white). Reemplaza al burgundy #C45830, que era cálido y
+     rompía con la paleta fría de la landing.
+     El nombre de la variable se mantiene para no tocar 200+ usos. */
+  --color-brand: #ff5f8f;
+  --color-brand-strong: #ff3d76;
+  --color-brand-muted: rgba(255, 95, 143, 0.16);
+  --color-brand-subtle: rgba(255, 95, 143, 0.08);
+  --color-brand-fg: #0a0a0a;
 
   /* Semantic */
   --color-success: #3DBF8A;
@@ -104,17 +109,24 @@
   /* Typography */
   --font-sans: "Inter", "Neue Haas Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", "Consolas", ui-monospace, monospace;
-  /* Display serif — para titulares (Home, Campañas, headers). Look editorial tipo Pletor.
-     Se usa con la utility `font-display`. UI/body siguen en Inter. */
-  --font-display: "Fraunces", "Playfair Display", Georgia, ui-serif, serif;
+  /* Display serif — para titulares (Home, Campañas, headers). Look editorial de revista
+     de moda: trazo fino, alto contraste, sin el peso soft-serif de Fraunces (que leía
+     a titular de blog). Se usa con la utility `font-display`. UI/body siguen en Inter.
+     Instrument Serif viene en un solo peso (400) por diseño — no le pongas font-bold,
+     el carácter está en el tamaño y el tracking negativo, no en el grosor. */
+  --font-display: "Instrument Serif", "Times New Roman", Georgia, ui-serif, serif;
 
-  /* Radius — bumped up slightly para sentirse más "Pletor-style" (cards con
-     esquinas más generosas, sin perder identidad). sm sube de 6→8 para
-     coherencia, md de 12→16, lg de 16→22, xl de 22→28. */
-  --radius-sm: 8px;
-  --radius-md: 16px;
-  --radius-lg: 22px;
-  --radius-xl: 28px;
+  /* Radius — bajados (2026-09-20) para unificar con la landing, que usa 14px.
+     A 22px las cards leían blandas y "de app de consumo"; el registro que
+     buscamos es más técnico y contenido. Escala: 6 / 10 / 14 / 18. */
+  /* xs — chips, tabs y botones sobre imagen. Existe para reemplazar los
+     rounded-full (píldoras) sin caer a 0px: la píldora llena lee a "botón de
+     juguete" y compite con el contenido. (Pedido del usuario.) */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
 
   /* Spacing */
   --space-1: 4px;
@@ -165,8 +177,8 @@
   --color-edge: rgba(10, 10, 10, 0.11);
   --color-edge-subtle: rgba(10, 10, 10, 0.06);
   --color-edge-strong: rgba(10, 10, 10, 0.20);
-  /* Focus ring también en burgundy para light mode (consistencia con dark) */
-  --color-edge-focus: rgba(196, 88, 48, 0.45);
+  /* Focus ring en la señal rosa, igual que dark (2026-09-20). */
+  --color-edge-focus: rgba(255, 95, 143, 0.45);
 
   --color-accent: #0a0a0a;
   --color-accent-muted: rgba(10, 10, 10, 0.06);
@@ -555,9 +567,9 @@ input:focus-visible, textarea:focus-visible {
   height: 120%;
   background: radial-gradient(
     ellipse at center,
-    rgba(196, 88, 48, 0.55) 0%,
-    rgba(196, 88, 48, 0.28) 25%,
-    rgba(196, 88, 48, 0.10) 50%,
+    rgba(255, 95, 143, 0.55) 0%,
+    rgba(255, 95, 143, 0.28) 25%,
+    rgba(255, 95, 143, 0.10) 50%,
     transparent 78%
   );
   filter: blur(40px);
@@ -573,8 +585,8 @@ input:focus-visible, textarea:focus-visible {
   height: 80%;
   background: radial-gradient(
     ellipse at center,
-    rgba(196, 88, 48, 0.20) 0%,
-    rgba(196, 88, 48, 0.06) 50%,
+    rgba(255, 95, 143, 0.20) 0%,
+    rgba(255, 95, 143, 0.06) 50%,
     transparent 80%
   );
   filter: blur(50px);
@@ -586,9 +598,9 @@ input:focus-visible, textarea:focus-visible {
 [data-theme="dark"] .home-glow::before {
   background: radial-gradient(
     ellipse at center,
-    rgba(196, 88, 48, 0.32) 0%,
-    rgba(196, 88, 48, 0.14) 25%,
-    rgba(196, 88, 48, 0.04) 55%,
+    rgba(255, 95, 143, 0.32) 0%,
+    rgba(255, 95, 143, 0.14) 25%,
+    rgba(255, 95, 143, 0.04) 55%,
     transparent 80%
   );
 }
@@ -596,8 +608,8 @@ input:focus-visible, textarea:focus-visible {
 [data-theme="dark"] .home-glow::after {
   background: radial-gradient(
     ellipse at center,
-    rgba(196, 88, 48, 0.10) 0%,
-    rgba(196, 88, 48, 0.03) 50%,
+    rgba(255, 95, 143, 0.10) 0%,
+    rgba(255, 95, 143, 0.03) 50%,
     transparent 80%
   );
 }
@@ -678,8 +690,8 @@ input:focus-visible, textarea:focus-visible {
 }
 
 .home-nav-cta:hover {
-  border-color: rgba(196, 88, 48, 0.45);
-  background: rgba(196, 88, 48, 0.10);
+  border-color: rgba(255, 95, 143, 0.45);
+  background: rgba(255, 95, 143, 0.10);
   color: var(--color-fg);
 }
 
@@ -712,7 +724,7 @@ input:focus-visible, textarea:focus-visible {
 }
 
 [data-theme="dark"] .home-badge {
-  border: 1px solid rgba(196, 88, 48, 0.25);
+  border: 1px solid rgba(255, 95, 143, 0.25);
   background: rgba(255, 255, 255, 0.05);
   color: var(--color-brand);
 }
@@ -782,13 +794,13 @@ input:focus-visible, textarea:focus-visible {
   cursor: pointer;
   transition: all 0.2s;
   letter-spacing: 0.01em;
-  box-shadow: 0 6px 20px rgba(196, 88, 48, 0.18);
+  box-shadow: 0 6px 20px rgba(255, 95, 143, 0.18);
 }
 
 .home-btn-primary:hover {
   transform: translateY(-1px);
   filter: brightness(1.05);
-  box-shadow: 0 10px 30px rgba(196, 88, 48, 0.28);
+  box-shadow: 0 10px 30px rgba(255, 95, 143, 0.28);
 }
 
 .home-btn-outline {
@@ -814,8 +826,8 @@ input:focus-visible, textarea:focus-visible {
 }
 
 .home-btn-outline:hover {
-  border-color: rgba(196, 88, 48, 0.45);
-  background: rgba(196, 88, 48, 0.10);
+  border-color: rgba(255, 95, 143, 0.45);
+  background: rgba(255, 95, 143, 0.10);
   color: var(--color-fg);
 }
 
@@ -859,15 +871,15 @@ input:focus-visible, textarea:focus-visible {
 
 .home-feature-card:hover {
   background: rgba(255, 255, 255, 0.55);
-  border-color: rgba(196, 88, 48, 0.30);
+  border-color: rgba(255, 95, 143, 0.30);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(196, 88, 48, 0.12);
+  box-shadow: 0 6px 20px rgba(255, 95, 143, 0.12);
 }
 
 [data-theme="dark"] .home-feature-card:hover {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(196, 88, 48, 0.40);
-  box-shadow: 0 6px 20px rgba(196, 88, 48, 0.20);
+  border-color: rgba(255, 95, 143, 0.40);
+  box-shadow: 0 6px 20px rgba(255, 95, 143, 0.20);
 }
 
 .home-feature-card:nth-child(1):hover .home-feature-icon {
@@ -902,7 +914,7 @@ input:focus-visible, textarea:focus-visible {
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  border: 1px solid rgba(196, 88, 48, 0.15);
+  border: 1px solid rgba(255, 95, 143, 0.15);
   background: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -911,7 +923,7 @@ input:focus-visible, textarea:focus-visible {
 }
 
 [data-theme="dark"] .home-feature-icon {
-  border: 1px solid rgba(196, 88, 48, 0.25);
+  border: 1px solid rgba(255, 95, 143, 0.25);
   background: rgba(255, 255, 255, 0.06);
   color: var(--color-brand);
 }
@@ -946,4 +958,24 @@ input:focus-visible, textarea:focus-visible {
 
 .home-footer-dot {
   color: var(--color-edge);
+}
+/* ── Selects ───────────────────────────────────────────────────────────────
+   Los <select> nativos en macOS dibujan su popup con el chrome del sistema
+   (gris claro), que choca con el tema oscuro: se ven "sucios" al desplegarlos.
+   El popup NO se puede estilar desde CSS — es del sistema operativo. Lo que sí
+   se puede es el control cerrado: sacamos la apariencia nativa y ponemos
+   nuestra propia flecha, para que al menos la fila cerrada sea coherente.
+   Para un desplegable totalmente estilado hay que usar un popover propio
+   (ver ModelDropdown en ManualLabV2). */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%23888' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  padding-right: 1.6rem !important;
+}
+select option {
+  background-color: #1a1a1a;
+  color: #e8e8e8;
 }

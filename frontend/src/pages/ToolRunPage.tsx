@@ -65,6 +65,9 @@ import {
 import { cn, downloadUrl, IMAGE_ACCEPT } from "../lib/utils";
 import { downloadFile, downloadZip } from "../lib/download";
 import { ImageEditPanel } from "../components/ImageEditPanel";
+import { SelectorPanel } from "../components/workspace/SelectorPanel";
+import { RecipeGrid, RecipeStrip } from "../components/workspace/RecipeGrid";
+import { MOTION_RECIPES, recipeCostUsd, type MotionRecipe } from "../tools/fashion_reel/recipes";
 import { ToolHelpButton } from "../components/ToolHelp";
 import { SHOT_CATALOG, STUDIO_STYLES, POSE_PRESETS, ENHANCE_TEXTURE_PROMPT } from "../tools/ecommerce_pack";
 import { AVATAR_VIEWS } from "../tools/avatar_creator";
@@ -615,7 +618,7 @@ const DEFAULT_CONFIG: ToolConfig = {
   ecomShotCounts: {},
   ecomPosePreset: "auto",
   ecomGender: "female",
-  ecomImageModel: "nano-banana-google",
+  ecomImageModel: "nano-banana-2",
   ecomPoseSinglePass: true,   // default 1 paso — más barato (el 2-pasos cuesta el doble)
   ecomAccessoryIds: [],
   ecomCalceTop: "",
@@ -939,6 +942,17 @@ export function ToolRunPage() {
   const stepsRef = useRef<StepState[]>([]);
   const [activeStep, setActiveStep] = useState(0);
   const [started, setStarted] = useState(false);
+  /**
+   * Qué selector de assets está abierto en la columna del medio. `null` = ninguno.
+   * Patrón de Lab y Campañas (ver docs/workspace-template.md): el selector se abre
+   * AL LADO empujando el canvas, no hacia abajo dentro del panel de config.
+   */
+  const [assetSelector, setAssetSelector] = useState<AssetSelectorState>(null);
+
+  /** Receta de movimiento activa (Fashion Reel). Cuando hay una, el panel muestra
+   *  SÓLO los inputs que ella declara — el resto se oculta.
+   *  Ver docs/fashion-reel-recipes.md §4. */
+  const [recipe, setRecipe] = useState<MotionRecipe | null>(null);
   // Marca a la que pertenece la corrida actual (id + nombre). Se captura cuando la
   // corrida arranca; si después cambiás de marca, el banner de mismatch avisa que
   // el contenido/config de abajo siguen siendo de ESTA marca, no de la nueva.
@@ -960,7 +974,9 @@ export function ToolRunPage() {
   const [batches, setBatches] = useState<BatchEntry[]>([]);
   // Riel "Contenido generado" — visible al costado, como la galería del Lab. Default
   // abierto (preferencia: todo visible). Colapsable por el ancho en pantallas chicas.
-  const [showContentRail, setShowContentRail] = useState(true);
+  /** Riel de contenido generado. CERRADO por defecto (2026-09-23): abierto se
+   *  come 300px del canvas para mostrar un vacío. Se abre cuando lo pedís. */
+  const [showContentRail, setShowContentRail] = useState(false);
   // Lightbox del riel "Contenido generado" — antes el onClick llamaba a un
   // setLightboxUrl que NO existía en este scope (vivía en ConfigPanel), así que el
   // clic no hacía nada. Estado propio + overlay al final del return.
@@ -2749,6 +2765,10 @@ export function ToolRunPage() {
                     tool={tool}
                     config={config}
                     setConfig={setConfig}
+                    assetSelector={assetSelector}
+                    recipe={recipe}
+                    setRecipe={setRecipe}
+                    setAssetSelector={setAssetSelector}
                     onStart={handleStart}
                     onMockPreview={handleMockPreview}
                   />
@@ -2828,6 +2848,98 @@ export function ToolRunPage() {
             })()}
           </div>
         </aside>
+
+        {/* ── SELECTOR (columna del medio) ───────────────────────────
+             Se abre al tocar una fila de asset en el panel de config y EMPUJA el
+             main — no lo tapa. Mientras elegís seguís viendo lo generado.
+             Ver docs/workspace-template.md §3.3. */}
+        <SelectorPanel
+          open={assetSelector !== null}
+          title={assetSelector?.label ?? ""}
+          onClose={() => setAssetSelector(null)}
+          width={340}
+        >
+          {/* La receta abre su grilla ACÁ, en la columna del medio — igual que
+              los assets. No es un modal: docs/fashion-reel-recipes.md §4.1. */}
+          {assetSelector?.key === "recipe" && (
+            <RecipeGrid
+              recipes={MOTION_RECIPES}
+              selectedId={recipe?.id ?? null}
+              onSelect={(r) => {
+                setRecipe((cur) => (cur?.id === r.id ? null : r));
+                setAssetSelector(null);
+              }}
+            />
+          )}
+
+          {/* Grilla del asset abierto. Un helper para los tres: repetir el JSX
+              tres veces se desincroniza a la primera corrección. */}
+          {assetSelector && assetSelector.key !== "recipe" && activeBrand && (() => {
+            type Row = { id: string; name: string; imageUrl?: string };
+            const CFG: Record<string, { rows: Row[]; multi: boolean; selected: string[]; toggle: (id: string) => void }> = {
+              avatar: {
+                rows: (activeBrand.avatars || []).map((a) => ({ id: a.id, name: a.name, imageUrl: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined })),
+                multi: !!(TOOL_SCHEMAS[tool.id] as { multiAvatar?: boolean } | undefined)?.multiAvatar,
+                selected: (TOOL_SCHEMAS[tool.id] as { multiAvatar?: boolean } | undefined)?.multiAvatar
+                  ? (config.selectedAvatarIds || [])
+                  : (config.selectedAvatarId ? [config.selectedAvatarId] : []),
+                toggle: (id) => setConfig((prev) => (TOOL_SCHEMAS[tool.id] as { multiAvatar?: boolean } | undefined)?.multiAvatar
+                  ? { ...prev, selectedAvatarIds: (prev.selectedAvatarIds || []).includes(id)
+                      ? (prev.selectedAvatarIds || []).filter((x) => x !== id)
+                      : [...(prev.selectedAvatarIds || []), id] }
+                  : { ...prev, selectedAvatarId: prev.selectedAvatarId === id ? null : id }),
+              },
+              clothing: {
+                rows: (activeBrand.clothing || []).map((c) => ({ id: c.id, name: c.name, imageUrl: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined })),
+                multi: true,
+                selected: config.selectedClothingIds || [],
+                toggle: (id) => setConfig((prev) => ({
+                  ...prev,
+                  selectedClothingIds: (prev.selectedClothingIds || []).includes(id)
+                    ? (prev.selectedClothingIds || []).filter((x) => x !== id)
+                    : [...(prev.selectedClothingIds || []), id],
+                })),
+              },
+              moodboard: {
+                rows: (activeBrand.moodboards || []).map((m) => ({ id: m.id, name: m.name, imageUrl: m.imageUrl ? moodboardImageUrl(m.imageUrl) : undefined })),
+                multi: false,
+                selected: config.selectedMoodboardId ? [config.selectedMoodboardId] : [],
+                toggle: (id) => setConfig((prev) => ({ ...prev, selectedMoodboardId: prev.selectedMoodboardId === id ? null : id })),
+              },
+            };
+            const cfg = CFG[assetSelector.key];
+            if (!cfg) return null;
+            return (
+              <div className="grid grid-cols-3 gap-1.5">
+                {cfg.rows.map((r) => {
+                  const on = cfg.selected.includes(r.id);
+                  return (
+                    <button
+                      key={r.id}
+                      onClick={() => cfg.toggle(r.id)}
+                      title={r.name}
+                      className={cn(
+                        "relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border-2 transition-colors cursor-pointer bg-[var(--color-surface-1)]",
+                        on ? "border-[var(--color-brand)]" : "border-transparent hover:border-[var(--color-edge-strong)]",
+                      )}
+                    >
+                      {r.imageUrl && <img src={r.imageUrl} alt={r.name} className="w-full h-full object-cover" />}
+                      <span className="absolute inset-x-0 bottom-0 px-1.5 py-1 text-[9px] text-white/90 leading-tight truncate bg-gradient-to-t from-black/80 to-transparent">
+                        {r.name}
+                      </span>
+                    </button>
+                  );
+                })}
+                {cfg.rows.length === 0 && (
+                  <p className="col-span-3 text-[11px] text-fg-faint py-6 text-center">
+                    No hay {assetSelector.label.toLowerCase()} en esta marca todavía.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+
+        </SelectorPanel>
 
         {/* ── MAIN AREA ──────────────────────────────────────────────
              Pipeline chips horizontales arriba (clickeables para saltar entre
@@ -2912,7 +3024,30 @@ export function ToolRunPage() {
             )}
 
             {!started ? (
-              tool.id === "video_ad_creator" ? (
+              /* Con un FORMATO elegido, el ejemplo genérico sobra: el formato YA
+                 muestra qué vas a obtener, y con su propio video. El bloque
+                 "EJEMPLO / QUÉ NECESITA / RESULTADO" mostraba una imagen de stock
+                 sin relación con la corrida. (Pedido del usuario 2026-09-24.) */
+              recipe ? (
+                <div className="h-full flex flex-col items-center justify-center gap-4 px-6">
+                  <div className="w-[190px] aspect-[9/16] rounded-[var(--radius-md)] overflow-hidden border border-edge bg-surface-1">
+                    {recipe.previewUrl ? (
+                      <video src={recipe.previewUrl} poster={recipe.thumbUrl}
+                             autoPlay loop muted playsInline
+                             className="w-full h-full object-cover" />
+                    ) : (
+                      <img src={recipe.thumbUrl} alt="" className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  <div className="text-center space-y-1">
+                    <p className="text-[13px] font-medium text-fg">{recipe.label}</p>
+                    <p className="text-[11px] text-fg-faint">{recipe.sub}</p>
+                  </div>
+                  <p className="text-[11px] text-fg-faint text-center max-w-xs leading-relaxed">
+                    Elegí {recipe.inputs.map((i) => i.label.toLowerCase()).join(" y ")} a la izquierda y tocá Generar.
+                  </p>
+                </div>
+              ) : tool.id === "video_ad_creator" ? (
                 <VideoAdLivePreview objective={config.objective} />
               ) : (
               (() => {
@@ -3555,10 +3690,21 @@ function ConfigPanel({
   tool,
   config,
   setConfig,
+  assetSelector,
+  setAssetSelector,
+  recipe,
+  setRecipe,
 }: {
   tool: ToolEntry;
   config: ToolConfig;
   setConfig: React.Dispatch<React.SetStateAction<ToolConfig>>;
+  /** Selector de assets en la columna del medio — lo maneja el padre porque la
+   *  columna vive fuera de este panel. */
+  assetSelector: AssetSelectorState;
+  setAssetSelector: React.Dispatch<React.SetStateAction<AssetSelectorState>>;
+  /** Receta activa. Misma razón que assetSelector: su grilla vive fuera. */
+  recipe: MotionRecipe | null;
+  setRecipe: React.Dispatch<React.SetStateAction<MotionRecipe | null>>;
   onStart: () => void;
   onMockPreview: () => void;
 }) {
@@ -3717,9 +3863,33 @@ function ConfigPanel({
         {activeBrand.avatars?.length || 0} avatars · {activeBrand.products?.length || 0} productos · {activeBrand.clothing?.length || 0} prendas · {activeBrand.backgrounds?.length || 0} fondos
       </div>
 
-      {/* Coevo Agent (chat-first config) — sigue como ToolBriefBox; el componente
-          ya tiene su propio padding interno, no le pongo wrapper extra. */}
-      {tool.id === "fashion_reel" && (
+      {/* ── FORMATO DE VIDEO ──────────────────────────────────────────
+           Tira horizontal EN LOOP: se entiende sin abrir nada que son videos y
+           que son elegibles. "Ver todos" abre la grilla completa al costado.
+           Con 25-40 formatos la tira no crece — docs/fashion-reel-recipes.md §13. */}
+      {USE_RECIPES.has(tool.id) && (
+        <div className="space-y-2">
+          <RecipeStrip
+            recipes={MOTION_RECIPES}
+            selectedId={recipe?.id ?? null}
+            onSelect={(r) => setRecipe((cur) => (cur?.id === r.id ? null : r))}
+            onSeeAll={() => setAssetSelector((cur) =>
+              (cur?.key === "recipe" ? null : { key: "recipe", label: "Formato de video", node: null }))}
+          />
+          {recipe && (
+            <p className="text-[10px] text-fg-faint leading-snug">
+              {recipe.fixed.resolution} · {recipe.fixed.aspectRatio} · {recipe.fixed.durationSec}s
+              {recipeCostUsd(recipe) != null && ` · ≈ $${recipeCostUsd(recipe)!.toFixed(2)}`}
+              {recipe.expectedMotion == null && " · sin validar"}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Coevo Agent quitado de Fashion Reel (2026-09-23): con recetas, el brief
+          libre compite con la receta — la receta YA define el movimiento.
+          Sigue disponible para las otras tools. */}
+      {false && tool.id === "fashion_reel" && (
         <ToolBriefBox toolId={tool.id} config={config} setConfig={setConfig} />
       )}
 
@@ -4306,10 +4476,9 @@ function ConfigPanel({
               Default Google (cuenta Monks). El de Fal queda como opción, no se borró nada. */}
           <ModelDropdown
             label="Modelo de imagen"
-            value={config.ecomImageModel || "nano-banana-google"}
+            value={config.ecomImageModel || "nano-banana-2"}
             onChange={(next) => setConfig((p) => ({ ...p, ecomImageModel: next }))}
             options={[
-              { id: "nano-banana-google", label: "Nano Banana (Google)", sub: "Directo · cuenta Monks · default" },
               { id: "nano-banana-2", label: "Nano Banana 2 (Fal)", sub: "Vía Fal · el de siempre" },
             ]}
           />
@@ -4582,7 +4751,7 @@ function ConfigPanel({
                               {posePickerShot === id && (
                                 <div className="absolute z-20 top-7 right-0 w-52 max-h-56 overflow-auto p-1.5 rounded-[var(--radius-md)] border border-edge bg-surface-1 shadow-lg">
                                   {poseErrors[id] && (
-                                    <p className="px-1 pb-1.5 text-[10px] text-[var(--color-danger,#c45830)] leading-snug">{poseErrors[id]}</p>
+                                    <p className="px-1 pb-1.5 text-[10px] text-[var(--color-error)] leading-snug">{poseErrors[id]}</p>
                                   )}
                                   <div className="grid grid-cols-3 gap-1.5">
                                   {(activeBrand?.poses || []).map((ps) => (
@@ -5025,7 +5194,14 @@ function ConfigPanel({
         </div>
       )}
 
-      {tool.id === "fashion_reel" && (
+      {/* MODO (Story/Looks), Accesorios y Estilo visual: se ocultan cuando hay un
+          FORMATO elegido. El formato ya define la secuencia de tomas y la estética
+          —los sacó del video analizado—, así que tenerlos juntos son dos gobiernos
+          para lo mismo. Reportado por el usuario: "si elijo movimiento, está claro
+          que yo no debo poder elegir los planos". Ver docs/fashion-reel-recipes.md §11.
+          ⚠️ Looks NO desaparece como concepto: pasa a declararlo la receta vía
+          `role: one-per-clip`. Lo que se va es el TOGGLE. */}
+      {tool.id === "fashion_reel" && !recipe && (
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-4">
           {/* Mode toggle */}
           <div className="space-y-1.5">
@@ -5524,26 +5700,10 @@ function ConfigPanel({
       {/* Reference image(s) + Graphics uploaders */}
       {/* Fashion Reel — explica el reparto de roles entre inputs, para que no sea
           confuso pasar pose + escena + look&feel a la vez. Cada input controla UNA cosa. */}
-      {tool.id === "fashion_reel" && (
-        <div className="bg-surface-1 border border-blue-500/30 rounded-[var(--radius-md)] p-3 space-y-1.5">
-          <div className="text-[11px] font-semibold text-blue-300 flex items-center gap-1.5">
-            <ImageIcon size={12} /> Cómo se reparten los inputs
-          </div>
-          <p className="text-[10px] text-fg-muted leading-relaxed">
-            Cada referencia controla <strong>una sola cosa</strong> — no se pisan entre sí:
-          </p>
-          <ul className="text-[10px] text-fg-muted space-y-0.5 pl-1">
-            <li>📐 <strong>Pose</strong> (abajo, &ldquo;Referencia de POSE&rdquo;) → solo postura + encuadre</li>
-            <li>🏞️ <strong>Escena + luz</strong> → seleccioná un <strong>Background</strong> del brand kit</li>
-            <li>🎨 <strong>Look &amp; feel</strong> (estética/color) → seleccioná un <strong>Moodboard</strong> del brand kit</li>
-            <li>👤 <strong>Identidad</strong> → el <strong>Avatar</strong> elegido</li>
-            <li>👕 <strong>Prendas / producto</strong> → Clothing / Products del kit</li>
-          </ul>
-          <p className="text-[9px] text-fg-faint pt-0.5">
-            Si pasás varios, el motor toma de cada uno solo su rol (la pose no aporta luz, el fondo no aporta pose, etc).
-          </p>
-        </div>
-      )}
+      {/* El explicativo "Cómo se reparten los inputs" se quitó de Fashion Reel
+          (2026-09-23): existía para explicar una complejidad que las recetas de
+          movimiento eliminan — la receta ya declara qué inputs usa y para qué.
+          Ver docs/fashion-reel-recipes.md §4. */}
 
       {/* Ecommerce Pack: SOLO Look & Feel. La Referencia de POSE global fue
           eliminada porque las pose refs por shot (en el bloque "Tomas a generar")
@@ -5561,7 +5721,7 @@ function ConfigPanel({
         </div>
       )}
 
-      {(schema.showReference || tool.id === "content_analyzer") && tool.id !== "ecommerce_pack" && (
+      {(schema.showReference || tool.id === "content_analyzer") && tool.id !== "ecommerce_pack" && tool.id !== "fashion_reel" && (
         <div className={cn(
           "gap-4",
           tool.id === "static_ad" ? "grid grid-cols-2" : "space-y-4",
@@ -5573,7 +5733,6 @@ function ConfigPanel({
             <div className="flex items-center justify-between">
               <label className="text-[12px] font-semibold text-fg-secondary">
                 {tool.id === "content_analyzer" ? "Upload Video"
-                  : tool.id === "fashion_reel" ? "Referencia de POSE"
                   : tool.id === "ugc_creator" ? "Composition Reference"
                   : tool.id === "carousel_creator" ? "Template del Carousel"
                   : tool.id === "ecommerce_pack" ? "Referencia Look & Feel"
@@ -6025,8 +6184,18 @@ function ConfigPanel({
               ecommerce_pack lo renderizamos arriba (encima de Accesorios), así que
               acá lo salteamos para no duplicarlo. */}
           {tool.id !== "ecommerce_pack" && renderSelectedSummary()}
-          {schema.showAvatar && (
+
+          {/* Con receta activa, los campos que ella NO pide se ocultan. */}
+          {(!recipe || recipe.inputs.some((i) => i.kind === "avatar")) && schema.showAvatar && (
             <AssetSelector
+              /* Selector AL LADO en vez de desplegar abajo. Encendido tool por
+                 tool: `USE_SIDE_SELECTOR` lista las migradas. Ver
+                 docs/workspace-template.md §3.3. */
+              {...(USE_SIDE_SELECTOR.has(tool.id) ? {
+                externalOpen: assetSelector?.key === "avatar",
+                onOpenExternal: () => setAssetSelector((cur) =>
+                  (cur?.key === "avatar" ? null : { key: "avatar", label: schema.avatarLabel || "Avatar", node: null })),
+              } : {})}
               collapsible
               defaultCollapsed={(activeBrand.avatars || []).length > 8}
               label={schema.avatarLabel || "Avatar"}
@@ -6137,8 +6306,13 @@ function ConfigPanel({
               · Si querés <strong>mostrar la prenda en mano</strong> mientras lleva otra cosa → Product (sin "usa") + Clothing (otra prenda).
             </div>
           )}
-          {schema.showClothing && (
+          {(!recipe || recipe.inputs.some((i) => i.kind === "clothing")) && schema.showClothing && (
             <AssetSelector
+              {...(USE_SIDE_SELECTOR.has(tool.id) ? {
+                externalOpen: assetSelector?.key === "clothing",
+                onOpenExternal: () => setAssetSelector((cur) =>
+                  (cur?.key === "clothing" ? null : { key: "clothing", label: schema.clothingLabel || "Prendas", node: null })),
+              } : {})}
               collapsible
               defaultCollapsed={tool.id === "ecommerce_pack" || tool.id === "video_ad_creator" || (activeBrand.clothing || []).length > 8}
               label={schema.clothingLabel || "Prendas"}
@@ -6210,8 +6384,13 @@ function ConfigPanel({
             />
           )}
 
-          {schema.showMoodboard && (
+          {!recipe && schema.showMoodboard && (
             <AssetSelector
+              {...(USE_SIDE_SELECTOR.has(tool.id) ? {
+                externalOpen: assetSelector?.key === "moodboard",
+                onOpenExternal: () => setAssetSelector((cur) =>
+                  (cur?.key === "moodboard" ? null : { key: "moodboard", label: "Moodboard", node: null })),
+              } : {})}
               collapsible
               defaultCollapsed={tool.id === "video_ad_creator" || (activeBrand.moodboards || []).length > 8}
               label="Moodboard"
@@ -6870,7 +7049,7 @@ function ConfigPanel({
 
         {(schema.showLocationRef || schema.showStyleRef) && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {schema.showLocationRef && (
+            {schema.showLocationRef && tool.id !== "fashion_reel" && (
               <div className="space-y-1.5">
                 <label className="text-[11px] font-medium text-fg-faint">
                   Location Reference <span className="text-fg-faint">(optional)</span>
@@ -6884,10 +7063,14 @@ function ConfigPanel({
                 />
               </div>
             )}
-            {schema.showStyleRef && (
+            {schema.showStyleRef && tool.id !== "fashion_reel" && (
               <div className="space-y-1">
+                {/* Este campo NO es decorativo: si tiene texto, gana sobre la firma
+                    visual del Content Analyzer y APAGA ds.photoStyle + ds.lighting del
+                    brand kit (ver fashion_reel/handlers.ts:91). El label lo dice para que
+                    no se confunda con la dirección del guion, que es el campo de arriba. */}
                 <label className="text-[10px] font-medium text-fg-faint">
-                  Style Reference <span className="text-fg-faint italic">opcional</span>
+                  Look &amp; feel <span className="text-fg-faint italic">opcional · pisa el estilo de la marca</span>
                 </label>
                 <textarea
                   value={config.styleRef}
@@ -9438,8 +9621,19 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                   {seg.videoUrl ? (
                     <video src={seg.videoUrl} controls className="w-full h-full object-contain bg-black" />
                   ) : (
-                    <div className="w-full h-full bg-surface-2 flex items-center justify-center">
-                      <p className="text-[11px] text-fg-faint">Sin video</p>
+                    /* Antes decía sólo "Sin video" y no había forma de saber por qué.
+                       El handler ahora guarda `error` — el mensaje crudo de Fal se
+                       traduce cuando es el de saldo, que es el más común. */
+                    <div className="w-full h-full bg-surface-2 flex flex-col items-center justify-center gap-1.5 p-4 text-center">
+                      <p className="text-[11px] text-fg-muted">Sin video</p>
+                      {(() => {
+                        const err = (seg as Record<string, unknown>).error as string | undefined;
+                        if (!err) return null;
+                        const friendly = /balance|locked/i.test(err)
+                          ? "Se acabó el saldo de Fal cuando se generaba esta escena. Cargá crédito y regenerala."
+                          : err;
+                        return <p className="text-[10px] leading-snug text-[var(--color-error)]">{friendly}</p>;
+                      })()}
                     </div>
                   )}
                   {isRegen && (
@@ -11848,6 +12042,18 @@ function InfoPill({ label, value }: { label: string; value: string }) {
 
 // ── Asset Selector (reusable) ──────────────────────────────
 
+/**
+ * Tools con el selector de assets AL LADO (columna del medio) en vez de
+ * desplegado dentro del panel. Se enciende de a una para no romper las 17 juntas.
+ * Ver docs/workspace-template.md.
+ */
+const USE_SIDE_SELECTOR = new Set<string>(["fashion_reel"]);
+/** Tools que ya usan recetas de movimiento. Ver docs/fashion-reel-recipes.md */
+const USE_RECIPES = new Set<string>(["fashion_reel"]);
+
+/** Selector de assets abierto en la columna del medio. */
+type AssetSelectorState = null | { key: string; label: string; node: React.ReactNode };
+
 interface AssetItem {
   id: string;
   name: string;
@@ -11920,6 +12126,8 @@ function AssetSelector({
   onDelete,
   collapsible,
   defaultCollapsed,
+  onOpenExternal,
+  externalOpen,
 }: {
   label: string;
   sublabel?: string;
@@ -11938,6 +12146,17 @@ function AssetSelector({
   collapsible?: boolean;
   /** Si es colapsable, arranca plegado. */
   defaultCollapsed?: boolean;
+  /**
+   * Si se provee, el componente NO despliega la grilla adentro: se dibuja como
+   * una FILA que abre el selector en la columna del medio (patrón de Lab y
+   * Campañas — ver docs/workspace-template.md).
+   *
+   * Es opcional a propósito: se enciende tool por tool sin tocar las demás.
+   * Sin esta prop, el comportamiento es el de siempre.
+   */
+  onOpenExternal?: () => void;
+  /** Si el selector externo está abierto ahora — para marcar la fila como activa. */
+  externalOpen?: boolean;
 }) {
   const hasItems = items.length > 0;
   const [showUpload, setShowUpload] = useState(false);
@@ -12001,6 +12220,39 @@ function AssetSelector({
       </label>
     </div>
   ) : null;
+
+  // Modo FILA: no despliega nada: abre el selector al lado. Antes la grilla se
+  // abría hacia abajo dentro del panel, empujando todo y obligando a scrollear
+  // para volver al botón de generar. Reportado sobre Fashion Reel.
+  if (onOpenExternal) {
+    const firstThumb = items.find((it) => (multi ? (selectedIds || []).includes(it.id) : selectedId === it.id))?.imageUrl
+      ?? items[0]?.imageUrl;
+    const valueText = selectedCount === 0
+      ? "Elegir"
+      : multi
+        ? `${selectedCount} seleccionado${selectedCount > 1 ? "s" : ""}`
+        : items.find((it) => it.id === selectedId)?.name ?? "1 seleccionado";
+    return (
+      <button
+        onClick={onOpenExternal}
+        className={cn(
+          "w-full flex items-center gap-2.5 px-3 h-11 rounded-[var(--radius-sm)] text-left transition-colors cursor-pointer border",
+          externalOpen
+            ? "bg-[var(--color-surface-2)] border-[var(--color-edge-strong)]"
+            : "bg-[var(--color-surface-1)] border-[var(--color-edge)] hover:border-[var(--color-edge-strong)]",
+        )}
+      >
+        <span className="w-7 h-7 rounded overflow-hidden bg-[var(--color-surface-2)] shrink-0">
+          {firstThumb && <img src={firstThumb} alt="" className="w-full h-full object-cover" />}
+        </span>
+        <span className="flex-1 min-w-0 leading-tight">
+          <span className="block text-[12px] font-medium">{label}</span>
+          <span className="block text-[11px] text-fg-faint truncate">{valueText}</span>
+        </span>
+        <span className={cn("text-fg-faint text-[10px] transition-transform shrink-0", externalOpen && "rotate-90")}>▸</span>
+      </button>
+    );
+  }
 
   return (
     // Compactado para sidebar 440px: p-2.5 (era p-4), header de 1 línea (label +

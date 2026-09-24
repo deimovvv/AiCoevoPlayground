@@ -60,26 +60,16 @@ const TOOL_TAGLINES: Record<string, string> = {
   fooh_subway: "Tu ad en un billboard de metro, foto-real (FOOH)",
 };
 
-// Subtle gradient per tool for fallback previews (when no media)
-const TOOL_GRADIENTS: Record<string, string> = {
-  ugc_creator: "from-purple-500/30 via-pink-500/20 to-orange-500/30",
-  video_ad_creator: "from-blue-500/30 via-indigo-500/20 to-purple-500/30",
-  static_ad: "from-amber-500/30 via-orange-500/20 to-red-500/30",
-  carousel_creator: "from-emerald-500/30 via-teal-500/20 to-cyan-500/30",
-  fashion_reel: "from-fuchsia-500/30 via-pink-500/20 to-rose-500/30",
-  product_clip: "from-sky-500/30 via-blue-500/20 to-indigo-500/30",
-  product_spotlight: "from-yellow-500/30 via-amber-500/20 to-orange-500/30",
-  ad_creative_lab: "from-violet-500/30 via-purple-500/20 to-fuchsia-500/30",
-  avatar_creator: "from-rose-500/30 via-pink-500/20 to-fuchsia-500/30",
-  content_analyzer: "from-green-500/30 via-emerald-500/20 to-teal-500/30",
-  video_swap: "from-lime-400/30 via-emerald-500/20 to-teal-500/30",
-  ecommerce_pack: "from-stone-400/30 via-neutral-300/20 to-zinc-500/30",
-  fashion_editorial: "from-rose-500/30 via-fuchsia-500/20 to-purple-500/30",
-  ecommerce_batch: "from-stone-400/30 via-zinc-400/20 to-neutral-500/30",
-  product_sheet: "from-cyan-500/30 via-sky-500/20 to-blue-500/30",
-  screen_mockup: "from-slate-500/30 via-sky-500/20 to-indigo-500/30",
-  fooh_subway: "from-zinc-600/30 via-orange-500/20 to-amber-500/30",
-};
+/**
+ * Fondo de fallback cuando una tool no tiene preview (o el archivo 404ea).
+ *
+ * Antes era un gradiente de color SATURADO distinto por tool (fucsia, lima, cian,
+ * violeta...). Con 17 tools en grilla eso se leía como un arcoíris y ensuciaba las
+ * piezas reales que tienen al lado. Ahora es escala de grises fría: el único color
+ * del catálogo lo ponen las fotos.
+ */
+const TOOL_GRADIENTS: Record<string, string> = {};
+const FALLBACK_GRADIENT = "from-white/[0.06] via-white/[0.03] to-transparent";
 
 const CATEGORY_LABELS: Record<string, string> = {
   video: "Video",
@@ -97,37 +87,47 @@ const USE_CASES: Array<{ key: string; label: string; toolIds: string[] }> = [
   { key: "adapt", label: "Analizar & adaptar", toolIds: ["content_analyzer", "video_swap"] },
 ];
 
-// Card de carousel — ALTURA FIJA (h-[280px]) para no colapsar dentro del flex row
-// (el ToolCard de grid usa aspect-ratio y colapsa con align-items:stretch). Image-first.
+/**
+ * Card de los carruseles por use-case (vista "Todas").
+ *
+ * Comparte el lenguaje del `ToolCard` de grilla: la IMAGEN es la card, el chrome se
+ * corre. Antes era 210×280px fijo con glass-border y radio grande — al lado de la
+ * grilla filtrada (cards grandes) se veía como otro producto.
+ *
+ * Sigue con ancho fijo porque vive en un flex row horizontal, pero subió de 210 a
+ * 268px y la proporción pasó a 3:4, la misma de la grilla.
+ */
 function ToolTile({ tool, disabled, onClick }: { tool: ToolEntry; disabled: boolean; onClick: () => void }) {
   const media = TOOL_PREVIEW_MEDIA[tool.id];
   const tagline = TOOL_TAGLINES[tool.id] || tool.description;
-  const gradient = TOOL_GRADIENTS[tool.id] || "from-surface-2 via-surface-1 to-surface-0";
+  const gradient = TOOL_GRADIENTS[tool.id] || FALLBACK_GRADIENT;
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "group relative shrink-0 w-[210px] h-[280px] rounded-[var(--radius-lg)] overflow-hidden border border-[var(--glass-border)] transition-all",
-        disabled ? "opacity-50 cursor-not-allowed" : "hover:border-[var(--color-brand)]/50 hover:-translate-y-1 cursor-pointer",
+        "group relative shrink-0 w-[268px] h-[357px] rounded-[var(--radius-md)] overflow-hidden transition-all duration-300",
+        "bg-[var(--color-surface-0)] border border-[var(--color-edge-subtle)]",
+        disabled ? "opacity-40 cursor-not-allowed" : "hover:border-[var(--color-edge)] cursor-pointer",
       )}
     >
-      {/* Gradiente + inicial siempre de fondo → si el preview falta/404, cae acá elegante. */}
+      {/* Fallback: si el preview falta o 404ea, queda el fondo neutro con la inicial. */}
       <div className={cn("absolute inset-0 bg-gradient-to-br flex items-center justify-center", gradient)}>
-        <span className="text-[38px] font-bold text-white/25">{tool.name[0]}</span>
+        <span className="text-[44px] font-light text-white/12">{tool.name[0]}</span>
       </div>
       {media?.type === "video" ? (
-        <video src={media.url} autoPlay muted loop playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => { (e.currentTarget as HTMLVideoElement).style.display = "none"; }} />
+        <video src={media.url} autoPlay muted loop playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" onError={(e) => { (e.currentTarget as HTMLVideoElement).style.display = "none"; }} />
       ) : media?.type === "image" ? (
-        <img src={media.url} alt={tool.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+        <img src={media.url} alt={tool.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
       ) : null}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
-      <span className="absolute top-2.5 left-2.5 text-[9px] font-semibold uppercase tracking-widest text-white/80 bg-black/40 backdrop-blur px-2 py-0.5 rounded-full">
+      {/* Velo SOLO abajo — a pantalla completa apagaba la foto. */}
+      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
+      <span className="absolute top-3 left-3 text-[10px] font-medium uppercase tracking-[0.12em] text-white/60 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
         {CATEGORY_LABELS[tool.category] || tool.category}
       </span>
-      <div className="absolute inset-x-0 bottom-0 p-3.5 text-left">
-        <h3 className="text-[15px] font-semibold text-white leading-tight">{tool.name}</h3>
-        <p className="text-[11px] text-white/70 leading-snug mt-0.5 line-clamp-2">{tagline}</p>
+      <div className="absolute inset-x-0 bottom-0 p-4 text-left">
+        <h3 className="text-[15px] font-medium text-white tracking-[-0.01em] leading-tight">{tool.name}</h3>
+        <p className="mt-1 text-[11.5px] text-white/55 leading-snug line-clamp-2">{tagline}</p>
       </div>
     </button>
   );
@@ -193,28 +193,24 @@ export function GeneratePage() {
 
       {/* Hero Header — editorial, with manifesto eyebrow */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--color-action)]">Coevo Studio</span>
-          <span className="h-px w-10 bg-[var(--color-action)]/40" />
-        </div>
-        <h1 className="text-[38px] font-bold text-fg tracking-[-0.03em] leading-[0.95]">
-          Generá contenido.
+        <h1 className="text-[26px] md:text-[30px] font-medium text-fg tracking-[-0.03em] leading-[1.05]">
+          Generá contenido
         </h1>
-        <p className="text-[15px] text-fg-muted max-w-2xl leading-relaxed">
+        <p className="text-[13px] text-fg-muted max-w-xl leading-relaxed">
           {activeBrand
-            ? <>Elegí una tool para crear contenido para <span className="text-fg font-semibold">{activeBrand.name}</span>. La IA produce, vos dirigís.</>
+            ? <>Elegí una tool para crear contenido para <span className="text-fg">{activeBrand.name}</span>. La IA produce, vos dirigís.</>
             : "Seleccioná una marca para empezar a generar contenido."}
         </p>
       </div>
 
       {/* Category filter — refined neutral active state (no pink everywhere) */}
-      <div className="inline-flex items-center gap-1 bg-surface-1 border border-edge rounded-full p-1">
+      <div className="inline-flex items-center gap-1 bg-[var(--color-surface-0)] border border-[var(--color-edge-subtle)] rounded-[var(--radius-sm)] p-0.5">
         {(["all", ...categories] as const).map((cat) => (
           <button
             key={cat}
             onClick={() => setFilter(cat as typeof filter)}
             className={cn(
-              "px-4 py-1.5 text-[12px] font-medium rounded-full transition-all cursor-pointer",
+              "px-3.5 py-1.5 text-[12px] font-medium rounded-[4px] transition-all cursor-pointer",
               filter === cat
                 ? "bg-fg text-[var(--color-canvas)]"
                 : "text-fg-muted hover:text-fg hover:bg-surface-2"
@@ -241,14 +237,14 @@ export function GeneratePage() {
                 if (ucTools.length === 0) return null;
                 return (
                   <section key={uc.key}>
-                    <h2 className="font-display text-[20px] md:text-[24px] font-semibold tracking-tight mb-3">{uc.label}</h2>
+                    <h2 className="text-[12px] font-medium uppercase tracking-[0.14em] text-fg-muted mb-3">{uc.label}</h2>
                     <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 no-scrollbar">{ucTools.map(tile)}</div>
                   </section>
                 );
               })}
               {rest.length > 0 && (
                 <section>
-                  <h2 className="font-display text-[20px] md:text-[24px] font-semibold tracking-tight mb-3">Más tools</h2>
+                  <h2 className="text-[12px] font-medium uppercase tracking-[0.14em] text-fg-muted mb-3">Más tools</h2>
                   <div className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 no-scrollbar">{rest.map(tile)}</div>
                 </section>
               )}
@@ -256,7 +252,9 @@ export function GeneratePage() {
           );
         })()
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        // Menos columnas = cards MÁS GRANDES. A 4 columnas la preview quedaba chica y
+        // las piezas no se leían. El aire ahora lo da la imagen, no el gap.
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {orderedTools.map((tool) => (
             <ToolCard
               key={tool.id}
@@ -289,7 +287,7 @@ function ToolCard({
   const isComingSoon = tool.status === "coming_soon";
   const media = TOOL_PREVIEW_MEDIA[tool.id];
   const tagline = TOOL_TAGLINES[tool.id] || tool.description;
-  const gradient = TOOL_GRADIENTS[tool.id] || "from-surface-2 via-surface-1 to-surface-0";
+  const gradient = TOOL_GRADIENTS[tool.id] || FALLBACK_GRADIENT;
   const [hover, setHover] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -311,15 +309,17 @@ function ToolCard({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       className={cn(
-        "glass-sheen group text-left rounded-[var(--radius-lg)] overflow-hidden transition-all duration-500 relative flex flex-col",
-        "bg-[var(--glass-bg)] backdrop-blur-xl border border-[var(--glass-border)]",
+        // Minimal: sin glass-sheen ni blur. La card es la IMAGEN; el chrome se corre.
+        // El glow verde lima del hover salió — era un acento que ya no existe en la paleta.
+        "group text-left rounded-[var(--radius-md)] overflow-hidden transition-all duration-300 relative flex flex-col",
+        "bg-[var(--color-surface-0)] border border-[var(--color-edge-subtle)]",
         disabled || isComingSoon
-          ? "opacity-50 cursor-not-allowed"
-          : "hover:border-[var(--color-action)]/40 hover:shadow-[0_24px_60px_-20px_rgba(188,252,17,0.18)] hover:-translate-y-1 cursor-pointer"
+          ? "opacity-40 cursor-not-allowed"
+          : "hover:border-[var(--color-edge)] cursor-pointer"
       )}
     >
       {/* Preview — dominant hero */}
-      <div className="relative aspect-[4/5] overflow-hidden bg-black">
+      <div className="relative aspect-[3/4] overflow-hidden bg-[var(--color-canvas)]">
         {/* Gradient background (always present, softens when media loads) */}
         <div className={cn("absolute inset-0 bg-gradient-to-br", gradient)} />
 
@@ -340,8 +340,8 @@ function ToolCard({
             playsInline
             preload="metadata"
             className={cn(
-              "absolute inset-0 w-full h-full object-cover transition-opacity duration-300",
-              hover ? "opacity-100" : "opacity-80"
+              "absolute inset-0 w-full h-full object-cover transition-transform duration-500",
+              hover && "scale-[1.03]"
             )}
             onError={(e) => { (e.currentTarget as HTMLVideoElement).style.display = "none"; }}
           />
@@ -359,11 +359,11 @@ function ToolCard({
         )}
 
         {/* Dark gradient overlay for text readability */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
 
         {/* Top badges */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-white/80 bg-black/40 backdrop-blur px-2 py-0.5 rounded-full">
+          <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-white/60 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
             {CATEGORY_LABELS[tool.category] || tool.category}
           </span>
           {isComingSoon && (
@@ -376,14 +376,14 @@ function ToolCard({
 
         {/* Bottom: name + tagline + lime "Generar" affordance on hover (action signal) */}
         <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-          <h3 className="text-[18px] font-bold tracking-tight leading-tight mb-1">
+          <h3 className="text-[15px] font-medium tracking-[-0.01em] leading-tight">
             {tool.name}
           </h3>
-          <p className="text-[12px] text-white/80 leading-snug line-clamp-2">
+          <p className="mt-1 text-[11.5px] text-white/55 leading-snug line-clamp-2">
             {tagline}
           </p>
           {!disabled && !isComingSoon && (
-            <div className="mt-2.5 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[var(--color-action)] opacity-0 -translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+            <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-white/70 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               Generar
               <span className="transition-transform group-hover:translate-x-0.5">→</span>
             </div>

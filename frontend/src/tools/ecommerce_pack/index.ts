@@ -409,7 +409,7 @@ const handleGenerate: StepHandler = async (ctx) => {
   const cfg = config as unknown as Record<string, unknown>;
   // Proveedor del modelo de imagen (selector). Default temporal: Nano Banana vía Google
   // directo (cuenta Monks). "nano-banana-2" = el de siempre por Fal. Ver ecomImageModel.
-  const imageModel = ((cfg.ecomImageModel as string) || "nano-banana-google") as ImageModel;
+  const imageModel = ((cfg.ecomImageModel as string) || "nano-banana-2") as ImageModel;
   // Pose en 1 paso (toggle): en vez de vestir → transferir (2 calls), compone identidad +
   // pose + prendas en UNA sola call. Más rápido/barato. DEFAULT 1 paso (el 2-pasos cuesta el
   // doble) — solo va a 2-pasos si el flag es explícitamente false. Ver branch i===0 y 2-step.

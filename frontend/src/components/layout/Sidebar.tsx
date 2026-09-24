@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link, useLocation } from "react-router";
 import {
     LayoutGrid, Wand2, FolderOpen, Settings,
-    FlaskConical, Moon, Sun, PanelLeft, Home, Compass, ListTodo, ArrowLeft, ChevronRight } from "lucide-react";
+    FlaskConical, Moon, Sun, PanelLeft, Home, Compass, ListTodo } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
 import { fetchInboxCount } from "../../lib/api";
 import { useTheme } from "../../lib/theme";
@@ -29,39 +29,32 @@ interface NavItem {
 }
 
 /**
- * Navegación de DOS NIVELES (ver docs/decisions-log.md 2026-08 — Coevo World).
+ * Navegación PLANA — un solo nivel (2026-09-20).
  *
- *   Coevo World  → la operación: qué se pidió, en qué estado está, qué costó
- *   Coevo Studio → la fábrica: las tools, el contenido, el sandbox
+ * Reemplaza la navegación de dos niveles World → Studio (decisions-log 2026-08).
+ * El motivo, del usuario: *"Cuando entrás, lo primero que tenemos que ver es Coevo
+ * Studio, porque es la herramienta que está dentro. No tengo que entrar dos veces."*
  *
- * Se entra al Studio desde un item del World y se vuelve con un "atrás". El sidebar
- * cambia de set según la ruta, así nunca ves las dos cosas mezcladas.
+ * El problema de los dos niveles era que caías en la capa de gestión y las tools
+ * —donde se trabaja— quedaban un click más adentro, detrás de un modelo mental
+ * ("World contiene Studio") que la UI nunca explicaba.
+ *
+ * Referencia: Flora usa un sidebar plano sin niveles (ver
+ * docs/dashboard-architecture-research.md §2.1).
+ *
+ * El orden importa: OPERAR arriba (qué hay que hacer), PRODUCIR abajo (con qué
+ * hacerlo). Separados por un divider, no por un nivel de navegación.
  */
-const WORLD_NAV: NavItem[] = [
+const OPERAR_NAV: NavItem[] = [
     { label: "Inicio", href: "/dashboard", exact: true, icon: <Home size={18} />, title: "Inicio — pedí algo nuevo y mirá qué está pendiente", tour: "nav-inicio" },
     { label: "Campañas", href: "/dashboard/campanas", exact: true, icon: <ListTodo size={18} />, title: "Campañas — qué está en curso, qué espera aprobación y qué costó", tour: "nav-campanas" },
     { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={18} />, title: "Marcas — gestioná tus marcas y su brand kit" },
 ];
 
-/** La puerta a la fábrica. Se pinta con el acento porque abre otro NIVEL, no otra página. */
-const STUDIO_ENTRY: NavItem = {
-    label: "Coevo Studio",
-    href: "/dashboard/generate",
-    icon: <Wand2 size={18} />,
-    title: "Coevo Studio — las herramientas de generación",
-    tour: "nav-generar",
-};
-
-const STUDIO_NAV: NavItem[] = [
-    { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} />, title: "Generar — tools de generación de contenido" },
+const PRODUCIR_NAV: NavItem[] = [
+    { label: "Generar", href: "/dashboard/generate", icon: <Wand2 size={18} />, title: "Generar — tools de generación de contenido", tour: "nav-generar" },
     { label: "Contenido", href: "/dashboard/content", exact: true, icon: <FolderOpen size={18} />, title: "Contenido — biblioteca de generaciones" },
     { label: "Lab", href: "/dashboard/lab", exact: true, icon: <FlaskConical size={18} />, title: "Lab — sandbox SIN marca (Nano Banana + Kling/Seedance directo)" },
-];
-
-/** Rutas que viven adentro del Studio — definen en qué nivel está parado el sidebar. */
-const STUDIO_PREFIXES = [
-    "/dashboard/generate", "/dashboard/content", "/dashboard/lab", "/dashboard/lab-v2",
-    "/dashboard/voice-lab", "/dashboard/ecommerce-batch", "/dashboard/tools", "/dashboard/pipeline",
 ];
 
 const SETTINGS_NAV: NavItem[] = [
@@ -78,7 +71,6 @@ const WORKSURFACE_ROUTES = [
 
 export function Sidebar() {
     const location = useLocation();
-    const navigate = useNavigate();
     const { activeBrand } = useBrand();
     const { theme, toggle: toggleTheme } = useTheme();
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -126,11 +118,6 @@ export function Sidebar() {
 
     const isSettingsActive = SETTINGS_NAV.some((i) => location.pathname === i.href);
 
-    /** ¿Estamos adentro de la fábrica? Define qué set de nav se muestra. */
-    const inStudio = STUDIO_PREFIXES.some(
-        (p) => location.pathname === p || location.pathname.startsWith(p + "/"),
-    );
-
     const itemCls = (active: boolean) => cn(
         "flex items-center rounded-[var(--radius-md)] transition-colors h-10",
         showExpanded ? "gap-3 px-3 justify-start w-full" : "w-10 justify-center",
@@ -144,15 +131,19 @@ export function Sidebar() {
         )}>
             {/* Top: home + toggle colapsar/expandir */}
             <div className={cn("flex items-center mb-3", showExpanded ? "justify-between" : "flex-col gap-1")}>
+                {/* El logo vuelve SIEMPRE al home de la web (`/`). Antes iba a
+                    /dashboard/brands y no había forma de salir del dashboard.
+                    Ya no alterna World/Studio: con la nav plana no hay "nivel"
+                    que señalar — el nombre del producto es uno solo. */}
                 <Link
-                    to="/dashboard/brands"
+                    to="/"
                     className={cn("flex items-center gap-2 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-1)] transition-colors group", showExpanded ? "px-2 py-1.5 flex-1" : "w-9 h-9 justify-center")}
-                    title={inStudio ? "Coevo Studio" : "Coevo World"}
+                    title="Coevo Studio — ir al inicio"
                 >
                     <span className="w-2 h-2 rounded-full bg-[var(--color-action)] opacity-70 group-hover:opacity-100 transition-opacity shrink-0" />
                     {showExpanded && (
                         <span className="text-[13px] font-semibold text-fg whitespace-nowrap">
-                            Coevo <span className="text-fg-muted font-normal">{inStudio ? "Studio" : "World"}</span>
+                            Coevo <span className="text-fg-muted font-normal">Studio</span>
                         </span>
                     )}
                 </Link>
@@ -165,77 +156,39 @@ export function Sidebar() {
                 </button>
             </div>
 
-            {/* Nav — cambia de nivel según dónde estás parado (World ↔ Studio) */}
-            {inStudio ? (
-                <>
-                    <button
-                        onClick={() => navigate("/dashboard")}
-                        title="Volver a Coevo World"
-                        className={cn(
-                            "flex items-center rounded-[var(--radius-md)] transition-colors h-9 mb-2 cursor-pointer",
-                            "text-fg-muted hover:text-fg hover:bg-[var(--color-surface-1)]",
-                            showExpanded ? "gap-2 px-3 justify-start w-full" : "w-10 justify-center",
-                        )}
-                    >
-                        <ArrowLeft size={15} className="shrink-0" />
-                        {showExpanded && <span className="text-[12px] font-medium">Coevo World</span>}
-                    </button>
-                    <nav className={cn("flex flex-col gap-1", showExpanded ? "items-stretch" : "items-center")}>
-                        {STUDIO_NAV.map((item) => (
-                            <Link key={item.label} to={item.href} title={item.title} data-tour={item.tour} className={itemCls(isActive(item))}>
-                                <span className="shrink-0 flex items-center justify-center w-5">{item.icon}</span>
-                                {showExpanded && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
-                            </Link>
-                        ))}
-                    </nav>
-                </>
-            ) : (
-                <>
-                    <nav className={cn("flex flex-col gap-1", showExpanded ? "items-stretch" : "items-center")}>
-                        {WORLD_NAV.map((item) => {
-                            const badge = item.href === "/dashboard/campanas" ? inbox : 0;
-                            return (
-                                <Link key={item.label} to={item.href} title={item.title} data-tour={item.tour} className={itemCls(isActive(item))}>
-                                    <span className="relative shrink-0 flex items-center justify-center w-5">
-                                        {item.icon}
-                                        {badge > 0 && !showExpanded && (
-                                            <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-[var(--color-action)]" />
-                                        )}
-                                    </span>
-                                    {showExpanded && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
-                                    {showExpanded && badge > 0 && (
-                                        <span className="ml-auto text-[10px] font-semibold tabular-nums bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-full px-1.5 py-[1px]">
-                                            {badge}
-                                        </span>
-                                    )}
-                                </Link>
-                            );
-                        })}
-                    </nav>
+            {/* Nav PLANA — un solo nivel. Arriba operar, abajo producir. */}
+            <nav className={cn("flex flex-col gap-1", showExpanded ? "items-stretch" : "items-center")}>
+                {OPERAR_NAV.map((item) => {
+                    const badge = item.href === "/dashboard/campanas" ? inbox : 0;
+                    return (
+                        <Link key={item.label} to={item.href} title={item.title} data-tour={item.tour} className={itemCls(isActive(item))}>
+                            <span className="relative shrink-0 flex items-center justify-center w-5">
+                                {item.icon}
+                                {badge > 0 && !showExpanded && (
+                                    <span className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-[var(--color-action)]" />
+                                )}
+                            </span>
+                            {showExpanded && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
+                            {showExpanded && badge > 0 && (
+                                <span className="ml-auto text-[10px] font-semibold tabular-nums bg-[var(--color-action)] text-[var(--color-action-fg)] rounded-full px-1.5 py-[1px]">
+                                    {badge}
+                                </span>
+                            )}
+                        </Link>
+                    );
+                })}
+            </nav>
 
-                    <div className={cn("h-px bg-edge my-3", showExpanded ? "w-full" : "w-6 mx-auto")} />
+            <div className={cn("h-px bg-edge my-3", showExpanded ? "w-full" : "w-6 mx-auto")} />
 
-                    {/* Puerta al Studio — acentuada porque abre otro nivel, no otra página */}
-                    <Link
-                        to={STUDIO_ENTRY.href}
-                        title={STUDIO_ENTRY.title}
-                        data-tour={STUDIO_ENTRY.tour}
-                        className={cn(
-                            "flex items-center rounded-[var(--radius-md)] transition-colors h-10",
-                            "border border-[var(--color-action)] bg-[var(--color-action-muted)] text-fg hover:bg-[var(--color-action)] hover:text-[var(--color-action-fg)]",
-                            showExpanded ? "gap-3 px-3 justify-start w-full" : "w-10 justify-center",
-                        )}
-                    >
-                        <span className="shrink-0 flex items-center justify-center w-5">{STUDIO_ENTRY.icon}</span>
-                        {showExpanded && (
-                            <>
-                                <span className="text-[13px] font-medium whitespace-nowrap">{STUDIO_ENTRY.label}</span>
-                                <ChevronRight size={13} className="ml-auto opacity-60 shrink-0" />
-                            </>
-                        )}
+            <nav className={cn("flex flex-col gap-1", showExpanded ? "items-stretch" : "items-center")}>
+                {PRODUCIR_NAV.map((item) => (
+                    <Link key={item.label} to={item.href} title={item.title} data-tour={item.tour} className={itemCls(isActive(item))}>
+                        <span className="shrink-0 flex items-center justify-center w-5">{item.icon}</span>
+                        {showExpanded && <span className="text-[13px] font-medium whitespace-nowrap">{item.label}</span>}
                     </Link>
-                </>
-            )}
+                ))}
+            </nav>
 
             {/* Spacer — empuja brand+theme+settings al fondo */}
             <div className="flex-1" />

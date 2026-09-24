@@ -6,9 +6,10 @@
  */
 
 import { useState } from "react";
-import { Loader2, Wand2, ImagePlus, X } from "lucide-react";
+import { Loader2, Wand2, ImagePlus, X, Brush, Sparkles, ArrowUp } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { createImageEdit, pollImageGen, productImageUrl, clothingImageUrl, refineEditInstruction } from "../lib/api";
+import { MaskCanvas } from "./workspace/MaskCanvas";
 import { cn } from "../lib/utils";
 
 // Heurística barata: ¿el texto parece español? Si sí, lo pasamos por Gemini para
@@ -32,6 +33,16 @@ interface ImageEditPanelProps {
   selectedProductId?: string | null;
   /** Pre-select these clothing items' images as references */
   selectedClothingIds?: string[];
+  /* ── Máscara CONTROLADA desde afuera ──────────────────────────────────
+     Cuando el panel vive dentro de `EditOverlay`, el brush se pinta sobre la
+     imagen grande del centro y no acá — así que el estado lo maneja el padre.
+     Sin estas props el panel usa su propio brush embebido (modo autónomo). */
+  mask?: string | null;
+  masking?: boolean;
+  onToggleMask?: () => void;
+  /** `bar` = sólo el prompt, para la barra bajo la imagen (ref. Pics).
+   *  `full` (default) = el panel completo con referencias y atajos. */
+  variant?: "full" | "bar";
 }
 
 export function ImageEditPanel({
@@ -43,9 +54,22 @@ export function ImageEditPanel({
   defaultPrompt = "",
   selectedProductId,
   selectedClothingIds,
+  mask: maskProp,
+  masking: maskingProp,
+  onToggleMask,
+  variant = "full",
 }: ImageEditPanelProps) {
   const { activeBrand } = useBrand();
   const [prompt, setPrompt] = useState(defaultPrompt);
+  /** Máscara de edición local (data URL PNG). `null` = editar la imagen entera.
+   *  Si el padre la controla (EditOverlay), se usa la suya. */
+  /** Curando el prompt con Gemini (a pedido, no automático). */
+  const [curating, setCurating] = useState(false);
+  const [maskSelf, setMaskSelf] = useState<string | null>(null);
+  const [maskingSelf, setMaskingSelf] = useState(false);
+  const controlled = onToggleMask !== undefined;
+  const mask = controlled ? (maskProp ?? null) : maskSelf;
+  const masking = controlled ? !!maskingProp : maskingSelf;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Resolución elegible en el edit — arranca con la que pasa el parent, el usuario la cambia.
@@ -142,7 +166,13 @@ export function ImageEditPanel({
         finalPrompt = "Update the source image to match the provided reference image(s) — apply the referenced element (clothing, product or detail) exactly: same colors, patterns, shapes and details. Keep the rest of the image identical.";
       }
       const refs = [imageUrl, ...selectedRefs, ...uploadedRefs];
-      const job = await createImageEdit(refs, finalPrompt, aspectRatio, editResolution);
+      // Con máscara va SÍ o SÍ por gpt-image-2: Nano Banana no acepta `mask_url`
+      // y la edición saldría global, redibujando cosas que nadie pidió.
+      const job = await createImageEdit(
+        refs, finalPrompt, aspectRatio, editResolution,
+        mask ? "gpt-image-2" : "nano-banana-2",
+        mask,
+      );
       const result = await pollImageGen(job.request_id);
       if (result.image_url) {
         onImageUpdated(result.image_url);
@@ -157,12 +187,107 @@ export function ImageEditPanel({
     }
   };
 
+  /**
+   * Cura el prompt con Gemini y lo ESCRIBE en el input, para verlo y ajustarlo
+   * antes de aplicar. `handleApply` ya curaba, pero en silencio: no había forma
+   * de saber qué se le mandó al modelo ni de corregirlo.
+   */
+  const handleCurate = async () => {
+    const text = prompt.trim();
+    if (!text || curating) return;
+    setCurating(true);
+    try {
+      const { refined } = await refineEditInstruction(text);
+      if (refined?.trim()) setPrompt(refined.trim());
+    } catch { /* fail-open: queda el texto original */ }
+    finally { setCurating(false); }
+  };
+
+  // Variante BARRA: sólo el prompt, ancho, bajo la imagen. El gesto principal
+  // del editor es escribir qué cambiar — en el panel lateral quedaba enterrado
+  // entre referencias, atajos y resolución. Ref: la barra de Gemini en Pics.
+  if (variant === "bar") {
+    return (
+      <div className="w-full">
+        {error && (
+          <p className="mb-2 text-[11px] text-[var(--color-error)] text-center">{error}</p>
+        )}
+        {/* Sin atajos. Eran prompts hardcodeados en inglés que asumían un producto
+            o ropa seleccionada ("Corregir producto", "Luz más cálida"). Con el prompt
+            a la vista, escribirlo es igual de rápido y no miente sobre el contexto. */}
+        <div className="flex items-center gap-2 px-3 h-12 rounded-xl border border-edge bg-[var(--color-surface-1)] shadow-lg">
+          <input
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder={mask ? "Qué cambiar en la zona marcada…" : "Describí qué cambiar…"}
+            className="flex-1 h-full bg-transparent text-[13px] text-fg placeholder:text-fg-faint outline-none"
+            onKeyDown={(e) => e.key === "Enter" && handleApply()}
+          />
+          <button
+            onClick={handleCurate}
+            disabled={curating || !prompt.trim()}
+            title="Reescribe tu instrucción para que el modelo la entienda mejor. Después la podés editar."
+            className="h-8 px-2.5 flex items-center gap-1.5 rounded-lg text-[11.5px] font-medium text-fg-muted hover:text-fg hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+          >
+            {curating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            {curating ? "Mejorando…" : "Mejorar"}
+          </button>
+          <button
+            onClick={handleApply}
+            disabled={loading || (!prompt.trim() && selectedRefs.length === 0 && uploadedRefs.length === 0)}
+            className={cn(
+              "h-8 w-8 flex items-center justify-center rounded-lg transition-colors shrink-0",
+              !loading && (prompt.trim() || selectedRefs.length > 0 || uploadedRefs.length > 0)
+                ? "text-[var(--color-action-fg)] bg-[var(--color-action)] hover:opacity-90 cursor-pointer"
+                : "text-fg-faint bg-[var(--color-surface-2)] cursor-not-allowed",
+            )}
+            title="Aplicar (Enter)"
+          >
+            {loading ? <Loader2 size={13} className="animate-spin" /> : <ArrowUp size={14} />}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-surface-2 rounded-[var(--radius-md)] p-4 space-y-3">
       {/* Cómo se usa — corto, para que no quede ambiguo. */}
       <p className="text-[10px] text-fg-faint leading-snug">
         Escribí abajo qué querés cambiar (ej. <span className="text-fg-muted">"el fondo debe ser blanco"</span>) y tocá <span className="text-fg-muted">Aplicar</span> — se regenera ESTA imagen con el cambio. Sumá una <span className="text-fg-muted">imagen de referencia</span> (abajo) si faltó algo, o refs del kit / un atajo.
       </p>
+
+      {/* Editar SÓLO una zona. Cuando el panel vive dentro de `EditOverlay`, el
+          lápiz está sobre la imagen grande y acá no se dibuja nada — sólo queda
+          el aviso de que hay una zona marcada. */}
+      {controlled ? (
+        mask && (
+          <p className="text-[10.5px] leading-snug text-[var(--color-brand)]">
+            Hay una zona marcada: se va a regenerar sólo eso.
+          </p>
+        )
+      ) : (
+      <div className="space-y-2">
+        <button
+          onClick={() => {
+            // Este botón sólo existe en modo autónomo (ver la rama de arriba).
+            setMaskingSelf((v) => !v);
+            if (masking) setMaskSelf(null);
+          }}
+          className={cn(
+            "w-full flex items-center justify-center gap-1.5 h-8 rounded-[var(--radius-sm)] text-[11.5px] font-medium transition-colors cursor-pointer border",
+            masking
+              ? "bg-[var(--color-brand-muted)] border-[var(--color-brand)] text-fg"
+              : "bg-surface-1 border-edge text-fg-muted hover:text-fg",
+          )}
+        >
+          <Brush size={12} />
+          {masking ? "Editando una zona" : "Editar sólo una zona"}
+          {mask && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-brand)] text-[var(--color-brand-fg)]">zona marcada</span>}
+        </button>
+        {masking && !controlled && <MaskCanvas imageUrl={imageUrl} onMaskChange={setMaskSelf} />}
+      </div>
+      )}
 
       {/* Subir imagen de referencia — para cuando faltó algo (accesorio, producto) y no
           está en el kit. Se suma como ref a la edición, igual que en el Lab. */}
@@ -379,6 +504,14 @@ export function ImageEditPanel({
           className="flex-1 h-8 px-3 rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-[12px] text-fg placeholder:text-fg-faint outline-none"
           onKeyDown={(e) => e.key === "Enter" && handleApply()}
         />
+        <button
+          onClick={handleCurate}
+          disabled={curating || !prompt.trim()}
+          title="Curar con Gemini — afina la instrucción y la deja en inglés. Podés editarla después."
+          className="h-8 w-8 flex items-center justify-center rounded-[var(--radius-sm)] border border-edge bg-surface-1 text-fg-muted hover:text-fg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+        >
+          {curating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+        </button>
         <select
           value={editResolution}
           onChange={(e) => setEditResolution(e.target.value)}

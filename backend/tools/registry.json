@@ -237,21 +237,6 @@
     ]
   },
   {
-    "id": "reel_creator",
-    "name": "Reel Creator",
-    "category": "video",
-    "description": "Create short-form video reels with scenes, music, and subtitles.",
-    "icon": "film",
-    "status": "coming_soon",
-    "pipeline": [
-      "script",
-      "scenes",
-      "music",
-      "subtitles",
-      "render"
-    ]
-  },
-  {
     "id": "bg_remover",
     "name": "Background Remover",
     "category": "images",

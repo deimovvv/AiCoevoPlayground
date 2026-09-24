@@ -99,24 +99,32 @@ export const TOOL_EXAMPLES: Record<string, ToolExample> = {
 };
 
 export const TOOL_PREVIEW_MEDIA: Record<string, ToolPreview> = {
+  // Videos reales de corridas nuestras.
   video_ad_creator: { url: "/previews/videoadcreator.mp4", type: "video" },
   ugc_creator: { url: "/previews/ugccreator.mp4", type: "video" },
   fashion_reel: { url: "/previews/agnatesttt.mp4", type: "video" },
+
+  // Piezas generadas — registro flash directo / 35mm / color saturado (2026-09-20).
+  // Antes estos slots tenían CAPTURAS DE LA UI de 40-50 KB ("placeholders branded"),
+  // que hacían que el catálogo se viera pobre: una tool de generación visual no puede
+  // mostrar un pantallazo de sí misma como ejemplo de lo que produce.
+  fashion_editorial: { url: "/hero/flash-portrait.webp", type: "image" },
+  avatar_creator: { url: "/hero/flash-blue-track.webp", type: "image" },
+  product_spotlight: { url: "/hero/flash-red-sky.webp", type: "image" },
+  carousel_creator: { url: "/hero/flash-two-wall.webp", type: "image" },
+
+  // Piezas del set editorial anterior — sirven donde el sujeto es producto o prenda.
+  ecommerce_pack: { url: "/hero/standing-pair.webp", type: "image" },
+  ecommerce_batch: { url: "/hero/coat-front.webp", type: "image" },
+  product_sheet: { url: "/hero/boots-pair.webp", type: "image" },
+  product_clip: { url: "/hero/garment-hanger.webp", type: "image" },
+  scene_reconstruct: { url: "/hero/seated-chair.webp", type: "image" },
+  video_swap: { url: "/hero/back-turn.webp", type: "image" },
+  content_analyzer: { url: "/hero/crouch.webp", type: "image" },
+  fooh_subway: { url: "/hero/product-table.webp", type: "image" },
+  ad_creative_lab: { url: "/hero/seated-floor.webp", type: "image" },
   static_ad: { url: "/previews/staticad.png", type: "image" },
-  ecommerce_pack: { url: "/previews/eccomerce.png", type: "image" },
-  avatar_creator: { url: "/previews/avatar.png", type: "image" },
-  // Dropeá un mockup que te guste en public/previews/screenmockup.png y se enciende el hero.
+
+  // Mockup de UI: acá SÍ corresponde una captura, porque eso es lo que la tool produce.
   screen_mockup: { url: "/previews/screenmockup.png", type: "image" },
-  // Placeholders branded (reemplazar por outputs reales cuando existan — mismo nombre de archivo).
-  fooh_subway: { url: "/previews/fooh_subway.png", type: "image" },
-  product_sheet: { url: "/previews/product_sheet.png", type: "image" },
-  product_clip: { url: "/previews/product_clip.png", type: "image" },
-  content_analyzer: { url: "/previews/content_analyzer.png", type: "image" },
-  carousel_creator: { url: "/previews/carousel_creator.png", type: "image" },
-  product_spotlight: { url: "/previews/product_spotlight.png", type: "image" },
-  scene_reconstruct: { url: "/previews/scene_reconstruct.png", type: "image" },
-  fashion_editorial: { url: "/previews/fashion_editorial.png", type: "image" },
-  video_swap: { url: "/previews/video_swap.png", type: "image" },
-  ecommerce_batch: { url: "/previews/ecommerce_batch.png", type: "image" },
-  ad_creative_lab: { url: "/previews/ad_creative_lab.png", type: "image" },
 };

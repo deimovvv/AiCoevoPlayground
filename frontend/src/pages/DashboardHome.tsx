@@ -6,6 +6,7 @@ import { useBrand } from "../lib/BrandContext";
 import { listCampaigns, fetchGenerations, type Campaign, type Generation } from "../lib/api";
 import { useDictation } from "../lib/useDictation";
 import { formatUsd } from "../lib/pricing";
+import { TOOL_PREVIEW_MEDIA } from "../lib/toolPreviews";
 import { cn } from "../lib/utils";
 
 /**
@@ -20,13 +21,19 @@ const INTAKE_SUGGESTIONS: Array<{ text: string; tool: string; toolId: string }> 
 ];
 
 // Tools destacadas — reusa los previews reales de public/previews. Editá para sumar/quitar.
-const FEATURED_TOOLS: Array<{ id: string; name: string; tagline: string; src?: string; type?: "video" | "image"; gradient: string }> = [
-  { id: "fashion_reel", name: "Fashion Reel", tagline: "Reels editoriales de moda", src: "/previews/agnatesttt.mp4", type: "video", gradient: "from-fuchsia-500/30 to-orange-500/25" },
-  { id: "ecommerce_pack", name: "Ecommerce Pack", tagline: "Prenda sobre modelo + vistas", src: "/previews/eccomerce.png", type: "image", gradient: "from-amber-500/25 to-rose-500/20" },
-  { id: "ugc_creator", name: "UGC Creator", tagline: "Avatars hablando a cámara", src: "/previews/ugccreator.mp4", type: "video", gradient: "from-violet-500/30 to-pink-500/20" },
-  { id: "video_ad_creator", name: "Video Ad Creator", tagline: "Ads con storyboard IA", src: "/previews/videoadcreator.mp4", type: "video", gradient: "from-sky-500/25 to-indigo-500/25" },
-  { id: "content_analyzer", name: "Content Analyzer", tagline: "Analizá un video y adaptalo", gradient: "from-emerald-500/25 to-teal-500/20" },
-  { id: "static_ad", name: "Static Ad", tagline: "40 templates de creativos", src: "/previews/staticad.png", type: "image", gradient: "from-orange-500/25 to-red-500/20" },
+/**
+ * Tools destacadas del Inicio. Los previews salen de `TOOL_PREVIEW_MEDIA`
+ * (lib/toolPreviews.ts) — la MISMA fuente que usa Generar. Antes esta pantalla
+ * tenía su propia lista hardcodeada con gradientes saturados (fucsia, violeta,
+ * esmeralda), así que quedó fuera del rediseño y se veía como otro producto.
+ */
+const FEATURED_TOOLS: Array<{ id: string; name: string; tagline: string }> = [
+  { id: "fashion_reel", name: "Fashion Reel", tagline: "Reels editoriales de moda" },
+  { id: "ecommerce_pack", name: "Ecommerce Pack", tagline: "Prenda sobre modelo + vistas" },
+  { id: "ugc_creator", name: "UGC Creator", tagline: "Avatars hablando a cámara" },
+  { id: "video_ad_creator", name: "Video Ad Creator", tagline: "Ads con storyboard IA" },
+  { id: "fashion_editorial", name: "Fashion Editorial", tagline: "Variantes con receta de look" },
+  { id: "product_sheet", name: "Product Sheet", tagline: "Vistas de producto multi-foto" },
 ];
 
 const STATUS_LABEL: Record<Campaign["status"], { label: string; cls: string }> = {
@@ -95,13 +102,13 @@ export function DashboardHome() {
     <div className="relative max-w-6xl mx-auto p-6 md:p-10">
       {/* Ambiente rico detrás — le da al glass algo que frostear (warm burgundy + cool). */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] -z-10"
-        style={{ background: "radial-gradient(45% 90% at 12% 0%, rgba(196,88,48,0.22), transparent 65%), radial-gradient(40% 80% at 85% 5%, rgba(120,110,220,0.16), transparent 65%), radial-gradient(60% 60% at 50% 40%, rgba(196,88,48,0.06), transparent 70%)" }} />
+        style={{ background: "radial-gradient(50% 80% at 20% 0%, rgba(255,255,255,0.05), transparent 70%)" }} />
 
       {/* Intake — la puerta de entrada es una frase, no un formulario.
           Sin caja: el gradiente de arriba ya es el fondo, y una caja bordeada alrededor
           solo encerraba aire. */}
       <div className="mb-10 pt-6 pb-2 text-center">
-        <h1 className="font-display text-[30px] md:text-[38px] font-semibold tracking-[-0.015em] leading-tight">
+        <h1 className="font-display text-[30px] md:text-[38px] font-normal tracking-[-0.015em] leading-tight">
           ¿Qué hacemos hoy?
         </h1>
         <p className="text-[13px] text-fg-muted mt-2 mb-6">
@@ -200,35 +207,38 @@ export function DashboardHome() {
       {/* Tools carousel */}
       <section className="mb-12">
         <div className="flex items-baseline justify-between mb-4">
-          <h2 className="font-display text-[20px] md:text-[24px] font-semibold tracking-tight">Empezá con una tool</h2>
+          <h2 className="font-display text-[20px] md:text-[24px] font-normal tracking-tight">Empezá con una tool</h2>
           <button onClick={() => navigate("/dashboard/generate")} className="flex items-center gap-1 text-[12px] text-fg-muted hover:text-fg cursor-pointer">Ver todas <ChevronRight size={13} /></button>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-3 -mx-1 px-1 no-scrollbar">
-          {FEATURED_TOOLS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => navigate(`/dashboard/generate/${t.id}`)}
-              className="group relative shrink-0 w-[200px] aspect-[3/4] rounded-[var(--radius-md)] overflow-hidden border border-edge hover:border-[var(--color-brand)] transition-colors cursor-pointer bg-surface-2"
-            >
-              {t.src ? (
-                <Media src={t.src} type={t.type} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-              ) : (
-                <div className={cn("absolute inset-0 bg-gradient-to-br flex items-center justify-center", t.gradient)}>
-                  <span className="text-[40px] font-bold text-white/70">{t.name[0]}</span>
+          {FEATURED_TOOLS.map((t) => {
+            const media = TOOL_PREVIEW_MEDIA[t.id];
+            return (
+              <button
+                key={t.id}
+                onClick={() => navigate(`/dashboard/generate/${t.id}`)}
+                className="group relative shrink-0 w-[236px] aspect-[3/4] rounded-[var(--radius-md)] overflow-hidden border border-[var(--color-edge-subtle)] hover:border-[var(--color-edge)] transition-colors cursor-pointer bg-[var(--color-surface-0)]"
+              >
+                {media ? (
+                  <Media src={media.url} type={media.type} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                ) : (
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/[0.06] to-transparent flex items-center justify-center">
+                    <span className="text-[40px] font-light text-white/12">{t.name[0]}</span>
+                  </div>
+                )}
+                {/* Velo SOLO abajo — a pantalla completa apagaba la foto. */}
+                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
+                {media?.type === "video" && <span className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center"><Play size={11} className="fill-white" /></span>}
+                <div className="absolute inset-x-0 bottom-0 p-3.5 text-left">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-[14px] font-medium text-white tracking-[-0.01em] leading-tight">{t.name}</h3>
+                    <ArrowRight size={13} className="text-white/60 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                  <p className="text-[11px] text-white/55 leading-snug mt-0.5">{t.tagline}</p>
                 </div>
-              )}
-              {/* Gradiente oscuro para legibilidad del label sobre la imagen. */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
-              {t.type === "video" && <span className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-black/40 backdrop-blur-sm text-white flex items-center justify-center"><Play size={11} className="fill-white" /></span>}
-              <div className="absolute inset-x-0 bottom-0 p-3 text-left">
-                <div className="flex items-center gap-1.5">
-                  <h3 className="text-[14px] font-semibold text-white leading-tight">{t.name}</h3>
-                  <ArrowRight size={14} className="text-white/80 group-hover:translate-x-0.5 transition-transform" />
-                </div>
-                <p className="text-[11px] text-white/70 leading-snug mt-0.5">{t.tagline}</p>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -236,7 +246,7 @@ export function DashboardHome() {
       {activeBrand && (
         <section>
           <div className="flex items-baseline justify-between mb-4">
-            <h2 className="font-display text-[20px] md:text-[24px] font-semibold tracking-tight">Campañas recientes</h2>
+            <h2 className="font-display text-[20px] md:text-[24px] font-normal tracking-tight">Campañas recientes</h2>
             <button onClick={() => navigate("/dashboard/campaigns")} className="flex items-center gap-1 text-[12px] text-fg-muted hover:text-fg cursor-pointer">Ver todas <ChevronRight size={13} /></button>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -256,7 +266,7 @@ export function DashboardHome() {
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center"><Megaphone size={22} className="text-fg-faint" /></div>
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
                   <div className="absolute inset-x-0 bottom-0 p-3 text-left">
                     <h3 className="text-[13px] font-semibold text-white leading-tight line-clamp-2">{c.name}</h3>
                     <div className="flex items-center gap-2 mt-1.5">

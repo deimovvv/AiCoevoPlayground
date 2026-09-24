@@ -1,0 +1,74 @@
+[
+  {
+    "id": "soft-frontal",
+    "name": "Frontal suave",
+    "prompt": "soft even frontal softbox lighting, gentle wrap, minimal shadow",
+    "imageUrl": "/static/system/lighting/soft-frontal.webp"
+  },
+  {
+    "id": "hard-side",
+    "name": "Lateral dura",
+    "prompt": "single hard light from the side at 90 degrees, crisp shadow terminator, deep shadow on the opposite side",
+    "imageUrl": "/static/system/lighting/hard-side.webp"
+  },
+  {
+    "id": "rembrandt",
+    "name": "Rembrandt",
+    "prompt": "Rembrandt lighting, key at 45 degrees above, soft falloff, small triangle of light on the shadow cheek",
+    "imageUrl": "/static/system/lighting/rembrandt.webp"
+  },
+  {
+    "id": "butterfly",
+    "name": "Butterfly",
+    "prompt": "butterfly beauty lighting from directly above and in front, symmetric, small shadow under the chin",
+    "imageUrl": "/static/system/lighting/butterfly.webp"
+  },
+  {
+    "id": "rim-backlight",
+    "name": "Contraluz",
+    "prompt": "strong rim backlight, bright halo outlining the subject, front falling into shadow",
+    "imageUrl": "/static/system/lighting/rim-backlight.webp"
+  },
+  {
+    "id": "top-down",
+    "name": "Cenital",
+    "prompt": "single hard light straight down from above, bright crown, shadows gathering below",
+    "imageUrl": "/static/system/lighting/top-down.webp"
+  },
+  {
+    "id": "golden-hour",
+    "name": "Golden hour",
+    "prompt": "warm low golden-hour sun from the side, amber highlights, long soft shadows, cool blue fill",
+    "imageUrl": "/static/system/lighting/golden-hour.webp"
+  },
+  {
+    "id": "overcast",
+    "name": "Nublado",
+    "prompt": "flat overcast daylight, cool neutral, very low contrast, almost shadowless",
+    "imageUrl": "/static/system/lighting/overcast.webp"
+  },
+  {
+    "id": "window-light",
+    "name": "Luz de ventana",
+    "prompt": "soft directional window light with a subtle falloff gradient, natural indoor daylight",
+    "imageUrl": "/static/system/lighting/window-light.webp"
+  },
+  {
+    "id": "split",
+    "name": "Split",
+    "prompt": "split lighting, half the subject lit and half in complete darkness, hard vertical division",
+    "imageUrl": "/static/system/lighting/split.webp"
+  },
+  {
+    "id": "neon-duotone",
+    "name": "Neón duotono",
+    "prompt": "two coloured gels, magenta from one side and cyan from the other, editorial neon lighting, dark background",
+    "imageUrl": "/static/system/lighting/neon-duotone.webp"
+  },
+  {
+    "id": "high-key",
+    "name": "High key",
+    "prompt": "high-key lighting, multiple soft sources, bright background, almost no shadows, airy and clean",
+    "imageUrl": "/static/system/lighting/high-key.webp"
+  }
+]

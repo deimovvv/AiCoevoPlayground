@@ -40,6 +40,7 @@ from services import fal_synclipsync
 from services import image_analysis
 from services import agent as agent_service
 from services import gpt_image_gen
+from services import segmentation
 from services import video_download
 from services import apify_tiktok
 from services import instagram_scraper
@@ -219,6 +220,10 @@ class ChatRequest(BaseModel):
 
 class SaveGenerationRequest(BaseModel):
     brandId: Optional[str] = None  # null for brand-agnostic generations (Manual Lab)
+    # Campaña de la que cuelga esta corrida. Sin esto las piezas de campaña vivían
+    # SOLO dentro de `campaign.pieces` y la biblioteca (Contenido) nunca las veía:
+    # dos almacenes que no se cruzaban. Ver docs/campaigns.md ("tag campaignId").
+    campaignId: Optional[str] = None
     toolId: str
     title: str
     type: str  # "video" | "image" | "copy"
@@ -566,6 +571,9 @@ class CampaignCreateRequest(BaseModel):
     clothingIds: list[str] = []
     backgroundId: Optional[str] = None
     lookFeelId: Optional[str] = None
+    # Preset de iluminación del SISTEMA (ver /api/system/lighting). No es un asset
+    # de la marca: el id referencia data/system/lighting.json.
+    lightingId: Optional[str] = None
     shotPlan: str = "ai"
     customShots: list[str] = []
     variationsPerShot: int = 1
@@ -2090,6 +2098,12 @@ def delete_background(brand_id: str, item_id: str):
 
 app.mount("/static/poses", StaticFiles(directory=str(brands.get_poses_dir())), name="poses")
 
+# Assets del SISTEMA — disponibles para todas las marcas, no pertenecen a ninguna.
+# Hoy: presets de iluminación. Mismo criterio que system_voices.json.
+_SYSTEM_DIR = DATA_DIR / "system"
+_SYSTEM_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static/system", StaticFiles(directory=str(_SYSTEM_DIR)), name="system")
+
 
 @app.get("/api/brands/{brand_id}/poses")
 def list_poses(brand_id: str):
@@ -2637,6 +2651,24 @@ def list_system_voices():
         import json
         return {"voices": json.loads(voices_file.read_text())}
     return {"voices": []}
+
+
+@app.get("/api/system/lighting")
+def list_system_lighting():
+    """Presets de iluminación disponibles para TODAS las marcas.
+
+    Mismo patrón que `/api/voices/system`: son assets del sistema, no de una marca.
+    Cada preset trae su `prompt` — el fragmento que describe esa luz y que se inyecta
+    al generar. Sin eso sería solo una miniatura decorativa.
+
+    La convención visual es la esfera de referencia 3D (Unreal/Blender): esfera mate
+    gris, mismo encuadre, y lo único que cambia entre presets es la luz.
+    """
+    f = DATA_DIR / "system" / "lighting.json"
+    if f.exists():
+        import json
+        return {"presets": json.loads(f.read_text())}
+    return {"presets": []}
 
 
 @app.get("/api/brands/{brand_id}/voices")
@@ -4510,6 +4542,54 @@ async def create_lipsync(
 #  Image Generation / Edit (nano-banana-2/edit via Fal)
 # ══════════════════════════════════════════════════════════════
 
+class SegmentRequest(BaseModel):
+    imageUrl: str
+    x: int
+    y: int
+
+
+@app.post("/api/segment/point")
+async def segment_point(req: SegmentRequest):
+    """Segmenta el objeto que hay en (x, y) y devuelve la URL de su máscara.
+
+    Es el "tocás el televisor y se selecciona solo" del editor de zona. El front
+    manda coordenadas en píxeles de la imagen ORIGINAL.
+
+    Devuelve `{maskUrl}` — PNG en escala de grises, BLANCO = objeto. El front lo
+    invierte al componer la máscara final (GPT Image espera la zona editable
+    TRANSPARENTE).
+
+    Si la imagen es local (`/static/...`) o un data URL, se sube a Fal primero.
+    """
+    if not segmentation.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY no configurada")
+
+    url = req.imageUrl
+    try:
+        if url.startswith("data:"):
+            import base64 as _b64
+            _hdr, _payload = url.split(",", 1)
+            url = await kling_video.upload_image(_b64.b64decode(_payload), "seg.png", "image/png")
+        elif url.startswith("/static/") or "localhost" in url or "127.0.0.1" in url:
+            # Resolver a disco y subir, igual que hace /api/image-gen/edit.
+            rel = url.split("/static/", 1)[-1]
+            path = DATA_DIR / rel
+            if not path.exists():
+                raise HTTPException(status_code=404, detail=f"No se encontró la imagen: {rel}")
+            mime = "image/png" if path.suffix == ".png" else "image/jpeg"
+            url = await kling_video.upload_image(path.read_bytes(), path.name, mime)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"No se pudo preparar la imagen: {str(e)[:200]}")
+
+    try:
+        mask_url = await segmentation.segment_at_point(url, req.x, req.y)
+        return {"maskUrl": mask_url}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Segmentación falló: {str(e)[:200]}")
+
+
 @app.post("/api/image-gen/edit")
 async def image_gen_edit(
     prompt: str = Form(...),
@@ -4518,6 +4598,10 @@ async def image_gen_edit(
     aspect_ratio: str = Form("9:16"),
     resolution: str = Form("1K"),
     model: str = Form("nano-banana-2"),  # "nano-banana-2" | "gpt-image-2"
+    # Máscara para EDICIÓN LOCAL: sólo se regenera la zona marcada. PNG con las
+    # zonas editables TRANSPARENTES. Sólo la soporta gpt-image-2 — Nano Banana NO
+    # acepta máscara (verificado 2026-09-21).
+    mask_url: Optional[str] = Form(None),
 ):
     """
     Generate/edit an image. Routes to different Fal models based on `model` param.
@@ -4623,10 +4707,26 @@ async def image_gen_edit(
         print(f"[image-gen] {len(resolved_urls)} refs {kinds} · prompt_len={len(prompt)} · model={model}", flush=True)
 
         if model == "gpt-image-2":
+            # La máscara llega como data: URL desde el canvas del front. Fal no
+            # acepta base64 grande inline, así que va a storage como las refs.
+            resolved_mask = None
+            if mask_url:
+                if mask_url.startswith("data:"):
+                    try:
+                        _hdr, _b64 = mask_url.split(",", 1)
+                        resolved_mask = await kling_video.upload_image(
+                            base64.b64decode(_b64), "mask.png", "image/png")
+                        print("[image-gen] máscara subida a Fal")
+                    except Exception as e:
+                        print(f"[image-gen] FALLÓ la subida de la máscara: {e}")
+                else:
+                    resolved_mask = mask_url
+
             request_id = await gpt_image_gen.create_edit(
                 image_urls=resolved_urls,
                 prompt=prompt,
                 aspect_ratio=aspect_ratio,
+                mask_url=resolved_mask,
             )
             prefixed_id = f"gpt2:{request_id}"
         elif model == "nano-banana-google":
@@ -4875,6 +4975,7 @@ async def create_generation(req: SaveGenerationRequest):
     gen = {
         "id": gen_id,
         "brandId": req.brandId,
+        "campaignId": req.campaignId,
         "toolId": req.toolId,
         "title": req.title,
         "type": req.type,

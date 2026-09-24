@@ -76,7 +76,7 @@ export function ToolHelpButton({ toolId, name, description, inputs }: {
             <div className="flex items-start justify-between gap-2 mb-3">
               <div>
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-brand)]">¿Cómo funciona?</span>
-                <h2 className="font-display text-[22px] font-semibold text-fg leading-tight mt-0.5">{name}</h2>
+                <h2 className="font-display text-[22px] font-normal text-fg leading-tight mt-0.5">{name}</h2>
               </div>
               <button onClick={() => setOpen(false)} className="text-fg-faint hover:text-fg cursor-pointer shrink-0"><X size={17} /></button>
             </div>

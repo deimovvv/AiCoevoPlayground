@@ -10,6 +10,7 @@ Strengths: sharp edits, text respect, better for iterating on one image.
 Trade-offs: less flexible than nano-banana when combining many refs.
 """
 
+from typing import Optional
 import os
 import httpx
 
@@ -58,6 +59,7 @@ async def create_edit(
     aspect_ratio: str = "9:16",
     num_images: int = 1,
     quality: str = "high",
+    mask_url: Optional[str] = None,
 ) -> str:
     """
     Submit a GPT Image 2 edit job.
@@ -66,6 +68,11 @@ async def create_edit(
                 additional images act as references/context.
     prompt: editing instructions in natural language.
     quality: "low" | "medium" | "high" | "auto"
+    mask_url: máscara para EDICIÓN LOCAL — sólo se regenera lo que la máscara marca,
+              el resto de la imagen queda intacto. PNG donde las zonas TRANSPARENTES
+              son las editables. Es la razón por la que las ediciones puntuales van
+              por GPT Image y no por Nano Banana: Nano Banana NO acepta máscara
+              (verificado 2026-09-21, ver docs/pending-features.md §14).
     """
     if not image_urls:
         raise ValueError("GPT Image 2 edit requires at least one reference image")
@@ -79,6 +86,8 @@ async def create_edit(
         "quality": quality,
         "output_format": "png",
     }
+    if mask_url:
+        payload["mask_url"] = mask_url
 
     print(f"[gpt-image-2] Submitting edit to {FAL_MODEL} (size={size}, refs={len(image_urls)})")
     print(f"[gpt-image-2] Prompt: {prompt[:120]}")

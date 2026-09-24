@@ -403,3 +403,336 @@ Queda confirmado lo que se había inferido: **el feedback y los proyectos pasado
 4. **El onboarding es una barra de progreso.** Los tiers de [client_onboarding.md](client_onboarding.md) son exactamente eso, pero en un markdown que el cliente nunca ve.
 5. **Venden a los humanos a través del software** (PM con nombre, saludo en video, tags de rol, stack de avatares). Coevo tiene el problema inverso: casi no hay humanos. **No copiar el teatro humano** — sí copiar la claridad de "quién responde por esto".
 6. **Tab Calendar** al lado de List — el Content Calendar que Coevo tiene en "Planned".
+
+---
+
+## Genera.Space (https://generaspace.ai/)
+
+- **Fecha de investigación:** 2026-09-01 · verificación en vivo 2026-09-02
+- **Método:** 4 streams paralelos (producto/pricing · empresa/founders · UX/tech · landscape), ~120 URLs, HTML crudo + CSS + bundles JS + headers HTTP, prensa primaria
+- **Confianza:** ALTA en producto, pricing, stack y equipo (verificado en fuente primaria). NULA en funding (no existe evidencia pública). BAJA en claims de clientes autodeclarados.
+- **Marcado:** `[V]` verificado en fuente primaria · `[I]` inferido
+
+### TL;DR
+
+Genera es el competidor frontal de la tesis "moda + e-commerce". No es una startup de AI que aprendió moda: es un **spin-off de OMEGARENDER**, estudio de visualización arquitectónica CGI (~150 personas, clientes Zaha Hadid / Foster + Partners / Gensler). Su ventaja es tratar la prenda como **render, no como generación** — proyectan la textura real del packshot sobre geometría generada y corrigen la divergencia con "automasking". Corren **pesos propios sobre GPU alquilada** (RunPod + Hostkey), no son orquestadores sobre Fal/Replicate.
+
+Su punto ciego, admitido por escrito y verificado en vivo: **no tienen video**, y su roadmap lleva un mes vencido.
+
+### 1. Identidad y equipo `[V]`
+
+| Dato | Valor |
+|---|---|
+| Entidad legal | **Evolox, Inc.** |
+| Origen | Spin-off de **OMEGARENDER** (visualización arquitectónica, ~150 personas, desde ~2015) |
+| Lanzamiento | 19-feb-2025 |
+| HQ declarado | New York — ⚠️ contradicho por señales EU/UK/UA (ver caveats) |
+| Funding | ❌ **NO ENCONTRADO**. Crunchbase/Dealroom 403. `[I]` probable bootstrap con cash flow de Omegarender |
+
+**Ejecutivos** ([/team](https://www.generaspace.ai/team)):
+
+| Persona | Rol | Background |
+|---|---|---|
+| Artem Kupriianenko | Founder/CEO | Arquitecto; fundó OMEGARENDER; 15+ años CGI/hiperrealismo |
+| Sofia Polyakova | COO | 10+ años en moda |
+| Anton Averich | CTO | 13+ años SWE/ML — **Samsung, Skylum (Luminar)** |
+| Oleksii Fedorenko | Head of AI Research | *"Pioneered proprietary garment replication technology"* |
+| Daniil Khayrutdinov | Artistic Director | Moda + dirección de arte |
+| Olga Vasenkova | Head of Content | 10+ años producción moda/film |
+
+**Advisor:** Keiron Birch, ex-VP of Design de **Calvin Klein** — anunciado en el PR de feb-2025 pero ⚠️ **ya no figura en la página de equipo**.
+
+### 2. Producto — módulos `[V]`
+
+| # | Módulo | Estado (verificado 2026-09-02) |
+|---|---|---|
+| 01 | **PDP Module** | 🟢 LIVE — 5 imágenes on-model por SKU en ~20 min desde flat lay / ghost mannequin / tech pack |
+| 02 | **Lookbook & Campaign** | 🟢 LIVE — set design custom, masters **6K print-grade** |
+| 03 | **Face Builder** | 🔴 *"Coming soon — August 2026"* ⚠️ **VENCIDO** |
+| 04 | **Video Module** | 🔴 *"Coming soon — August 2026"* ⚠️ **VENCIDO** |
+
+Verificado en vivo el 2026-09-02: la home sigue diciendo "August 2026" para ambos.
+
+**Autoconfesión textual** en su blog comparativo (21-ago-2026), sección *"What we don't do today, so you don't discover it later"*:
+> *"There is no first-party Shopify app — enterprise integrations run through API & SDK. **The video module is still in development while competitors ship theirs.** There is no consumer try-on widget."*
+
+⚠️ El PR de 2025 anunciaba **"AI Try-On"** como producto. En 2026 lo niegan explícitamente. Feature muerto o nunca shippeado.
+
+### 3. El moat técnico — "100% clothing replication"
+
+**Evidencia dura del stack de generación** `[V]` — [/security](https://generaspace.ai/security) lista subprocesadores nominalmente (única página donde legalmente deben decir la verdad):
+
+| Proveedor | Rol declarado |
+|---|---|
+| **RunPod** | ***"compute for model workloads"*** |
+| **Hostkey** | ***"compute and hosting"*** (bare-metal EU) |
+| GCP + Firebase | hosting / application platform |
+| Stripe | pagos |
+
+**Cero rastro de fal.ai, Replicate, OpenAI, Stability o Midjourney** en 280 KB de bundles + HTML (grep verificado). Un orquestador sobre APIs no declara RunPod como subprocesador de *model workloads*.
+
+**Arquitectura probable** `[I]`:
+```
+Packshot original (píxeles reales de la prenda)
+  → generación de pose/cuerpo/escena
+  → warp/proyección de la textura REAL sobre geometría generada
+  → automasking: detecta divergencia vs. el packshot fuente y corrige
+  → Enhance (artefactos) → Upscale → QA humano
+```
+
+El "100%" **no es propiedad del modelo generativo — es el resultado de un pipeline de saneamiento de 4 etapas con humano al final.** Prueba: existe un Enhancer dedicado a matar artefactos que ellos mismos enumeran (*"noise riding on skin, blotchy patches, texture that goes waxy"*), y una lección entera de **manual masking**. Nadie construye eso si la primera pasada sale limpia.
+
+**El insight de fondo:** su ventaja no es mejor prompting, es **tratar la prenda como asset con textura a proyectar** (linaje UV/projection mapping de CGI arquitectónico), no como concepto a generar.
+
+**Modelos AI = personas reales escaneadas** `[I fuerte]`. De [/blog/face-lab](https://www.generaspace.ai/blog/face-lab): *"Each run uses the next of the bodies of **the very people this face was cast from**"*. Y de [/blog/ai-model-roster](https://www.generaspace.ai/blog/ai-model-roster): *"consent and revenue terms are documented rather than implied"*. Por eso pueden garantizar consistencia y rights-cleared a la vez.
+
+### 4. Face Lab — la pieza más copiable
+
+Roster de **54 identidades numeradas** (`0065`, `0076`, `0086`…), no nombradas, todas fotografiadas en condiciones idénticas (fondo gris, luz plana, frontal, hombros descubiertos) para comparación tipo casting book. Diversidad como argumento comercial, no moral: vitiligo, albinismo, modelo maduro con barba gris, cinco tonos de pelirrojo. Justificación: *"A brand selling into three regions needs models those regions recognise."*
+
+**Face Lab = 7 tabs:** Cast · Edit · Makeup · Tone · Refine · Body · Wardrobe/Shot.
+
+Lo brillante del Cast: **no se promptea con texto — se suben referencias etiquetadas por propósito** ("labios y ojos de esta, nariz de aquella, corte de pelo de la tercera"). Filosofía citada:
+> *"A reference is an instruction, not an atmosphere."*
+
+Genera **9 caras candidatas simultáneas**, con grupos de cast por letra (A/B/C) para consistencia: *"image 400 has the same face as image 1 — same bone structure, same proportions, same skin."*
+
+### 5. Pricing y unit economics `[V]`
+
+| Plan | Precio | Créditos/mes | $/crédito |
+|---|---|---|---|
+| Starter | $29/mes | 75 (+75 bonus) | $0.39 |
+| Pro | $99/mes | 300 | $0.33 |
+| Ultra ⭐ | $199/mes | 650 | $0.30 |
+| Enterprise | custom | 100.000+ img/mes | — |
+
+- **Sin feature-gating entre tiers** — solo volumen. Todos incluyen PDP + Campaign + Smart Upload + modelos + colaboración.
+- **Sin free trial, sin plan anual, sin rollover documentado.** Su propio blog comparativo lista free tiers de FASHN/WeShop/Modelia y para sí mismo solo pone "$29/mo".
+- Créditos por operación: **Enhance = 2, Upscale = 10**. ❌ El costo de la **generación base no está publicado** — hueco real de transparencia.
+
+**⚠️ Inconsistencia en el costo por imagen.** El claim de `/pricing` es **$0.25–1.50**, pero su propio home dice *"from $0.50"*, Forbes reporta $0.50–1.50, y su caso Vestira ($5–8 por SKU de 5 imágenes) da **$1.00–1.60/imagen**. **Usar $0.50–1.50 para modelar. El $0.25 no se sostiene ni en su propia comunicación.**
+
+**Unidad comercial — el mejor movimiento del sitio:** **$5–8 por SKU** = 4 imágenes PDP + 1 de marketing, en ~20 min. Cotizan la unidad de negocio del cliente, no la unidad técnica.
+
+**Su propio punto de quiebre declarado:** *"Genera starts earning its keep around 50 SKUs a season."*
+
+### 6. Batch y servicio humano
+
+- 5.000 SKUs en un batch simultáneo; 10.000 imágenes finales/24h; 100.000+/mes por marca `[claims propios]`
+- ⚠️ Forbes reporta **2.000 imágenes/día**, que contradice el 10.000/24h del sitio
+- **"Genera Trusted Partner"**: equipos humanos de producción y QA entrenados por Genera, que hacen full-cycle para clientes sin recursos internos
+
+`[I]` **No es puro software — venden servicio disfrazado de SaaS.** Ese es el unit economics real del $1.50/imagen vs. el $0.04 de FASHN.
+
+**El input que exigen para máxima fidelidad** ([/blog/fitting-photography-guidelines](https://www.generaspace.ai/blog/fitting-photography-guidelines)): 3 cámaras en eje recto, 18 frames por producto, modelo humano 175-180cm, focal 100mm+, f/8, 5500K, WebP 5000px sin retoque. `[I]` **No reemplazan la sesión de fotos — reemplazan la sesión cara por una técnica y barata.**
+
+### 7. Clientes — lo verificado vs. lo fabricado
+
+**❌ Case studies del sitio, probablemente ficción:** *Vestira* (5.000 SKUs/24h, quote de "Emma Collins"), *Velva* (print 3 días, quote de "Iris Lindqvist"), *Komod*, *Órra*. Ninguna existe como marca buscable. Sin logos, sin links, sin fotos. Nombres derivados del latín (*vestire* = vestir). **Tratar como copy, no como prueba.**
+
+**✅ Clientes reales — están en Forbes, no en su sitio** ([Forbes abr-2026](https://malaysia.news.yahoo.com/genera-bets-replace-fashion-photoshoot-211110358.html)):
+- **Le Coq Sportif** — quote on-the-record del CEO **Alexandre Fauvet**: *"What used to require a €5,000 photoshoot… can now be executed on demand."* Reemplazaron hasta **70%** del workflow tradicional
+- **ECCO** · **Zalando** · **Ttswtrs**
+
+⚠️ **El claim de clientes encogió: "60+ marcas" (feb-2025) → "25+ marcas" (2026).** O el 60 contaba pilots, o hubo churn.
+⚠️ **LVMH / Karl Lagerfeld** aparecen en un snippet de búsqueda pero **NO están en la fuente primaria**. No usar.
+
+### 8. Tech stack `[V]`
+
+| Capa | Marketing site | App (`app.generaspace.ai`) |
+|---|---|---|
+| Framework | **Astro** + Tailwind v4 | **React + Vite** |
+| UI | Inter var self-hosted | **MUI + Emotion** |
+| Estado | — | **Zustand** |
+| Backend/Auth | Cloudflare | **Firebase** (`genera-408110`) |
+| API | — | REST propia + **SSE** (`/generation/events`) |
+| Analytics | GTM/GA4/Meta/Pinterest | **PostHog EU** |
+| Compute | — | **RunPod + Hostkey** |
+
+**Postura de seguridad notable:** CSP estricta, `frame-ancestors 'none'`, HSTS 1 año, permissions-policy que apaga cámara/micrófono/geolocation. Poco común en marketing sites — señal de disciplina de ingeniería.
+
+**Diferencia clave con Coevo:** SSE para progreso de generación. Coevo hace polling; para lotes de 5.000 SKUs el polling no escala.
+
+### 9. Diseño visual `[V]`
+
+Paleta extraída de `/_astro/BaseLayout.DkajShaW.css` — grises neutros + **un solo acento**:
+```css
+--color-paper: #020202   /* dark default */
+--color-ink:   #ffffff
+--color-rule:  #1f1f22
+--color-accent: #095dff  /* azul eléctrico — único color */
+```
+Cero gradientes, cero púrpura-IA. **Azul frío = "infraestructura", no "herramienta creativa"** — contraste deliberado con el burgundy cálido `#c45830` de Coevo, que comunica agencia/craft.
+
+Tipografía: **Inter Variable** con escala completa de line-height + letter-spacing por nivel (hero `.97`/`-.02em` … micro `1.3`/`.04em`), espaciado fluido con `clamp()` sin breakpoints, y un `--brand-baseline` que sugiere baseline grid real. `[I]` Se lee como *Vogue Business* diseñado por un equipo de dev tools — le habla al director de arte y al head of e-commerce ops a la vez.
+
+### 10. Copy — el arsenal retórico
+
+**El ataque central** ([/why-genera](https://generaspace.ai/why-genera)):
+> *"Every tool on your shortlist makes an image. The question is what happens when you need five thousand of them, exact, by Friday."*
+
+**La concesión que lo hace creíble** (sobre la foto tradicional):
+> *"Still the right tool for one-off brand moments where the physical world is the point."*
+
+No dicen "la foto murió". Dicen: la foto sirve para el momento de marca, **el catálogo es otro problema**. Desarma al director creativo defensivo y reencuadra hacia volumen, que es donde ganan.
+
+**El cementerio de competidores** — tienen un post entero (*"HuHu AI Is Gone: 7 Best Alternatives"*) listando quién murió: HuHu AI (discontinuado), Lalaland (absorbida por Browzwear), ZMO.ai (sitio caído), Resleeve/Vmake (se fueron de moda), VModel (degradó su fashion studio). **Convierten la mortalidad del sector en argumento de permanencia.** SEO + FUD + prueba de solidez en un movimiento.
+
+**Segmentación antes del pricing:** sección *"Who are you?"* → *"Three ways in"* (growing brand / enterprise / solo creator), cada uno con su propio precio y objeciones.
+
+### 11. Comparativa Genera vs Coevo
+
+| Dimensión | **Genera.Space** | **Coevo** |
+|---|---|---|
+| Fidelidad de prenda | **Pipeline propio: proyección + automasking + QA humano** | Prompt engineering (Consistencia) — ver `decisions-log.md` 2026-06 |
+| Modelos de generación | **Pesos propios en GPU alquilada** | Orquestación (Nano Banana / Kling vía Fal) |
+| **Video** | ❌ **prometido ago-2026, NO lanzó** | ✅ **Fashion Reel multi-shot, motion hints por toma, face anchor** |
+| **Voz / audio** | ❌ inexistente | ✅ **ElevenLabs, voice presets, clonado, lip-sync** |
+| Avatar/modelo | Casting book numerado, 54 IDs, personas reales escaneadas | Avatar Sheet + Consistencia (anchor, no face-lock) |
+| Batch | 5.000 SKUs/job, folder import con reporte | Ecommerce Pack (flujo listo, generación sin cablear) |
+| Progreso de jobs | **SSE** | Polling |
+| Pricing | Público, por SKU ($5–8), $29–199/mes | Interno, sin pricing |
+| Idioma / mercado | EN global, PR-driven, sin LATAM | **Español nativo, relación directa** |
+| QA | Automasking + Trusted Partner (humanos) | Curación manual |
+| Prueba social | Le Coq Sportif, ECCO, Zalando (vía Forbes) | Clara Ibarguren, PROMAN |
+
+### 12. Plan priorizado para Coevo
+
+#### 🔴 ALTA — robar ya, bajo esfuerzo
+1. **Cotizar por unidad de negocio, no por imagen.** "$X por ficha de producto = N fotos + 1 de marketing". Aplica directo al proyecto Clara. Es el mejor movimiento comercial del sitio.
+2. **Automasking propio.** Un paso que compara el output contra el packshot fuente y corrige la divergencia *antes* del QA humano. Es la respuesta real al problema de fidelidad, y es más barato que mejorar el generador. Ataca exactamente la limitación conocida de Consistencia.
+3. **Avatar como objeto persistente numerado**, no parámetro por generación. ID estable en el brand kit + protocolo de captura estandarizado. Es la versión madura del anchor del Lab.
+4. **Cast por referencias etiquetadas por propósito** ("boca de esta, nariz de aquella") en vez de prompt de texto, con N candidatos simultáneos tipo casting sheet. Aplicable a Avatar Sheet.
+
+#### 🟡 MEDIA — producto
+5. **Secuencia forzada Enhance → inspección → Upscale**, con costos distintos que enseñan el orden correcto vía pricing. Racional: *"upscaling multiplies whatever it is given — artefacts included."*
+6. **SSE en vez de polling** para progreso de generación.
+7. **Reporte de import por carpeta** (qué entró, qué falló, por qué) — la pieza que le falta a Ecommerce Batch.
+8. **Roadmap público con estados** (Live / Coming soon) — pero solo si se cumplen las fechas. Genera muestra el costo de no cumplirlas.
+
+#### ⚪ NO copiar
+- **La paleta.** Su azul dice "infraestructura"; el burgundy de Coevo dice "agencia/craft", coherente con vender output y no SaaS horizontal.
+- **Case studies inventados.** Le costó credibilidad verificable: los clientes reales (Le Coq Sportif, ECCO, Zalando) están en Forbes y no en su home, mientras el home tiene marcas fantasma.
+- **Competir de frente en stills on-model.** Foso de VFX + servicio humano que Coevo no tiene.
+
+### 13. Caveats
+
+1. **Funding: cero evidencia.** No es prueba de que no exista, pero Crunchbase y Dealroom bloquearon con 403. ⚠️ **Falso positivo a descartar:** "Genera Raises $10M Seed" (First Round, ago-2026) es **genera.sh, otra empresa** — deployment de software enterprise.
+2. **Huella de usuario independiente: nula.** Sin Product Hunt, sin G2, sin Capterra, sin Trustpilot, sin Reddit. Todo lo que se sabe del producto lo dicen ellos. Contrapeso: **blog semanal sin fallar los jueves**, último post 28-ago-2026 — eso no se finge.
+3. **Prensa PR-driven** (tienen Head of PR). Forbes ×3, Vogue Business ×2, Le Monde, Hypebeast — pero ausencia total de TechCrunch/Sifted (cobertura editorial ganada).
+4. **Jurisdicción opaca:** HQ "New York" en el PR, pero privacy policy GDPR/UK-first, PostHog EU, Hostkey EU, LinkedIn del founder en `pt.linkedin.com`, Omegarender registrada como LLP en Bradford UK, equipo con nombres ucranianos. `[I]` Evolox Inc es envoltura US para vender a marcas americanas.
+5. **No se pudo evaluar el fidelity visual real** de las muestras (WebFetch no renderiza imágenes). La inferencia de calidad es indirecta.
+6. **UI de la app no observable** — `app.generaspace.ai` es SPA cerrada tras login.
+
+### 14. Preguntas abiertas
+
+- ¿Qué modelo base usan? Cero evidencia en cualquier dirección, ni siquiera en su propio post comparativo.
+- ¿Cuántos créditos cuesta una generación base? No publicado.
+- ¿Sigue Keiron Birch (el ancla fashion) en la empresa?
+- ¿Por qué los clientes reales de Forbes no están en su propia home?
+- ¿Cuándo lanzan video? El roadmap lleva un mes vencido — **es la ventana de Coevo.**
+
+### 15. Fuentes
+
+[Home](https://generaspace.ai/) · [/pricing](https://generaspace.ai/pricing) · [/platform](https://generaspace.ai/platform) · [/why-genera](https://generaspace.ai/why-genera) · [/team](https://www.generaspace.ai/team) · [/security](https://generaspace.ai/security) ⭐ (subprocesadores) · [/blog/face-lab](https://www.generaspace.ai/blog/face-lab) · [/blog/ai-model-roster](https://www.generaspace.ai/blog/ai-model-roster) · [/blog/ai-image-enhancer](https://www.generaspace.ai/blog/ai-image-enhancer) · [/blog/fitting-photography-guidelines](https://www.generaspace.ai/blog/fitting-photography-guidelines) · [/blog/ai-fashion-photography-platforms-compared](https://www.generaspace.ai/blog/ai-fashion-photography-platforms-compared) · [Forbes abr-2026 (vía Yahoo)](https://malaysia.news.yahoo.com/genera-bets-replace-fashion-photoshoot-211110358.html) · [PRNewswire feb-2025](https://www.prnewswire.com/news-releases/genera-is-a-fashion-disruptor-revolutionizing-the-industrys-outdated-processes-with-innovative-ai-technology-302379714.html) · [FashionUnited](https://fashionunited.com/press/fashion/genera-is-a-fashion-disruptor-revolutionizing-the-industrys-outdated-processes-with-innovative-ai-technology/2025022064602) · [VivaTech — Kupriianenko](https://vivatech.com/speakers/6e62765c-9331-f011-8b3d-6045bd903b46) · [Omegarender](https://omegarender.com/company) · Artefactos: `/_astro/BaseLayout.DkajShaW.css`, `app.generaspace.ai/assets/index-tukvlXfL.js`, headers HTTP
+
+---
+
+## AI Fashion / Apparel Photography — Landscape completo (2026-09)
+
+- **Fecha de investigación:** 2026-09-01
+- **Método:** 3 streams paralelos, 100+ URLs, verificación en fuente primaria (sitios de producto, pricing pages, docs oficiales, HTTP status, certificados SSL, timestamps de build) + prensa de negocio. Marcado `[V]` verificado en fuente primaria / `[I]` inferido de terceros.
+- **Confianza:** ALTA en pricing, estado de vida/muerte e integraciones (verificado en vivo). MEDIA en funding (Crunchbase/PitchBook/Tracxn devolvieron 403 en varios casos). BAJA en claims de clientes autodeclarados.
+
+### TL;DR — las cinco conclusiones
+
+1. **El on-model AI puro no sostuvo una compañía independiente.** De los 8 players "AI-fashion-specific" originales, **5 murieron, pivotaron o fueron absorbidos** entre 2024 y 2026. Ningún blog "best of 2026" lo menciona porque ninguno visita los sitios que rankea.
+2. **Stills está commoditizado.** Piso real de mercado **$0.017–$1.50/imagen**. Photoroom vende on-model por API a **$0.10**. Competir por $/imagen es competir contra el costo marginal de Fal.
+3. **Los gigantes fallan todos en el mismo punto: personas y prendas.** Shopify (1MP + watermark), Google (excluye on-model explícitamente en su doc), Amazon (no renderiza manos ni personas de forma confiable). La barrera no es precio ni distribución — es que el calce es un problema técnico distinto.
+4. **Video de moda es el gap verificado.** Genera.Space **incumplió su fecha de agosto 2026** y sigue sin lanzar. Cero rondas de VC a players verticales de video de moda. Demanda probada (+30% conversión en PDP).
+5. **LATAM no está vacío — está mal cubierto.** Hay rivales locales reales (Delfi, Estudio Atlas, Fitit, Vitriny). Lo que no existe: **video de moda self-serve en español con workflow nativo LATAM.**
+
+### 1. El cementerio — quién murió o pivotó `[V]`
+
+| Player | Estado Sep 2026 | Evidencia dura |
+|---|---|---|
+| **ZMO.ai** | **MUERTO como marca fashion** → Creati.studio (video social) | 301 redirect; **cert SSL vencido desde 2026-02-19** |
+| **Deep Agency** | **CONGELADO desde feb 2024** | Build `1707801932` = 2024-02-13; `/pricing` es shell vacío de Nuxt |
+| **Lalaland.ai** | **ABSORBIDO** en Browzwear (jul 2025) | 301 → browzwear.com; sin path self-serve |
+| **Vue.ai / Mad Street Den** | **PIVOTÓ** a orquestación enterprise genérica | `/products/ai-model-imagery/` da **404**; logos hoy son banca y automotriz |
+| **BetterStudio** | **PIVOTÓ** a calzado/3D scans | footer con copyright "2025" |
+| **VModel.ai** | **PIVOTÓ** a API genérica (compite con Fal/Replicate) | `<title>Deploy and Run AI Models with an API</title>`; `/ai-clothes-changer/` da 404 |
+| **Pixelcut** | **REBRAND** → Pixa (2026-03-03), horizontal no-fashion | pricing sin ninguna feature fashion |
+| **Booth.ai** | **MUERTO** (may 2025) | dominio a la venta; YC W23, se quedó sin runway |
+| **Stylized.ai** | **MUERTO** | 307 → GoDaddy "forsale" |
+| **Photoshoot.ai** | **DUDOSO** | dominio raíz → app SPA vacía, sin landing ni pricing |
+
+**Lectura:** ZMO levantó **$8M de Hillhouse** y su fundadora se fue a video social. Lalaland levantó ~$2-3M y terminó dentro de un PLM. Vue.ai levantó **$57M** y hoy vende IA a bancos con 37 empleados. Es el patrón más consistente de toda la investigación.
+
+### 2. Los que están vivos — tabla maestra
+
+| Player | Especialización | $/imagen (derivado) | Video | API | Shopify | Funding `[I]` | Clientes `[V]` |
+|---|---|---|---|:--:|:--:|---|---|
+| **Photoroom** 🇫🇷 | Producto general **+ on-model API real** | **$0.10** (API Plus) | ✅ Max+ | ✅ +MCP | ✅ | **$64M tot., ~$500M val.**, ~$94M ARR | — |
+| **Flair.ai** 🇺🇸 | On-model + joyería, preserva patrones/logos | ~$0.25 | ✅ | ✅ Scale+ | — | — | **Shein, Bonobos, Samsonite, Amazon, JLo Beauty** |
+| **Genera.Space** | On-model fashion end-to-end (PDP/lookbook) | $0.30–0.39/créd.; $0.25–1.50 claim | ❌ **prometido ago-2026, NO lanzó** | ✅ Ent. | — | **NO verificado** (el "$10M seed" es de genera.sh, otra empresa) | "60+ marcas" **sin nombrar en su propio PR** |
+| **On-Model / PiktID** 🇦🇹 | Flat-to-model batch, 10.000 SKUs/job | no publicado | ❌ | ✅ SDKs | ❌ | — | **Zalando, Fruit of the Loom, Russell Athletic, Didriksons, KiK** |
+| **Veesual** 🇫🇷 | VTO + on-model on-site (multi-sizing) | demo-only | ✅ (VidCap) | — | — | **$7.5M seed** (AXA VP + Techstars) | **Eileen Fisher, Adore Me, Claudie Pierlot, La Redoute** |
+| **Caimera** 🇮🇳 | Sketch/flat-lay → on-model | $1.17 catálogo / $3.51 editorial | ✅ | ✅ | ✅ | $700K pre-seed | "20.000+ marcas" ⚠️ no creíble |
+| **Modelia** 🇪🇸 | On-model stills, pricing transparente | **$0.10–0.24** | ✅ | ✅ | ✅ | **€1.03M seed** (jun 2026, Next Tier) | **Desigual, AWWG, Fútbol Emotion** |
+| **Botika** | Flat-lay → on-model, Shopify-first | ~$0.05–0.09 | ✅ 5 créd. | — | ✅ | — | — |
+| **SellerPic** | Marketplace sellers, el más barato | **$0.017–0.073** | ✅ +lip-sync | ✅ | ⚠️ | — | — |
+| **Uwear.ai** | Enterprise PAYG, único con MCP | $0.10/créd. (`/model-rates` da 404) | ✅ | ✅ +MCP | — | — | — |
+| **WearView** | ⚠️ **probable SEO farm** con producto real | $0.40 HD / $1.00 4K | ✅ | Ent. | — | — | ⚠️ testimonios fabricados |
+| **Scayle Studios** (Zalando) | **Producción de catálogo + video 4K** | **€4-5/producto** | ✅ **4K nativo** | — | — | Zalando | About You (+9,2% GMV) |
+
+### 3. Horizontales y la amenaza de commoditización
+
+| Plataforma | Fondo/escena | Video | **On-model apparel** | Precio | Techo |
+|---|:--:|:--:|:--:|---|---|
+| **Shopify Magic** | ✅ | ❌ | ❌ | Gratis *("for a limited time")* | **1MP + watermark invisible, 1 escena por vez** `[V]` |
+| **Google Product Studio** | ✅ | ✅ *(LATAM excluido)* | ❌ **explícito en su doc** | **Gratis** | no soporta manos ni personas |
+| **Amazon Creative Studio** | ✅ | ✅ 6-15s | ❌ falla con personas | **Gratis** | cuero que parece vinilo `[I]` |
+| **Meta Advantage+** | ✅ | ✅ | 🟡 VTO en test | Incluido en ads | ad creative, no catálogo |
+| **Higgsfield** | ✅ | ✅✅ **líder video** | ❌ sin fidelidad de prenda | $19–99/mes | **$700M ARR, $5.4B val.** |
+| **Freepik → Magnific** 🇪🇸 | ✅ | ✅ ~50% del revenue | ❌ | $9–250/mes | **$230M ARR, bootstrapped, oficina en Colombia** |
+
+**Veredicto:** la capa de *fondo y escena de producto* está commoditizada a **$0** — ese negocio ya no existe standalone (es lo que mató a Booth y Stylized). Pero los cuatro gigantes fallan en el mismo punto exacto: **personas y prendas**. Google incluso *genera demanda* de on-model: para ser elegible en Virtual Try-On, el retailer **debe subir imágenes on-model de alta resolución ya hechas**. Google consume on-model, no lo produce.
+
+**Riesgo a vigilar:** el "for a limited time" de Shopify y que Google ya regale video indican que la frontera sube.
+
+### 4. Respuestas a las preguntas
+
+**A) Precio de mercado y guerra de precios.** Rango **$0.017 → $4.50/imagen**, dos órdenes de magnitud. No es guerra de precios: es **segmentación** (marketplace sellers vs. editorial de marca). El benchmark a batir es **Photoroom a $0.10 vía API**. Referencia tradicional `[V]`: **$130–830 por outfit**, ~$46/imagen en volumen, shoot mid-tier de un día = **$12.700**. El multiplicador oculto: el costo efectivo termina siendo **2-3x el presupuestado**.
+
+**B) ¿Quién gana?** **No hay líder claro en fashion puro** — y esa es la noticia. Por balance mandan los horizontales (Higgsfield $5.4B, Photoroom $500M, Magnific $230M ARR), ninguno especializado en calce. Los dos sobrevivientes creíbles del vertical ganaron por vías opuestas: **Veesual** vende conversión on-site (no imágenes) y **On-Model/PiktID** vende infraestructura batch por API. Ninguno compite por $/imagen.
+
+**C) Qué está commoditizado y qué sigue difícil.** Commoditizado: fondos, escenas, upscaling, remoción de fondo — gratis en Shopify/Google/Amazon. **Sigue difícil y sigue siendo EL problema duro: la fidelidad de la prenda.** Falla documentada en patrones finos, texto y logos, drape de tela, y texturas que salen plásticas. Es la razón por la que Magnific, con $230M ARR y rentable, **eligió no construirlo** — un bootstrapped no deja plata en la mesa por descuido.
+
+**D) ¿Video de moda? Espacio vacío — confirmado.** Genera.Space prometió video para **agosto 2026 y no lanzó** (su página seguía diciendo "coming soon" en septiembre). Botika lo trata como add-on a 5x el costo de una foto (techo ~200 videos/año en el plan de $100). **Cero rondas de VC a players verticales de video de moda** — todo el capital fue a stills y try-on. El único "video-first" (V4b.AI) opera como agencia con turnaround de 2-3 días. Los únicos con video de verdad integrado son Zalando/Scayle (solo EN/DE) y dos startups argentinas. Demanda probada: **+30% conversión en PDP, +94% con autoplay <30s, +225% add-to-cart**. Los modelos base (Kling, Veo 3.1, Seedance vía Fal) ya están disponibles y baratos.
+
+**E) ¿LATAM/español? Hueco de posicionamiento, no geográfico.**
+- **Delfi** 🇦🇷 (2024, 38 empleados) — el rival más directo: video + **Falabella, Ripley, Paula Cahen D'Anvers**, opera en 7 países. Modelo pesado: concierge con envío de prendas físicas.
+- **Estudio Atlas** 🇦🇷 — self-serve, video UGC, **integrado a Tiendanube**, 250+ marcas pagas, levantando US$400K pre-seed.
+- **Fitit** 🇺🇾 — bootstrapped, +1M usuarios, **Adidas, Crocs, Nike**; cambia ropa sobre modelos reales.
+- **Vitriny / 1001 Clicks** 🇧🇷 — **R$ 3,68-4,78/imagen**, solo stills.
+- **Modelia** 🇪🇸 — Desigual/AWWG, solo stills.
+- Los globales con español (WearView, PromeAI) son **traducciones de UI, no productos localizados**. Solo FashionPro.ai tiene optimización real para Mercado Libre.
+- Precedente validado: **Rokon** se construyó nativo en árabe/RTL para MENA. Nadie hizo eso para español a nivel de *workflow*.
+
+**F) ¿Shopify/Amazon nativo?** Sí, y es gratis — pero **acotado a producto, no a on-model apparel**. Shopify: 1MP, una escena por vez, marca de agua invisible, sin video, y el "gratis" es explícitamente temporal. Google: gratis y con video, pero **excluye on-model en su documentación** y deja a LATAM fuera del video. Amazon: gratis pero no renderiza personas confiablemente. **Riesgo de commoditización para stills de producto: ALTO y ya consumado. Para on-model con calce: BAJO hoy.**
+
+### 5. Lecturas para Coevo
+
+1. **No competir por $/imagen en stills.** El piso lo fija el costo marginal de Fal. Cualquiera revende Nano Banana a $0.02.
+2. **El gap defendible es la intersección video × español × calce.** Ninguno de los ~25 players analizados cubre los tres. Es exactamente donde apunta el stack existente: anchor de consistencia, multi-foto por prenda (`ClothingItem.images[]`), Fashion Reel multi-shot con face anchor.
+3. **La fidelidad de prenda sigue siendo el foso.** Es lo que Google no hace, lo que Magnific decidió no construir, y lo que hace que Amazon convierta 8-15% peor. La limitación conocida de Consistencia (prompt engineering, no face-lock real — ver `decisions-log.md` 2026-06) es el punto exacto donde se define si hay producto o no.
+4. **Vender resultado, no herramienta.** Veesual vende conversión, On-Model vende throughput por API. Los que venden "imágenes lindas" murieron.
+5. **Benchmarking honesto:** usar solo **Veesual, On-Model, Caimera, Modelia y Scayle**. Descartar WearView (testimonios fabricados, logos de Amazon/SHEIN que son marketplaces de sus usuarios) y Caimera en volumen ("20.000+ marcas" con $700K levantados).
+6. **Riesgo principal a monitorear: Scayle Studios.** Video 4K a €4-5/producto con respaldo Zalando y 80.000 outfits en 30 días. Hoy solo EN/DE. **Si localiza a español, cambia el tablero.**
+
+### Fuentes contaminadas — no usar
+
+Los "best of" que dominan la búsqueda están escritos por los propios competidores: `wearview.co/blog/*` (se rankea a sí mismo, testimonios falsos), `uwear.ai/blog/best-ai-fashion-generators`, `blendnow.com`, `metamodels.ai`, `aiorastudio.com`, más agregadores de afiliados (`nightjar.so`, `futurepedia.io`, `morphed.app`). **Los tres siguen listando Deep Agency, ZMO.ai y Lalaland como opciones vivas en artículos fechados 2026.**
+
+Fuentes limpias usadas: sitios de producto y pricing pages (primaria), help.shopify.com, support.google.com/merchants, TechCrunch, WWD/Sourcing Journal, Forbes, Fortune, PRNewswire, FashionUnited, Silicon Canals, BoF, Sacra, Balderton, AVP, EU-Startups, La Nación, iProUP, El Observador, Cancillería Argentina.

@@ -11,6 +11,8 @@ import {
 } from "../lib/api";
 import { imagesUsd, formatCost } from "../lib/pricing";
 import { claimFor } from "../lib/costLedger";
+import { saveGeneration } from "../lib/api";
+import { EditOverlay } from "../components/workspace/EditOverlay";
 import type { CostSummary } from "../lib/costLedger";
 import { uploadCampaignPieces } from "../lib/api";
 import { cn } from "../lib/utils";
@@ -59,14 +61,15 @@ export function CampaignDetailPage() {
   // y recién ahí se genera. Antes handleGenerate armaba UN prompt genérico y lo
   // repetía por formato — el brief que escribías no entraba en ningún lado.
   const [plan, setPlan] = useState<CampaignPlan | null>(null);
-  const [planning, setPlanning] = useState(false);
-  const [planError, setPlanError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [regenId, setRegenId] = useState<string | null>(null);
   const [versionsOf, setVersionsOf] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [lightbox, setLightbox] = useState<string | null>(null);
+  /** Pieza abierta en el editor. El panel trae el brush de máscara, así que
+   *  desde acá se puede corregir una zona puntual sin redibujar todo. */
+  const [editing, setEditing] = useState<CampaignPiece | null>(null);
 
   const load = useCallback(async () => {
     if (!campaignId) return;
@@ -164,18 +167,32 @@ export function CampaignDetailPage() {
     return refs.slice(0, 8);
   }, [activeBrand, campaign]);
 
-  const handlePlan = async () => {
-    if (!campaign || planning) return;
-    setPlanning(true);
-    setPlanError(null);
+  /**
+   * Arma el plan de tomas a partir del brief. Antes era un paso MANUAL con su
+   * propio botón y su propia tarjeta en el panel; era ruido — nadie pidió revisar
+   * un plan antes de generar. Ahora corre solo dentro de `handleGenerate`.
+   *
+   * Qué hace: convierte el brief en tomas concretas para que cada pieza salga
+   * distinta. Sin esto, la generación repetía UN prompt genérico por formato y
+   * todas las piezas salían iguales.
+   *
+   * Devuelve el plan o `null` — fail-open: si falla, se generan variantes del
+   * prompt base, que es como funcionaba antes de que existiera el plan.
+   */
+  const buildPlan = async (): Promise<CampaignPlan | null> => {
+    if (!campaign) return null;
+    const brief = (campaign.brief || "").trim();
+    // Con un brief de dos letras, Gemini recibe ruido e inventa cualquier cosa.
+    if (brief.length < 12) return null;
     try {
-      setPlan(await planCampaign(campaign.brandId, campaign.brief || ""));
-    } catch (e) {
-      setPlanError(e instanceof Error ? e.message : "No se pudo armar el plan");
-    } finally {
-      setPlanning(false);
+      const p = await planCampaign(campaign.brandId, brief);
+      setPlan(p);
+      return p;
+    } catch {
+      return null;
     }
   };
+
 
   const handleGenerate = async () => {
     if (!activeBrand || !campaign || generating) return;
@@ -209,8 +226,11 @@ export function CampaignDetailPage() {
     // Una pieza por (toma del plan × formato). Cada toma trae SU prompt, así que
     // las piezas salen distintas entre sí. Sin plan se cae al prompt genérico de
     // antes, repetido por variante — que es como funcionaba hasta ahora.
-    const shots = plan?.shots?.length
-      ? plan.shots
+    // El plan se arma acá, no en un paso manual aparte. Si el brief es muy corto
+    // o Gemini falla, `buildPlan` devuelve null y se cae a variantes del prompt base.
+    const activePlan = plan ?? await buildPlan();
+    const shots = activePlan?.shots?.length
+      ? activePlan.shots
       : Array.from({ length: campaign.variationsPerShot }, (_, i) => ({
           id: `var_${i}`, label: `Variante ${i + 1}`, why: "", framing: "", prompt: "",
         }));
@@ -250,6 +270,25 @@ export function CampaignDetailPage() {
       const updated = await updateCampaign(campaign.id, { pieces: [...campaign.pieces, ...fresh], status: "review", cost: merged });
       setCampaign(updated);
     } catch { /* si falla el patch, al menos mostramos lo generado en memoria */ setCampaign((c) => c ? { ...c, pieces: [...c.pieces, ...fresh], status: "review" } : c); }
+
+    // Las piezas también se indexan como generations con `campaignId`, para que
+    // aparezcan en la biblioteca (Contenido). Ver docs/campaigns.md.
+    for (const pc of fresh) {
+      if (!pc.url) continue;
+      try {
+        await saveGeneration({
+          brandId: campaign.brandId,
+          campaignId: campaign.id,
+          toolId: "campaign",
+          title: pc.label || campaign.name,
+          type: pc.type === "video" ? "video" : "image",
+          status: "completed",
+          thumbnailUrl: pc.url,
+          outputUrl: pc.url,
+          metadata: { prompt: pc.prompt, aspectRatio: pc.aspectRatio, campaignName: campaign.name },
+        });
+      } catch { /* la pieza ya está en la campaña */ }
+    }
     setGenerating(false);
   };
 
@@ -277,23 +316,41 @@ export function CampaignDetailPage() {
   if (lf) assigned.push({ kind: "Look & Feel", name: lf.name, thumb: lf.imageUrl ? lookAndFeelImageUrl(lf.imageUrl) : undefined });
 
   return (
-    <div className="max-w-5xl mx-auto p-6 md:p-8">
-      <button onClick={() => navigate("/dashboard/campaigns")} className="flex items-center gap-1.5 text-[12px] text-fg-faint hover:text-fg mb-4 cursor-pointer"><ArrowLeft size={14} /> Campañas</button>
+    /* Mismo layout que el Lab y Crear campaña: header a todo el ancho, y debajo
+       panel de 420px + canvas. Antes era un `max-w-5xl` centrado con todo apilado
+       verticalmente — se leía como otra app. */
+    <div className="h-full flex flex-col overflow-hidden">
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-6">
-        <div>
-          <h1 className="font-display text-[26px] font-semibold tracking-tight">{campaign.name}</h1>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", st.cls)}>{st.label}</span>
-            <span className="text-[11px] text-fg-faint">{activeBrand?.name}</span>
-          </div>
+      <header className="border-b border-edge px-5 py-3 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate("/dashboard/campaigns")}
+                  title="Volver a Campañas"
+                  className="w-7 h-7 rounded-md bg-[var(--color-action-subtle)] flex items-center justify-center cursor-pointer hover:bg-[var(--color-surface-2)] transition-colors">
+            <ArrowLeft size={14} className="text-[var(--color-action)]" />
+          </button>
+          <h1 className="text-[14px] font-semibold text-fg leading-none">{campaign.name}</h1>
+          <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", st.cls)}>{st.label}</span>
         </div>
-        <button onClick={handleDelete} className="flex items-center gap-1.5 px-3 h-9 rounded-full border border-edge text-[12px] text-fg-muted hover:text-red-400 hover:border-red-400/40 cursor-pointer"><Trash2 size={13} /> Borrar</button>
-      </div>
+        <div className="flex items-center gap-3 text-[11px] text-fg-muted">
+          <span className="uppercase tracking-[.09em]">{activeBrand?.name}</span>
+          <button onClick={handleDelete} title="Borrar campaña"
+                  className="w-7 h-7 flex items-center justify-center rounded-md text-fg-faint hover:text-red-400 hover:bg-[var(--color-surface-2)] transition-colors cursor-pointer">
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </header>
 
-      {/* Setup — strip compacto: chips + assets asignados en una fila */}
-      <div className="rounded-[var(--radius-md)] border border-edge bg-surface-0 p-4 mb-6">
+      <div className="flex-1 flex overflow-hidden">
+
+      {/* ── PANEL: setup + plan + acciones ─────────────────────────── */}
+      <aside className="w-[420px] shrink-0 flex flex-col h-full border-r border-edge bg-[var(--color-surface-0)]">
+        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+
+      {/* Setup — mismo lenguaje que el Lab: cada asset es una FILA que se puede
+           tocar, no un thumb de 64px solo para mirar. Antes era una tira de
+           miniaturas decorativas: veías qué había asignado pero no podías
+           cambiarlo sin volver a crear la campaña. */}
+      <div className="rounded-[var(--radius-md)] border border-[var(--color-edge-subtle)] bg-[var(--color-surface-0)] p-4 mb-6">
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <Chip label="Shot list" value={campaign.shotPlan === "ai" ? "IA decide" : "Estilos"} />
           <Chip label="Variantes" value={String(campaign.variationsPerShot)} />
@@ -301,162 +358,108 @@ export function CampaignDetailPage() {
           <Chip label="Resolución" value={campaign.resolution} />
         </div>
         {assigned.length === 0 ? (
-          <p className="text-[11px] text-fg-faint">Sin assets asignados. <button onClick={() => navigate("/dashboard/campaigns/new")} className="text-[var(--color-brand)] cursor-pointer">Creá otra con assets</button> o generá solo desde el brand context.</p>
+          <p className="text-[11px] text-fg-faint">
+            Sin assets asignados.{" "}
+            <button onClick={() => navigate("/dashboard/campaigns/new")} className="underline underline-offset-2 hover:text-fg cursor-pointer">
+              Creá otra con assets
+            </button>{" "}
+            o generá solo desde el brand context.
+          </p>
         ) : (
-          <div className="flex flex-wrap gap-2.5">
+          <div className="grid sm:grid-cols-2 gap-1">
             {assigned.map((a, i) => (
-              <div key={i} className="flex flex-col items-center gap-1 w-16">
-                <div className="w-16 h-16 rounded-[var(--radius-sm)] overflow-hidden border border-edge bg-surface-2">
-                  {a.thumb && <img src={a.thumb} alt={a.name} className="w-full h-full object-cover" />}
+              <div
+                key={i}
+                className="flex items-center gap-2.5 px-2.5 h-11 rounded-[var(--radius-sm)] bg-[var(--color-surface-1)]"
+              >
+                <div className="w-7 h-7 rounded overflow-hidden bg-[var(--color-surface-2)] shrink-0">
+                  {a.thumb && <img src={a.thumb} alt="" className="w-full h-full object-cover" />}
                 </div>
-                <div className="text-center leading-tight">
-                  <span className="block text-[8px] uppercase tracking-wide text-[var(--color-brand)] font-semibold">{a.kind}</span>
-                  <span className="block text-[9px] text-fg-faint truncate max-w-[64px]">{a.name}</span>
-                </div>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[12px] font-medium leading-tight truncate">{a.name}</span>
+                  <span className="block text-[11px] text-fg-faint leading-tight">{a.kind}</span>
+                </span>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* ── El plan de tomas ──────────────────────────────────────────────
-          El brief se escribía y no se usaba: la generación armaba UN prompt
-          genérico y lo repetía por formato. Acá el brief se convierte en tomas
-          concretas, se revisan, y recién ahí se gasta. */}
-      <div className="rounded-[var(--radius-md)] border border-edge bg-surface-1 p-4">
-        <div className="flex items-start justify-between gap-4 mb-1">
-          <div className="min-w-0">
-            <h3 className="text-[13px] font-semibold text-fg">Plan de tomas</h3>
-            <p className="text-[11px] text-fg-faint mt-0.5">
-              {plan ? `${plan.shots.length} tomas · revisalas antes de generar` : "Qué se va a generar, a partir de tu pedido"}
-            </p>
-          </div>
-          <button
-            onClick={handlePlan}
-            disabled={planning || generating}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg hover:bg-surface-2 transition-colors cursor-pointer disabled:opacity-50"
-          >
-            {planning
-              ? <><Loader2 size={12} className="animate-spin" /> Armando…</>
-              : <><Sparkles size={12} /> {plan ? "Rehacer plan" : "Armar plan"}</>}
-          </button>
         </div>
 
-        {planError && <p className="text-[11.5px] text-[var(--color-danger,#e06c5a)] mt-2">{planError}</p>}
-
-        {!plan && !planning && !planError && (
-          <p className="text-[11.5px] text-fg-muted mt-2">
-            {campaign.brief
-              ? <>Tu pedido: <span className="text-fg">“{campaign.brief.slice(0, 130)}{campaign.brief.length > 130 ? "…" : ""}”</span></>
-              : "Esta campaña no tiene brief. El plan va a proponer un set estándar con los assets elegidos."}
-          </p>
-        )}
-
-        {plan && (
-          <div className="mt-3 flex flex-col gap-3">
-            {plan.degraded && (
-              <p className="text-[11px] text-[var(--color-warning,#d9a94a)]">
-                No se pudo interpretar el pedido — este es un plan mínimo, revisalo bien.
-              </p>
-            )}
-            <p className="text-[12px] text-fg-secondary">{plan.interpretation}</p>
-
-            <div className="flex flex-col divide-y divide-[var(--color-edge-subtle)] border-y border-[var(--color-edge-subtle)]">
-              {plan.shots.map((sh, i) => (
-                <div key={sh.id} className="flex items-baseline gap-3 py-2">
-                  <span className="text-[10px] font-mono text-fg-faint shrink-0 w-4 tabular-nums">{i + 1}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="text-[12.5px] font-medium text-fg">{sh.label}</span>
-                      {sh.framing && <span className="text-[9px] uppercase tracking-wide text-fg-faint">{sh.framing.replace(/_/g, " ")}</span>}
-                    </div>
-                    {sh.why && <p className="text-[11px] text-fg-muted leading-snug mt-0.5">{sh.why}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {plan.assumptions.length > 0 && (
-              <div>
-                <div className="text-[9.5px] uppercase tracking-wider text-fg-faint mb-1">Asumimos</div>
-                <ul className="flex flex-col gap-1">
-                  {plan.assumptions.map((a, i) => (
-                    <li key={i} className="text-[11px] text-fg-muted leading-snug">· {a}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <p className="text-[11px] text-fg-faint">
-              Van a salir <strong className="text-fg-muted">{plan.shots.length * campaign.aspectRatios.length}</strong> piezas
-              ({plan.shots.length} tomas × {campaign.aspectRatios.length} formato{campaign.aspectRatios.length > 1 ? "s" : ""}).
+        {/* Footer del panel: el botón principal, siempre visible. */}
+        <div className="px-5 pt-3 pb-4 border-t border-[var(--color-edge-subtle)]">
+          {uploadError && (
+            <p className="mb-2 flex items-center gap-1.5 text-[11.5px] text-[var(--color-error)]">
+              <AlertCircle size={12} /> {uploadError}
             </p>
-          </div>
-        )}
-      </div>
-
-      {uploadError && (
-        <div className="mb-3 flex items-center gap-2 text-[12.5px] text-[var(--color-error)]">
-          <AlertCircle size={13} /> {uploadError}
-        </div>
-      )}
-
-      {/* Piezas */}
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[16px] font-bold">Piezas {pieces.length > 0 && <span className="text-fg-faint font-normal text-[13px]">· {pieces.length}</span>}</h3>
-        <div className="flex items-center gap-2.5">
-          {!generating && (() => {
-            const count = Math.min(campaign.aspectRatios.length * campaign.variationsPerShot, MAX_PIECES_PER_RUN);
-            const cost = formatCost(imagesUsd(count));
-            return <span className="text-[11px] text-fg-faint" title="Estimado — precios ajustables en pricing.ts">{count} img · {cost.label}</span>;
-          })()}
+          )}
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="flex items-center gap-1.5 px-4 h-9 rounded-full bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-[12px] font-semibold hover:opacity-90 disabled:opacity-60 cursor-pointer"
+            className="w-full h-11 rounded-[var(--radius-sm)] text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:cursor-not-allowed"
+            style={generating
+              ? { background: "var(--color-surface-2)", color: "var(--color-fg-faint)" }
+              : { background: "var(--color-action)", color: "var(--color-action-fg)" }}
           >
-            {generating ? <><Loader2 size={13} className="animate-spin" /> Generando {progress.done}/{progress.total}</> : <><Sparkles size={13} /> {pieces.length > 0 ? "Generar más" : "Generar piezas"}</>}
+            {generating
+              ? <><Loader2 size={13} className="animate-spin" /> {progress.done}/{progress.total}</>
+              : <><Sparkles size={13} /> {pieces.length > 0 ? "Generar más" : "Generar piezas"}</>}
           </button>
-          {/* El generador de campaña hace imágenes sueltas. Para un reel, un catálogo o
-              un UGC hay que ir a la tool. El link estaba sólo en este comentario: desde
-              una campaña no había NINGUNA forma de saltar a una tool. */}
+          {!generating && (() => {
+            const count = Math.min(campaign.aspectRatios.length * campaign.variationsPerShot, MAX_PIECES_PER_RUN);
+            const cost = formatCost(imagesUsd(count));
+            return (
+              <div className="text-[10.5px] text-center mt-2 text-fg-muted" title="Estimado — precios en pricing.ts">
+                {count} img · {cost.label} por intento
+              </div>
+            );
+          })()}
+
+          {/* Acciones secundarias — el generador de campaña hace imágenes sueltas;
+              para un reel, un catálogo o un UGC hay que ir a la tool. */}
+          <div className="flex items-center gap-1.5 mt-3">
           <Link
             to={`/dashboard/generate?campaign=${campaign.id}`}
             title="Usar una tool (reel, UGC, catálogo) para esta campaña"
-            className="flex items-center gap-1.5 px-3.5 h-9 rounded-full border border-edge text-[12px] text-fg-secondary hover:text-fg cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-[var(--radius-sm)] border border-edge text-[11.5px] text-fg-secondary hover:text-fg hover:bg-[var(--color-surface-1)] transition-colors cursor-pointer"
           >
-            <Wand2 size={13} /> Usar una tool
+            <Wand2 size={12} /> Usar una tool
           </Link>
-
           <label
             title="Subir un video o una imagen hecha fuera de Coevo"
-            className="flex items-center gap-1.5 px-3.5 h-9 rounded-full border border-edge text-[12px] text-fg-secondary hover:text-fg cursor-pointer"
+            className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-[var(--radius-sm)] border border-edge text-[11.5px] text-fg-secondary hover:text-fg hover:bg-[var(--color-surface-1)] transition-colors cursor-pointer"
           >
-            <input
-              type="file"
-              multiple
-              accept="video/*,image/*"
-              className="hidden"
-              onChange={(e) => { handleUpload(e.target.files); e.target.value = ""; }}
-            />
-            {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-            {uploading ? "Subiendo…" : "Subir material"}
+            <input type="file" multiple accept="video/*,image/*" className="hidden"
+                   onChange={(e) => { handleUpload(e.target.files); e.target.value = ""; }} />
+            {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+            {uploading ? "Subiendo…" : "Subir"}
           </label>
-          <button
-            onClick={() => navigate(`/dashboard/generate?ask=${encodeURIComponent(campaign.brief || campaign.name)}&campaign=${campaign.id}`)}
-            title="Arrancar este pedido con una tool del Studio"
-            className="flex items-center gap-1.5 px-3.5 h-9 rounded-full border border-edge text-[12px] text-fg-secondary hover:text-fg cursor-pointer"
-          >
-            Abrir en una tool
-          </button>
+          </div>
         </div>
-      </div>
+      </aside>
+
+      {/* ── CANVAS: las piezas ─────────────────────────────────────── */}
+      <main
+        className="flex-1 overflow-y-auto p-6"
+        style={{ background: "radial-gradient(ellipse 50% 30% at 50% 0%, var(--color-surface-0), var(--color-canvas) 80%)" }}
+      >
+        <div className="flex items-baseline justify-between mb-4">
+          <span className="text-[11px] uppercase tracking-[.12em] text-fg-muted">
+            {pieces.length} {pieces.length === 1 ? "pieza" : "piezas"}
+          </span>
+          {generating && (
+            <span className="text-[11px] tabular-nums text-fg-faint">generando {progress.done}/{progress.total}</span>
+          )}
+        </div>
 
       {pieces.length === 0 && !generating ? (
-        <div className="border border-dashed border-edge rounded-[var(--radius-md)] p-10 text-center">
-          <ImageIcon size={26} className="mx-auto text-fg-faint mb-2" />
-          <p className="text-[13px] text-fg-muted">Todavía no hay piezas.</p>
-          <p className="text-[11px] text-fg-faint mt-1">Tocá <strong>Generar piezas</strong> — usa el producto + moodboard + formatos de la campaña. El checkpoint (aprobar → video + voz) llega en la próxima.</p>
+        <div className="h-full flex items-center justify-center">
+          <div className="text-center max-w-[300px]">
+            <ImageIcon size={24} className="mx-auto text-fg-faint mb-2" />
+            <p className="text-[13px] text-fg-muted">Todavía no hay piezas.</p>
+            <p className="text-[11px] text-fg-faint mt-1 leading-relaxed">Tocá <strong>Generar piezas</strong> — usa el producto, el moodboard y los formatos de la campaña.</p>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -500,12 +503,21 @@ export function CampaignDetailPage() {
                       onClick={(e) => { e.stopPropagation(); regeneratePiece(pc); }}
                       disabled={!!regenId}
                       title="Regenerar — la actual queda en el historial"
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:opacity-40"
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-black/70 hover:bg-black/90 text-white flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity cursor-pointer disabled:opacity-40"
                     >
                       {regenId === pc.id ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />}
                     </button>
                   )}
-                  <a href={pieceUrl(pc.url)} download onClick={(e) => e.stopPropagation()} className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" title="Descargar"><Download size={12} /></a>
+                  {pc.type !== "video" && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditing(pc); }}
+                      title="Editar — incluye pintar una zona puntual"
+                      className="absolute bottom-1.5 left-1.5 h-6 px-2.5 rounded-md bg-black/70 hover:bg-black/90 text-white text-[10px] font-medium flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      Editar
+                    </button>
+                  )}
+                  <a href={pieceUrl(pc.url)} download onClick={(e) => e.stopPropagation()} className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-md bg-black/70 hover:bg-black/90 text-white flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity" title="Descargar"><Download size={12} /></a>
                 </>
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-[var(--color-error)] gap-1"><AlertCircle size={16} /><span className="text-[9px]">falló</span></div>
@@ -550,6 +562,27 @@ export function CampaignDetailPage() {
         );
       })()}
 
+      </main>
+      </div>
+
+      {/* Editor de pieza — pantalla completa, con el brush de máscara. */}
+      {editing && (
+        <EditOverlay
+          imageUrl={pieceUrl(editing.url)}
+          aspectRatio={editing.aspectRatio}
+          resolution={campaign.resolution}
+          title={editing.label || campaign.name}
+          onImageUpdated={(url) => {
+            const next = campaign.pieces.map((x) => (x.id === editing.id ? { ...x, url } : x));
+            setCampaign((c) => (c ? { ...c, pieces: next } : c));
+            updateCampaign(campaign.id, { pieces: next }).catch(() => { /* la UI ya está al día */ });
+            setEditing(null);
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {/* Lightbox — fixed, va FUERA de las columnas para cubrir toda la pantalla. */}
       {lightbox && (
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-8 cursor-zoom-out" onClick={() => setLightbox(null)}>
           {pieces.find((p) => p.url === lightbox)?.type === "video" ? (

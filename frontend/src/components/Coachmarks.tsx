@@ -91,7 +91,7 @@ export function Coachmarks({ steps, storageKey, force, onDone }: {
         style={{ top, left }}
       >
         <div className="flex items-start justify-between gap-2">
-          <h3 className="font-display text-[16px] font-semibold text-fg leading-tight">{step.title}</h3>
+          <h3 className="font-display text-[16px] font-normal text-fg leading-tight">{step.title}</h3>
           <button onClick={finish} title="Saltar" className="text-fg-faint hover:text-fg cursor-pointer shrink-0"><X size={15} /></button>
         </div>
         <p className="text-[12px] text-fg-muted leading-snug mt-1.5">{step.body}</p>

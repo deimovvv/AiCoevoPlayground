@@ -73,3 +73,7 @@ videoref/
 backend/data/backups/
 backend/data/campaign_uploads/
 *.bak
+
+# Backups de migración de datos — pesados, locales, no van al repo
+backend/data/*.pre-*-migration
+backend/data/*.bak

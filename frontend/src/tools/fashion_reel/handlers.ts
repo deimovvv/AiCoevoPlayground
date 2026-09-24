@@ -749,7 +749,17 @@ export const handleAnimate: StepHandler = async (ctx) => {
   const baseStep = getStepResult("base_image") as { entryFrameUrl?: string } | undefined;
   const entryFrameUrl = (cfg.entryHook as boolean) === true ? baseStep?.entryFrameUrl : undefined;
 
-  const animatedResults: Array<{ sceneId: string; title: string; videoUrl: string; imageUrl: string; mode?: string; motionPrompt?: string }> = [];
+  const animatedResults: Array<{
+    sceneId: string; title: string; videoUrl: string; imageUrl: string;
+    mode?: string; motionPrompt?: string;
+    /** Id de la corrida en Fal. Se guarda SIEMPRE, incluso si la escena falla:
+     *  es lo único que permite recuperar un video que Fal generó pero que no
+     *  llegó a guardarse. */
+    requestId?: string;
+    /** Por qué falló, si falló. Antes el catch vacío dejaba la escena en blanco
+     *  sin ninguna explicación. */
+    error?: string;
+  }> = [];
 
   // Contador por shotId — la Nº ocurrencia de cada plano elige una variante de motion
   // distinta, así dos clips del mismo plano (ej. dos "general") NO salen con el idéntico
@@ -813,6 +823,9 @@ export const handleAnimate: StepHandler = async (ctx) => {
         ? `Fashion model: ${frame.note}.${userDirection} Smooth, natural, confident movement. Vertical 9:16.`
         : `Fashion model subtle natural movement — slight sway, confident pose, hair movement.${userDirection} Vertical 9:16.`) + intensityClause + brandMotionClause;
 
+    // Fuera del try: el catch necesita leerlo para no perder la referencia a la
+    // corrida cuando algo falla después de haberla lanzado.
+    let requestId = "";
     try {
       let videoUrl = "";
       let clipMode = "single";
@@ -847,6 +860,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
           referenceImageUrls: refs,
           duration: clipDuration,
         });
+        requestId = job.request_id;
         const result = job.video_url
           ? { status: "completed", video_url: job.video_url }
           : await pollSeedanceVideo(job.request_id);
@@ -864,6 +878,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
           duration: clipDuration,
           model: klingModel,
         });
+        requestId = job.request_id;
         const result = await pollKlingVideo(job.request_id);
         videoUrl = result.video_url || "";
         clipMode = "f2f";
@@ -871,12 +886,19 @@ export const handleAnimate: StepHandler = async (ctx) => {
         // Single-frame — antes hardcodeaba "5" e ignoraba el selector de duración.
         // Ahora respeta clipDuration (3–10s en V3 Pro). Reportado: "pongo 3 y sale 5".
         const job = await createKlingVideo(frame.imageUrl, motionPrompt, clipDuration, klingModel);
+        requestId = job.request_id;
         const result = await pollKlingVideo(job.request_id);
         videoUrl = result.video_url || "";
       }
-      animatedResults.push({ sceneId: frame.sceneId, title: frame.title, videoUrl, imageUrl: frame.imageUrl, mode: clipMode, motionPrompt: usedPrompt });
-    } catch {
-      animatedResults.push({ sceneId: frame.sceneId, title: frame.title, videoUrl: "", imageUrl: frame.imageUrl, mode: "single", motionPrompt });
+      animatedResults.push({ sceneId: frame.sceneId, title: frame.title, videoUrl, imageUrl: frame.imageUrl, mode: clipMode, motionPrompt: usedPrompt, requestId });
+    } catch (e) {
+      // El catch vacío de antes perdía DOS cosas: por qué falló (la escena quedaba
+      // en blanco sin explicación) y el `requestId` — así que si Fal SÍ generó el
+      // video pero el guardado falló, no había forma de recuperarlo. Ahora ambos
+      // viajan en el resultado.
+      const error = e instanceof Error ? e.message : "No se pudo animar";
+      console.error(`[fashion_reel] escena "${frame.title}" falló:`, e);
+      animatedResults.push({ sceneId: frame.sceneId, title: frame.title, videoUrl: "", imageUrl: frame.imageUrl, mode: "single", motionPrompt, requestId, error });
     }
   }
 

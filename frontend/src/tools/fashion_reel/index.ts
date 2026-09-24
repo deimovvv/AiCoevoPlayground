@@ -99,18 +99,20 @@ export const fashionReel: ToolDefinition = {
     clothingSublabel: "multi-select",
     showBackground: true,
     backgroundSublabel: "opcional · si vacío, se infiere",
-    showMoodboard: true,
-    showReference: true,
+    showMoodboard: false,  // apagado 2026-09-23: lo define la receta
+    showReference: false,  // apagado 2026-09-23: lo define la receta
     showVoice: false,
     showSubtitles: false,
     showTone: false,
     showPlatform: false,
     showLanguage: false,
     showVariations: false,
-    showStyleRef: true,
+    showStyleRef: false,  // apagado 2026-09-23: lo define la receta
     showAnimationEngine: true,
-    objectiveLabel: "Direction / Mood",
-    objectivePlaceholder: "Describe the mood, movement style, or creative direction. E.g., 'confident editorial walk', 'playful summer energy', 'dark moody fashion'...",
+    // "Dirección del guion", no "mood": esto alimenta el SCRIPT (creative_direction),
+    // mientras que el look visual lo maneja el campo Look & feel (styleRef).
+    objectiveLabel: "Dirección del guion",
+    objectivePlaceholder: "Qué pasa en el reel: ritmo, actitud, progresión. Ej: 'arranca quieta y va ganando confianza', 'energía de verano, movimiento suelto'. El look visual se define abajo en Look & feel.",
     showNotes: false,
   },
   stepHandlers: {

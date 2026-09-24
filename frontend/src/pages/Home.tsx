@@ -1,184 +1,378 @@
 import { useNavigate } from "react-router";
-import { ArrowRight, Sparkles, Play } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 /**
- * Home — landing / showcase.
- * ──────────────────────────
- * Look comercial: muro de OUTPUTS reales (no texto). Para sumar/cambiar piezas,
- * dropeá el archivo en `public/previews/` y editá SHOWCASE / TOOL_CARDS abajo.
- * Los `.mp4` autoplay muteados en loop; las imágenes van estáticas. `badge` es opcional.
+ * Home — landing pública.
+ * ───────────────────────
+ * Lenguaje: screen UI sobre negro (ref. flora.ai). Las reglas del sistema:
+ *
+ *   1. Lo que se muestra es el PRODUCTO, no fotos de campaña. Paneles, atajos
+ *      de teclado, estados de job, contadores. Vendemos software.
+ *   2. La UI de las secciones está construida en HTML, no son screenshots:
+ *      queda nítida en cualquier pantalla y se puede animar.
+ *   3. Gris frío. NADA cálido — el burgundy del dashboard no entra acá.
+ *   4. El rosa (#ff5f8f) es señal funcional: activo, nuevo, en curso. Nunca
+ *      decorativo, nunca de fondo.
+ *   5. Todo en movimiento: marquee, grilla que cicla, contadores, blink.
+ *
+ * Para cambiar las piezas de la grilla: dropeá el archivo en `public/hero/`
+ * y editá TILES.
  */
 
-const HERO_MEDIA = { src: "/previews/agnatesttt.mp4", type: "video" as const };
+/* ── Tokens locales — la landing NO hereda los del dashboard ─────────────── */
+const INK = "#0b0b0c";       // fondo
+const PANEL = "#141416";     // superficie
+const LINE = "#232327";      // bordes
+const DIM = "#6e6e78";       // texto secundario
+const SIGNAL = "#ff5f8f";    // rosa: sólo señal funcional
 
-// Grilla de piezas destacadas — mezclá vertical/horizontal. Editá acá para sumar más.
-const SHOWCASE: Array<{ src: string; type: "video" | "image"; label: string; span?: string }> = [
-  { src: "/previews/eccomerce.png", type: "image", label: "Ecommerce Pack" },
-  { src: "/previews/ugccreator.mp4", type: "video", label: "UGC Creator" },
-  { src: "/previews/videoadcreator.mp4", type: "video", label: "Video Ad" },
-  { src: "/previews/staticad.png", type: "image", label: "Static Ad" },
-  { src: "/previews/avatar.png", type: "image", label: "Avatar Sheet" },
+/**
+ * Piezas del archivo.
+ *   `r`    — aspect-ratio real de la imagen. En las tiras el alto es fijo, así que
+ *            este ratio define el ancho: una 16:9 ocupa casi el doble que una 4:5.
+ *   `wide` — en la grilla de Output, ocupa 2 columnas.
+ *
+ * Antes TODAS se metían en un contenedor 4/5 con object-cover y las horizontales
+ * perdían ~70% de la composición (la foto reclinada quedaba irreconocible).
+ */
+type Tile = { src: string; r: string; wide?: boolean };
+
+const TILES: Tile[] = [
+  // Registro FLASH — flash directo, film 35mm, color saturado, actitud 90s/Y2K.
+  // Reemplaza al set anterior (fondo hueso, luz suave, poses quietas), que leía
+  // demasiado quieto y elegante para lo que la herramienta tiene que transmitir.
+  { src: "/hero/flash-portrait.webp", r: "4/5" },
+  { src: "/hero/flash-black-slip.webp", r: "4/5" },
+  { src: "/hero/flash-leather-red.webp", r: "4/5" },
+  { src: "/hero/flash-blue-track.webp", r: "4/5" },
+  { src: "/hero/flash-silver-coat.webp", r: "4/5" },
+  { src: "/hero/flash-red-sky.webp", r: "4/5" },
+  // Horizontales — ocupan el doble de ancho
+  { src: "/hero/flash-two-wall.webp", r: "16/9", wide: true },
+  // Del set editorial anterior: se quedan las que aguantan al lado del flash
+  // (producto y composición ancha, donde el registro pesa menos).
+  { src: "/hero/product-table.webp", r: "16/9", wide: true },
+  { src: "/hero/standing-pair.webp", r: "16/9", wide: true },
+  { src: "/hero/boots-pair.webp", r: "4/5" },
 ];
 
-// Tool cards con preview + tagline + badge opcional. Placeholder-friendly: si no hay
-// media todavía, se cae a un gradiente con la inicial.
-const TOOL_CARDS: Array<{ id: string; name: string; tagline: string; src?: string; type?: "video" | "image"; badge?: string; gradient: string }> = [
-  { id: "fashion_reel", name: "Fashion Reel", tagline: "Reels editoriales de moda sin guion", src: "/previews/agnatesttt.mp4", type: "video", badge: "Nuevo", gradient: "from-fuchsia-500/30 to-orange-500/25" },
-  { id: "ecommerce_pack", name: "Ecommerce Pack", tagline: "Prenda sobre modelo + vistas, en estudio", src: "/previews/eccomerce.png", type: "image", badge: "Popular", gradient: "from-amber-500/25 to-rose-500/20" },
-  { id: "ugc_creator", name: "UGC Creator", tagline: "Avatars hablando a cámara, listos para publicar", src: "/previews/ugccreator.mp4", type: "video", gradient: "from-violet-500/30 to-pink-500/20" },
-  { id: "video_ad_creator", name: "Video Ad Creator", tagline: "Video ads con storyboard generado por IA", src: "/previews/videoadcreator.mp4", type: "video", gradient: "from-sky-500/25 to-indigo-500/25" },
-  { id: "content_analyzer", name: "Content Analyzer", tagline: "Analizá un video y adaptalo a tu marca", badge: "Nuevo", gradient: "from-emerald-500/25 to-teal-500/20" },
-  { id: "static_ad", name: "Static Ad", tagline: "40 templates de creativos estáticos", src: "/previews/staticad.png", type: "image", gradient: "from-orange-500/25 to-red-500/20" },
+
+/** Orden intercalado para las tiras: evita que las 4 anchas queden juntas. */
+const STRIP: Tile[] = [
+  TILES[0], TILES[6], TILES[1], TILES[2], TILES[7], TILES[3],
+  TILES[4], TILES[8], TILES[5], TILES[9],
 ];
 
-function Media({ src, type, className }: { src?: string; type?: "video" | "image"; className?: string }) {
-  if (!src) return null;
-  if (type === "video") {
-    return <video src={src} className={className} autoPlay muted loop playsInline preload="metadata" />;
-  }
-  return <img src={src} alt="" className={className} loading="lazy" />;
+const STAGES = [
+  {
+    n: "01", title: "Brief", kicker: "El contexto de marca, una sola vez",
+    body: "Assets, tono, reglas visuales y voces cargados por marca. Cada tool los hereda sin volver a configurarlos.",
+  },
+  {
+    n: "02", title: "Generate", kicker: "Diecisiete pipelines, no un prompt",
+    body: "Cada tool sabe qué pedir: tomas, poses, encuadres y continuidad de identidad entre cuadros.",
+  },
+  {
+    n: "03", title: "Scale", kicker: "De un look a un catálogo",
+    body: "Lote de prendas por lote de poses. Foto, video y voz en la misma corrida.",
+  },
+];
+
+const INDEX = [
+  { n: "01", name: "Ecommerce Pack", desc: "Prenda sobre modelo, vistas y fondos", tag: "Popular" },
+  { n: "02", name: "Fashion Reel", desc: "Reel multi-toma desde un look", tag: "Nuevo" },
+  { n: "03", name: "UGC Creator", desc: "Avatar a cámara, voz clonada" },
+  { n: "04", name: "Video Ad Creator", desc: "Storyboard de diez cuadros a video" },
+  { n: "05", name: "Fashion Editorial", desc: "Variantes con receta de look" },
+  { n: "06", name: "Avatar Sheet", desc: "Identidad consistente entre tomas" },
+  { n: "07", name: "Product Sheet", desc: "Vistas desde una a cuatro fotos" },
+  { n: "08", name: "Carousel Creator", desc: "Consistencia entre slides" },
+];
+
+/** Contador que sube cuando la sección entra en viewport. */
+function Counter({ to, suffix = "" }: { to: number; suffix?: string }) {
+  const [n, setN] = useState(0);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // prefers-reduced-motion: mostrar el número final sin animar.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setN(to); return; }
+    const io = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) return;
+      io.disconnect();
+      const t0 = performance.now();
+      const tick = (t: number) => {
+        const p = Math.min(1, (t - t0) / 900);
+        setN(Math.round(to * (1 - Math.pow(1 - p, 3))));
+        if (p < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }, { threshold: 0.4 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [to]);
+  return <span ref={ref} className="tabular-nums">{n.toLocaleString("es-AR")}{suffix}</span>;
 }
 
 export function Home() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-[var(--color-canvas)] text-fg overflow-x-hidden">
-      {/* Ambient glow */}
-      <div
-        className="pointer-events-none fixed inset-0 -z-10 opacity-70"
-        style={{ background: "radial-gradient(60% 45% at 50% 0%, rgba(196,88,48,0.18), transparent 70%), radial-gradient(40% 30% at 85% 20%, rgba(120,90,255,0.12), transparent 70%)" }}
-      />
+    <div style={{ background: INK }} className="min-h-screen text-white overflow-x-hidden">
+      <style>{`
+        @keyframes marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+        @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+        .mq { animation: marquee 48s linear infinite; }
+        .mq-rev { animation: marquee 62s linear infinite reverse; }
+        .blink { animation: blink 1.6s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .mq, .mq-rev, .blink { animation: none !important; }
+        }
+      `}</style>
 
-      {/* Nav */}
-      <nav className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 h-16 border-b border-edge/60 backdrop-blur-md bg-[var(--color-canvas)]/70">
+      {/* ── Nav ──────────────────────────────────────────────────────────── */}
+      <nav
+        className="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-5 md:px-7 h-12 text-[12px] backdrop-blur-xl"
+        style={{ background: "rgba(11,11,12,.82)", borderBottom: `1px solid ${LINE}` }}
+      >
         <div className="flex items-center gap-2.5">
-          <img src="/ISO-COEVO-BLANCO.png" alt="Coevo" className="h-6 w-auto" />
-          <span className="text-[14px] font-semibold tracking-tight">Coevo Studio</span>
+          <img src="/ISO-COEVO-BLANCO.png" alt="" className="h-[15px] w-auto" />
+          <span className="font-medium tracking-tight">Coevo Studio</span>
+          <span className="hidden sm:inline-flex items-center gap-1.5 ml-2 px-1.5 py-0.5 rounded text-[10px] tracking-[0.08em] uppercase"
+                style={{ border: `1px solid ${LINE}`, color: DIM }}>
+            <i className="blink w-1 h-1 rounded-full inline-block" style={{ background: SIGNAL }} />
+            v2
+          </span>
+        </div>
+        <div className="hidden md:flex items-center gap-7" style={{ color: DIM }}>
+          <a href="#how" className="hover:text-white transition-colors">Cómo funciona</a>
+          <a href="#index" className="hover:text-white transition-colors">Tools</a>
+          <a href="#work" className="hover:text-white transition-colors">Output</a>
         </div>
         <button
           onClick={() => navigate("/dashboard")}
-          className="flex items-center gap-1.5 px-4 h-9 rounded-full bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+          className="px-3 h-7 rounded-md text-[12px] font-medium text-black bg-white hover:opacity-85 transition-opacity cursor-pointer"
         >
-          Abrir Dashboard <ArrowRight size={14} />
+          Entrar
         </button>
       </nav>
 
-      {/* Hero */}
-      <section className="max-w-6xl mx-auto px-6 md:px-10 pt-16 md:pt-24 pb-12 grid md:grid-cols-[1.1fr_0.9fr] gap-10 md:gap-14 items-center">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-edge bg-surface-1/60 text-[11px] font-medium text-fg-muted mb-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-brand)] animate-pulse" />
-            AI CONTENT FACTORY
+      {/* ── Hero — tipografía chica + dos marquees en direcciones opuestas ─── */}
+      <header className="pt-24 md:pt-28 pb-16 md:pb-20">
+        <div className="px-5 md:px-7">
+          <div className="flex items-center gap-2 text-[11px] tracking-[0.1em] uppercase" style={{ color: DIM }}>
+            <i className="blink w-1.5 h-1.5 rounded-full inline-block" style={{ background: SIGNAL }} />
+            Fashion content infrastructure
           </div>
-          <h1 className="font-display text-[44px] md:text-[68px] leading-[1.0] font-semibold tracking-[-0.01em]">
-            Del brief al video
-            <br />
-            <span className="text-[var(--color-brand)] italic">listo para publicar</span>
+          <h1 className="mt-5 text-[30px] md:text-[46px] leading-[1.05] tracking-[-0.035em] font-medium max-w-[18ch]">
+            Infraestructura de contenido<br className="hidden md:block" /> para marcas de moda.
           </h1>
-          <p className="mt-6 text-[15px] md:text-[17px] text-fg-muted leading-relaxed max-w-lg">
-            La IA escribe el guion, genera las imágenes, clona la voz y renderiza el corte final.
-            Multi-marca, multi-tool, en minutos.
+          <p className="mt-5 text-[13px] md:text-[14px] leading-relaxed max-w-[48ch]" style={{ color: DIM }}>
+            Diecisiete pipelines de producción con el contexto de cada marca adentro.
+            Catálogo, campaña y video —desde las fotos que la marca ya tiene.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-7 flex flex-wrap items-center gap-3">
             <button
               onClick={() => navigate("/dashboard")}
-              className="flex items-center gap-2 px-6 h-12 rounded-full bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-[14px] font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-[0_8px_30px_-8px_var(--color-brand)]"
+              className="px-4 h-9 rounded-md text-[13px] font-medium text-black bg-white hover:opacity-85 transition-opacity cursor-pointer"
             >
-              Empezar a crear <ArrowRight size={16} />
+              Empezar
             </button>
             <button
               onClick={() => navigate("/dashboard/generate")}
-              className="flex items-center gap-2 px-6 h-12 rounded-full border border-edge bg-surface-1/50 text-[14px] font-semibold text-fg hover:border-[var(--color-brand)] transition-colors cursor-pointer"
+              className="px-4 h-9 rounded-md text-[13px] hover:border-white/40 transition-colors cursor-pointer"
+              style={{ border: `1px solid ${LINE}`, color: DIM }}
             >
-              Explorar tools <Sparkles size={14} />
+              Ver las tools
             </button>
           </div>
         </div>
 
-        {/* Hero media — pieza real destacada (9:16) */}
-        <div className="relative mx-auto w-full max-w-[300px]">
-          <div className="absolute -inset-4 rounded-[32px] bg-[var(--color-brand)]/20 blur-3xl -z-10" />
-          <div className="relative aspect-[9/16] rounded-[24px] overflow-hidden border border-edge shadow-2xl bg-surface-1">
-            <Media src={HERO_MEDIA.src} type={HERO_MEDIA.type} className="w-full h-full object-cover" />
-            <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-sm text-white text-[10px] font-medium">
-              <Play size={10} className="fill-white" /> Fashion Reel
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Showcase — muro de outputs reales */}
-      <section className="max-w-6xl mx-auto px-6 md:px-10 py-10">
-        <div className="flex items-baseline justify-between mb-5">
-          <h2 className="font-display text-[22px] md:text-[28px] font-semibold tracking-tight">Hecho con Coevo</h2>
-          <span className="text-[12px] text-fg-faint">Piezas reales generadas por la plataforma</span>
-        </div>
-        <div className="columns-2 md:columns-3 gap-3 [column-fill:_balance]">
-          {SHOWCASE.map((item) => (
-            <div key={item.src} className="group relative mb-3 break-inside-avoid rounded-[16px] overflow-hidden border border-edge bg-surface-1">
-              <Media src={item.src} type={item.type} className="w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <span className="absolute bottom-2.5 left-2.5 text-white text-[11px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity">{item.label}</span>
+        {/* Dos tiras infinitas cruzadas. El duplicado de TILES es lo que hace el
+            loop continuo: la animación corre hasta -50% y reinicia sin salto. */}
+        <div className="mt-14 md:mt-16 space-y-2 overflow-hidden">
+          {([["mq", STRIP], ["mq-rev", [...STRIP].reverse()]] as const).map(([cls, list], row) => (
+            <div key={row} className="flex w-max gap-2">
+              <div className={`${cls} flex gap-2 shrink-0`}>
+                {[...list, ...list].map((t, i) => (
+                  <div
+                    key={t.src + i}
+                    /* Alto fijo por fila; el ancho lo define el aspect-ratio de cada
+                       pieza, así una 16:9 ocupa naturalmente más que una 4:5. */
+                    className="relative h-[160px] md:h-[215px] shrink-0 overflow-hidden rounded"
+                    style={{ aspectRatio: t.r, background: PANEL, border: `1px solid ${LINE}` }}
+                  >
+                    <img src={t.src} alt="" loading="lazy" className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
-      </section>
 
-      {/* Tools */}
-      <section className="max-w-6xl mx-auto px-6 md:px-10 py-12">
-        <h2 className="font-display text-[22px] md:text-[28px] font-semibold tracking-tight mb-5">Las tools</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {TOOL_CARDS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => navigate("/dashboard/generate")}
-              className="group text-left rounded-[18px] border border-edge bg-surface-0 overflow-hidden hover:border-[var(--color-brand)] transition-colors cursor-pointer"
+        {/* Barra de métricas — lee a panel de sistema, no a landing. */}
+        <div
+          className="mt-10 md:mt-12 mx-5 md:mx-7 grid grid-cols-2 md:grid-cols-4 text-[12px]"
+          style={{ border: `1px solid ${LINE}`, borderRadius: 8, background: PANEL }}
+        >
+          {[
+            ["Tools activas", <Counter key="a" to={17} />],
+            ["Piezas generadas", <Counter key="b" to={4281} />],
+            ["Marcas", <Counter key="c" to={13} />],
+            ["Modelos conectados", <Counter key="d" to={9} />],
+          ].map(([label, val], i) => (
+            <div key={i} className="px-4 py-3.5" style={{ borderLeft: i ? `1px solid ${LINE}` : undefined }}>
+              <div className="text-[18px] md:text-[21px] font-medium tracking-tight">{val}</div>
+              <div className="mt-0.5 text-[11px]" style={{ color: DIM }}>{label}</div>
+            </div>
+          ))}
+        </div>
+      </header>
+
+      {/* ── Cómo funciona — 01/02/03 con UI real construida en HTML ────────── */}
+      <section id="how" className="px-5 md:px-7 py-20 md:py-28 scroll-mt-12">
+        <div className="grid md:grid-cols-3 gap-2">
+          {STAGES.map((s, i) => (
+            <article
+              key={s.n}
+              className="relative overflow-hidden rounded-lg p-5 md:p-6 flex flex-col"
+              style={{ background: PANEL, border: `1px solid ${LINE}`, minHeight: 420 }}
             >
-              <div className="relative aspect-[16/10] overflow-hidden bg-surface-2">
-                {t.src ? (
-                  <Media src={t.src} type={t.type} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.05]" />
-                ) : (
-                  <div className={`w-full h-full bg-gradient-to-br ${t.gradient} flex items-center justify-center`}>
-                    <span className="text-[40px] font-bold text-white/70">{t.name[0]}</span>
+              <div className="flex items-baseline gap-2.5">
+                <span className="text-[26px] md:text-[30px] font-medium tracking-tight" style={{ color: "#3a3a42" }}>{s.n}</span>
+                <span className="text-[26px] md:text-[30px] font-medium tracking-tight">{s.title}</span>
+              </div>
+
+              {/* Mock de UI por etapa — HTML, no screenshot */}
+              <div className="mt-5 flex-1 rounded-md overflow-hidden" style={{ background: INK, border: `1px solid ${LINE}` }}>
+                {i === 0 && (
+                  <div className="p-3 text-[11px]">
+                    <div className="pb-2 mb-2 text-[10px] tracking-[0.08em] uppercase" style={{ color: DIM, borderBottom: `1px solid ${LINE}` }}>Brand kit</div>
+                    {[["Avatars", "6"], ["Productos", "24"], ["Prendas", "18"], ["Voces", "3"], ["Look & Feel", "5"]].map(([k, v]) => (
+                      <div key={k} className="flex items-center justify-between py-[7px]">
+                        <span>{k}</span><span style={{ color: DIM }}>{v}</span>
+                      </div>
+                    ))}
+                    <div className="mt-2 pt-2 flex items-center gap-1.5 text-[10px]" style={{ borderTop: `1px solid ${LINE}`, color: SIGNAL }}>
+                      <i className="blink w-1 h-1 rounded-full inline-block" style={{ background: SIGNAL }} /> Heredado por 17 tools
+                    </div>
                   </div>
                 )}
-                {t.badge && (
-                  <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-[9px] font-bold uppercase tracking-wide">{t.badge}</span>
+                {i === 1 && (
+                  <div className="p-3 text-[11px]">
+                    <div className="pb-2 mb-2.5 text-[10px] tracking-[0.08em] uppercase" style={{ color: DIM, borderBottom: `1px solid ${LINE}` }}>Shot list</div>
+                    {[["Plano general", "✓"], ["Medio", "✓"], ["Detalle", "···"], ["Espalda", ""]].map(([k, st], j) => (
+                      <div key={k} className="flex items-center justify-between py-[7px] px-1.5 rounded"
+                           style={{ background: j === 2 ? "rgba(255,95,143,.07)" : undefined }}>
+                        <span style={{ color: j === 3 ? DIM : undefined }}>{k}</span>
+                        <span style={{ color: j === 2 ? SIGNAL : DIM }}>{st}</span>
+                      </div>
+                    ))}
+                    <div className="mt-3 grid grid-cols-3 gap-1">
+                      {TILES.slice(0, 3).map((t) => (
+                        <img key={t.src} src={t.src} alt="" loading="lazy" className="w-full aspect-[4/5] object-cover rounded-sm" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {i === 2 && (
+                  <div className="p-3 text-[11px]">
+                    <div className="flex items-center justify-between pb-2 mb-2.5 text-[10px] tracking-[0.08em] uppercase" style={{ color: DIM, borderBottom: `1px solid ${LINE}` }}>
+                      <span>Batch</span><span style={{ color: SIGNAL }}>en curso</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1">
+                      {TILES.filter((t) => !t.wide).slice(0, 8).map((t, j) => (
+                        <div key={t.src} className="relative rounded-sm overflow-hidden" style={{ border: j === 5 ? `1px solid ${SIGNAL}` : `1px solid ${LINE}` }}>
+                          <img src={t.src} alt="" loading="lazy" className="w-full aspect-[4/5] object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 h-[3px] rounded-full overflow-hidden" style={{ background: LINE }}>
+                      <div className="h-full rounded-full" style={{ width: "62%", background: SIGNAL }} />
+                    </div>
+                    <div className="mt-1.5 flex justify-between text-[10px]" style={{ color: DIM }}>
+                      <span>62 / 100</span><span>~4 min</span>
+                    </div>
+                  </div>
                 )}
               </div>
-              <div className="p-3.5">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-[14px] font-semibold">{t.name}</h3>
-                  <ArrowRight size={14} className="text-fg-faint group-hover:text-[var(--color-brand)] group-hover:translate-x-0.5 transition-all" />
-                </div>
-                <p className="text-[12px] text-fg-muted leading-snug mt-1">{t.tagline}</p>
-              </div>
-            </button>
+
+              <h3 className="mt-5 text-[14px] font-medium">{s.kicker}</h3>
+              <p className="mt-1.5 text-[12.5px] leading-relaxed" style={{ color: DIM }}>{s.body}</p>
+            </article>
           ))}
         </div>
       </section>
 
-      {/* CTA final */}
-      <section className="max-w-6xl mx-auto px-6 md:px-10 py-16">
-        <div className="relative rounded-[28px] border border-edge overflow-hidden p-10 md:p-16 text-center bg-surface-1">
-          <div className="pointer-events-none absolute inset-0 opacity-60" style={{ background: "radial-gradient(50% 60% at 50% 0%, rgba(196,88,48,0.22), transparent 70%)" }} />
-          <h2 className="font-display relative text-[28px] md:text-[42px] font-semibold tracking-tight">Tu próxima campaña, en minutos</h2>
-          <p className="relative mt-3 text-[15px] text-fg-muted max-w-md mx-auto">Elegí una marca, elegí una tool, y dejá que la IA haga el resto.</p>
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="relative mt-7 inline-flex items-center gap-2 px-7 h-12 rounded-full bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-[14px] font-semibold hover:opacity-90 transition-opacity cursor-pointer"
-          >
-            Abrir Dashboard <ArrowRight size={16} />
-          </button>
+      {/* ── Index de tools — tabla, con señal en las nuevas ─────────────────── */}
+      <section id="index" className="px-5 md:px-7 pb-20 md:pb-28 scroll-mt-12">
+        <div className="flex items-baseline justify-between pb-3 text-[11px] tracking-[0.08em] uppercase"
+             style={{ color: DIM, borderBottom: `1px solid ${LINE}` }}>
+          <span>Tools</span><span>{INDEX.length} de 17</span>
+        </div>
+        <ul>
+          {INDEX.map((t) => (
+            <li key={t.n}>
+              <button
+                onClick={() => navigate("/dashboard/generate")}
+                className="w-full text-left grid grid-cols-[2rem_1fr_auto] md:grid-cols-[3rem_13rem_1fr_auto] items-center gap-x-3 py-3 hover:bg-white/[0.035] transition-colors cursor-pointer group"
+                style={{ borderBottom: `1px solid ${LINE}` }}
+              >
+                <span className="text-[11px] tabular-nums" style={{ color: "#3a3a42" }}>{t.n}</span>
+                <span className="text-[13px] md:text-[13.5px]">{t.name}</span>
+                <span className="hidden md:block text-[12px]" style={{ color: DIM }}>{t.desc}</span>
+                <span className="text-[10px] tracking-[0.06em] uppercase px-1.5 py-0.5 rounded"
+                      style={t.tag ? { color: SIGNAL, border: `1px solid ${SIGNAL}33` } : { color: "transparent" }}>
+                  {t.tag || "—"}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* ── Output — grilla densa a sangre ─────────────────────────────────── */}
+      <section id="work" className="scroll-mt-12">
+        <div className="px-5 md:px-7 pb-3 flex items-baseline justify-between text-[11px] tracking-[0.08em] uppercase" style={{ color: DIM }}>
+          <span>Output</span><span>Piezas generadas con la plataforma</span>
+        </div>
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-px" style={{ background: LINE }}>
+          {TILES.map((t) => (
+            <div
+              key={t.src}
+              className={`relative overflow-hidden group ${t.wide ? "col-span-2" : ""}`}
+              style={{ background: INK }}
+            >
+              <img src={t.src} alt="" loading="lazy"
+                   style={{ aspectRatio: t.r }}
+                   className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-300" />
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-edge/60 py-8 px-6 md:px-10 flex items-center justify-center gap-2 text-[12px] text-fg-faint">
-        <span>Coevo Studio</span>
-        <span>·</span>
-        <span>AI Content Platform</span>
+      {/* ── Footer ─────────────────────────────────────────────────────────── */}
+      <footer className="px-5 md:px-7 pt-14 pb-8 mt-20" style={{ borderTop: `1px solid ${LINE}` }}>
+        <div className="grid md:grid-cols-[1fr_auto] gap-8 items-end">
+          <div className="max-w-[34rem]">
+            <p className="text-[13px] leading-relaxed" style={{ color: DIM }}>
+              Coevo Studio es la plataforma que usamos para producir el contenido de
+              nuestras marcas. Construida dentro de una agencia de moda, para el
+              trabajo que la agencia hace todos los días.
+            </p>
+            <button
+              onClick={() => navigate("/dashboard")}
+              className="mt-6 text-[13px] underline underline-offset-4 hover:opacity-70 transition-opacity cursor-pointer"
+              style={{ textDecorationColor: DIM }}
+            >
+              Abrir la plataforma
+            </button>
+          </div>
+          <div className="flex gap-7 text-[11px] tracking-[0.08em] uppercase" style={{ color: "#3a3a42" }}>
+            <span>Buenos Aires</span><span>© 2026</span>
+          </div>
+        </div>
       </footer>
     </div>
   );
