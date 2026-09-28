@@ -115,12 +115,16 @@ export function SelectorPanel({
  * activa, así se ve de dónde salió el panel abierto.
  */
 export function SelectorTrigger({
-    label, value, thumb, active, onClick, icon,
+    label, value, thumb, thumbs, active, onClick, icon,
 }: {
     label: string;
     /** Resumen de lo elegido. Si está vacío, se muestra "Elegir". */
     value?: string;
     thumb?: string;
+    /** Varias miniaturas apiladas, para campos multi-select (hasta 3 visibles).
+     *  Viene de Campañas, que lo había resuelto en un componente propio: con una
+     *  sola thumb no se ve que elegiste 4 prendas. Tiene prioridad sobre `thumb`. */
+    thumbs?: string[];
     active?: boolean;
     onClick: () => void;
     icon?: React.ReactNode;
@@ -135,7 +139,18 @@ export function SelectorTrigger({
                     : "bg-[var(--color-surface-1)] border-[var(--color-edge)] hover:border-[var(--color-edge-strong)]",
             )}
         >
-            {thumb ? (
+            {thumbs && thumbs.length > 0 ? (
+                <span className="flex -space-x-1.5 shrink-0">
+                    {thumbs.slice(0, 3).map((t, i) => (
+                        <img
+                            key={i}
+                            src={t}
+                            alt=""
+                            className="w-7 h-7 rounded object-cover ring-1 ring-[var(--color-surface-0)] bg-[var(--color-surface-2)]"
+                        />
+                    ))}
+                </span>
+            ) : thumb ? (
                 <img src={thumb} alt="" className="w-7 h-7 rounded object-cover shrink-0" />
             ) : icon ? (
                 <span className="w-7 h-7 flex items-center justify-center text-fg-muted shrink-0">{icon}</span>

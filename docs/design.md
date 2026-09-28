@@ -1,6 +1,8 @@
 # Coevo Creative OS — Design System
 
-The platform uses a dark, editorial design language centered on precision and density. The UI prioritizes clarity and workflow speed, with a sophisticated neutral palette accented by warm burgundy tones.
+The platform uses a dark, editorial design language centered on precision and density. The UI prioritizes clarity and workflow speed, with a cold neutral palette and pink `#ff5f8f` as a FUNCTIONAL SIGNAL.
+
+> ⚠️ **Actualizado 2026-09-20.** El acento era burgundy `#C45830` (cálido). Se cambió a rosa frío para unificar con la landing pública, que leía como otro producto. El rosa marca ÚNICAMENTE estado —lo activo, lo nuevo, lo que está en curso, el focus— nunca como fondo de bloque ni relleno de CTA primario (eso es `--color-action` off-white). El nombre de la variable `--color-brand` se mantuvo para no tocar 200+ usos. Fuente de verdad: `frontend/src/index.css`.
 
 ---
 

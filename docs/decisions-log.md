@@ -7,6 +7,43 @@ Cada entrada tiene fecha, contexto, decisión tomada, alternativas descartadas y
 
 ---
 
+## 2026-09-25 — Fashion Editorial no es una tool: se convierte en preset de Campañas
+
+**Decisión del usuario:** *"campañas y Fashion Editorial no tienen mucho sentido, es lo
+mismo: campañas generan imágenes y Fashion Editorial también. No es un pipeline, hay que
+sacarlo porque ese pipeline justamente es el de Campañas."*
+
+**Verificado en el código** (`frontend/src/tools/fashion_editorial/index.ts`):
+```ts
+stepHandlers: { generate_all: handleGenerate },
+approvalSteps: [],
+autoRunSteps: [],
+```
+Un solo paso, cero aprobaciones. Por el criterio de `workspace-template.md` §8 —*"una
+tool se justifica si tiene un pipeline con pasos que el operador aprueba; si es 'llenar
+campos y generar', es una Campaña con otra receta"*— **no pasa**.
+
+**Matiz que vale registrar:** Campañas tampoco es una tool — es un CONTENEDOR
+(`Campaign.pieces[]`), no genera nada por sí misma. No es que sean lo mismo: están en
+capas distintas y ninguna de las dos es una tool en el sentido del criterio.
+
+| | Qué es | Genera |
+|---|---|---|
+| Fashion Editorial | receta de prompt disfrazada de tool | sí, en un paso |
+| Campañas | contenedor de piezas con brief común | no |
+
+**Lo que NO se puede perder al sacarlo:** los 12 `clause` ya escritos y probados —
+4 de encuadre (full_body, three_quarter, portrait, detail), 5 de luz (dramatic, soft,
+high_key, golden, flash) y 3+ de vibe (magazine, street, studio). Son el activo real de
+la tool; el resto es andamiaje. Migran como preset de Campañas.
+
+**Estado:** decidido, NO ejecutado. Se hace junto con la auditoría de las 17 tools contra
+el mismo criterio — mover de a una repetiría la discusión 16 veces.
+
+**Jerarquía a la que se apunta:**
+- **Campañas** = imágenes, con recetas (editorial, ecommerce, lifestyle)
+- **Fashion Reel** = video, con recetas (giro, secuencia, detalle — ver `fashion-reel-recipes.md`)
+
 ## 2026-09 — Workspace de 3 columnas, sistema visual unificado y assets del sistema
 
 **Contexto.** El dashboard y la landing se veían como dos productos distintos, la navegación

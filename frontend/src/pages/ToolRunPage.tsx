@@ -68,6 +68,7 @@ import { ImageEditPanel } from "../components/ImageEditPanel";
 import { SelectorPanel } from "../components/workspace/SelectorPanel";
 import { RecipeGrid, RecipeStrip } from "../components/workspace/RecipeGrid";
 import { MOTION_RECIPES, recipeCostUsd, type MotionRecipe } from "../tools/fashion_reel/recipes";
+import type { KlingModel } from "../lib/api";
 import { ToolHelpButton } from "../components/ToolHelp";
 import { SHOT_CATALOG, STUDIO_STYLES, POSE_PRESETS, ENHANCE_TEXTURE_PROMPT } from "../tools/ecommerce_pack";
 import { AVATAR_VIEWS } from "../tools/avatar_creator";
@@ -6244,6 +6245,11 @@ function ConfigPanel({
           {schema.showProduct && (
             <div className="space-y-2">
               <AssetSelector
+                {...(USE_SIDE_SELECTOR.has(tool.id) ? {
+                  externalOpen: assetSelector?.key === "product",
+                  onOpenExternal: () => setAssetSelector((cur) =>
+                    (cur?.key === "product" ? null : { key: "product", label: schema.productLabel || "Producto", node: null })),
+                } : {})}
                 collapsible
                 defaultCollapsed={tool.id === "video_ad_creator" || (activeBrand.products || []).length > 8}
                 label={schema.productLabel || "Product"}
@@ -11828,7 +11834,9 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
     if (isFashionReelClips) {
       const clips = unwrapped as FRClip[];
       const engine = (config?.animationEngine === "seedance" ? "seedance" : "kling");
-      const klingModel = ((config as Record<string, unknown> | undefined)?.videoModel as "v3-pro" | "v2-6-pro" | "v2-6-std" | "v2-5-turbo") || "v3-pro";
+      // El cast usa KlingModel en vez de repetir la union: repetirla ya se desincronizó
+      // una vez (quedó "v2-6-std", que no existe como endpoint en Fal).
+      const klingModel = ((config as Record<string, unknown> | undefined)?.videoModel as KlingModel) || "v3-pro";
 
       const persist = () => { if (onUpdateStepResult) onUpdateStepResult("animate", [...clips]); };
       const defaultMotion = "Fashion model subtle natural movement — slight sway, confident pose, hair movement. Vertical 9:16.";
@@ -12047,7 +12055,9 @@ function InfoPill({ label, value }: { label: string; value: string }) {
  * desplegado dentro del panel. Se enciende de a una para no romper las 17 juntas.
  * Ver docs/workspace-template.md.
  */
-const USE_SIDE_SELECTOR = new Set<string>(["fashion_reel"]);
+// Tools migradas al patrón de workspace: los selectores abren AL LADO (columna
+// del medio) en vez de desplegarse abajo. Ver docs/workspace-template.md §3.3.
+const USE_SIDE_SELECTOR = new Set<string>(["fashion_reel", "ecommerce_pack"]);
 /** Tools que ya usan recetas de movimiento. Ver docs/fashion-reel-recipes.md */
 const USE_RECIPES = new Set<string>(["fashion_reel"]);
 

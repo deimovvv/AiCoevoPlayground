@@ -44,7 +44,7 @@ import {
     moodboardImageUrl, lookAndFeelImageUrl, brandLogoImageUrl, poseImageUrl,
     enhanceManualPrompt, describeLookAndFeel, describeLookAndFeelUpload, describeConsistencyUpload,
     createKlingVideo, createKlingFrameToFrame, pollKlingVideo, klingDurationOptions,
-    createSeedanceReferenceToVideo, pollSeedanceVideo,
+    createSeedanceReferenceToVideo, createFlux3Video, pollFlux3Video, pollSeedanceVideo,
     ensureHostedRefUrl,
     analyzeMotionFromVideo,
     createSyncLipsync, pollSyncLipsync,
@@ -111,16 +111,31 @@ type AspectRatio = typeof IMG_ASPECT_RATIOS[number];
 type Resolution = typeof IMG_RESOLUTIONS[number];
 
 // Video — las duraciones ahora vienen de klingDurationOptions(modelo) (V3 Pro: 3–10; resto: 5/10).
-const SEEDANCE_RESOLUTIONS = ["480p", "720p", "1080p"] as const;
+// Seedance 2.x TOPE 720p — el 1080p que figuraba acá NO existe en el modelo
+// (verificado en fal.ai 2026-09-23). Ofrecerlo cobraba tarifa de 1080p por un
+// output de 720p. Seedance 1.0 Pro sí llega a 1080p, pero es otra familia.
+const SEEDANCE_RESOLUTIONS = ["480p", "720p"] as const;
 const VID_ASPECT_RATIOS = ["9:16", "16:9", "1:1", "4:3", "3:4"] as const;
+// FLUX 3: servicio listo en backend/services/flux_video.py, pero NO está en el
+// dropdown todavía — el submit de i2v sólo sabe hablar con Kling, así que
+// elegirlo generaría con Kling en silencio. Falta su ruta en main.py + api.ts.
+const FLUX3_RESOLUTIONS = ["720p", "1080p"] as const;
 
-// Tarifas de video en Fal ($/segundo, audio off). Verificado en fal.ai jun-2026 —
-// actualizar acá si Fal cambia precios. Kling es plano por modelo; Seedance escala
-// con la resolución (más píxeles = más caro). Fuente: páginas de modelo de fal.ai.
+// Tarifas de video en Fal ($/segundo, audio off). VERIFICADO 2026-09-23 en las
+// páginas de modelo de fal.ai. Kling es plano por modelo; Seedance cobra por
+// TOKENS —(alto × ancho × seg × 24)/1024 a $0.0214/1000— así que acá va el
+// equivalente por segundo ya calculado con esa fórmula.
+//
+// ⚠️ Las tarifas de Seedance estaban MAL (480p $0.135 / 720p $0.302 / 1080p $0.680,
+// "verificado jun-2026"): subestimaban el costo ~36% y el 1080p no existe.
 const VIDEO_RATE_PER_SEC: Record<string, number | Record<string, number>> = {
-    "v3-pro": 0.112,      // Kling V3 Pro
-    "v2-5-turbo": 0.07,   // Kling V2.5 Turbo
-    "seedance-2": { "480p": 0.135, "720p": 0.302, "1080p": 0.680 },
+    "v3-pro": 0.112,       // Kling V3 Pro
+    "v3-std": 0.084,       // Kling V3 Standard
+    "v2-6-pro": 0.07,      // Kling V2.6 Pro
+    "v2-5-turbo": 0.07,    // Kling V2.5 Turbo
+    "seedance-2": { "480p": 0.2205, "720p": 0.4730 },
+    "seedance-2-5": { "480p": 0.2205, "720p": 0.4730 },
+    "flux-3": { "720p": 0.17, "1080p": 0.29 },   // BFL, verificado 2026-09-25
 };
 /** Estimado de costo de un video = tarifa($/seg) × duración. null si no hay tarifa. */
 function estimateVideoCost(modelId: string, resolution: string, durationSec: string | number): number | null {
@@ -143,22 +158,30 @@ const SELECTOR_LABELS: Record<string, string> = {
 
 type Mode = "image" | "video";
 type VideoMode = "i2v" | "f2f" | "rtv";
-type VideoModelId = KlingModel | "seedance-2";
+type VideoModelId = KlingModel | "seedance-2" | "seedance-2-5" | "flux-3";
 
 interface VideoModelSpec {
     id: VideoModelId;
     label: string;
     sub: string;
-    provider: "kling" | "seedance";
+    provider: "kling" | "seedance" | "flux";
     modes: VideoMode[];
     resolutions?: readonly string[];
     aspectRatios?: readonly string[];
 }
 
+// Catálogo verificado en fal.ai (2026-09-23). El `sub` lleva el costo de 5s para
+// que la elección sea informada sin abrir la calculadora.
+// ⚠️ Kling NO acepta aspect_ratio: lo infiere de la imagen inicial ("The aspect_ratio
+// field in the UI is ignored by the model" — doc de Fal). Por eso no declara
+// aspectRatios y la UI muestra "de la imagen". No es un olvido.
 const VIDEO_MODELS: VideoModelSpec[] = [
-    { id: "v3-pro",     label: "Kling V3 Pro",    sub: "Mejor calidad · i2v + f2f", provider: "kling",    modes: ["i2v", "f2f"] },
-    { id: "v2-5-turbo", label: "Kling V2.5 Turbo", sub: "Rápido / barato · i2v + f2f", provider: "kling", modes: ["i2v", "f2f"] },
-    { id: "seedance-2", label: "Seedance 2.0",    sub: "Multi-ref · resolución elegible", provider: "seedance", modes: ["rtv"], resolutions: SEEDANCE_RESOLUTIONS, aspectRatios: VID_ASPECT_RATIOS },
+    { id: "v3-pro",     label: "Kling V3 Pro",     sub: "Mejor identidad · 1080p · ~$0.56/5s", provider: "kling",    modes: ["i2v", "f2f"] },
+    { id: "v3-std",     label: "Kling V3 Standard", sub: "Misma familia, más barato · ~$0.42/5s", provider: "kling", modes: ["i2v", "f2f"] },
+    { id: "v2-6-pro",   label: "Kling V2.6 Pro",   sub: "Generación anterior · ~$0.35/5s", provider: "kling",     modes: ["i2v", "f2f"] },
+    { id: "v2-5-turbo", label: "Kling V2.5 Turbo", sub: "El más rápido · ~$0.35/5s", provider: "kling",           modes: ["i2v", "f2f"] },
+    { id: "flux-3",     label: "FLUX 3",           sub: "Lo más nuevo (BFL) · 1 imagen · ~$0.85/5s", provider: "flux", modes: ["i2v"], resolutions: FLUX3_RESOLUTIONS },
+    { id: "seedance-2-5", label: "Seedance 2.5",   sub: "Multi-ref (hasta 30) · tope 720p · ~$2.37/5s", provider: "seedance", modes: ["rtv"], resolutions: SEEDANCE_RESOLUTIONS, aspectRatios: VID_ASPECT_RATIOS },
 ];
 
 const VIDEO_MODE_LABELS: Record<VideoMode, { label: string; sub: string }> = {
@@ -1116,8 +1139,24 @@ export function ManualLabV2() {
                     const r = await pollKlingVideo(job.request_id);
                     videoUrl = r.video_url || null;
                     videoError = r.error || null;
+                } else if (currentVideoModel.provider === "flux") {
+                    // FLUX 3 — una sola imagen. Rama propia: antes todo i2v caía a
+                    // Kling, así que elegir FLUX generaba con Kling en silencio.
+                    const job = await createFlux3Video({
+                        imageUrl: hostedRefUrls[0],
+                        prompt: finalPrompt,
+                        duration: vidDuration,
+                        resolution: (vidResolution === "1080p" ? "1080p" : "720p"),
+                    });
+                    if (job.video_url) {
+                        videoUrl = job.video_url;
+                    } else {
+                        const r = await pollFlux3Video(job.request_id);
+                        videoUrl = r.video_url || null;
+                        videoError = r.error || null;
+                    }
                 } else {
-                    // i2v
+                    // i2v — Kling
                     const klingId = (currentVideoModel.provider === "kling" ? videoModelId : "v3-pro") as KlingModel;
                     const job = await createKlingVideo(hostedRefUrls[0], finalPrompt, vidDuration, klingId);
                     const r = await pollKlingVideo(job.request_id);
@@ -1759,6 +1798,23 @@ export function ManualLabV2() {
                             )}
                         </Section>
 
+                        {/* Params de IMAGEN — formato / resolución / variantes.
+                            Junto a los de video y arriba del botón Generar: lo que define
+                            CÓMO sale la pieza vive cerca de donde la disparás. */}
+                        {mode === "image" && (
+                            <Section title="Parámetros">
+                                <div className="space-y-2">
+                                    <ChipRow label="Formato" options={IMG_ASPECT_RATIOS} value={aspectRatio}
+                                             onChange={(v) => setAspectRatio(v as AspectRatio)} />
+                                    <ChipRow label="Resolución" options={IMG_RESOLUTIONS} value={resolution}
+                                             onChange={(v) => setResolution(v as Resolution)} />
+                                    <ChipRow label="Variantes" options={VARIANT_COUNTS.map(String)} value={String(variantCount)}
+                                             onChange={(v) => setVariantCount(parseInt(v, 10))}
+                                             render={(v) => `${v}×`} />
+                                </div>
+                            </Section>
+                        )}
+
                         {/* Params de VIDEO. Los de imagen (formato / resolución / variantes)
                             viven arriba de la galería, no acá: son parámetros de CORRIDA, no
                             parte del brief. Ref: "Run parameters live here. What defines WHAT
@@ -1794,7 +1850,12 @@ export function ManualLabV2() {
                                         </Field>
                                     ) : (
                                         <Field label="AR">
-                                            <div className="text-[11px] text-fg-faint bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2 py-1.5">
+                                            {/* Kling ignora aspect_ratio — lo infiere del frame inicial.
+                                                El título lo explica para que no lea a campo roto. */}
+                                            <div
+                                                title="Kling toma el encuadre de la imagen inicial. No es configurable: el parámetro existe en la API pero el modelo lo ignora."
+                                                className="text-[11px] text-fg-faint bg-surface-2 border border-edge rounded-[var(--radius-sm)] px-2 py-1.5 cursor-help"
+                                            >
                                                 de la imagen
                                             </div>
                                         </Field>
@@ -2044,24 +2105,13 @@ export function ManualLabV2() {
                     El drawer de sesión ahora vive a la derecha como overlay (fixed),
                     no ocupa columna del layout cuando está cerrado. Botón flotante
                     para abrirlo cuando hay generaciones. */}
-                {/* Columna derecha: barra de parámetros + galería.
-                    Los parámetros de CORRIDA (formato / resolución / variantes) viven
-                    acá arriba, separados del brief — ref: "Run parameters live here.
-                    What defines WHAT gets generated lives in the brief" (RUN SETTINGS
-                    de Invent). Va como barra horizontal y no como cuarta columna para
-                    no robarle ancho a la galería, que es donde mirás las piezas. */}
+                {/* Columna derecha: SOLO la galería.
+                    Los parámetros (formato / resolución / variantes) estaban acá arriba
+                    siguiendo el patrón RUN SETTINGS de Invent, pero en esta pantalla
+                    confundía: quedaban lejos del botón Generar y el usuario los leía
+                    como parte del canvas. Ahora viven abajo del panel izquierdo, junto
+                    a los de video. (Pedido del usuario 2026-09-25.) */}
                 <div className="flex-1 flex flex-col min-w-0">
-                    {mode === "image" && (
-                        <div className="shrink-0 flex items-center gap-5 px-4 h-12 border-b border-[var(--color-edge-subtle)] overflow-x-auto no-scrollbar">
-                            <ChipRow inline label="Formato" options={IMG_ASPECT_RATIOS} value={aspectRatio}
-                                     onChange={(v) => setAspectRatio(v as AspectRatio)} />
-                            <ChipRow inline label="Resolución" options={IMG_RESOLUTIONS} value={resolution}
-                                     onChange={(v) => setResolution(v as Resolution)} />
-                            <ChipRow inline label="Variantes" options={VARIANT_COUNTS.map(String)} value={String(variantCount)}
-                                     onChange={(v) => setVariantCount(parseInt(v, 10))}
-                                     render={(v) => `${v}×`} />
-                        </div>
-                    )}
                 <main
                     ref={galleryRef}
                     className="flex-1 overflow-y-auto relative"

@@ -171,7 +171,18 @@ receta — no una tool.
 |---|---|---|
 | `fashion_reel` | script → base → multishot → animate → render | ✅ Pasos reales con aprobación entre medio |
 | `ugc_creator` | 7 pasos con voz y lip-sync | ✅ |
-| `ecommerce_pack` | multi-toma con curación por prenda | ✅ |
+| `ecommerce_pack` | `["generate_all"]` — **un solo paso**, `approvalSteps: []` | ❌ |
+
+> ⚠️ **Corrección 2026-09-25.** Esta tabla decía que Ecommerce Pack se justificaba
+> por "multi-toma con curación por prenda". **Era falso**: se escribió sin leer el
+> código. `approvalSteps: []`, `autoRunSteps: []`, `needsApproval: false`. La
+> "curación" son checkboxes de tomas en el formulario, no pasos que el operador
+> aprueba. Por el criterio de esta misma sección, es un preset de Campañas.
+>
+> **Y es la más usada en producción** (ver §7 de este doc). Ese es el conflicto real
+> del refactor: la tool más usada no pasa el criterio. Convertirla en preset NO puede
+> degradar su flujo — si el preset no cubre lo que hace hoy, el criterio se revisa,
+> no la tool.
 | `fashion_editorial` | `["generate_all"]` — **un solo paso** | ❌ Es un formulario con presets |
 
 ⚠️ **El pipeline NO se toca al migrar.** Fashion Reel genera la imagen base, después

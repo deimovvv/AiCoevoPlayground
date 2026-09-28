@@ -70,7 +70,8 @@ frontend/src/
     BrandSettings.tsx         # Brand configuration
     GeneratePage.tsx           # Tool registry and launcher
     ToolRunPage.tsx            # Step-by-step pipeline execution
-    ManualLab.tsx              # Brand-agnostic chat sandbox (Nano Banana + Kling, refs as image1/image2)
+    ManualLabV2.tsx            # Manual Lab ACTIVO (/dashboard/lab) — imagen + video, recetas, Look&Feel
+    ManualLab.tsx              # LEGACY v1, en disco pero NO importado (ver decisions-log 2026-06)
     ContentPage.tsx            # Content library
     GenerationPipeline.tsx     # Pipeline view
     ToolsPage.tsx              # Tool browser
@@ -276,11 +277,31 @@ KLING_API_KEY=...      # optional
 - **[planning.md](docs/planning.md)**: Development roadmap (7 phases)
 - **[pending-features.md](docs/pending-features.md)**: Backlog with detailed plans per feature
 - **[fashion-reel-recipes.md](docs/fashion-reel-recipes.md)**: recetas de movimiento derivadas de video real — el giro de Fashion Reel de "campos vacíos" a "elegís un movimiento validado y lo completás", con la métrica de calidad y por qué no un Marketing Studio genérico
+- **[tools-audit.md](docs/tools-audit.md)**: las 17 tools medidas contra el criterio §8 — 8 se justifican, 5 son presets de Campañas, 2 están muertas. Incluye el conflicto de Ecommerce Pack (la más usada no pasa el criterio)
 - **[workspace-template.md](docs/workspace-template.md)**: el patrón de pantalla que comparten Lab, Campañas y (pendiente) las tools — las 5 zonas, los componentes, y el orden de migración
 - **[market-positioning.md](docs/market-positioning.md)**: nicho, competencia y ventaja — el ranking de mercado (moda #1, UGC #2, ecommerce #3), el gap video×español×calce, precios de mercado y riesgos a monitorear
 - **[competitive-research.md](docs/competitive-research.md)**: investigación verificada de competidores (Pletor, Superside, Genera.Space, landscape completo de AI fashion)
 - **[decisions-log.md](docs/decisions-log.md)**: Chronological log of design/product decisions with rationale — read this when something in the codebase seems weird or when you're about to revisit a closed discussion
 - **[setup.md](docs/setup.md)**: How to run locally, environment variables
+
+### Negocio y posicionamiento
+- **[financial-model.md](docs/financial-model.md)**: proyección económica — márgenes por plan, el factor de descarte (1.6× imágenes / 1.3× video) y el hallazgo del "turista de IA" (NRR 32% bajo $50/mes vs 85% sobre $250)
+- **[pricing-credits.md](docs/pricing-credits.md)**: sistema de créditos y cómo se traduce el costo de API a precio
+- **[campaigns.md](docs/campaigns.md)**: spec de la feature Campañas (adapta patrones de "Invent", cliente CONFIDENCIAL)
+- **[client_onboarding.md](docs/client_onboarding.md)** · **[onboarding.md](docs/onboarding.md)**: alta de clientes y de usuarios
+
+### Video y audio
+- **[video-dialogue-pipeline.md](docs/video-dialogue-pipeline.md)**: pipeline de video con diálogo — modelo por plano, modos contraplano vs secuencial, costos
+- **[video-ad-creator.md](docs/video-ad-creator.md)**: spec de la tool Video Ad Creator
+- **[video-ad-production-sop.md](docs/video-ad-production-sop.md)**: SOP del operador manual (escena master → @img1)
+- **[ugc-audio.md](docs/ugc-audio.md)**: voz LATAM-porteña — por qué la voz sale de ElevenLabs y no del audio nativo
+- **[ugc-talking-head-tests.md](docs/ugc-talking-head-tests.md)**: pruebas de lip-sync comparadas
+
+### Diseño y arquitectura (referencia)
+- **[design_language.md](docs/design_language.md)**: lenguaje visual — complementa design.md
+- **[architecture-nodes.md](docs/architecture-nodes.md)**: arquitectura de nodos
+- **[dashboard-architecture-research.md](docs/dashboard-architecture-research.md)**: research de cómo resuelven el dashboard otros productos
+- **[frontera-diseno-infra.md](docs/frontera-diseno-infra.md)**: contrato entre el chat de diseño y el de infraestructura
 
 ## Common Debugging
 
