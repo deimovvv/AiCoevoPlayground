@@ -1,0 +1,32 @@
+[
+  {
+    "id": "magazine",
+    "name": "Revista",
+    "prompt": "High-fashion magazine editorial aesthetic, shot on medium format, refined retouch.",
+    "imageUrl": null
+  },
+  {
+    "id": "street",
+    "name": "Street",
+    "prompt": "Street-style editorial, urban environment, candid energy.",
+    "imageUrl": null
+  },
+  {
+    "id": "studio",
+    "name": "Estudio",
+    "prompt": "Minimal studio editorial on a clean seamless backdrop, sculptural.",
+    "imageUrl": null
+  },
+  {
+    "id": "cinematic",
+    "name": "Cinemático",
+    "prompt": "Cinematic editorial, filmic color, atmospheric and moody.",
+    "imageUrl": null
+  },
+  {
+    "id": "vintage",
+    "name": "Vintage film",
+    "prompt": "Analog film editorial, subtle grain and halation, nostalgic palette.",
+    "imageUrl": null
+  }
+]

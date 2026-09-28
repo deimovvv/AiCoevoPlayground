@@ -223,7 +223,9 @@
     "status": "active",
     "pipeline": [
       "generate_all"
-    ]
+    ],
+    "hidden": true,
+    "hidden_reason": "Convertida en preset de Campañas 2026-09-25: un solo paso, cero aprobaciones (docs/tools-audit.md). Sus cláusulas viven en data/system/framing.json + vibe.json."
   },
   {
     "id": "video_swap",

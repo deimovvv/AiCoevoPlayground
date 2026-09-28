@@ -1,0 +1,26 @@
+[
+  {
+    "id": "full_body",
+    "name": "Cuerpo entero",
+    "prompt": "Full-body editorial framing, the whole look visible head to toe.",
+    "imageUrl": null
+  },
+  {
+    "id": "three_quarter",
+    "name": "3/4",
+    "prompt": "Three-quarter body framing, dynamic editorial crop.",
+    "imageUrl": null
+  },
+  {
+    "id": "portrait",
+    "name": "Retrato",
+    "prompt": "Tight beauty/portrait framing, face and upper garment, shallow depth of field.",
+    "imageUrl": null
+  },
+  {
+    "id": "detail",
+    "name": "Detalle",
+    "prompt": "Close-up detail of the garment as worn — fabric, texture, accessories.",
+    "imageUrl": null
+  }
+]
