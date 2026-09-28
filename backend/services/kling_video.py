@@ -23,8 +23,11 @@ FAL_MODEL_BASE = "fal-ai/kling-video"  # Base model for status/result (no subpat
 # Kling model variants exposed to the frontend. Add more as Fal releases them.
 KLING_MODELS: Dict[str, str] = {
     "v3-pro":      "fal-ai/kling-video/v3/pro/image-to-video",
+    # Verificado 2026-09-23: el endpoint existe y responde.
+    "v3-std":      "fal-ai/kling-video/v3/standard/image-to-video",
     "v2-6-pro":    "fal-ai/kling-video/v2.6/pro/image-to-video",
-    "v2-6-std":    "fal-ai/kling-video/v2.6/standard/image-to-video",
+    # "v2-6-std": NO existe como image-to-video en Fal (404). Sólo hay
+    # v2.6 standard MOTION-CONTROL, que es otra cosa. Verificado 2026-09-23.
     "v2-5-turbo":  "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
 }
 

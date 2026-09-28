@@ -20,9 +20,16 @@ import httpx
 from typing import List, Optional, Union
 
 FAL_BASE = "https://queue.fal.run"
-FAL_MODEL = "bytedance/seedance-2.0/reference-to-video"
+# Seedance 2.5 reemplaza a 2.0 (verificado en fal.ai 2026-09-25). Tope 720p.
+# El 2.0 queda accesible por SEEDANCE_MODELS para no romper corridas viejas.
+FAL_MODEL = "bytedance/seedance-2.5/reference-to-video"
+SEEDANCE_MODELS = {
+    "seedance-2-5":     "bytedance/seedance-2.5/reference-to-video",
+    "seedance-2-5-i2v": "bytedance/seedance-2.5/image-to-video",
+    "seedance-2":       "bytedance/seedance-2.0/reference-to-video",
+}
 # Status endpoint uses the same path prefix
-FAL_MODEL_BASE = "bytedance/seedance-2.0"
+FAL_MODEL_BASE = "bytedance/seedance-2.5"
 
 
 def _get_key() -> str:
