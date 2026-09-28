@@ -411,6 +411,21 @@ export interface CampaignPiece {
     history?: string[];
 }
 
+/** Input PROPIO de una campaña: una prenda, modelo o referencia subida ahí y no
+ *  al Brand Kit. Existe por dos razones:
+ *  1. No todo lo que entra a una campaña merece ser asset permanente de la marca.
+ *  2. Guardar solo IDs del Brand Kit rompe el historial — si alguien borra esa
+ *     prenda, la campaña vieja queda apuntando a nada. Con el archivo copiado en
+ *     la campaña, siempre se puede ver con qué se generó. */
+export interface CampaignInput {
+    id: string;
+    url: string;
+    type: "clothing" | "avatar" | "product" | "background" | "reference";
+    name: string;
+    filename: string;
+    uploadedAt: string;
+}
+
 export interface Campaign {
     id: string;
     brandId: string;
@@ -433,6 +448,8 @@ export interface Campaign {
     status: "draft" | "generating" | "review" | "approved";
     generationIds: string[];
     pieces: CampaignPiece[];
+    /** Inputs subidos a ESTA campaña (no al Brand Kit). Ver CampaignInput. */
+    inputs?: CampaignInput[];
     /** Costo real de los modelos. Las piezas de campaña no pasan por `saveGeneration`,
      *  así que la campaña lleva su propio registro. Ver lib/costLedger.ts. */
     cost?: CostSummary;
@@ -503,6 +520,34 @@ export async function updateCampaign(id: string, patch: Partial<Campaign>): Prom
  * barato en otro lado, tiene que poder vivir igual en el pedido.
  * Las piezas subidas van marcadas `source: "upload"` y no suman al costo.
  */
+/** Sube INPUTS a una campaña (prendas, modelos, refs) sin tocarlos el Brand Kit.
+ *  Distinto de `uploadCampaignPieces`, que sube entregables. */
+export async function uploadCampaignInputs(
+    campaignId: string,
+    files: File[],
+    type: CampaignInput["type"] = "reference",
+): Promise<CampaignInput[]> {
+    const form = new FormData();
+    for (const f of files) form.append("files", f);
+    form.append("type", type);
+    const res = await fetch(`${API_BASE}/api/campaigns/${campaignId}/inputs`, { method: "POST", body: form });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "No se pudo subir" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo subir");
+    }
+    const data = await res.json();
+    return (data.inputs || []) as CampaignInput[];
+}
+
+/** Saca un input propio de la campaña y borra su archivo. */
+export async function deleteCampaignInput(campaignId: string, inputId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/campaigns/${campaignId}/inputs/${inputId}`, { method: "DELETE" });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "No se pudo borrar" }));
+        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo borrar");
+    }
+}
+
 export async function uploadCampaignPieces(campaignId: string, files: File[]): Promise<Campaign> {
     const form = new FormData();
     for (const f of files) form.append("files", f);
@@ -1241,6 +1286,12 @@ export async function deleteClothingImage(brandId: string, itemId: string, image
     });
     if (!res.ok) throw new Error("Failed to delete clothing image");
     return res.json();
+}
+
+/** URL absoluta de un input propio de campaña (mismo patrón que clothingImageUrl). */
+export function campaignInputUrl(relativeUrl: string): string {
+    if (relativeUrl.startsWith("http") || relativeUrl.startsWith("blob:")) return relativeUrl;
+    return `${API_BASE}${relativeUrl}`;
 }
 
 export function clothingImageUrl(relativeUrl: string): string {
@@ -2194,7 +2245,8 @@ export interface KlingVideoResult {
 }
 
 /** Frontend-friendly Kling model ids (must match KLING_MODELS in backend). */
-export type KlingModel = "v3-pro" | "v2-6-pro" | "v2-6-std" | "v2-5-turbo";
+// v2-6-std se quitó: no existe como image-to-video en Fal (404).
+export type KlingModel = "v3-pro" | "v3-std" | "v2-6-pro" | "v2-5-turbo";
 
 /**
  * Seedance 2.0 reference-to-video: takes N reference images + prompt, returns
@@ -2202,6 +2254,40 @@ export type KlingModel = "v3-pro" | "v2-6-pro" | "v2-6-std" | "v2-5-turbo";
  * `pollKlingVideo` helper since Fal's queue API is uniform across providers
  * — but the status/result URLs differ, so we provide dedicated pollers.
  */
+/**
+ * FLUX 3 image-to-video (Black Forest Labs vía Fal).
+ * Una sola imagen — si necesitás varias referencias, usá Seedance.
+ * 720p $0.17/s · 1080p $0.29/s (verificado 2026-09-25).
+ */
+export async function createFlux3Video(opts: {
+    imageUrl: string;
+    prompt?: string;
+    duration?: string;
+    resolution?: "720p" | "1080p";
+}): Promise<{ request_id: string; video_url: string | null }> {
+    const res = await fetch(`${API_BASE}/api/flux3/image-to-video`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            image_url: opts.imageUrl,
+            prompt: opts.prompt,
+            duration: opts.duration || "5",
+            resolution: opts.resolution || "720p",
+        }),
+    });
+    if (!res.ok) throw new Error(`FLUX 3 falló: ${await res.text()}`);
+    return res.json();
+}
+
+/** Espera el resultado de FLUX 3. El backend hace el polling. */
+export async function pollFlux3Video(requestId: string): Promise<{
+    request_id: string; status: string; video_url: string | null; error: string | null;
+}> {
+    const res = await fetch(`${API_BASE}/api/flux3/result/${requestId}`);
+    if (!res.ok) throw new Error(`FLUX 3 result falló: ${await res.text()}`);
+    return res.json();
+}
+
 export async function createSeedanceReferenceToVideo(opts: {
     prompt: string;
     referenceImageUrls: string[];
@@ -2392,7 +2478,8 @@ export async function ensureHostedRefUrl(url: string, filename?: string): Promis
  *  acepta 3–15; el resto (Kling V2.x, Seedance) solo 5 o 10. Ofrecemos un set compacto y
  *  útil para V3 Pro (3–10). Usado por el Lab y Fashion Reel para poblar el selector. */
 export function klingDurationOptions(modelId?: string): string[] {
-    return modelId === "v3-pro"
+    // V3 (pro y standard) admite duraciones finas; el resto sólo 5 o 10.
+    return modelId === "v3-pro" || modelId === "v3-std"
         ? ["3", "4", "5", "6", "7", "8", "10"]
         : ["5", "10"];
 }

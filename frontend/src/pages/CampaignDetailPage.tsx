@@ -8,7 +8,7 @@ import {
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl, lookAndFeelImageUrl,
   planCampaign,
   type Campaign, type CampaignPiece, type CampaignPlan,
-} from "../lib/api";
+  campaignInputUrl,} from "../lib/api";
 import { imagesUsd, formatCost } from "../lib/pricing";
 import { claimFor } from "../lib/costLedger";
 import { saveGeneration } from "../lib/api";
@@ -314,6 +314,18 @@ export function CampaignDetailPage() {
   if (mb) assigned.push({ kind: "Moodboard", name: mb.name, thumb: mb.imageUrl ? moodboardImageUrl(mb.imageUrl) : undefined });
   const lf = b?.lookAndFeel?.find((l) => l.id === campaign.lookFeelId);
   if (lf) assigned.push({ kind: "Look & Feel", name: lf.name, thumb: lf.imageUrl ? lookAndFeelImageUrl(lf.imageUrl) : undefined });
+  // Inputs propios de la campaña: el material que se subió acá y NO vive en el Brand
+  // Kit. Se muestran igual que los del kit, con "(de la campaña)" para distinguirlos.
+  // Son los únicos que sobreviven a que alguien borre el asset original de la marca.
+  const KIND_ES: Record<string, string> = {
+    clothing: "Prenda", avatar: "Modelo", product: "Producto",
+    background: "Fondo", reference: "Referencia",
+  };
+  (campaign.inputs || []).forEach((i) => assigned.push({
+    kind: `${KIND_ES[i.type] || "Referencia"} (de la campaña)`,
+    name: i.name,
+    thumb: campaignInputUrl(i.url),
+  }));
 
   return (
     /* Mismo layout que el Lab y Crear campaña: header a todo el ancho, y debajo

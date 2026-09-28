@@ -9,6 +9,7 @@ import io
 import json
 import re
 import uuid
+import datetime as _dt
 import asyncio
 import tempfile
 from pathlib import Path
@@ -50,6 +51,7 @@ from services import generations as generations_service
 from services import campaign_planner
 from services import asset_matcher
 from services import seedance_video
+from services import flux_video
 from services import veo_video
 from services import fal_rembg
 from services import nanobanana_google
@@ -636,6 +638,102 @@ app.mount("/static/campaign-uploads", StaticFiles(directory=str(_campaign_upload
 
 _VIDEO_EXT = {".mp4", ".mov", ".webm", ".m4v"}
 _IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif"}
+
+
+# Tipos de input que una campaña puede tener propios. Espejan los assets del
+# Brand Kit, pero viven DENTRO de la campaña.
+_INPUT_TYPES = {"clothing", "avatar", "product", "background", "reference"}
+
+
+@app.post("/api/campaigns/{campaign_id}/inputs")
+async def upload_campaign_inputs(
+    campaign_id: str,
+    files: list[UploadFile] = File(...),
+    type: str = Form("reference"),
+):
+    """Sube INPUTS propios de la campaña (prendas, modelos, refs) sin tocar el Brand Kit.
+
+    Distinto de /uploads, que sube PIEZAS (entregables). Esto es material de
+    entrada: la prenda con la que se genera, no el resultado.
+
+    Por qué no van al Brand Kit: no todo lo que entra a una campaña merece
+    quedar como asset permanente de la marca — una prenda suelta que mandó el
+    cliente, una referencia de una sola vez. Guardarlo todo ensucia el Brand Kit.
+
+    Por qué SÍ quedan registrados en la campaña: si la campaña solo guardara IDs
+    del Brand Kit, borrar esa prenda dejaría la campaña vieja apuntando a nada.
+    Con el archivo copiado acá, se puede volver al dashboard, abrir la campaña y
+    ver con qué se generó, aunque el asset original ya no exista.
+    """
+    if type not in _INPUT_TYPES:
+        raise HTTPException(status_code=400, detail=f"Tipo inválido: {type}")
+
+    items = campaigns_service.load_campaigns()
+    campaign = campaigns_service.find_campaign(items, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+
+    added = []
+    for f in files:
+        if not f or not f.filename:
+            continue
+        ext = os.path.splitext(f.filename)[1].lower()
+        if ext not in _IMAGE_EXT:
+            raise HTTPException(status_code=400, detail=f"Los inputs deben ser imágenes: {f.filename}")
+        data = await f.read()
+        if len(data) > 50 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail=f"{f.filename} pesa más de 50MB")
+
+        name = f"in_{campaign_id}_{uuid.uuid4().hex[:8]}{ext}"
+        with open(_campaign_uploads_dir / name, "wb") as out:
+            out.write(data)
+
+        added.append({
+            "id": f"cin_{uuid.uuid4().hex[:8]}",
+            "url": f"/static/campaign-uploads/{name}",
+            "type": type,
+            # Nombre legible = el del archivo sin extensión. Sirve para el prompt.
+            "name": os.path.splitext(f.filename)[0][:80],
+            "filename": f.filename,
+            "uploadedAt": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        })
+
+    if not added:
+        raise HTTPException(status_code=400, detail="No llegó ningún archivo")
+
+    campaign["inputs"] = (campaign.get("inputs") or []) + added
+    campaigns_service.apply_update(campaign, {"inputs": campaign["inputs"]})
+    campaigns_service.save_campaigns(items)
+    return {"inputs": added}
+
+
+@app.delete("/api/campaigns/{campaign_id}/inputs/{input_id}")
+def delete_campaign_input(campaign_id: str, input_id: str):
+    """Saca un input de la campaña y borra su archivo.
+
+    Solo aplica a inputs propios de la campaña — los assets del Brand Kit se
+    des-seleccionan, no se borran desde acá.
+    """
+    items = campaigns_service.load_campaigns()
+    campaign = campaigns_service.find_campaign(items, campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaña no encontrada")
+
+    inputs = campaign.get("inputs") or []
+    item = next((i for i in inputs if i.get("id") == input_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Input no encontrado")
+
+    fname = (item.get("url") or "").rsplit("/", 1)[-1]
+    if fname:
+        fpath = _campaign_uploads_dir / fname
+        if fpath.exists() and fpath.is_file():
+            fpath.unlink()
+
+    campaign["inputs"] = [i for i in inputs if i.get("id") != input_id]
+    campaigns_service.apply_update(campaign, {"inputs": campaign["inputs"]})
+    campaigns_service.save_campaigns(items)
+    return {"ok": True}
 
 
 @app.post("/api/campaigns/{campaign_id}/uploads")
@@ -2653,6 +2751,27 @@ def list_system_voices():
     return {"voices": []}
 
 
+@app.get("/api/system/{kind}")
+def list_system_presets(kind: str):
+    """Presets del SISTEMA por eje: framing | vibe (y lighting, abajo).
+
+    Migrados de Fashion Editorial cuando se convirtió en preset de Campañas
+    (2026-09-25, ver docs/tools-audit.md §3b). Cada uno trae su `prompt` — el
+    fragmento que se inyecta al generar; sin eso sería una etiqueta decorativa.
+
+    ⚠️ Las 5 cláusulas de LUZ de Fashion Editorial no se migraron: `lighting.json`
+    ya cubre ese eje con presets mejores (traen imagen de referencia). Duplicarlas
+    habría dado dos selectores de luz que se pisan.
+    """
+    if kind not in ("framing", "vibe"):
+        raise HTTPException(status_code=404, detail=f"Preset '{kind}' no existe")
+    f = DATA_DIR / "system" / f"{kind}.json"
+    if f.exists():
+        import json
+        return {"presets": json.loads(f.read_text())}
+    return {"presets": []}
+
+
 @app.get("/api/system/lighting")
 def list_system_lighting():
     """Presets de iluminación disponibles para TODAS las marcas.
@@ -4440,6 +4559,61 @@ async def seedance_result(request_id: str):
         return await seedance_video.get_result(request_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════
+#  FLUX 3 Image-to-Video (Black Forest Labs, vía Fal)
+#  Una sola imagen -> video. 720p $0.17/s · 1080p $0.29/s (fal.ai 2026-09-25).
+#  A diferencia de Seedance NO acepta multi-referencia: una imagen y listo.
+# ══════════════════════════════════════════════════════════════
+
+class Flux3VideoRequest(BaseModel):
+    image_url: str
+    prompt: Optional[str] = None
+    duration: str = "5"
+    resolution: str = "720p"   # 720p | 1080p
+
+
+@app.post("/api/flux3/image-to-video")
+async def flux3_create(req: Flux3VideoRequest):
+    if not flux_video.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY no configurada")
+    try:
+        image_url = req.image_url
+        # El front puede mandar un data: URL. Fal necesita una URL pública, así
+        # que se sube primero — mismo criterio que el endpoint de Seedance.
+        if image_url.startswith("data:"):
+            import base64 as _b64
+            header, b64data = image_url.split(",", 1)
+            mime = header.split(":")[1].split(";")[0] if ":" in header else "image/png"
+            img_bytes = _b64.b64decode(b64data)
+            ext = mime.split("/")[-1]
+            image_url = await kling_video.upload_image(img_bytes, f"flux3_input.{ext}", mime)
+
+        request_id = await flux_video.create_video(
+            image_url=image_url,
+            prompt=req.prompt,
+            duration=req.duration,
+            resolution=req.resolution,
+        )
+        if request_id.startswith("SYNC:"):
+            return {"request_id": request_id, "video_url": request_id[5:]}
+        return {"request_id": request_id, "video_url": None}
+    except Exception as e:
+        print(f"[flux3-endpoint] ERROR: {e}")
+        raise HTTPException(status_code=502, detail=f"FLUX 3 falló: {str(e)}")
+
+
+@app.get("/api/flux3/result/{request_id}")
+async def flux3_result(request_id: str):
+    """Espera a que termine y devuelve la URL. El poll vive en el service."""
+    if not flux_video.is_configured():
+        raise HTTPException(status_code=500, detail="FAL_KEY no configurada")
+    try:
+        url = await flux_video.poll_until_done(request_id)
+        return {"request_id": request_id, "status": "completed", "video_url": url, "error": None}
+    except Exception as e:
+        return {"request_id": request_id, "status": "failed", "video_url": None, "error": str(e)}
 
 
 # ══════════════════════════════════════════════════════════════

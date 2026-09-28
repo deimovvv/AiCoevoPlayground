@@ -23,7 +23,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { SelectorPanel } from "../components/workspace/SelectorPanel";
+import { SelectorPanel, SelectorTrigger } from "../components/workspace/SelectorPanel";
 import { EditOverlay } from "../components/workspace/EditOverlay";
 import { fetchSystemLighting, systemAssetUrl, type LightingPreset } from "../lib/api";
 import { useNavigate } from "react-router";
@@ -32,6 +32,10 @@ import { useBrand } from "../lib/BrandContext";
 import {
   createCampaign,
   updateCampaign,
+  uploadCampaignInputs,
+  deleteCampaignInput,
+  campaignInputUrl,
+  type CampaignInput,
   createImageEdit,
   createTextToImage,
   pollImageGen,
@@ -79,7 +83,8 @@ type AssetItem = { id: string; name: string; thumb?: string };
  * Tira de miniaturas. Todo a la vista: sin acordeón, sin "Elegir".
  * Lo seleccionado lleva un marco fino por fuera, nunca un relleno de color.
  */
-function Picker({ label, hint, items, multi, selectedId, selectedIds, onSingle, onToggle }: {
+function Picker({ label, hint, items, multi, selectedId, selectedIds, onSingle, onToggle,
+                 ownItems, onUpload, onRemoveOwn, uploading }: {
   label: string;
   hint?: string;
   items: AssetItem[];
@@ -88,10 +93,20 @@ function Picker({ label, hint, items, multi, selectedId, selectedIds, onSingle, 
   selectedIds?: string[];
   onSingle?: (id: string | null) => void;
   onToggle?: (id: string) => void;
+  /** Material subido a ESTA campaña (no al Brand Kit). Se muestra aparte porque no
+   *  se selecciona: por estar cargado acá, ya entra como referencia. */
+  ownItems?: { key: string; name: string; thumb: string }[];
+  /** Si viene, el picker muestra un "+" para subir material propio de la campaña. */
+  onUpload?: (files: FileList | null) => void;
+  onRemoveOwn?: (key: string) => void;
+  uploading?: boolean;
 }) {
   // Se muestran las primeras; el resto se despliega en el lugar, sin cambiar de pantalla.
   const [showAll, setShowAll] = useState(false);
-  if (items.length === 0) return null;
+  const upRef = useRef<HTMLInputElement>(null);
+  // Antes: `if (items.length === 0) return null`. Ahora el panel sigue existiendo aunque
+  // la marca no tenga assets de ese tipo — si no, no habría dónde subir los propios.
+  if (items.length === 0 && !onUpload) return null;
   const VISIBLE = 6;
   const shown = showAll ? items : items.slice(0, VISIBLE);
   const rest = items.length - shown.length;
@@ -135,7 +150,53 @@ function Picker({ label, hint, items, multi, selectedId, selectedIds, onSingle, 
             +{rest}
           </button>
         )}
+        {/* Material propio de la campaña: ya cargado. No se tilda — por estar acá, entra. */}
+        {(ownItems || []).map((o) => (
+          <div key={o.key} className="relative group/own w-[50px] h-[64px]">
+            <div
+              className="w-full h-full rounded-[2px] overflow-hidden"
+              title={`${o.name} · subido a esta campaña`}
+              style={{ boxShadow: `0 0 0 1px ${C.accent}, 0 0 0 4px ${C.paper}, 0 0 0 5px ${C.accent}` }}
+            >
+              <img src={o.thumb} alt={o.name} className="w-full h-full object-cover" />
+            </div>
+            {onRemoveOwn && (
+              <button
+                type="button"
+                onClick={() => onRemoveOwn(o.key)}
+                title="Sacar de la campaña"
+                className="absolute -top-1 -right-1 w-[14px] h-[14px] rounded-full text-[9px] leading-none cursor-pointer opacity-0 group-hover/own:opacity-100 transition-opacity"
+                style={{ background: C.paper, color: C.ink3, boxShadow: `0 0 0 1px ${C.hair}` }}
+              >×</button>
+            )}
+          </div>
+        ))}
+        {onUpload && (
+          <>
+            <button
+              type="button"
+              onClick={() => upRef.current?.click()}
+              disabled={uploading}
+              title="Subir material a esta campaña (no se guarda en el Brand Kit)"
+              className="w-[50px] h-[64px] rounded-[2px] text-[15px] cursor-pointer disabled:opacity-50"
+              style={{ color: C.ink3, boxShadow: `inset 0 0 0 1px dashed ${C.hair}`, border: `1px dashed ${C.hair}` }}
+            >{uploading ? "…" : "+"}</button>
+            <input
+              ref={upRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => { onUpload(e.target.files); e.target.value = ""; }}
+            />
+          </>
+        )}
       </div>
+      {onUpload && (
+        <p className="text-[9.5px] mt-1.5 leading-snug" style={{ color: C.ink3 }}>
+          El <b>+</b> sube material solo para esta campaña — queda registrado con ella, no en el Brand Kit.
+        </p>
+      )}
     </div>
   );
 }
@@ -268,6 +329,69 @@ export function NewCampaignPage() {
   const [avatarId, setAvatarId] = useState<string | null>(null);
   const [productIds, setProductIds] = useState<string[]>([]);
   const [clothingIds, setClothingIds] = useState<string[]>([]);
+  /** Inputs PROPIOS de esta campaña (prendas/modelos/refs que no están en el Brand Kit).
+   *  La campaña se crea recién al generar (ver `submit`), así que hasta entonces los
+   *  archivos viven acá en memoria con una URL local de preview, y se suben al backend
+   *  junto con la creación. Después de eso, cada upload va directo. */
+  const [pendingInputs, setPendingInputs] = useState<
+    { key: string; file: File; type: CampaignInput["type"]; name: string; preview: string }[]
+  >([]);
+  const [savedInputs, setSavedInputs] = useState<CampaignInput[]>([]);
+  const [uploadingInput, setUploadingInput] = useState(false);
+
+  /** Los inputs propios de un tipo, pendientes y ya subidos, listos para el Picker. */
+  const ownOf = (type: CampaignInput["type"]) => [
+    ...savedInputs.filter((i) => i.type === type)
+      .map((i) => ({ key: i.id, name: i.name, thumb: campaignInputUrl(i.url) })),
+    ...pendingInputs.filter((i) => i.type === type)
+      .map((i) => ({ key: i.key, name: i.name, thumb: i.preview })),
+  ];
+
+  /** Saca un input propio. Si ya estaba subido, lo borra del backend. */
+  const removeOwn = async (key: string) => {
+    const pend = pendingInputs.find((i) => i.key === key);
+    if (pend) {
+      URL.revokeObjectURL(pend.preview);
+      setPendingInputs((prev) => prev.filter((i) => i.key !== key));
+      return;
+    }
+    if (!campaignId) return;
+    try {
+      await deleteCampaignInput(campaignId, key);
+      setSavedInputs((prev) => prev.filter((i) => i.id !== key));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo sacar el input");
+    }
+  };
+
+  /** Agrega archivos como inputs de la campaña. Si la campaña ya existe, los sube
+   *  al toque; si no, quedan pendientes y se suben al crearla. */
+  const addInputs = async (files: FileList | null, type: CampaignInput["type"]) => {
+    const list = Array.from(files || []).filter((f) => f.type.startsWith("image/"));
+    if (!list.length) return;
+    if (campaignId) {
+      setUploadingInput(true);
+      try {
+        const saved = await uploadCampaignInputs(campaignId, list, type);
+        setSavedInputs((prev) => [...prev, ...saved]);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "No se pudieron subir los inputs");
+      } finally {
+        setUploadingInput(false);
+      }
+      return;
+    }
+    setPendingInputs((prev) => [
+      ...prev,
+      ...list.map((f) => ({
+        key: `${f.name}-${f.size}-${Math.random().toString(36).slice(2, 7)}`,
+        file: f,
+        type,
+        name: f.name.replace(/\.[^.]+$/, "").slice(0, 80),
+        preview: URL.createObjectURL(f),
+      })),
+    ]);
+  };
   const [backgroundId, setBackgroundId] = useState<string | null>(null);
   const [moodboardId, setMoodboardId] = useState<string | null>(null);
   const [lookFeelId, setLookFeelId] = useState<string | null>(null);
@@ -421,6 +545,12 @@ export function NewCampaignPage() {
     if (mb?.imageUrl) refs.push(mb.imageUrl);
     const lf = (b.lookAndFeel || []).find((l) => l.id === lookFeelId);
     if (lf?.imageUrl) refs.push(lf.imageUrl);
+    // Inputs propios de la campaña. Van DESPUÉS de los del Brand Kit pero cuentan
+    // igual contra el cap de 8 (límite de refs de Fal). Los ya subidos usan su URL
+    // del backend; los pendientes, el object URL local — las dos las lee el
+    // generador porque se resuelven a bytes antes de mandarlas.
+    savedInputs.forEach((i) => refs.push(i.url));
+    pendingInputs.forEach((i) => refs.push(i.preview));
     return refs.slice(0, 8);
   };
 
@@ -448,6 +578,27 @@ export function NewCampaignPage() {
         });
         id = c.id;
         setCampaignId(id);
+      }
+
+      // Los inputs propios que se cargaron ANTES de que la campaña existiera se
+      // suben ahora, para que queden registrados con qué se genero.
+      if (pendingInputs.length && id) {
+        try {
+          const byType = new Map<CampaignInput["type"], File[]>();
+          for (const pi of pendingInputs) {
+            byType.set(pi.type, [...(byType.get(pi.type) || []), pi.file]);
+          }
+          for (const [type, files] of byType) {
+            const saved = await uploadCampaignInputs(id, files, type);
+            setSavedInputs((prev) => [...prev, ...saved]);
+          }
+          pendingInputs.forEach((pi) => URL.revokeObjectURL(pi.preview));
+          setPendingInputs([]);
+        } catch (e) {
+          // No frenamos la generación por esto: el material igual se usa como ref
+          // en esta corrida; lo que se pierde es el registro histórico.
+          console.error("[campaña] no se pudieron guardar los inputs:", e);
+        }
       }
 
       const refs = buildRefs();
@@ -533,45 +684,25 @@ export function NewCampaignPage() {
   /** Un control del panel: rótulo + miniatura de lo elegido + acción.
    *  La miniatura importa — en los acordeones viejos no veías qué habías elegido
    *  sin abrirlos. */
+  /** Fila de selección. Antes era un componente PROPIO que replicaba a mano el
+   *  SelectorTrigger del Lab ("mismas medidas que el del Lab", decía el comentario) —
+   *  justo la duplicación que workspace-template.md §4 advierte que hay que evitar.
+   *  Su única ventaja real, el stack de miniaturas para multi-select, se movió al
+   *  componente compartido, así que ahora las tres pantallas usan el mismo. */
   const Control = ({ label, items, onOpen, empty }: {
     label: string;
     items: Array<{ id: string; name: string; thumb?: string }>;
     onOpen: () => void;
     empty: string;
   }) => (
-    /* Mismas medidas que el <SelectorTrigger> del Lab: alto fijo 44px, borde
-       visible, fondo propio. Antes era un botón sin borde con padding libre —
-       al lado del Lab se veía como otro control. */
-    <button
+    <SelectorTrigger
+      label={label}
+      value={items.length === 0 ? empty
+           : items.length === 1 ? items[0].name
+           : `${items.length} elegidos`}
+      thumbs={items.map((it) => it.thumb).filter(Boolean) as string[]}
       onClick={onOpen}
-      className="w-full text-left px-3 h-11 rounded-[var(--radius-sm)] transition-colors cursor-pointer border"
-      style={{ background: "var(--color-surface-1)", borderColor: C.hair }}
-    >
-      <div className="flex items-center gap-2.5 h-full">
-        <div className="flex -space-x-1.5 shrink-0">
-          {items.length > 0 ? (
-            items.slice(0, 3).map((it) => (
-              <div key={it.id} className="w-7 h-7 rounded-[3px] overflow-hidden ring-1 ring-[var(--color-surface-0)]"
-                   style={{ background: C.paper2, border: `1px solid ${C.hair}` }}>
-                {it.thumb && <img src={it.thumb} alt="" className="w-full h-full object-cover" />}
-              </div>
-            ))
-          ) : (
-            <div className="w-7 h-7 rounded-[3px]" style={{ background: C.paper2, border: `1px dashed var(--color-edge-strong)` }} />
-          )}
-        </div>
-        <div className="min-w-0 flex-1 leading-tight">
-          {/* La etiqueta (PRENDAS, MODELO…) es lo que identifica la fila: va en ink2,
-              no en ink3. Con el más apagado sobre negro se perdía. */}
-          <div className="text-[12px] font-medium leading-tight" style={{ color: C.ink }}>{label}</div>
-          <div className="text-[11px] leading-tight truncate" style={{ color: C.ink3 }}>
-            {items.length === 0 ? empty
-              : items.length === 1 ? items[0].name
-              : `${items.length} elegidos`}
-          </div>
-        </div>
-      </div>
-    </button>
+    />
   );
 
   const byKind = (kind: string) => chosen.filter((c) => c.kind === kind);
@@ -658,6 +789,16 @@ export function NewCampaignPage() {
 
         </div>
 
+        {/* Parámetros de corrida — formato / resolución / variantes. Van acá, pegados
+            al botón: lo que define CÓMO sale la pieza vive donde la disparás. */}
+        <div className="px-5 pt-3 pb-1 space-y-2.5">
+          <Options label="Formato" options={AR_OPTIONS} values={aspectRatios}
+                   onToggle={(ar) => { touched.current.add("ratios"); setAspectRatios((prev) => (prev.includes(ar) ? prev.filter((x) => x !== ar) : [...prev, ar])); }} />
+          <Options label="Resolución" options={RES_OPTIONS} value={resolution} onPick={setResolution} />
+          <Options label="Variantes" options={[1, 2, 3, 4]} value={variationsPerShot} onPick={setVariationsPerShot}
+                   render={(v) => `${v}×`} />
+        </div>
+
         {/* El botón de generar: SIEMPRE visible, con lo que va a salir y lo que cuesta.
             Antes había que scrollear hasta el final del formulario para encontrarlo. */}
         <div className="px-5 pt-3 pb-4" style={{ borderTop: `1px solid ${C.hairSoft}` }}>
@@ -705,17 +846,23 @@ export function NewCampaignPage() {
         {picker === "clothing" && (
           <Picker label="Prendas" hint={String((b.clothing || []).length)} multi
                   items={(b.clothing || []).map((c) => ({ id: c.id, name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined }))}
-                  selectedIds={clothingIds} onToggle={mark("clothing", toggle(setClothingIds))} />
+                  selectedIds={clothingIds} onToggle={mark("clothing", toggle(setClothingIds))}
+                  ownItems={ownOf("clothing")} onUpload={(f) => addInputs(f, "clothing")}
+                  onRemoveOwn={removeOwn} uploading={uploadingInput} />
         )}
         {picker === "products" && (
           <Picker label="Productos" hint={String((b.products || []).length)} multi
                   items={(b.products || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? productImageUrl(x.imageUrl) : undefined }))}
-                  selectedIds={productIds} onToggle={mark("products", toggle(setProductIds))} />
+                  selectedIds={productIds} onToggle={mark("products", toggle(setProductIds))}
+                  ownItems={ownOf("product")} onUpload={(f) => addInputs(f, "product")}
+                  onRemoveOwn={removeOwn} uploading={uploadingInput} />
         )}
         {picker === "avatar" && (
           <Picker label="Modelo" hint={String((b.avatars || []).length)}
                   items={(b.avatars || []).map((a) => ({ id: a.id, name: a.name, thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined }))}
-                  selectedId={avatarId} onSingle={mark("avatar", setAvatarId)} />
+                  selectedId={avatarId} onSingle={mark("avatar", setAvatarId)}
+                  ownItems={ownOf("avatar")} onUpload={(f) => addInputs(f, "avatar")}
+                  onRemoveOwn={removeOwn} uploading={uploadingInput} />
         )}
         {picker === "background" && (
           <Picker label="Fondo" hint="opcional"
@@ -750,21 +897,12 @@ export function NewCampaignPage() {
         )}
       </SelectorPanel>
 
-      {/* Columna derecha: barra de parámetros + área de trabajo.
-          Los parámetros de CORRIDA (formato / variantes / resolución) viven acá
-          arriba y no en el panel del brief — misma decisión que en el Lab:
-          "run parameters live here, what defines WHAT gets generated lives in
-          the brief". */}
+      {/* Columna derecha: SOLO el área de trabajo.
+          Los parámetros de corrida (formato / resolución / variantes) estaban acá
+          arriba siguiendo el patrón RUN SETTINGS de Invent. Se movieron al panel
+          izquierdo (2026-09-25): arriba del lienzo se leían como parte del canvas y
+          quedaban lejos del botón que dispara la corrida. Mismo cambio que el Lab. */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="shrink-0 flex items-center gap-5 px-4 h-12 overflow-x-auto no-scrollbar" style={{ borderBottom: `1px solid ${C.hair}` }}>
-          {/* Mismo orden, mismos nombres y mismo formato de valores que el Lab:
-              Formato → Resolución → Variantes, singular, y las variantes con "×". */}
-          <Options inline label="Formato" options={AR_OPTIONS} values={aspectRatios}
-                   onToggle={(ar) => { touched.current.add("ratios"); setAspectRatios((prev) => (prev.includes(ar) ? prev.filter((x) => x !== ar) : [...prev, ar])); }} />
-          <Options inline label="Resolución" options={RES_OPTIONS} value={resolution} onPick={setResolution} />
-          <Options inline label="Variantes" options={[1, 2, 3, 4]} value={variationsPerShot} onPick={setVariationsPerShot}
-                   render={(v) => `${v}×`} />
-        </div>
       <main
         className="flex-1 overflow-y-auto relative"
         style={{ background: "radial-gradient(ellipse 50% 30% at 50% 0%, var(--color-surface-0), var(--color-canvas) 80%)" }}

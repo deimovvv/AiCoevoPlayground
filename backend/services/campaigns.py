@@ -77,6 +77,14 @@ def new_campaign(payload: dict) -> dict:
         "generationIds": [],
         # Piezas generadas dentro de la campaña: { id, url, type, aspectRatio, prompt, status }.
         "pieces": [],
+        # INPUTS propios de la campaña (prendas, modelos, refs subidos acá y no al Brand Kit).
+        # Por qué existen: no todo lo que entra a una campaña merece vivir en el Brand Kit —
+        # una prenda que el cliente mandó suelta, una ref de una sola vez. Además, guardar
+        # solo IDs del Brand Kit rompe el historial: si alguien borra esa prenda, la campaña
+        # vieja queda apuntando a nada y no podés reconstruir con qué se genero.
+        # Forma: { id, url, type: "clothing"|"avatar"|"product"|"background"|"reference",
+        #          name, filename, uploadedAt }
+        "inputs": [],
         "createdAt": _now(),
         "updatedAt": _now(),
     }
@@ -86,7 +94,7 @@ def new_campaign(payload: dict) -> dict:
 _EDITABLE = {
     "name", "brief", "productIds", "moodboardId", "poseId", "shotPlan",
     "customShots", "variationsPerShot", "aspectRatios", "resolution",
-    "status", "generationIds", "pieces",
+    "status", "generationIds", "pieces", "inputs",
     # Costo real de los modelos que consumió la campaña. Las piezas de campaña no son
     # generaciones, así que necesitan su propio registro. Ver lib/costLedger.ts.
     "cost",
