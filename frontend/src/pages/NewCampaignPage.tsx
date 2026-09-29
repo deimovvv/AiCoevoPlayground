@@ -236,6 +236,55 @@ const PICKER_TABS: Record<string, Array<{ id: string; label: string }>> = {
   ],
 };
 
+/** Rol de cada imagen de referencia. Define QUÉ se toma de ella y qué se ignora. */
+type RefRole = "avatar" | "product" | "clothing" | "background" | "pose" | "moodboard" | "lookfeel" | "reference";
+
+/**
+ * Qué hace el generador con cada tipo de referencia. Es la pieza que faltaba: sin esto
+ * todas las imágenes llegaban iguales y el modelo decidía solo — y no respetaba el fondo.
+ *
+ * La distinción clave (planteada por el usuario):
+ *   - FONDO     → literal. Ese fondo, exacto. Para eso se pasa.
+ *   - MOODBOARD → el mood del CONJUNTO. Un moodboard tiene muchas refs; no se copia
+ *                 ninguna, se lee la dirección general.
+ *   - LOOK & FEEL / ILUMINACIÓN → aparte: solo color y grade / solo la luz.
+ *   - POSE      → solo postura y encuadre.
+ */
+const ROLE_INSTRUCTION: Record<RefRole, string> = {
+  avatar:
+    "IDENTITY — the person in the output is EXACTLY this individual: same face, features, skin tone, hair, age and build. Take ONLY the identity; ignore this image's clothing, pose, background and lighting.",
+  product:
+    "PRODUCT — reproduce this product faithfully: exact shape, color, material, proportions and details. It is the product being sold.",
+  clothing:
+    "GARMENT — the model wears THIS exact garment: same color, fabric, cut, fit and details. Take only the garment.",
+  background:
+    "BACKGROUND — use THIS EXACT background, literally. Same setting, same surfaces, same colors, same composition of the space. Do NOT reinterpret, restyle, simplify or replace it with a similar one: place the subject INSIDE this very background, lit consistently with it.",
+  pose:
+    "POSE — reproduce ONLY this body posture and camera framing/crop. Ignore this image's person, clothing, colors, background and lighting completely.",
+  moodboard:
+    "MOODBOARD — this is a board of MANY references read TOGETHER as one direction. Take the overall mood: atmosphere, attitude, energy, styling sensibility, palette tendency. Do NOT copy any single image from it, do NOT reproduce its layout, and do NOT take its people, products or backgrounds literally.",
+  lookfeel:
+    "LOOK & FEEL — take ONLY the color grade and tonal treatment (contrast, saturation, warmth, film quality). Nothing else from this image: not its content, subject, composition or background.",
+  reference:
+    "REFERENCE — general visual reference. Use it as inspiration, not literally.",
+};
+
+/** Bloque de texto que le dice al generador qué es cada imagen, en orden. */
+function describeRefs(refs: Array<{ role: RefRole; name: string }>): string {
+  if (!refs.length) return "";
+  return "\n\nREFERENCE IMAGES (in order):\n" +
+    refs.map((r, i) => `- Image ${i + 1} (${r.name}): ${ROLE_INSTRUCTION[r.role] || ROLE_INSTRUCTION.reference}`).join("\n");
+}
+
+/** File → data URL. Los blob: URL solo existen en este navegador; el backend no los baja. */
+const fileToDataUrl = (f: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = () => reject(new Error("no se pudo leer el archivo"));
+    r.readAsDataURL(f);
+  });
+
 /** Estado vacío de una pestaña que todavía no tiene contenido conectado. */
 function EmptyTab({ tab }: { tab: string }) {
   const msg = tab === "pinterest"
@@ -545,27 +594,47 @@ export function NewCampaignPage() {
   };
 
   /** Referencias visuales que viajan al generador. Cap de 8 — límite de Fal. */
-  const buildRefs = (): string[] => {
-    const refs: string[] = [];
+  /**
+   * Arma las referencias CON SU ROL. Antes devolvía un array plano de URLs y el prompt
+   * solo explicaba qué hacer con modelo, producto y prenda — fondo, moodboard, look &
+   * feel y pose llegaban al generador como "una imagen más", sin instrucción. Por eso
+   * el fondo no se respetaba: el modelo no tenía forma de saber que era EL fondo.
+   * (Además la pose del Brand Kit ni siquiera se mandaba.)
+   *
+   * Cada rol lleva la instrucción de qué tomar de esa imagen y qué ignorar — el mismo
+   * patrón que usa Ecommerce Pack, que es el que funciona.
+   */
+  type Ref = { url: string; role: RefRole; name: string };
+  const buildRefs = async (): Promise<Ref[]> => {
+    const refs: Ref[] = [];
+    const push = (url: string | undefined | null, role: RefRole, name: string) => {
+      if (url) refs.push({ url, role, name });
+    };
+
+    // Orden = prioridad. Si hay que recortar por el cap de 8, se pierde lo de abajo.
     const avatar = (b.avatars || []).find((a) => a.id === avatarId);
-    if (avatar?.imageUrl) refs.push(avatar.imageUrl);
+    push(avatar?.imageUrl, "avatar", avatar?.name || "modelo");
     (b.products || []).filter((x) => productIds.includes(x.id)).forEach((x) => {
-      if (x.imageUrl) refs.push(x.imageUrl);
-      (x.images || []).forEach((im) => im.imageUrl && refs.push(im.imageUrl));
+      push(x.imageUrl, "product", x.name);
+      (x.images || []).forEach((im) => push(im.imageUrl, "product", `${x.name} (otra vista)`));
     });
-    (b.clothing || []).filter((c) => clothingIds.includes(c.id)).forEach((c) => { if (c.imageUrl) refs.push(c.imageUrl); });
+    (b.clothing || []).filter((c) => clothingIds.includes(c.id)).forEach((c) => push(c.imageUrl, "clothing", c.name));
     const bg = (b.backgrounds || []).find((x) => x.id === backgroundId);
-    if (bg?.imageUrl) refs.push(bg.imageUrl);
+    push(bg?.imageUrl, "background", bg?.name || "fondo");
+    const po = (b.poses || []).find((x) => x.id === poseId);
+    push(po?.imageUrl, "pose", po?.name || "pose");
     const mb = (b.moodboards || []).find((m) => m.id === moodboardId);
-    if (mb?.imageUrl) refs.push(mb.imageUrl);
+    push(mb?.imageUrl, "moodboard", mb?.name || "moodboard");
     const lf = (b.lookAndFeel || []).find((l) => l.id === lookFeelId);
-    if (lf?.imageUrl) refs.push(lf.imageUrl);
-    // Inputs propios de la campaña. Van DESPUÉS de los del Brand Kit pero cuentan
-    // igual contra el cap de 8 (límite de refs de Fal). Los ya subidos usan su URL
-    // del backend; los pendientes, el object URL local — las dos las lee el
-    // generador porque se resuelven a bytes antes de mandarlas.
-    savedInputs.forEach((i) => refs.push(i.url));
-    pendingInputs.forEach((i) => refs.push(i.preview));
+    push(lf?.imageUrl, "lookfeel", lf?.name || "look & feel");
+
+    // Inputs propios de la campaña, cada uno con SU rol.
+    savedInputs.forEach((i) => push(i.url, i.type as RefRole, i.name));
+    // Los pendientes tienen un blob: URL que solo existe en ESTE navegador — el backend
+    // no lo puede bajar. Se mandan como data URL, que sí viaja.
+    for (const pi of pendingInputs) {
+      push(await fileToDataUrl(pi.file), pi.type as RefRole, pi.name);
+    }
     return refs.slice(0, 8);
   };
 
@@ -616,7 +685,7 @@ export function NewCampaignPage() {
         }
       }
 
-      const refs = buildRefs();
+      const refs = await buildRefs();
       if (refs.length === 0 && !b.brandContext) {
         setError("Elegí al menos un asset (producto, modelo, moodboard…) o cargá brand context.");
         setSaving(false);
@@ -636,7 +705,8 @@ export function NewCampaignPage() {
         // El preset de iluminación inyecta SU fragmento de prompt — es lo que hace
         // que el banco de luces sirva y no sea sólo una miniatura.
         `${light ? `Lighting: ${light.prompt}. ` : ""}` +
-        `High-end editorial commercial quality, sharp, photorealistic. No text, no watermark, no logo overlay.`;
+        `High-end editorial commercial quality, sharp, photorealistic. No text, no watermark, no logo overlay.` +
+        describeRefs(refs);
 
       const ars = aspectRatios.length ? aspectRatios : ["9:16"];
       const shots = plan?.shots?.length
@@ -655,7 +725,7 @@ export function NewCampaignPage() {
         const shotPrompt = shot.prompt ? `${basePrompt} SHOT: ${shot.prompt}` : basePrompt;
         try {
           const job = refs.length
-            ? await createImageEdit(refs, shotPrompt, ar, resolution)
+            ? await createImageEdit(refs.map((r) => r.url), shotPrompt, ar, resolution)
             : await createTextToImage(shotPrompt, ar, resolution);
           const r = await pollImageGen(job.request_id);
           fresh.push({ id: `pc_${pieces.length + i}_${ar}_${i}`, url: r.image_url || "", type: "image", aspectRatio: ar, prompt: shotPrompt, label: shot.label || undefined, status: r.image_url ? "done" : "failed" });
