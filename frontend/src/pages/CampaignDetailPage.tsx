@@ -318,8 +318,8 @@ export function CampaignDetailPage() {
   // Kit. Se muestran igual que los del kit, con "(de la campaña)" para distinguirlos.
   // Son los únicos que sobreviven a que alguien borre el asset original de la marca.
   const KIND_ES: Record<string, string> = {
-    clothing: "Prenda", avatar: "Modelo", product: "Producto",
-    background: "Fondo", reference: "Referencia",
+    clothing: "Prenda", avatar: "Modelo", product: "Producto", background: "Fondo",
+    pose: "Pose", moodboard: "Moodboard", lookfeel: "Look & feel", reference: "Referencia",
   };
   (campaign.inputs || []).forEach((i) => assigned.push({
     kind: `${KIND_ES[i.type] || "Referencia"} (de la campaña)`,

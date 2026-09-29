@@ -642,7 +642,8 @@ _IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif"}
 
 # Tipos de input que una campaña puede tener propios. Espejan los assets del
 # Brand Kit, pero viven DENTRO de la campaña.
-_INPUT_TYPES = {"clothing", "avatar", "product", "background", "reference"}
+_INPUT_TYPES = {"clothing", "avatar", "product", "background",
+                "pose", "moodboard", "lookfeel", "reference"}
 
 
 @app.post("/api/campaigns/{campaign_id}/inputs")

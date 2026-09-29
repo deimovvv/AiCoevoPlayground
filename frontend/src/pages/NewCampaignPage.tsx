@@ -466,8 +466,23 @@ export function NewCampaignPage() {
     if (lf) out.push({ kind: "Look & feel", id: lf.id, name: lf.name, thumb: lf.imageUrl ? lookAndFeelImageUrl(lf.imageUrl) : undefined });
     const po = (b.poses || []).find((x) => x.id === poseId);
     if (po) out.push({ kind: "Pose", id: po.id, name: po.name, thumb: po.imageUrl ? poseImageUrl(po.imageUrl) : undefined });
+    // Los inputs propios de la campaña cuentan como assets elegidos: no se tildan,
+    // pero entran a la generación igual, así que tienen que verse en el resumen.
+    const OWN_KIND: Record<string, string> = {
+      clothing: "Prenda", avatar: "Modelo", product: "Producto", background: "Fondo",
+      pose: "Pose", moodboard: "Moodboard", lookfeel: "Look & feel", reference: "Referencia",
+    };
+    savedInputs.forEach((i) => out.push({
+      kind: `${OWN_KIND[i.type] || "Referencia"} · campaña`, id: i.id, name: i.name,
+      thumb: campaignInputUrl(i.url),
+    }));
+    pendingInputs.forEach((i) => out.push({
+      kind: `${OWN_KIND[i.type] || "Referencia"} · campaña`, id: i.key, name: i.name,
+      thumb: i.preview,
+    }));
     return out;
-  }, [b, clothingIds, productIds, avatarId, backgroundId, moodboardId, lookFeelId, poseId]);
+  }, [b, clothingIds, productIds, avatarId, backgroundId, moodboardId, lookFeelId, poseId,
+      savedInputs, pendingInputs]);
 
   const handleAttach = async (f: File | null | undefined) => {
     if (!f) return;
@@ -867,17 +882,23 @@ export function NewCampaignPage() {
         {picker === "background" && (
           <Picker label="Fondo" hint="opcional"
                   items={(b.backgrounds || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))}
-                  selectedId={backgroundId} onSingle={mark("background", setBackgroundId)} />
+                  selectedId={backgroundId} onSingle={mark("background", setBackgroundId)}
+                  ownItems={ownOf("background")} onUpload={(f) => addInputs(f, "background")}
+                  onRemoveOwn={removeOwn} uploading={uploadingInput} />
         )}
         {picker === "moodboard" && (
           <Picker label="Moodboard" hint="dirección"
                   items={(b.moodboards || []).map((m) => ({ id: m.id, name: m.name, thumb: m.imageUrl ? moodboardImageUrl(m.imageUrl) : undefined }))}
-                  selectedId={moodboardId} onSingle={mark("moodboard", setMoodboardId)} />
+                  selectedId={moodboardId} onSingle={mark("moodboard", setMoodboardId)}
+                  ownItems={ownOf("moodboard")} onUpload={(f) => addInputs(f, "moodboard")}
+                  onRemoveOwn={removeOwn} uploading={uploadingInput} />
         )}
         {picker === "lookFeel" && (
           <Picker label="Look & feel" hint="color"
                   items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
-                  selectedId={lookFeelId} onSingle={mark("lookFeel", setLookFeelId)} />
+                  selectedId={lookFeelId} onSingle={mark("lookFeel", setLookFeelId)}
+                  ownItems={ownOf("lookfeel")} onUpload={(f) => addInputs(f, "lookfeel")}
+                  onRemoveOwn={removeOwn} uploading={uploadingInput} />
         )}
         {picker === "lighting" && (
           pickerTab === "presets" ? (
@@ -892,7 +913,9 @@ export function NewCampaignPage() {
           pickerTab === "pinterest" ? <EmptyTab tab="pinterest" /> : (
             <Picker label="Poses" hint="estrictas"
                     items={(b.poses || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? poseImageUrl(x.imageUrl) : undefined }))}
-                    selectedId={poseId} onSingle={mark("pose", setPoseId)} />
+                    selectedId={poseId} onSingle={mark("pose", setPoseId)}
+                    ownItems={ownOf("pose")} onUpload={(f) => addInputs(f, "pose")}
+                    onRemoveOwn={removeOwn} uploading={uploadingInput} />
           )
         )}
       </SelectorPanel>
