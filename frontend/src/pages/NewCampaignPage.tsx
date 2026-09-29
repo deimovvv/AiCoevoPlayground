@@ -28,6 +28,7 @@ import { EditOverlay } from "../components/workspace/EditOverlay";
 import { fetchSystemLighting, systemAssetUrl, type LightingPreset } from "../lib/api";
 import { useNavigate } from "react-router";
 import { ArrowLeft, Loader2, Paperclip } from "lucide-react";
+import { Lightbox } from "../components/Lightbox";
 import { useBrand } from "../lib/BrandContext";
 import {
   createCampaign,
@@ -84,7 +85,7 @@ type AssetItem = { id: string; name: string; thumb?: string };
  * Lo seleccionado lleva un marco fino por fuera, nunca un relleno de color.
  */
 function Picker({ label, hint, items, multi, selectedId, selectedIds, onSingle, onToggle,
-                 ownItems, onUpload, onRemoveOwn, uploading }: {
+                 ownItems, onUpload, onRemoveOwn, uploading, onZoom }: {
   label: string;
   hint?: string;
   items: AssetItem[];
@@ -100,6 +101,8 @@ function Picker({ label, hint, items, multi, selectedId, selectedIds, onSingle, 
   onUpload?: (files: FileList | null) => void;
   onRemoveOwn?: (key: string) => void;
   uploading?: boolean;
+  /** Ver en grande. Seleccionar sigue siendo el click normal; esto es aparte. */
+  onZoom?: (url: string, caption: string) => void;
 }) {
   // Se muestran las primeras; el resto se despliega en el lugar, sin cambiar de pantalla.
   const [showAll, setShowAll] = useState(false);
@@ -121,8 +124,8 @@ function Picker({ label, hint, items, multi, selectedId, selectedIds, onSingle, 
         {shown.map((it) => {
           const on = multi ? (selectedIds || []).includes(it.id) : selectedId === it.id;
           return (
+            <div key={it.id} className="relative group/thumb">
             <button
-              key={it.id}
               type="button"
               title={it.name}
               onClick={() => (multi ? onToggle?.(it.id) : onSingle?.(on ? null : it.id))}
@@ -138,6 +141,17 @@ function Picker({ label, hint, items, multi, selectedId, selectedIds, onSingle, 
                 ? <img src={it.thumb} alt={it.name} className="w-full h-full object-cover" />
                 : <span className="text-[8px] px-1 block leading-tight pt-2" style={{ color: C.ink3 }}>{it.name}</span>}
             </button>
+            {/* Lupa: agranda sin seleccionar. El click en el thumb sigue eligiendo. */}
+            {onZoom && it.thumb && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onZoom(it.thumb!, it.name); }}
+                title="Ver en grande"
+                className="absolute bottom-0.5 right-0.5 w-[16px] h-[16px] rounded-[2px] text-[9px] leading-none cursor-zoom-in opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center"
+                style={{ background: "rgba(0,0,0,.65)", color: "#fff" }}
+              >⤢</button>
+            )}
+            </div>
           );
         })}
         {rest > 0 && (
@@ -158,7 +172,8 @@ function Picker({ label, hint, items, multi, selectedId, selectedIds, onSingle, 
               title={`${o.name} · subido a esta campaña`}
               style={{ boxShadow: `0 0 0 1px ${C.accent}, 0 0 0 4px ${C.paper}, 0 0 0 5px ${C.accent}` }}
             >
-              <img src={o.thumb} alt={o.name} className="w-full h-full object-cover" />
+              <img src={o.thumb} alt={o.name} className="w-full h-full object-cover cursor-zoom-in"
+                   onClick={() => onZoom?.(o.thumb, o.name)} />
             </div>
             {onRemoveOwn && (
               <button
@@ -346,6 +361,8 @@ export function NewCampaignPage() {
   // fondo y en qué formato — y el formulario te lo volvía a preguntar en tres
   // bloques. Ahora se completan solos al terminar de escribir, y quedan editables.
   const [plan, setPlan] = useState<CampaignPlan | null>(null);
+  /** Imagen(es) en grande. `items` + `index` para navegar con ← / →. */
+  const [zoom, setZoom] = useState<{ items: Array<{ url: string; caption?: string }>; index: number } | null>(null);
   /** Piezas generadas — se dibujan en el canvas de esta misma pantalla.
    *  Antes `submit` creaba la campaña y navegaba a /campaigns/:id: generabas y te
    *  sacaba de la pantalla, sin poder seguir tocando el brief ni regenerar. */
@@ -943,48 +960,55 @@ export function NewCampaignPage() {
                   items={(b.clothing || []).map((c) => ({ id: c.id, name: c.name, thumb: c.imageUrl ? clothingImageUrl(c.imageUrl) : undefined }))}
                   selectedIds={clothingIds} onToggle={mark("clothing", toggle(setClothingIds))}
                   ownItems={ownOf("clothing")} onUpload={(f) => addInputs(f, "clothing")}
-                  onRemoveOwn={removeOwn} uploading={uploadingInput} />
+                  onRemoveOwn={removeOwn} uploading={uploadingInput}
+                  onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
         )}
         {picker === "products" && (
           <Picker label="Productos" hint={String((b.products || []).length)} multi
                   items={(b.products || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? productImageUrl(x.imageUrl) : undefined }))}
                   selectedIds={productIds} onToggle={mark("products", toggle(setProductIds))}
                   ownItems={ownOf("product")} onUpload={(f) => addInputs(f, "product")}
-                  onRemoveOwn={removeOwn} uploading={uploadingInput} />
+                  onRemoveOwn={removeOwn} uploading={uploadingInput}
+                  onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
         )}
         {picker === "avatar" && (
           <Picker label="Modelo" hint={String((b.avatars || []).length)}
                   items={(b.avatars || []).map((a) => ({ id: a.id, name: a.name, thumb: a.imageUrl ? avatarImageUrl(a.imageUrl) : undefined }))}
                   selectedId={avatarId} onSingle={mark("avatar", setAvatarId)}
                   ownItems={ownOf("avatar")} onUpload={(f) => addInputs(f, "avatar")}
-                  onRemoveOwn={removeOwn} uploading={uploadingInput} />
+                  onRemoveOwn={removeOwn} uploading={uploadingInput}
+                  onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
         )}
         {picker === "background" && (
           <Picker label="Fondo" hint="opcional"
                   items={(b.backgrounds || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))}
                   selectedId={backgroundId} onSingle={mark("background", setBackgroundId)}
                   ownItems={ownOf("background")} onUpload={(f) => addInputs(f, "background")}
-                  onRemoveOwn={removeOwn} uploading={uploadingInput} />
+                  onRemoveOwn={removeOwn} uploading={uploadingInput}
+                  onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
         )}
         {picker === "moodboard" && (
           <Picker label="Moodboard" hint="dirección"
                   items={(b.moodboards || []).map((m) => ({ id: m.id, name: m.name, thumb: m.imageUrl ? moodboardImageUrl(m.imageUrl) : undefined }))}
                   selectedId={moodboardId} onSingle={mark("moodboard", setMoodboardId)}
                   ownItems={ownOf("moodboard")} onUpload={(f) => addInputs(f, "moodboard")}
-                  onRemoveOwn={removeOwn} uploading={uploadingInput} />
+                  onRemoveOwn={removeOwn} uploading={uploadingInput}
+                  onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
         )}
         {picker === "lookFeel" && (
           <Picker label="Look & feel" hint="color"
                   items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
                   selectedId={lookFeelId} onSingle={mark("lookFeel", setLookFeelId)}
                   ownItems={ownOf("lookfeel")} onUpload={(f) => addInputs(f, "lookfeel")}
-                  onRemoveOwn={removeOwn} uploading={uploadingInput} />
+                  onRemoveOwn={removeOwn} uploading={uploadingInput}
+                  onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
         )}
         {picker === "lighting" && (
           pickerTab === "presets" ? (
             <Picker label="Iluminación" hint={`${lighting.length} presets`}
                     items={lighting.map((l) => ({ id: l.id, name: l.name, thumb: systemAssetUrl(l.imageUrl) }))}
-                    selectedId={lightingId} onSingle={mark("lighting", setLightingId)} />
+                    selectedId={lightingId} onSingle={mark("lighting", setLightingId)}
+                  onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
           ) : (
             <EmptyTab tab={pickerTab} />
           )
@@ -995,10 +1019,20 @@ export function NewCampaignPage() {
                     items={(b.poses || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? poseImageUrl(x.imageUrl) : undefined }))}
                     selectedId={poseId} onSingle={mark("pose", setPoseId)}
                     ownItems={ownOf("pose")} onUpload={(f) => addInputs(f, "pose")}
-                    onRemoveOwn={removeOwn} uploading={uploadingInput} />
+                    onRemoveOwn={removeOwn} uploading={uploadingInput}
+                  onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
           )
         )}
       </SelectorPanel>
+
+      {zoom && (
+        <Lightbox
+          items={zoom.items}
+          index={zoom.index}
+          onClose={() => setZoom(null)}
+          onNavigate={(next) => setZoom((z) => (z ? { ...z, index: next } : z))}
+        />
+      )}
 
       {/* Columna derecha: SOLO el área de trabajo.
           Los parámetros de corrida (formato / resolución / variantes) estaban acá
@@ -1070,7 +1104,11 @@ export function NewCampaignPage() {
                     <video src={pc.url} controls loop muted playsInline className="w-full h-full object-cover"
                            style={{ aspectRatio: pc.aspectRatio.replace(":", "/") }} />
                   ) : pc.url ? (
-                    <img src={pc.url} alt={pc.label || ""} className="w-full h-full object-cover"
+                    <img src={pc.url} alt={pc.label || ""} className="w-full h-full object-cover cursor-zoom-in"
+                         onClick={() => {
+                           const imgs = pieces.filter((x) => x.url && x.type !== "video");
+                           setZoom({ items: imgs.map((x) => ({ url: x.url, caption: x.label })), index: imgs.findIndex((x) => x.id === pc.id) });
+                         }}
                          style={{ aspectRatio: pc.aspectRatio.replace(":", "/") }} />
                   ) : (
                     <div className="flex items-center justify-center text-[11px]"
