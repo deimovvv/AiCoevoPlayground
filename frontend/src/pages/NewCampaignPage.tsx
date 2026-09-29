@@ -720,7 +720,12 @@ export function NewCampaignPage() {
     />
   );
 
-  const byKind = (kind: string) => chosen.filter((c) => c.kind === kind);
+  /** Los assets elegidos de un tipo, del Brand Kit Y propios de la campaña.
+   *  Los propios llevan el sufijo "· campaña" en `kind` (para distinguirlos en la
+   *  lista), así que la comparación no puede ser exacta o no aparecerían en su
+   *  control. */
+  const byKind = (kind: string) =>
+    chosen.filter((c) => c.kind === kind || c.kind === `${kind} · campaña`);
 
   return (
     /* Misma estructura que el Lab: header arriba a todo el ancho, y debajo el
@@ -801,6 +806,11 @@ export function NewCampaignPage() {
             onOpen={() => setPicker("lighting")}
             empty="automática"
           />
+          {/* Pose y Look & feel tenían su Picker escrito pero NINGÚN control que lo
+              abriera, así que eran inalcanzables desde la UI. La pose importa: define
+              postura Y encuadre, y es el input que más se pasa suelto. */}
+          <Control label="Pose"        items={byKind("Pose")}        onOpen={() => setPicker("pose")} empty="libre" />
+          <Control label="Look & feel" items={byKind("Look & feel")} onOpen={() => setPicker("lookFeel")} empty="de la marca" />
 
         </div>
 
