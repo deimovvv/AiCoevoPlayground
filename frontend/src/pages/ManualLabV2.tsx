@@ -111,10 +111,9 @@ type AspectRatio = typeof IMG_ASPECT_RATIOS[number];
 type Resolution = typeof IMG_RESOLUTIONS[number];
 
 // Video — las duraciones ahora vienen de klingDurationOptions(modelo) (V3 Pro: 3–10; resto: 5/10).
-// Seedance 2.x TOPE 720p — el 1080p que figuraba acá NO existe en el modelo
-// (verificado en fal.ai 2026-09-23). Ofrecerlo cobraba tarifa de 1080p por un
-// output de 720p. Seedance 1.0 Pro sí llega a 1080p, pero es otra familia.
-const SEEDANCE_RESOLUTIONS = ["480p", "720p"] as const;
+// Seedance va por kie.ai (decisión del usuario 2026-10-01), que SÍ ofrece 1080p.
+// Por Fal el tope era 720p — por eso se había sacado. Ver services/seedance_video.py.
+const SEEDANCE_RESOLUTIONS = ["480p", "720p", "1080p"] as const;
 const VID_ASPECT_RATIOS = ["9:16", "16:9", "1:1", "4:3", "3:4"] as const;
 // FLUX 3: servicio listo en backend/services/flux_video.py, pero NO está en el
 // dropdown todavía — el submit de i2v sólo sabe hablar con Kling, así que
@@ -133,8 +132,10 @@ const VIDEO_RATE_PER_SEC: Record<string, number | Record<string, number>> = {
     "v3-std": 0.084,       // Kling V3 Standard
     "v2-6-pro": 0.07,      // Kling V2.6 Pro
     "v2-5-turbo": 0.07,    // Kling V2.5 Turbo
-    "seedance-2": { "480p": 0.2205, "720p": 0.4730 },
-    "seedance-2-5": { "480p": 0.2205, "720p": 0.4730 },
+    // Seedance vía kie.ai, sin video de referencia (kie.ai/seedance-2-5, 2026-10-01).
+    // ~33% más barato que Fal en 720p, y 1080p que Fal no tiene.
+    "seedance-2": { "480p": 0.14, "720p": 0.315, "1080p": 0.79 },
+    "seedance-2-5": { "480p": 0.14, "720p": 0.315, "1080p": 0.79 },
     "flux-3": { "720p": 0.17, "1080p": 0.29 },   // BFL, verificado 2026-09-25
 };
 /** Estimado de costo de un video = tarifa($/seg) × duración. null si no hay tarifa. */
@@ -181,7 +182,7 @@ const VIDEO_MODELS: VideoModelSpec[] = [
     { id: "v2-6-pro",   label: "Kling V2.6 Pro",   sub: "Generación anterior · ~$0.35/5s", provider: "kling",     modes: ["i2v", "f2f"] },
     { id: "v2-5-turbo", label: "Kling V2.5 Turbo", sub: "El más rápido · ~$0.35/5s", provider: "kling",           modes: ["i2v", "f2f"] },
     { id: "flux-3",     label: "FLUX 3",           sub: "Lo más nuevo (BFL) · 1 imagen · ~$0.85/5s", provider: "flux", modes: ["i2v"], resolutions: FLUX3_RESOLUTIONS },
-    { id: "seedance-2-5", label: "Seedance 2.5",   sub: "Multi-ref (hasta 30) · tope 720p · ~$2.37/5s", provider: "seedance", modes: ["rtv"], resolutions: SEEDANCE_RESOLUTIONS, aspectRatios: VID_ASPECT_RATIOS },
+    { id: "seedance-2-5", label: "Seedance 2.5",     sub: "Multi-ref (hasta 30) · hasta 1080p · vía kie · ~$1.58/5s", provider: "seedance", modes: ["rtv"], resolutions: SEEDANCE_RESOLUTIONS, aspectRatios: VID_ASPECT_RATIOS },
 ];
 
 const VIDEO_MODE_LABELS: Record<VideoMode, { label: string; sub: string }> = {

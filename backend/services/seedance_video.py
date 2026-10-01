@@ -1,17 +1,29 @@
 """
-Seedance 2.0 Reference-to-Video Service (via Fal AI)
-─────────────────────────────────────────────────────
-ByteDance Seedance 2.0 in "reference-to-video" mode: takes N reference images
-+ a prompt and generates a video that integrates elements from all of them.
+Seedance Reference-to-Video — vía kie.ai (default) o Fal (fallback)
+───────────────────────────────────────────────────────────────────
+ByteDance Seedance en modo "reference-to-video": N imágenes de referencia + prompt
+→ un video que integra todo. Distinto de Kling i2v (UNA imagen como primer frame):
+esto es multi-referencia, para "avatar + producto + escena" a la vez.
 
-Different from Kling's image-to-video (which uses ONE image as start frame) —
-this is multi-reference conditioning, well suited to "avatar + product + scene"
-generation where multiple inputs need to coexist in the output.
+PROVEEDOR — decisión del usuario (2026-10-01): *"cuando usemos Seedance, te conectes
+a la API de kie siempre"*. kie.ai es el default si hay KIE_API_KEY; Fal queda sólo
+como fallback si la key falta.
 
-REST pattern (same as Kling / all Fal queue-based models):
-  1. Submit job → request_id
-  2. Poll status → IN_QUEUE | IN_PROGRESS | COMPLETED
-  3. Fetch result → final video URL
+Por qué kie (verificado en kie.ai/seedance-2-5 y fal.ai, 2026-10-01), Seedance 2.5,
+sin video de referencia:
+            Fal          kie.ai
+  480p   $0.221/s     $0.140/s   (-37%)
+  720p   $0.473/s     $0.315/s   (-33%)
+  1080p  no existe    $0.790/s   ← kie lo ofrece, Fal no
+Con video de referencia kie baja aún más (480p $0.085/s · 720p $0.190/s · 1080p $0.475/s).
+
+Contrato kie (docs.kie.ai/market/bytedance/seedance-2-5 + market/common/get-task-detail):
+  POST /api/v1/jobs/createTask   {model, input:{prompt, reference_image_urls, ...}}
+  GET  /api/v1/jobs/recordInfo?taskId=…   state: waiting|queuing|generating|success|fail
+  resultJson es un STRING con JSON adentro: {"resultUrls": [...]}
+
+Los request_id de kie llevan prefijo "kie:" — así un job de Fal que ya estaba en curso
+cuando se hizo el cambio sigue resolviéndose por su camino, sin romperse.
 """
 
 import os
@@ -32,6 +44,24 @@ SEEDANCE_MODELS = {
 FAL_MODEL_BASE = "bytedance/seedance-2.5"
 
 
+KIE_BASE = "https://api.kie.ai"
+KIE_MODEL = "bytedance/seedance-2-5"
+KIE_PREFIX = "kie:"
+
+
+def _kie_key() -> str:
+    return os.getenv("KIE_API_KEY", "")
+
+
+def _use_kie() -> bool:
+    """kie.ai es el default para Seedance; Fal sólo si no hay key de kie."""
+    return bool(_kie_key())
+
+
+def _kie_headers() -> dict:
+    return {"Authorization": f"Bearer {_kie_key()}", "Content-Type": "application/json"}
+
+
 def _get_key() -> str:
     return os.getenv("FAL_KEY", "")
 
@@ -44,7 +74,7 @@ def _headers() -> dict:
 
 
 def is_configured() -> bool:
-    return bool(_get_key())
+    return bool(_kie_key() or _get_key())
 
 
 def _friendly_error(raw: Union[str, dict, list]) -> str:
@@ -88,6 +118,93 @@ def _friendly_error(raw: Union[str, dict, list]) -> str:
     return (msg or text)[:300]
 
 
+async def _kie_create(
+    prompt: str,
+    reference_image_urls: List[str],
+    duration: str,
+    aspect_ratio: Optional[str],
+    resolution: Optional[str],
+    audio_urls: Optional[List[str]],
+    reference_video_urls: Optional[List[str]],
+    generate_audio: Optional[bool],
+) -> str:
+    """Encola en kie.ai y devuelve 'kie:<taskId>'."""
+    inp: dict = {"prompt": prompt}
+    if reference_image_urls:
+        inp["reference_image_urls"] = reference_image_urls
+    if reference_video_urls:
+        inp["reference_video_urls"] = reference_video_urls
+    if audio_urls:
+        inp["reference_audio_urls"] = audio_urls
+    # kie pide duración ENTERA en [4, 30]; el front manda string ("5").
+    try:
+        inp["duration"] = max(4, min(30, int(float(duration))))
+    except (TypeError, ValueError):
+        inp["duration"] = 5
+    if resolution:
+        inp["resolution"] = resolution            # 480p | 720p | 1080p
+    if aspect_ratio:
+        inp["aspect_ratio"] = aspect_ratio
+    # Misma regla que en Fal: si el usuario trae audio, que no se pise con uno generado.
+    if generate_audio is not None:
+        inp["generate_audio"] = generate_audio
+    elif audio_urls:
+        inp["generate_audio"] = False
+
+    print(f"[seedance-kie] createTask {KIE_MODEL} · {len(reference_image_urls or [])} imgs · "
+          f"{inp.get('resolution', 'default')} · {inp['duration']}s")
+    async with httpx.AsyncClient(timeout=30) as client:
+        res = await client.post(f"{KIE_BASE}/api/v1/jobs/createTask",
+                                headers=_kie_headers(), json={"model": KIE_MODEL, "input": inp})
+    data = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
+    # kie responde 200 con un `code` propio adentro: hay que mirar los dos.
+    if res.status_code != 200 or data.get("code") != 200:
+        raise Exception(f"kie.ai Seedance falló ({res.status_code}): {res.text[:300]}")
+    task_id = (data.get("data") or {}).get("taskId")
+    if not task_id:
+        raise Exception(f"kie.ai no devolvió taskId: {res.text[:300]}")
+    return f"{KIE_PREFIX}{task_id}"
+
+
+async def _kie_record(task_id: str) -> dict:
+    """Consulta el task en kie y lo traduce al formato que ya consume el front."""
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            res = await client.get(f"{KIE_BASE}/api/v1/jobs/recordInfo",
+                                   headers=_kie_headers(), params={"taskId": task_id})
+    except Exception as e:
+        # Transitorio: que el poller reintente en vez de abortar un job vivo.
+        print(f"[seedance-kie] recordInfo transitorio (reintenta): {e}")
+        return {"status": "processing", "video_url": None, "error": None}
+
+    if res.status_code >= 500:
+        return {"status": "processing", "video_url": None, "error": None}
+    body = res.json() if res.status_code == 200 else {}
+    d = body.get("data") or {}
+    state = d.get("state")
+
+    if state == "success":
+        url = None
+        try:
+            # resultJson es un STRING con JSON adentro, no un objeto.
+            url = (json.loads(d.get("resultJson") or "{}").get("resultUrls") or [None])[0]
+        except Exception:
+            pass
+        if url:
+            return {"status": "completed", "video_url": url, "error": None}
+        return {"status": "failed", "video_url": None, "error": "kie.ai terminó sin URL de video"}
+    if state == "fail":
+        return {"status": "failed", "video_url": None,
+                "error": _friendly_error(d.get("failMsg") or d.get("failCode") or res.text)}
+    if state in ("waiting", "queuing"):
+        return {"status": "pending", "video_url": None, "error": None}
+    if state == "generating":
+        return {"status": "processing", "video_url": None, "error": None}
+    if res.status_code != 200 or body.get("code") not in (200, None):
+        return {"status": "failed", "video_url": None, "error": f"kie.ai recordInfo: {res.text[:200]}"}
+    return {"status": "processing", "video_url": None, "error": None}
+
+
 async def create_reference_to_video(
     prompt: str,
     reference_image_urls: List[str],
@@ -115,6 +232,11 @@ async def create_reference_to_video(
     """
     if not reference_image_urls and not reference_video_urls:
         raise Exception("Seedance reference-to-video needs at least 1 reference image or video")
+
+    if _use_kie():
+        return await _kie_create(prompt, reference_image_urls, duration, aspect_ratio,
+                                 resolution, audio_urls, reference_video_urls, generate_audio)
+    # ── Fallback: Fal (sólo si no hay KIE_API_KEY) ──
 
     payload: dict = {
         "prompt": prompt,
@@ -164,6 +286,9 @@ async def create_reference_to_video(
 
 
 async def get_status(request_id: str) -> dict:
+    if request_id.startswith(KIE_PREFIX):
+        r = await _kie_record(request_id[len(KIE_PREFIX):])
+        return {"request_id": request_id, **r}
     if request_id.startswith("SYNC:"):
         return {"request_id": request_id, "status": "completed", "video_url": request_id[5:], "error": None}
 
@@ -204,6 +329,9 @@ async def get_status(request_id: str) -> dict:
 
 
 async def get_result(request_id: str) -> dict:
+    if request_id.startswith(KIE_PREFIX):
+        r = await _kie_record(request_id[len(KIE_PREFIX):])
+        return {"request_id": request_id, **r}
     if request_id.startswith("SYNC:"):
         return {"request_id": request_id, "status": "completed", "video_url": request_id[5:], "error": None}
 

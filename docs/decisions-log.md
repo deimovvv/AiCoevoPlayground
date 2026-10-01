@@ -7,6 +7,33 @@ Cada entrada tiene fecha, contexto, decisión tomada, alternativas descartadas y
 
 ---
 
+## 2026-10-01 — Seedance va siempre por kie.ai, no por Fal
+
+**Decisión del usuario:** *"cuando usemos Seedance, te conectes a la API de kie siempre"*.
+
+**Verificado antes de cablear** (kie.ai/seedance-2-5 vs fal.ai, Seedance 2.5, sin video de referencia):
+
+| | Fal | kie.ai | |
+|---|---|---|---|
+| 480p | $0.221/s | $0.140/s | −37% |
+| 720p | $0.473/s | $0.315/s | −33% |
+| 1080p | **no existe** | $0.790/s | kie lo ofrece |
+
+**Cómo quedó:** `backend/services/seedance_video.py` usa kie si hay `KIE_API_KEY`; Fal queda
+como fallback sólo si falta la key. Único punto de entrada para Seedance en todo el
+backend — ningún otro service lo llama directo, así que el cambio cubre Lab, Fashion Reel
+y cualquier tool que use `/api/seedance/*`.
+
+**Gotchas del contrato de kie:**
+- `createTask` responde HTTP 200 con un `code` propio adentro — hay que chequear los dos.
+- `resultJson` es un **string** con JSON adentro, no un objeto.
+- `duration` va como **entero** en [4, 30]; el front manda string.
+- Los `request_id` de kie llevan prefijo `kie:` para que un job de Fal en curso al momento
+  del cambio siga resolviéndose por su camino.
+
+**No validado generando** — sólo se probó el camino de consulta (gratis). La primera corrida
+real confirma el contrato de `createTask`.
+
 ## 2026-09-25 — Fashion Editorial no es una tool: se convierte en preset de Campañas
 
 **Decisión del usuario:** *"campañas y Fashion Editorial no tienen mucho sentido, es lo
