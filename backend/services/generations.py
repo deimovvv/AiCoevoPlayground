@@ -14,10 +14,14 @@ Para cambiar algo usá siempre mutate(): lee y escribe bajo el mismo lock, de mo
 que dos guardados simultáneos no se pisen el cambio.
 """
 
-import fcntl
+try:
+    import fcntl  # POSIX only — en Windows no existe; caemos a threading.Lock
+except ImportError:
+    fcntl = None
 import json
 import os
 import shutil
+import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -42,16 +46,27 @@ BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Primitivas de escritura segura ────────────────────────────────────────────
 
+_thread_lock = threading.Lock()
+
+
 @contextmanager
 def _file_lock():
-    """Lock exclusivo entre procesos. A diferencia de threading.Lock (que solo
-    cubre un proceso), flock sirve con varios workers de uvicorn."""
+    """Lock exclusivo. En POSIX usa flock: sirve ENTRE procesos, así que aguanta
+    varios workers de uvicorn. En Windows (sin fcntl) cae a un threading.Lock
+    in-proceso — suficiente para el dev local de un solo worker."""
     with open(LOCK_FILE, "w") as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        if fcntl is not None:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        else:
+            _thread_lock.acquire()
+            try:
+                yield
+            finally:
+                _thread_lock.release()
 
 
 def _atomic_write_json(path: Path, payload: Any) -> None:

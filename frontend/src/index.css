@@ -1,5 +1,7 @@
-@import "tailwindcss";
+/* Google Fonts primero: Tailwind v4 expande @import "tailwindcss" en reglas CSS,
+   y un @import url() que quede después de reglas rompe PostCSS. */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap");
+@import "tailwindcss";
 
 /* ============================================================
    Coevo Studio — Design Tokens
