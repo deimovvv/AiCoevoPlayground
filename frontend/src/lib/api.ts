@@ -565,12 +565,6 @@ export async function deleteCampaign(id: string): Promise<void> {
     if (!res.ok) throw new Error("No se pudo borrar la campaña");
 }
 
-export async function fetchBrand(brandId: string): Promise<Brand> {
-    const res = await fetch(`${API_BASE}/api/brands/${brandId}`);
-    if (!res.ok) throw new Error("Failed to fetch brand");
-    return res.json();
-}
-
 export async function createBrand(name: string): Promise<Brand> {
     const res = await fetch(`${API_BASE}/api/brands`, {
         method: "POST",
@@ -893,19 +887,6 @@ export async function uploadPortalPieces(token: string, campaignId: string, file
     }
 }
 
-export async function createPortalNote(token: string, text: string): Promise<PortalNote> {
-    const res = await fetch(`${API_BASE}/api/portal/${token}/notes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-    });
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "No se pudo enviar" }));
-        throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo enviar la nota");
-    }
-    return res.json();
-}
-
 /** Del lado nuestro: las notas del cliente, para el próximo briefing. */
 export async function listBrandNotes(brandId: string): Promise<PortalNote[]> {
     const res = await fetch(`${API_BASE}/api/brands/${brandId}/portal/notes`);
@@ -1095,34 +1076,6 @@ export async function replaceAvatarImage(brandId: string, avatarId: string, imag
         body: formData,
     });
     if (!res.ok) throw new Error("Failed to replace avatar image");
-    return res.json();
-}
-
-export async function addHeygenAvatar(
-    brandId: string,
-    talkingPhotoId: string,
-    name: string,
-    previewUrl: string
-): Promise<Avatar> {
-    const res = await fetch(`${API_BASE}/api/brands/${brandId}/avatars/heygen`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ talkingPhotoId, name, previewUrl })
-    });
-
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to add HeyGen avatar (${res.status})`);
-    }
-
-    return res.json();
-}
-
-export async function retryAvatarHeygen(brandId: string, avatarId: string): Promise<Avatar> {
-    const res = await fetch(`${API_BASE}/api/brands/${brandId}/avatars/${avatarId}/retry-heygen`, {
-        method: "POST",
-    });
-    if (!res.ok) throw new Error("Failed to retry HeyGen upload");
     return res.json();
 }
 
@@ -1369,13 +1322,6 @@ export interface PoseItem {
     imageUrl: string;
 }
 
-export async function listPoses(brandId: string): Promise<PoseItem[]> {
-    const res = await fetch(`${API_BASE}/api/brands/${brandId}/poses`);
-    if (!res.ok) return [];
-    const d = await res.json();
-    return d.poses || [];
-}
-
 export async function uploadPose(brandId: string, name: string, imageFile: File): Promise<PoseItem> {
     const formData = new FormData();
     formData.append("name", name);
@@ -1564,27 +1510,6 @@ export async function describeSceneLighting(imageUrl: string): Promise<{ descrip
         throw new Error((typeof err.detail === "string" ? err.detail : "") || "No se pudo analizar la escena");
     }
     return res.json();
-}
-
-/** AutoQA de fidelidad de producto — Gemini Vision compara una imagen generada contra las
- *  referencias reales del producto. Devuelve verdict {ok, severity, issues, fix_hint}.
- *  Fail-open: si algo falla, ok=true (no bloquea). Fase 0 del flujo de Campañas. */
-export async function checkProductConsistency(opts: {
-    imageUrl: string;
-    refUrls: string[];
-    category?: string;
-}): Promise<{ ok: boolean; severity: "none" | "minor" | "major"; issues: string[]; fix_hint: string }> {
-    try {
-        const res = await fetch(`${API_BASE}/api/qa/product-consistency`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ imageUrl: opts.imageUrl, refUrls: opts.refUrls, category: opts.category || "" }),
-        });
-        if (!res.ok) return { ok: true, severity: "none", issues: [], fix_hint: "" };
-        return await res.json();
-    } catch {
-        return { ok: true, severity: "none", issues: [], fix_hint: "" };
-    }
 }
 
 /** Traduce/afila una instrucción de edición (español/spanglish) → inglés conciso para
@@ -1928,12 +1853,6 @@ export async function planCampaign(
     return res.json();
 }
 
-export async function fetchGeneration(genId: string): Promise<Generation> {
-    const res = await fetch(`${API_BASE}/api/generations/${genId}`);
-    if (!res.ok) throw new Error("Failed to fetch generation");
-    return res.json();
-}
-
 export async function deleteGeneration(genId: string): Promise<void> {
     const res = await fetch(`${API_BASE}/api/generations/${genId}`, {
         method: "DELETE",
@@ -1959,20 +1878,6 @@ export async function fetchManualGenerations(brandId?: string | null): Promise<G
 export interface ManualLabSuggestion {
     tool_id: string | null;
     reason: string;
-}
-
-export async function suggestManualTool(opts: {
-    prompt: string;
-    mode: "image" | "video";
-    hasRefs: boolean;
-}): Promise<ManualLabSuggestion> {
-    const res = await fetch(`${API_BASE}/api/manual/suggest-tool`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: opts.prompt, mode: opts.mode, hasRefs: opts.hasRefs }),
-    });
-    if (!res.ok) return { tool_id: null, reason: "" };
-    return res.json();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2123,38 +2028,6 @@ export interface TalkingPhoto {
     preview: string;
 }
 
-export async function fetchTalkingPhotos(): Promise<TalkingPhoto[]> {
-    const res = await fetch(`${API_BASE}/api/heygen/talking-photos`);
-    if (!res.ok) throw new Error("Failed to fetch talking photos");
-    const data = await res.json();
-    return data.talking_photos;
-}
-
-// ══════════════════════════════════════════════════════════════
-//  HeyGen: Upload Talking Photo (on-the-fly)
-// ══════════════════════════════════════════════════════════════
-
-/**
- * Upload an image directly to HeyGen as a talking photo.
- * Returns the talking_photo_id for immediate use in lip sync.
- */
-export async function uploadTalkingPhoto(imageFile: File): Promise<{ talking_photo_id: string }> {
-    const formData = new FormData();
-    formData.append("image", imageFile);
-
-    const res = await fetch(`${API_BASE}/api/heygen/upload-talking-photo`, {
-        method: "POST",
-        body: formData,
-    });
-
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Failed to upload talking photo (${res.status})`);
-    }
-
-    return res.json();
-}
-
 // ══════════════════════════════════════════════════════════════
 //  HeyGen: Lip Sync
 // ══════════════════════════════════════════════════════════════
@@ -2162,33 +2035,6 @@ export async function uploadTalkingPhoto(imageFile: File): Promise<{ talking_pho
 export interface LipSyncResult {
     video_id: string;
     status: string;
-}
-
-/**
- * Create a lip sync video by uploading audio + selecting a talking photo.
- * Returns a video_id for status polling.
- */
-export async function createLipSync(
-    audioBlob: Blob,
-    talkingPhotoId: string,
-    title?: string,
-): Promise<LipSyncResult> {
-    const formData = new FormData();
-    formData.append("audio", audioBlob, "audio.mp3");
-    formData.append("talking_photo_id", talkingPhotoId);
-    if (title) formData.append("title", title);
-
-    const res = await fetch(`${API_BASE}/api/lipsync`, {
-        method: "POST",
-        body: formData,
-    });
-
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Lip sync failed (${res.status})`);
-    }
-
-    return res.json();
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2202,36 +2048,6 @@ export interface VideoStatus {
     thumbnail_url: string | null;
     duration: number | null;
     error: string | null;
-}
-
-export async function checkVideoStatus(videoId: string): Promise<VideoStatus> {
-    const res = await fetch(`${API_BASE}/api/heygen/video-status/${videoId}`);
-    if (!res.ok) throw new Error("Failed to check video status");
-    return res.json();
-}
-
-/**
- * Poll video status until completed or failed.
- * Calls onProgress with each status update.
- * Returns the final status.
- */
-export async function pollVideoStatus(
-    videoId: string,
-    onProgress?: (status: VideoStatus) => void,
-    intervalMs = 5000,
-    maxAttempts = 120, // 10 min max
-): Promise<VideoStatus> {
-    for (let i = 0; i < maxAttempts; i++) {
-        const status = await checkVideoStatus(videoId);
-        onProgress?.(status);
-
-        if (status.status === "completed" || status.status === "failed") {
-            return status;
-        }
-
-        await new Promise((r) => setTimeout(r, intervalMs));
-    }
-    throw new Error("Video generation timed out");
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2574,32 +2390,6 @@ export async function createKlingFrameToFrame(opts: {
     return res.json();
 }
 
-/**
- * Upload an image file and generate a Kling video from it.
- */
-export async function createKlingVideoFromFile(
-    imageFile: File,
-    prompt?: string,
-    duration: string = "10",
-): Promise<KlingVideoResult> {
-    const formData = new FormData();
-    formData.append("image", imageFile);
-    if (prompt) formData.append("prompt", prompt);
-    formData.append("duration", duration);
-
-    const res = await fetch(`${API_BASE}/api/kling/image-to-video`, {
-        method: "POST",
-        body: formData,
-    });
-
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Kling video failed (${res.status})`);
-    }
-
-    return res.json();
-}
-
 export interface KlingStatus {
     request_id: string;
     status: "pending" | "processing" | "completed" | "failed" | "unknown";
@@ -2873,27 +2663,6 @@ export async function measureSubjectRatio(imageUrl: string): Promise<number | nu
     }
 }
 
-/** Composite determinístico de fondo: recorta el sujeto (BiRefNet) y lo pega sobre el fondo
- *  real (seamless) con sombra de contacto. Garantiza fondo consistente sin depender de Nano.
- *  Fail-open: devuelve la imagen original si algo falla. */
-export async function compositeOnStudioBg(
-    imageUrl: string,
-    background: { url?: string; color?: string },
-): Promise<string> {
-    try {
-        const res = await fetch(`${API_BASE}/api/image/composite-bg`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ image: imageUrl, background: background.url, background_color: background.color }),
-        });
-        if (!res.ok) return imageUrl;
-        const d = await res.json();
-        return d.url || imageUrl;
-    } catch {
-        return imageUrl;
-    }
-}
-
 /** Repinta SOLO el fondo a un color exacto (ej. #ededed) sin recortar la persona (sin halo) y
  *  conservando la sombra. Fail-open: devuelve la imagen original si algo falla. */
 export async function repaintBgToColor(imageUrl: string, color: string): Promise<string> {
@@ -3075,7 +2844,6 @@ export async function pollImageGen(
 // ══════════════════════════════════════════════════════════════
 //  Fal AI: Lip Sync (v2 Pro)
 // ══════════════════════════════════════════════════════════════
-
 
 export interface FalLipSyncResult {
     request_id: string;
@@ -3327,25 +3095,10 @@ export interface ActionCategory {
     actions: ActionPreset[];
 }
 
-export async function fetchActionPresets(): Promise<{ categories: ActionCategory[] }> {
-    const res = await fetch(`${API_BASE}/api/action-presets`);
-    if (!res.ok) throw new Error("Failed to fetch action presets");
-    return res.json();
-}
-
 export async function fetchBrandActions(brandId: string): Promise<{ categories: ActionCategory[] }> {
     const res = await fetch(`${API_BASE}/api/brands/${brandId}/actions`);
     if (!res.ok) throw new Error("Failed to fetch brand actions");
     return res.json();
-}
-
-export async function saveBrandActions(brandId: string, actions: ActionPreset[]): Promise<void> {
-    const res = await fetch(`${API_BASE}/api/brands/${brandId}/actions`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actions }),
-    });
-    if (!res.ok) throw new Error("Failed to save brand actions");
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -3576,21 +3329,6 @@ export async function fetchSystemLighting(): Promise<LightingPreset[]> {
     }
 }
 
-
-// ══════════════════════════════════════════════════════════════
-//  Health check
-// ══════════════════════════════════════════════════════════════
-
-export async function checkHealth(): Promise<{
-    status: string;
-    elevenlabs_configured: boolean;
-    heygen_configured: boolean;
-}> {
-    const res = await fetch(`${API_BASE}/health`);
-    if (!res.ok) throw new Error("Backend unreachable");
-    return res.json();
-}
-
 // ══════════════════════════════════════════════════════════════
 //  TikTok / Apify
 // ══════════════════════════════════════════════════════════════
@@ -3670,19 +3408,6 @@ export async function replicateInstagramCarousel(url: string, brandId: string): 
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Replicate analysis failed" }));
-        throw new Error(typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail));
-    }
-    return res.json();
-}
-
-export async function scrapeInstagramProfile(usernameOrUrl: string, postsLimit = 12): Promise<{ posts: InstagramPost[]; count: number }> {
-    const res = await fetch(`${API_BASE}/api/integrations/instagram/scrape-profile`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username_or_url: usernameOrUrl, posts_limit: postsLimit }),
-    });
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Failed to scrape profile" }));
         throw new Error(typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail));
     }
     return res.json();

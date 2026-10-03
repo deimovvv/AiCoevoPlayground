@@ -1,11 +1,11 @@
 /**
  * Content Analyzer — Step Handlers
  * ──────────────────────────────────
- * Pipeline: analyze → adapt → generate_batch
+ * Pipeline: analyze → map_assets → adapt → route
  */
 
 import type { StepHandler } from "../types";
-import { generateToolPrompt, createImageEdit, pollImageGen, matchDetectedAssets, type DetectedAssets } from "../../lib/api";
+import { generateToolPrompt, matchDetectedAssets, type DetectedAssets } from "../../lib/api";
 
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -489,56 +489,5 @@ export const handleRoute: StepHandler = async (ctx) => {
   return {
     result: { analyzeResult, adaptResult },
     needsApproval: true,
-  };
-};
-
-// ── Generate Batch — create images from adapted prompts ──
-
-export const handleGenerateBatch: StepHandler = async (ctx) => {
-  const { activeBrand, config, getStepResult } = ctx;
-
-  const adaptData = getStepResult("adapt") as {
-    scenes: Array<{ frame: number; imagePrompt: string; script: string; sceneType: string }>;
-  } | undefined;
-  if (!adaptData?.scenes?.length) throw new Error("No adapted scenes found.");
-
-  // Multi-select: use arrays if available, fallback to single
-  const selectedAvatars = (config.selectedAvatarIds?.length)
-    ? (activeBrand.avatars || []).filter((a) => (config.selectedAvatarIds ?? []).includes(a.id))
-    : config.selectedAvatarId ? [activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId)].filter(Boolean) : [];
-  const selectedProducts = (config.selectedProductIds?.length)
-    ? (activeBrand.products || []).filter((p) => (config.selectedProductIds ?? []).includes(p.id))
-    : config.selectedProductId ? [(activeBrand.products || []).find((p) => p.id === config.selectedProductId)].filter(Boolean) : [];
-
-  const referenceUrls: string[] = [];
-  selectedAvatars.forEach((a) => { if (a?.imageUrl) referenceUrls.push(a.imageUrl); });
-  selectedProducts.forEach((p) => { if (p?.imageUrl) referenceUrls.push(p.imageUrl); });
-
-  const images = await Promise.all(
-    adaptData.scenes.map(async (scene) => {
-      try {
-        const job = await createImageEdit(referenceUrls, scene.imagePrompt, config.aspectRatio, config.resolution);
-        const result = await pollImageGen(job.request_id);
-        return {
-          frame: scene.frame,
-          url: result.image_url || "",
-          prompt: scene.imagePrompt,
-          script: scene.script,
-          sceneType: scene.sceneType,
-          status: result.status === "failed" ? "failed" : "done",
-        };
-      } catch {
-        return { frame: scene.frame, url: "", prompt: scene.imagePrompt, script: scene.script, sceneType: scene.sceneType, status: "failed" };
-      }
-    })
-  );
-
-  const successful = images.filter((img) => img.url);
-
-  // Persistence handled by autoSaveStep in ToolRunPage — no manual saveGeneration here.
-
-  return {
-    result: { images, successful: successful.length, total: images.length },
-    needsApproval: false,
   };
 };

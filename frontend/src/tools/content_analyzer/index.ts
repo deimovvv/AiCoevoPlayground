@@ -1,14 +1,14 @@
 /**
  * Content Analyzer — Tool Definition
  * ────────────────────────────────────
- * Pipeline: analyze → adapt → generate_batch
+ * Pipeline: analyze → map_assets → adapt → route
  *
  * Analyze any video content, extract its structure and style,
  * then recreate similar content with your brand's assets.
  */
 
 import type { ToolDefinition } from "../types";
-import { handleAnalyze, handleMapAssets, handleAdapt, handleRoute, handleGenerateBatch } from "./handlers";
+import { handleAnalyze, handleMapAssets, handleAdapt, handleRoute } from "./handlers";
 
 export const contentAnalyzer: ToolDefinition = {
   schema: {
@@ -34,7 +34,6 @@ export const contentAnalyzer: ToolDefinition = {
     map_assets: handleMapAssets,
     adapt: handleAdapt,
     route: handleRoute,
-    generate_batch: handleGenerateBatch,
   },
   approvalSteps: ["analyze", "map_assets", "adapt"],
   // map_assets is auto-run after analyze approval (the matcher runs without user input,
