@@ -149,3 +149,15 @@ frontend/
 - **Gemini PROHIBITED_CONTENT**: Brand context may have scraped web junk — clean it in Brand Kit
 - **HeyGen wrong voice**: Make sure audio is generated via `/api/tts/generate-and-upload` (backend uploads to Fal)
 - **Nano Banana 422**: Prompt too complex — keep image prompts to 2-3 sentences max
+
+---
+
+## Debugging frecuente
+
+- **Backend not starting**: Check `.env` has required API keys, restart uvicorn
+- **Images not loading**: Verify static file mounts in `main.py`
+- **Black screen on route**: Check React hooks are before conditional returns
+- **Brand switcher not updating**: Ensure `refreshBrands()` is called after create/delete
+- **Prompt not working**: Verify template variables match `build_context_variables()` output
+- **Abre otra web en el puerto**: otro proyecto (MONKS/Google-App) le robó el 5180. Coevo usa `strictPort`, así que falla en vez de saltar. Ver `lsof -iTCP:5180`
+- **`python-dotenv could not parse`**: hay una línea sin `NOMBRE=` en `backend/.env`
