@@ -177,3 +177,51 @@ docs/                       ← FUERA DE OPENSPEC
 vigente**. Hoy un agente que abre `pending-features.md` no puede saber qué de
 eso ya existe; en OpenSpec, lo que está en `specs/` existe y lo que está en
 `changes/` no.
+
+---
+
+## 6. Código muerto
+
+Inventario de sólo lectura, verificado con controles (archivos que sabemos vivos
+dan ≥1 importador; los muertos dan 0). **Nada se borró.**
+
+### Riesgo BAJO — ~9.300 líneas
+
+El 93% son 18 archivos completos de frontend que nadie importa:
+
+| Qué | Líneas | Nota |
+|---|---|---|
+| `pages/ManualLab.tsx` | 2.246 | Lab v1. Import **comentado** en `App.tsx:27` |
+| `pages/BrandWorkspace.tsx` | 2.195 | sin ruta, sin importador |
+| …y los 6 componentes que sólo usa él: `NewGenerationWizard`, `PipelineMonitor`, `GenerationDetailDrawer`, `GenerationBoard`, `GenerationCard`, `HeygenAvatarSelector` | 2.384 | se van juntos |
+| `ActivePipelineDrawer`, `BrandPanel`, `PipelineTimeline` | 968 | sin importador |
+| `layout/TopNav`, `layout/BrandSwitcher` | 351 | `AppLayout` usa `Sidebar` + `BrandPicker` |
+| `pages/DashboardOverview`, `CampaignsPage`, `Workspace` | 363 | `/dashboard/campanas` lo sirve `WorkPage`, no `CampaignsPage` |
+| `ui/section.tsx`, `ui/card.tsx` | 157 | |
+| ~19 exports de `lib/api.ts` sin uso | ~300 | |
+| ~12 endpoints de `main.py` que sólo llama código muerto | ~310 | heygen talking-photos, `/api/lipsync`, suggest-tool… |
+| `content_analyzer.generate_batch` | ~50 | no está en el pipeline del backend |
+
+### Riesgo MEDIO / ALTO — no tocar sin decidir
+
+| Qué | Por qué no |
+|---|---|
+| `heygen.py` | **sigue vivo**: el upload de avatar sube a HeyGen por defecto (`main.py:1576`). Hay que cortar ese default primero |
+| Tools ocultas (`static_ad`, `ad_creative_lab`, `fashion_editorial`, ~1.540 líneas) | `ToolRunPage` importa constantes de `fashion_editorial`; `content_analyzer` lanza `ad_creative_lab`; `agent.py` y `manual_lab.py` todavía las recomiendan |
+| Consistencia en `ManualLabV2.tsx` | pausada a propósito |
+| Motor de nodos (`/api/nodes`, `/api/graph/*`) | Fase 1, agregado a propósito |
+| `backend/tools/` sin registro (`ugc_multishot`, `reel_creator`…) | `prompt_builder` las lista por `iterdir()` |
+| `/api/maintenance/convert-heic`, `/api/llm/health` | se pueden llamar a mano |
+
+**Falso positivo descartado:** `backend/tools/chat` parece huérfano pero lo usa
+`prompt_builder.build_prompt("chat", …)`. Ningún servicio de `backend/services/`
+está huérfano.
+
+### Orden de limpieza sugerido
+
+1. Los 18 archivos de frontend (riesgo bajo, no tocan código vivo). Build verde = listo.
+2. Los exports de `api.ts` y endpoints que quedan huérfanos después del paso 1.
+3. `generate_batch` de content_analyzer.
+4. Recién con decisión: HeyGen legacy y las tools ocultas.
+
+Cada paso es un commit propio, para poder revertir uno sin tocar los otros.
