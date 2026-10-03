@@ -59,6 +59,37 @@ clips en un timeline → ajustá → exportá"*.
 
 ---
 
+### 2b. Y Campañas: es el destino, no un timeline
+
+Las campañas **ya admiten piezas de video** (`CampaignPiece.type: "image" | "video"`), y
+`CampaignDetailPage.tsx` lo dice explícito: *"si un video conviene hacerlo en otro lado,
+igual pertenece a este pedido"*. La campaña no genera video; es **donde termina**.
+
+| | Rol con el editor |
+|---|---|
+| Tools de video | **origen** — su Render abre el editor con los clips |
+| Campaña | **destino** — lo que se exporta queda como pieza de video de la campaña |
+| Campaña | **puerta** — una pieza de video de la campaña se abre en el editor para otra vuelta |
+
+```
+Campaña Koxis Septiembre
+   └─ Fashion Reel genera los clips
+         └─ Render = editor (recortar, comentar, regenerar)
+               └─ Exportar → vuelve a la campaña como pieza
+                     └─ "Abrir en editor" desde la campaña → otra vuelta
+```
+
+⚠️ **La campaña NO se vuelve un timeline.** Es un conjunto de entregables (ej. 12 piezas
+en 9:16, 4:5 y 1:1 que se publican por separado), no una secuencia: se ve como grilla.
+Forzarla a timeline rompe las dos cosas.
+
+**Reusar `history[]`.** Las piezas de campaña ya guardan versiones: regenerar empuja la
+URL actual a `history` en vez de pisarla. El editor necesita exactamente eso al regenerar
+un clip — se usa el mismo mecanismo, no uno nuevo. Resuelve además el punto 3 de §8: si
+el clip regenerado sale peor, se vuelve al anterior.
+
+---
+
 ## 3. Lo que lo diferencia: el comentario va al clip correcto
 
 En el editor de Jay, los comentarios vuelven a Claude como **texto**. En Coevo pueden
@@ -167,7 +198,7 @@ No es una feature para Fashion Reel: es **la salida común de todo el video** de
 |---|---|---|
 | 1 | **¿El editor persiste?** | Si cerrás la pestaña a mitad de edición, ¿se pierde? Hoy los pipelines persisten por paso; el estado del timeline (recortes, orden, comentarios) necesita su propio lugar |
 | 2 | **Recortar en el front o en el backend** | Previsualizar recortes es fácil en el navegador; exportar requiere FFmpeg en el backend con los mismos puntos |
-| 3 | **Regenerar un clip cambia su duración** | Si el clip nuevo dura distinto, ¿se mueven los de después? Probablemente sí, y los recortes del clip viejo se descartan |
+| 3 | **Regenerar un clip cambia su duración** | Si el clip nuevo dura distinto, ¿se mueven los de después? Probablemente sí, y los recortes del clip viejo se descartan. La versión anterior no se pierde: queda en `history[]` (§2b) |
 | 4 | **Clips sin pipeline** (puerta 2) | Un video suelto no tiene `sceneId`: se puede comentar y recortar, pero no "regenerar". La UI tiene que mostrarlo |
 | 5 | **Audio de UGC** | En UGC la voz va sincronizada con los labios; recortar un clip corta la frase. Puede necesitar bloquear el recorte en clips con lip-sync |
 
@@ -182,5 +213,6 @@ No es una feature para Fashion Reel: es **la salida común de todo el video** de
 3. Comentarios por timestamp.
 4. **Regenerar clip desde el comentario** — la parte que lo diferencia.
 5. Las otras 3 tools de video.
-6. Segunda puerta: "Abrir en editor" desde Content y Lab.
+6. Segunda puerta: "Abrir en editor" desde Content, Lab y las piezas de video de una **campaña**.
+   Exportar desde una corrida que pertenece a una campaña → la pieza vuelve a esa campaña.
 7. Recién ahí, la capa de marca por código (§6).
