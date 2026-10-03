@@ -3,7 +3,9 @@
 Spec de cómo Fashion Reel deja de ser "campos vacíos que hay que saber llenar" y
 pasa a ser **una galería de movimientos conocidos** derivados de video real.
 
-**Estado:** propuesta, sin implementar.
+**Estado:** UI implementada (tira en loop, grilla, inputs filtrados). **Falta lo
+central:** el prompt de la receta no llega al generador. Seguimiento en
+`openspec/changes/fashion-reel-format-recipes/`.
 **Fecha:** 2026-09-23
 **Depende de:** [workspace-template.md](workspace-template.md) — la UI de acá es una
 aplicación de ese patrón, no un layout nuevo.

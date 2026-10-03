@@ -34,7 +34,7 @@ Sin esto Coevo no funciona. Si el cliente no te da nada de esto, no podés ni em
 
 - **Mínimo 1 foto frontal**, buena luz, sin filtros raros
 - Idealmente **5-10 fotos variadas**: distintos ángulos, expresiones, ropa
-- Si NO hay persona real → podemos generar un avatar sintético con [Avatar Creator tool](tools.md#avatar-creator)
+- Si NO hay persona real → podemos generar un avatar sintético con [Avatar Creator tool](MAP.md)
 
 ### 1.3 Productos
 

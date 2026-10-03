@@ -296,13 +296,13 @@ Agentes que corren encima:
 El gap no está en la fábrica — está en la recepción, el mostrador y la contabilidad.
 
 #### 🔴 ALTA — sin esto no podés "frontear" la operación
-1. **Entidad `Request` / pedido.** Hoy todo arranca como una corrida de tool; no existe "pedido de un cliente". Es el eslabón que falta entre la operación real y la app. Se encaja con la entidad `Campaign` ya spec'd en [campaigns.md](campaigns.md) Fase 1 — no es trabajo nuevo, es priorizarlo.
+1. **Entidad `Request` / pedido.** Hoy todo arranca como una corrida de tool; no existe "pedido de un cliente". Es el eslabón que falta entre la operación real y la app. Se encaja con la entidad `Campaign` ya spec'd en [campaigns.md](archive/campaigns.md) Fase 1 — no es trabajo nuevo, es priorizarlo.
 2. **Costo real por pieza.** Cada job ya es una llamada a API con precio conocido (Kling V3 Pro 5s = $0.56). Agregar `cost` al registro de generación es un campo — y desbloquea la métrica que define si la tesis del negocio funciona: **COGS por pieza entregada**. Es la Fase 1 de `pricing-credits.md`, que ya está escrita y sin hacer.
 3. **Loop de feedback → Brand Kit.** Tenés `reviews.json` (11 filas) y 3.200 generaciones. Que la selección/rechazo de una variante escriba de vuelta al Design System de la marca es lo que convierte al Brand Kit en un Brain.
 
 #### 🟡 MEDIA
 4. **Vista de estado tipo Project Plan** — qué está en curso, qué espera aprobación, qué se entregó. Hoy `GenerationBoard` es historial, no pipeline de trabajo.
-5. **Versionado por imagen** (v1/v2/v3, revert) — [campaigns.md](campaigns.md) Fase 2.
+5. **Versionado por imagen** (v1/v2/v3, revert) — [campaigns.md](archive/campaigns.md) Fase 2.
 6. **Portal del cliente v1 real** sobre `/portal/:token`, con aprobación y comentario contextual.
 
 #### 🟢 BAJA — no copiar

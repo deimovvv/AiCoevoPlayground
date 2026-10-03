@@ -5,10 +5,10 @@ funcionalidad. Si hay que leer un solo archivo para orientarse, es este.
 
 **Actualizado:** 2026-10-03 · **Verificado contra el código** (no de memoria).
 
-> Este mapa reemplaza como overview a `architecture.md`, `planning.md`,
-> `product_vision_ux.md`, `tools.md` y `stack.md`, que quedaron desactualizados
-> (ver [docs-audit.md](docs-audit.md)). Es el borrador del futuro
-> `openspec/project.md`.
+> Reemplaza como overview a `architecture.md`, `planning.md`, `product_vision_ux.md`
+> y `pipeline.md` (en `docs/archive/`) y a `stack.md` y `tools.md` (borrados).
+> Lo que el sistema hace, en detalle, está en `openspec/specs/`; lo propuesto, en
+> `openspec/changes/`.
 
 ---
 
@@ -156,7 +156,7 @@ Cada una tiene su change en `openspec/changes/` (proposal · tasks · spec delta
 |---|---|---|---|---|
 | 1 | **Recetas de formato en Fashion Reel** | elegís un video conocido y lo completás, en vez de llenar campos | [fashion-reel-recipes.md](fashion-reel-recipes.md) | ◐ UI hecha; **el prompt de la receta no llega al handler** |
 | 2 | **Editor de video compartido** | reemplaza el Render ciego de las 4 tools de video; un comentario regenera sólo ese clip | [video-editor.md](video-editor.md) | ○ |
-| 3 | **Campañas como centro del pedido** | imagen adentro; video corto animando una pieza; video largo lanzando la tool con todo precargado, y vuelve a la campaña | `openspec/changes/campaigns-as-hub` | ○ a confirmar |
+| 3 | **Campañas como centro del pedido** | imagen adentro; video corto animando una pieza; video largo lanzando la tool con todo precargado, y vuelve a la campaña | `openspec/changes/campaigns-as-hub` | ○ decidido, sin implementar |
 | 4 | **Casting** | armar el look una vez (outfit sheet → character sheet con ropa) y reusarlo; ataca el drift de identidad y prenda | `openspec/changes/casting` | ○ absorbe `avatar_creator` y `product_sheet` |
 | 5 | **Gates de Ecommerce Pack** | una toma → mostrar → confirmar → siguiente | [tools-audit.md](tools-audit.md) §3 | ○ |
 | 6 | **Presets de Campañas** | migrar scene_reconstruct, screen_mockup, fooh_subway | [tools-audit.md](tools-audit.md) | ○ |

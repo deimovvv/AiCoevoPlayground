@@ -27,17 +27,13 @@ El estado de cada doc (vigente, desactualizado, a archivar) está en
 | [video-editor.md](video-editor.md) | editor con timeline que reemplaza el Render (propuesta) |
 | [video-ad-creator.md](video-ad-creator.md) | spec del Video Ad Creator |
 | [video-dialogue-pipeline.md](video-dialogue-pipeline.md) | diálogo por plano, lip-sync, costos |
-| [campaigns.md](campaigns.md) | spec ORIGINAL de Campañas — obsoleto, a archivar |
 | [architecture-nodes.md](architecture-nodes.md) | motor de nodos (fases 0–2 hechas) |
 | [pricing-credits.md](pricing-credits.md) | créditos y ledger de costos |
-| [pending-features.md](pending-features.md) | backlog — mezcla hecho con pendiente, ver docs-audit |
+| [backlog.md](backlog.md) | ideas y features sin trabajar; lo que se empieza pasa a `openspec/changes/` |
 
 ## Diseño
-| Doc | Qué es |
-|---|---|
-| [design.md](design.md) · [design_language.md](design_language.md) | sistema de diseño — se contradicen, a fusionar. Fuente de verdad: `frontend/src/index.css` |
-| [dashboard-architecture-research.md](dashboard-architecture-research.md) | research de navegación (casi todo ya implementado) |
-| [frontera-diseno-infra.md](frontera-diseno-infra.md) | contrato entre el chat de diseño y el de infra |
+Sistema de diseño → `openspec/specs/design-system/spec.md`. Fuente de verdad de los
+tokens: `frontend/src/index.css`.
 
 ## Negocio
 | Doc | Qué es |
@@ -54,7 +50,15 @@ El estado de cada doc (vigente, desactualizado, a archivar) está en
 | [ugc-audio.md](ugc-audio.md) | voz rioplatense: por qué ElevenLabs y no audio nativo |
 | [ugc-talking-head-tests.md](ugc-talking-head-tests.md) | pruebas de lip-sync |
 
-## Desactualizados — no usar como fuente
-`architecture.md`, `stack.md`, `planning.md`, `product_vision_ux.md`,
-`tools.md`, `pipeline.md`. Reemplazados por [MAP.md](MAP.md). Ver
-[docs-audit.md](docs-audit.md) §2.
+## Specs (OpenSpec)
+| Dónde | Qué |
+|---|---|
+| `openspec/specs/` | lo que el sistema hace hoy: workspace-layout, tool-catalog, video-generation, design-system |
+| `openspec/changes/` | lo propuesto: campaigns-as-hub, casting, shared-video-editor, fashion-reel-format-recipes, ecommerce-pack-gates |
+
+## Archivo — histórico, no usar como fuente
+[archive/](archive/): `planning`, `campaigns` (spec original), `architecture`,
+`product_vision_ux`, `pipeline`, `design`, `design_language`,
+`dashboard-architecture-research`, `frontera-diseno-infra`,
+`pending-features-2026-09`. Reemplazados por [MAP.md](MAP.md), `openspec/` y
+[backlog.md](backlog.md). Borrados: `stack.md`, `tools.md` (estaban en git).

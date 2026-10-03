@@ -3,8 +3,9 @@
 Spec del layout que comparten (o deberían compartir) **todas** las pantallas donde
 se genera contenido: Lab, Campañas, y las 17 tools.
 
-**Estado:** propuesta. Implementado en Lab y Campañas; las tools siguen con el
-layout viejo.
+**Estado:** implementado en Lab, Campañas, Fashion Reel y Ecommerce Pack
+(`USE_SIDE_SELECTOR` en `ToolRunPage.tsx`). El resto de las tools sigue con el
+layout viejo. Spec vigente: `openspec/specs/workspace-layout/spec.md`.
 **Fecha:** 2026-09-21
 
 ---
@@ -17,7 +18,7 @@ Hoy hay **tres layouts distintos** para hacer lo mismo:
 |---|---|---|
 | **Lab** ✅ | Panel del medio que empuja el canvas | Galería a la derecha, siempre visible |
 | **Campañas** ✅ | Panel del medio que empuja el canvas | Canvas a la derecha, siempre visible |
-| **Tools** (17) ❌ | Se despliega ABAJO, dentro del panel de config | Canvas, pero el wizard navega entre pasos |
+| **Tools** ◐ | Fashion Reel y Ecommerce Pack ya abren al costado; el resto despliega ABAJO | Canvas, pero el wizard navega entre pasos |
 
 Reportado por el usuario sobre Fashion Reel: *"los modelos se despliegan abajo,
 no a la derecha, como estábamos hablando"*.
@@ -109,7 +110,7 @@ que corregirlo.)
 | Componente | Qué hace | Dónde vive |
 |---|---|---|
 | `SelectorPanel` | La columna del medio | `components/workspace/` |
-| `SelectorTrigger` | La fila que la abre | `components/workspace/` |
+| `SelectorTrigger` | La fila que la abre (con stack de hasta 3 miniaturas) | `components/workspace/SelectorPanel.tsx` |
 | `EditOverlay` | Editor a pantalla completa | `components/workspace/` |
 | `MaskCanvas` | Selección por recuadro / varita / pincel | `components/workspace/` |
 | `ImageEditPanel` | Prompt + referencias (variantes `bar` y `full`) | `components/` |
@@ -170,20 +171,16 @@ receta — no una tool.
 | Tool | Pipeline | ¿Se justifica? |
 |---|---|---|
 | `fashion_reel` | script → base → multishot → animate → render | ✅ Pasos reales con aprobación entre medio |
-| `ugc_creator` | 7 pasos con voz y lip-sync | ✅ |
-| `ecommerce_pack` | `["generate_all"]` — **un solo paso**, `approvalSteps: []` | ❌ |
+| `ugc_creator` | 6 pasos con voz y lip-sync | ✅ |
+| `ecommerce_pack` | `["generate_all"]` — **un solo paso**, `approvalSteps: []` | ◐ Sigue como tool; le faltan las aprobaciones por toma |
+| `fashion_editorial` | `["generate_all"]` — **un solo paso** | ❌ Hecho: convertida en preset de Campañas |
 
 > ⚠️ **Corrección 2026-09-25.** Esta tabla decía que Ecommerce Pack se justificaba
 > por "multi-toma con curación por prenda". **Era falso**: se escribió sin leer el
-> código. `approvalSteps: []`, `autoRunSteps: []`, `needsApproval: false`. La
-> "curación" son checkboxes de tomas en el formulario, no pasos que el operador
-> aprueba. Por el criterio de esta misma sección, es un preset de Campañas.
->
-> **Y es la más usada en producción** (ver §7 de este doc). Ese es el conflicto real
-> del refactor: la tool más usada no pasa el criterio. Convertirla en preset NO puede
-> degradar su flujo — si el preset no cubre lo que hace hoy, el criterio se revisa,
-> no la tool.
-| `fashion_editorial` | `["generate_all"]` — **un solo paso** | ❌ Es un formulario con presets |
+> código. La "curación" eran checkboxes de tomas, no pasos que el operador aprueba.
+> **Resuelto el mismo día** (decisión del usuario): Ecommerce Pack sigue como tool y
+> se le suman las aprobaciones — `openspec/changes/ecommerce-pack-gates/`. El criterio
+> vive ahora en `openspec/specs/tool-catalog/spec.md`.
 
 ⚠️ **El pipeline NO se toca al migrar.** Fashion Reel genera la imagen base, después
 los shots, después anima: ese orden es el producto. Lo que cambia es *dónde vive

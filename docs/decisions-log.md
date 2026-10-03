@@ -7,6 +7,51 @@ Cada entrada tiene fecha, contexto, decisión tomada, alternativas descartadas y
 
 ---
 
+## Índice — decisiones vigentes
+
+Este log es **cronológico** y algunas entradas viejas quedaron superadas: están
+marcadas con ⚠️ **SUPERADA** donde aparecen. Para saber qué rige **hoy**, empezar
+por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
+`openspec/changes/`.
+
+| Tema | Decisión vigente | Entrada |
+|---|---|---|
+| Modelo de negocio | Vender output primero; el SaaS es una etapa posterior | 2026-09 "Output primero" |
+| Qué es una tool | Pipeline con pasos que el operador aprueba; lo demás es preset de Campañas | 2026-09-25 · `specs/tool-catalog` |
+| Pantalla | Controles · selector al costado · canvas que no desaparece | 2026-09 "Workspace de 3 columnas" · `specs/workspace-layout` |
+| Visual | Grises fríos, rosa `#ff5f8f` como señal, Instrument Serif | 2026-09 · `specs/design-system` |
+| Seedance | Siempre por kie.ai | 2026-10-01 · `specs/video-generation` |
+| Lab | v2 es el único; v1 borrado | 2026-06 "Lab v2 reemplaza a Lab v1" |
+| Portal | Por token, sin cuentas; el cliente no encarga trabajo | 2026-08 "Accesos al portal" |
+| Pose y calce | Endpoints especializados, no pelear por prompt | 2026-09 "Pose y calce" |
+| Fashion Editorial | Convertida en preset de Campañas (hecho) | 2026-09-25 |
+| Campañas | Centro del pedido: imagen adentro, video lanzando la tool | 2026-10-03 · `changes/campaigns-as-hub` |
+
+---
+
+## 2026-10-03 — Campañas es el centro del pedido; el video largo se hace en la tool
+
+**Duda del usuario:** *"¿qué pasaría si yo quisiera hacer videos más largos? Campaña
+entraría ahí, como product clip para muebles. Pero si hago Fashion Reel, no sé si alcanza.
+¿O campañas vos decís que sea más para imágenes y un video, como mucho?"*
+
+**Decisión** (usuario: *"Dale. Avancemos"*): tres niveles.
+- **Imágenes** — dentro de Campañas, como hoy.
+- **Video corto** — "Animar" sobre una pieza aprobada, dentro de Campañas.
+- **Video largo** — la campaña abre la tool (Fashion Reel, Product Clip, UGC) con el
+  contexto precargado; el resultado pasa por el editor y vuelve como pieza.
+
+**Por qué no generar video largo dentro de Campañas:** reconstruiría Fashion Reel adentro
+de Campañas, y generar 12 clips de una sin aprobar es caro. `pending-features` §10d había
+llegado a lo mismo en septiembre: llevar a la tool con contexto es más barato y respeta
+su curación.
+
+**La campaña no se vuelve un timeline:** es una grilla de entregables.
+
+Seguimiento: `openspec/changes/campaigns-as-hub/`.
+
+---
+
 ## 2026-10-01 — Seedance va siempre por kie.ai, no por Fal
 
 **Decisión del usuario:** *"cuando usemos Seedance, te conectes a la API de kie siempre"*.
@@ -64,7 +109,7 @@ capas distintas y ninguna de las dos es una tool en el sentido del criterio.
 high_key, golden, flash) y 3+ de vibe (magazine, street, studio). Son el activo real de
 la tool; el resto es andamiaje. Migran como preset de Campañas.
 
-**Estado:** decidido, NO ejecutado. Se hace junto con la auditoría de las 17 tools contra
+**Estado:** ✅ **ejecutado** (commit `b42fde6`): oculta, cláusulas en `data/system/framing.json` y `vibe.json`. Se hace junto con la auditoría de las 17 tools contra
 el mismo criterio — mover de a una repetiría la discusión 16 veces.
 
 **Jerarquía a la que se apunta:**
@@ -278,6 +323,8 @@ Se aplica antes de invocar Kling i2v / Kling f2f / Seedance rtv.
 
 ## 2026-06 — Lab UX: hacer 3 mejoras quirúrgicas antes de rediseñar
 
+> ⚠️ **SUPERADA** — el rediseño se hizo igual: Lab v2 reemplazó a v1 (entrada "Lab v2 reemplaza a Lab v1"). El v1 se borró del repo el 2026-10-03.
+
 **Contexto.** El usuario mostró Freepik/Morph como inspiración y propuso rediseñar el Lab a sidebar izquierda (controles) + galería derecha (scroll vertical). Razón: el layout actual es denso y perdés contexto.
 
 **Mi recomendación honesta.** **No copiar Freepik directamente.** Tres razones:
@@ -317,7 +364,9 @@ Estimado: ~1-2 días. Riesgo alto (cambio de paradigma).
 
 ## Pendientes a discutir
 
-### Kayla (colaboradora) no recibe updates
+### ✅ RESUELTO — Kayla (colaboradora) no recibe updates
+
+> Causa confirmada: los commits quedaban en una rama. Desde 2026-08 todo cambio va directo a `main` (regla vigente). Se deja como registro.
 
 **Síntoma reportado por el usuario:** Kayla descarga el repo y le faltan detalles — específicamente, cosas relacionadas con prompts y sugerencias.
 
@@ -408,6 +457,8 @@ Solo una ref de consistencia activa a la vez (la nueva reemplaza la anterior). M
 
 ## 2026-06 — Surfaces dark con más contraste + paleta brand burgundy + light mode menos blanco
 
+> ⚠️ **SUPERADA** — el acento burgundy se reemplazó por rosa `#ff5f8f` (2026-09, "Workspace de 3 columnas, sistema visual unificado"). Fuente de verdad: `openspec/specs/design-system/spec.md`.
+
 **Contexto.** El cambio anterior a "off-white minimal" había aplastado toda jerarquía. Las cards se confundían con el bg. El usuario reportó "todo muy liso". En light mode, el blanco puro cansaba la vista.
 
 **Decisión.** Tres cambios en `index.css`:
@@ -434,6 +485,8 @@ Solo una ref de consistencia activa a la vez (la nueva reemplaza la anterior). M
 
 ## 2026-06 — ToolRunPage gigante (DEUDA UX abierta)
 
+> ⚠️ **SUPERADA** — en parte resuelta por el workspace-template (2026-09). La deuda de tamaño sigue: ~15.300 líneas.
+
 **Contexto.** Las páginas de tools (`/dashboard/generate/<tool>`) acumularon mucho durante 2025-2026: brief box, Coevo Agent, mode toggle, visual style, references, allow faces, tabs de assets, ajustes técnicos en desplegable, motor de video, duración, direction, setting, style ref. Para configurar Fashion Reel hay que scrollear 3 veces. Cada sección es su propia card. Ajustes técnicos están detrás de un desplegable que casi nadie abre.
 
 **Diagnóstico**: arquitectura visual heredada de v1 del Lab (cards apiladas verticales). El Lab v2 demostró que el patrón **sidebar control 420px + área principal** funciona mejor para flujos densos.
@@ -447,6 +500,8 @@ Solo una ref de consistencia activa a la vez (la nueva reemplaza la anterior). M
 ---
 
 ## 2026-07 — Dirección estética "fina" (serif + glass + image-first, dark-first)
+
+> ⚠️ **SUPERADA** — el serif elegido acá (Fraunces) se reemplazó por Instrument Serif (2026-09). Ver `openspec/specs/design-system/spec.md`.
 
 **Contexto.** La app se sentía más "herramienta de dev" que producto premium (ref: Pletor).
 Faltaba refinamiento visual en las superficies de marca.
@@ -518,6 +573,8 @@ deploy.
 
 ## 2026-08 — Coevo World: Studio pasa a ser un lugar adentro, no la app entera
 
+> ⚠️ **SUPERADA** — World/Studio se eliminó en 2026-09; el sidebar hoy es plano (Inicio, Campañas, Marcas, Generar, Contenido, Lab).
+
 **Contexto.** Estudiando Superspace (Superside) quedó claro que lo que le falta a Coevo no
 es capa de generación — esa es más profunda que la de ellos — sino **capa de operación**:
 qué se pidió, en qué estado está, qué costó, qué devolvió el cliente. Ver
@@ -575,6 +632,8 @@ nombre da el 90% de lo que se quiere del login a un costo de casi cero.
 ---
 
 ## 2026-08 — El cliente no encarga trabajo: deja notas
+
+> ⚠️ **SUPERADA** — la caja de notas se sacó del portal en el rediseño del 2026-08-26 (commit `f081185`: *"no quedaba claro qué era ni qué pasaba después"*). El endpoint que creaba notas se borró el 2026-10-03; quedan los de lectura del lado de la marca, para las notas viejas. **Lo que sigue vigente:** el cliente no encarga trabajo; la campaña es el resultado del briefing.
 
 **Contexto.** El portal se había construido con una caja de "pedí lo que necesites" que
 creaba una campaña directamente. El usuario lo frenó: *"esto de pedí no tiene sentido, se

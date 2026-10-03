@@ -63,7 +63,7 @@ Todos los planos (establishing + close-ups) se **anclan a una imagen master** de
 **Referencia:** un video de ~40s con OmniHuman (diálogo) + Kling (ambiente) ≈ **$5-6**. El mismo con **Kling AI Avatar std / Veo lite** ≈ **$2-2.5**. Elegir modelo por plano es lo que baja el costo.
 
 ## Gotchas técnicos (ya resueltos — no repetir)
-- **Kling Fal exige `image_url`** (no `start_image_url`). Con el campo mal, el job rebota al instante (inference ~0.02s, error 422) y no se cobra. → Fix pendiente en `backend/services/kling_video.py`.
+- **Kling Fal exige `image_url`** (no `start_image_url`). Con el campo mal, el job rebota al instante (inference ~0.02s, error 422) y no se cobra. → Ya corregido: `kling_video.py` usa `image_url`.
 - **OmniHuman v1** trunca audios largos y taggea `rotation=-90` (sale de costado al concatenar). → Usar **v1.5 720p**.
 - **Concatenar mp3 de ElevenLabs con `ffmpeg concat -c copy`** deja mal la duración en el header → OmniHuman procesa solo la primera línea. → **Re-encodear** con el filtro concat + `libmp3lame`.
 - **Concat de clips con distinta orientación/metadata**: normalizar SIEMPRE con `scale=720:1280,setsar=1,fps=30` por clip antes de concatenar; verificar el output con un frame extraído.

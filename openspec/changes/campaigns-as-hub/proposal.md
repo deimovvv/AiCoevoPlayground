@@ -24,7 +24,14 @@ La campaña pasa a ser **el centro del pedido**, en tres niveles:
 
 La campaña sigue viéndose como grilla de entregables, no como timeline.
 
-**Estado: a confirmar con el usuario.** Se conversó y quedó sin decidir.
+**Estado: decidido** (usuario, 2026-10-03: *"Dale. Avancemos"*). Sin implementar.
+
+**Ya existe y se reusa** (de `pending-features.md` §10d, archivado):
+- `services/campaign_planner.py` ya devuelve `needs_video: true` cuando el brief pide
+  reel o animación — hoy sólo lo avisa en pantalla, no lo produce.
+- `campaign.generationIds` existe y está sin usar (las piezas viven en `campaign.pieces`).
+- §10d ya había llegado a la misma conclusión: llevar a la tool con el contexto cargado
+  es mucho más barato que ejecutarla por dentro, y respeta su curación.
 
 ## Capabilities
 

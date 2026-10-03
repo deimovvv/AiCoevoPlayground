@@ -73,7 +73,8 @@ el modelo de video **solo sincronice**. El acento nunca se lo confíes al modelo
 ## 7. Costos (referencia)
 
 - ElevenLabs voz: ~centavos por clip.
-- Seedance ref-to-video: ~$0.30/s (720p), baja a ~$0.18/s con video de referencia.
+- Seedance ref-to-video: **por kie.ai desde 2026-10-01** — $0.315/s a 720p, $0.19/s con
+  video de referencia (Fal cobraba ~$0.47/s). Ver `openspec/specs/video-generation/spec.md`.
 - Hedra: costo extra (no wired).
 
 ## 8. 🧪 A/B TEST — decidir con datos propios
@@ -101,8 +102,9 @@ en acento. Confirmar con el test — y re-testear cuando salgan versiones nuevas
 ## 9. Mapeo a Coevo (qué está wired hoy)
 
 - ElevenLabs (TTS + cloning): ✅ — falta crear/clonar una **voz porteña**.
-- Seedance 2.0 ref-to-video (`audioUrls`): ✅ — OJO: el comentario del código dice que
-  *"reemplaza HeyGen/Fal lipsync para escenas habladas"*. Si Seedance regenera la voz, esa
+- Seedance 2.0 ref-to-video (`audioUrls`): ✅ — OJO: el código *decía* que
+  *"reemplaza HeyGen/Fal lipsync para escenas habladas"* (ese comentario ya no está; la UI
+  sacó los modos de voz de Seedance, pero quedan restos en `ugc_creator/handlers.ts`). Si Seedance regenera la voz, esa
   ruta **pisa la voz de ElevenLabs** → revisar el ruteo del UGC para escenas habladas.
 - Fal Fabric lip-sync: ✅ · HeyGen: ✅ · Hedra: ❌ (a evaluar como motor premium).
 

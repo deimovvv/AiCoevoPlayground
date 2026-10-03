@@ -1,5 +1,12 @@
 # Auditoría de documentación — 2026-10-03
 
+> ✅ **Ejecutada el mismo día.** CLAUDE.md achicado; 10 docs archivados en
+> `docs/archive/`; `stack.md` y `tools.md` borrados; `design` + `design_language`
+> fusionados en `openspec/specs/design-system`; `pending-features` reemplazado por
+> `backlog.md`; correcciones puntuales en 7 docs; `decisions-log` con índice de
+> vigentes y entradas superadas marcadas. Código muerto: 18 archivos, 19 funciones de
+> `api.ts`, `generate_batch` y 15 endpoints. Lo de abajo es el diagnóstico original.
+
 Los 30 docs de `docs/` + `CLAUDE.md`, contrastados contra el código. Objetivo:
 gastar menos tokens por sesión, que lo que lea un agente sea cierto, y dejar
 todo listo para migrar a **OpenSpec**.

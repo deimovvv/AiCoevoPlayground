@@ -107,16 +107,15 @@ Or use the Claude Code slash command:
 2. Check backend: http://localhost:8000/api/brands should return JSON
 3. Check API keys: use `/check-env` in Claude Code
 
-## Services & costs
+## Servicios y costos
 
-| Service | What it does | Cost |
-|---------|-------------|------|
-| Gemini 2.5 Flash | Scripts, chat, prompt generation | Free tier / pay per token |
-| ElevenLabs | TTS voice generation | Free tier: 10k chars/month |
-| Fal AI — Nano Banana 2 | Image generation/editing | ~$0.01/image |
-| Fal AI — HeyGen Avatar 4 | Talking head video | ~$0.10/second |
-| Fal AI — Kling V2.6 | Image-to-video animation | ~$0.05/video |
-| FFmpeg | Video concatenation + subtitles | Free (local) |
+Los costos cambian seguido y esta tabla se desactualizaba (decía Kling V2.6 a
+$0.05 y Nano Banana a $0.01). Fuentes que se mantienen:
+
+- **Tarifas que usa la app:** `frontend/src/lib/pricing.ts` y `VIDEO_RATE_PER_SEC`
+  en `frontend/src/pages/ManualLabV2.tsx`.
+- **Modelos y proveedores:** [MAP.md](MAP.md) §4 y
+  `openspec/specs/video-generation/spec.md`.
 
 ## File structure
 

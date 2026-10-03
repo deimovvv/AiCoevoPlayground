@@ -125,7 +125,8 @@ tools; recibe recetas derivadas de video real
 
 **No migrar las 5 de golpe.** El orden que minimiza riesgo:
 
-1. **`fashion_editorial` primero** — ya decidido (ver `decisions-log.md` 2026-09-25), es
+1. ✅ **`fashion_editorial` — HECHO** (commit `b42fde6`): oculta, sus cláusulas en
+   `data/system/framing.json` y `vibe.json`. Era
    el caso más limpio y sus 12 cláusulas de prompt son el activo a preservar.
 2. **`screen_mockup`, `fooh_subway`, `scene_reconstruct`** — los tres son presets claros
    y de bajo uso. Migración mecánica.

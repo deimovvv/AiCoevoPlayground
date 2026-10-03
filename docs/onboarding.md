@@ -96,7 +96,7 @@ entiende viendo la causalidad.**
 
 1. Entrá a **Marcas** y elegí **Koxis** o **Garcon Garcia** (son las que tienen más
    material cargado: prendas, modelos, poses).
-2. Sidebar → **Coevo Studio** → **Fashion Reel**.
+2. Sidebar → **Generar** → **Fashion Reel**.
 3. Modo **Looks**. Elegí una prenda, un modelo, y tildá dos planos: *Plano general* y
    *Plano detalle*.
 4. Corré el pipeline entero: guion → imagen base → multishot → animar → render.
@@ -104,7 +104,7 @@ entiende viendo la causalidad.**
 Vas a esperar unos minutos y vas a gastar plata real (unos **$2 a $4** en un reel de
 cuatro tomas). Está bien: es parte de aprender cuánto cuesta cada decisión.
 
-Cuando termine, andá a **Trabajo**: la pieza aparece con su costo real en la fila.
+Cuando termine, andá a **Campañas**: la pieza aparece con su costo real en la fila.
 
 ---
 

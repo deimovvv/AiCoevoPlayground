@@ -16,6 +16,17 @@ regenera sólo ese clip** y queda guardado en la receta que lo generó.
 
 Diseño completo: `docs/video-editor.md`.
 
+**Antecedente** (`pending-features.md` §12, archivado): ya se había propuesto un editor
+"ligero" post-render. Suma ideas que el diseño nuevo no tenía: **overlay de música**,
+**editor de subtítulos** y **elegir el frame de portada**. Van a la segunda etapa.
+
+⚠️ **Contradicción a resolver:** §12 excluía importar videos externos y el timeline. El
+diseño nuevo sí tiene timeline y abre videos sueltos (Content, Lab, campañas). Se
+mantiene el diseño nuevo — es lo que se conversó por último — pero los videos sin
+pipeline no se pueden regenerar, sólo recortar y comentar. §12 también pedía como
+prerequisito que las generaciones guarden su estado completo (escenas, audio, subtítulos):
+hoy está parcial (`data/pipeline_states/`).
+
 ## Capabilities
 
 ### New Capabilities
