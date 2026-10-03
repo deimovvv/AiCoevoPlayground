@@ -24,7 +24,6 @@ import { PerformancePage } from "./pages/PerformancePage";
 import { ChatPage } from "./pages/ChatPage";
 // v1 (ManualLab) está desconectada del flujo pero el archivo se mantiene en disco
 // como fallback. Si alguien lo necesita: importar y agregar de vuelta la ruta.
-// import { ManualLab } from "./pages/ManualLab";
 import { ManualLabV2 } from "./pages/ManualLabV2";
 import { VoiceLab } from "./pages/VoiceLab";
 import { EcommerceBatch } from "./pages/EcommerceBatch";

@@ -24,7 +24,7 @@ las herramientas los heredan.
 
 ## Dónde está cada cosa
 
-- **Lab** = `frontend/src/pages/ManualLabV2.tsx`. `ManualLab.tsx` es legacy, no se importa.
+- **Lab** = `frontend/src/pages/ManualLabV2.tsx` (el v1 se borró el 2026-10-03; está en el historial de git).
 - **`ToolRunPage.tsx` tiene ~15.300 líneas.** No sumarle lógica: extraer a
   `components/workspace/` o a `tools/<id>/`.
 - **Una tool se registra en dos lados:** `frontend/src/tools/registry.ts` (handlers y
