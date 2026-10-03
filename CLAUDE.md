@@ -277,6 +277,7 @@ KLING_API_KEY=...      # optional
 - **[planning.md](docs/planning.md)**: Development roadmap (7 phases)
 - **[pending-features.md](docs/pending-features.md)**: Backlog with detailed plans per feature
 - **[fashion-reel-recipes.md](docs/fashion-reel-recipes.md)**: recetas de movimiento derivadas de video real — el giro de Fashion Reel de "campos vacíos" a "elegís un movimiento validado y lo completás", con la métrica de calidad y por qué no un Marketing Studio genérico
+- **[video-editor.md](docs/video-editor.md)**: editor con timeline compartido que reemplaza el paso Render de las 4 tools de video — los comentarios por timestamp regeneran sólo ese clip y validan las recetas
 - **[tools-audit.md](docs/tools-audit.md)**: las 17 tools medidas contra el criterio §8 — 8 se justifican, 5 son presets de Campañas, 2 están muertas. Incluye el conflicto de Ecommerce Pack (la más usada no pasa el criterio)
 - **[workspace-template.md](docs/workspace-template.md)**: el patrón de pantalla que comparten Lab, Campañas y (pendiente) las tools — las 5 zonas, los componentes, y el orden de migración
 - **[market-positioning.md](docs/market-positioning.md)**: nicho, competencia y ventaja — el ranking de mercado (moda #1, UGC #2, ecommerce #3), el gap video×español×calce, precios de mercado y riesgos a monitorear
