@@ -139,7 +139,7 @@ lo histórico**. Eso es exactamente lo que OpenSpec separa.
 
 | | Qué | Evidencia |
 |---|---|---|
-| 1 | **Veo probablemente falla en UGC Creator** | `veo_video.py:25` usa sólo `GEMINI_API_KEY`, que da 403. Los otros servicios caen a `NANOBANANA_API_KEY` vía `llm_router.py:126`; Veo quedó afuera |
+| 1 | ~~Veo probablemente falla en UGC Creator~~ **Descartado** | Se apoyaba en que `GEMINI_API_KEY` da 403. Verificado el 2026-10-03: **ya no da 403**, genera texto OK y ve los 3 modelos Veo. El dato viejo venía de septiembre |
 | 2 | La receta de Fashion Reel no llega al generador | `recipe` es estado local (`ToolRunPage.tsx:956`); `fashion_reel/handlers.ts` no la lee |
 | 3 | `pricing.ts:34` cotiza `v2-6-std` | ese endpoint no existe en Fal (404) |
 

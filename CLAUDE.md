@@ -30,8 +30,8 @@ las herramientas los heredan.
 - **Una tool se registra en dos lados:** `frontend/src/tools/registry.ts` (handlers y
   `approvalSteps`) y `backend/tools/registry.json` (orden de pasos y `hidden`).
 - **Todo HTTP pasa por `frontend/src/lib/api.ts`.** Nada de `fetch()` suelto.
-- **LLMs y keys de Google:** `GEMINI_API_KEY` da 403 — usar `NANOBANANA_API_KEY`, como hace
-  `backend/services/llm_router.py`.
+- **LLMs:** pasan por `backend/services/llm_router.py`, que prefiere `NANOBANANA_API_KEY` y cae a
+  `GEMINI_API_KEY`. Las dos generan texto OK (verificado 2026-10-03; el 403 de sept. ya no está).
 - **Seedance va siempre por kie.ai** (`KIE_API_KEY`), nunca por Fal: `services/seedance_video.py`.
 - **Patrón de pantalla compartido:** `components/workspace/` (`SelectorPanel`, `SelectorTrigger`,
   `RecipeGrid`). Los selectores abren al costado, nunca hacia abajo.
