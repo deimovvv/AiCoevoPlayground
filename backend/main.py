@@ -1591,29 +1591,6 @@ async def upload_avatar(
     return avatar
 
 
-@app.post("/api/brands/{brand_id}/avatars/heygen")
-def add_heygen_avatar(brand_id: str, req: AddHeygenAvatarRequest):
-    all_brands = brands.load_brands()
-    brand = brands.find_brand(all_brands, brand_id)
-    if not brand:
-        raise HTTPException(status_code=404, detail="Brand not found")
-
-    avatar = {
-        "id": req.talkingPhotoId,
-        "name": req.name,
-        "filename": "",  # no local file
-        "imageUrl": req.previewUrl,
-        "talkingPhotoId": req.talkingPhotoId,
-        "heygenStatus": "ready",
-    }
-    
-    if "avatars" not in brand:
-        brand["avatars"] = []
-    brand["avatars"].append(avatar)
-    brands.save_brands(all_brands)
-    return avatar
-
-
 @app.patch("/api/brands/{brand_id}/avatars/{avatar_id}/image")
 async def replace_avatar_image(
     brand_id: str,
@@ -1704,38 +1681,6 @@ def delete_avatar(brand_id: str, avatar_id: str):
     brand["avatars"] = [a for a in brand["avatars"] if a["id"] != avatar_id]
     brands.save_brands(all_brands)
     return {"ok": True}
-
-
-@app.post("/api/brands/{brand_id}/avatars/{avatar_id}/retry-heygen")
-async def retry_heygen_upload(brand_id: str, avatar_id: str):
-    all_brands = brands.load_brands()
-    brand = brands.find_brand(all_brands, brand_id)
-    if not brand:
-        raise HTTPException(status_code=404, detail="Brand not found")
-    avatar = next((a for a in brand.get("avatars", []) if a["id"] == avatar_id), None)
-    if not avatar:
-        raise HTTPException(status_code=404, detail="Avatar not found")
-    if not heygen.is_configured():
-        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
-
-    filepath = brands.get_avatars_dir() / avatar.get("filename", "")
-    if not filepath.exists():
-        raise HTTPException(status_code=404, detail="Avatar image file not found")
-
-    with open(filepath, "rb") as f:
-        image_data = f.read()
-
-    try:
-        tp_id = await heygen.upload_talking_photo(image_data, avatar["filename"], "image/png")
-        avatar["talkingPhotoId"] = tp_id
-        avatar["heygenStatus"] = "ready"
-        avatar.pop("heygenError", None)
-    except Exception as e:
-        avatar["heygenStatus"] = "failed"
-        avatar["heygenError"] = str(e)[:200]
-
-    brands.save_brands(all_brands)
-    return avatar
 
 
 # ══════════════════════════════════════════════════════════════
@@ -2552,28 +2497,6 @@ class ProductQARequest(BaseModel):
     imageUrl: str
     refUrls: list[str] = []
     category: str = ""
-
-
-@app.post("/api/qa/product-consistency")
-async def qa_product_consistency(req: ProductQARequest):
-    """AutoQA de fidelidad de producto — compara una imagen generada contra las referencias
-    reales del producto (Gemini Vision) y devuelve un verdict {ok, severity, issues, fix_hint}.
-    Fase 0 de Campañas; reutilizable por cualquier tool. Fail-open."""
-    if not image_analysis.is_configured():
-        return {"ok": True, "severity": "none", "issues": [], "fix_hint": ""}
-    try:
-        gen = await manual_lab._fetch_image_bytes(req.imageUrl)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"No se pudo leer la imagen: {str(e)[:200]}")
-    refs: list[tuple[bytes, str]] = []
-    for u in (req.refUrls or [])[:4]:
-        try:
-            refs.append(await manual_lab._fetch_image_bytes(u))
-        except Exception:
-            pass
-    if not refs:
-        return {"ok": True, "severity": "none", "issues": [], "fix_hint": "Sin referencia de producto para comparar."}
-    return await image_analysis.check_product_consistency(gen, refs, req.category)
 
 
 class RefineEditRequest(BaseModel):
@@ -3416,23 +3339,6 @@ class InstagramProfileScrapeRequest(BaseModel):
     posts_limit: int = 12
 
 
-@app.post("/api/integrations/instagram/scrape-profile")
-async def instagram_scrape_profile(req: InstagramProfileScrapeRequest):
-    """Scrape recent posts from an IG profile — useful for brand source enrichment."""
-    if not instagram_scraper.is_configured():
-        raise HTTPException(status_code=500, detail="APIFY_API_KEY no configurado en backend/.env")
-    try:
-        items = await instagram_scraper.scrape_profile(req.username_or_url, req.posts_limit)
-        normalized = []
-        for it in items:
-            normalized.append(await instagram_scraper.normalize_post(it))
-        return {"posts": normalized, "count": len(normalized)}
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=502, detail=f"Apify profile error: {str(e)[:300]}")
-
-
 @app.post("/api/analyze/visual-guide")
 async def analyze_visual_guide(
     images: list[UploadFile] = File(...),
@@ -3642,18 +3548,6 @@ async def tiktok_top_videos(req: TikTokProfileRequest):
         raise HTTPException(status_code=502, detail=str(e))
 
 
-@app.post("/api/tiktok/video-info")
-async def tiktok_video_info(url: str = Form(...)):
-    """Fetch metadata for a single TikTok video via Apify."""
-    if not apify_tiktok.is_configured():
-        raise HTTPException(status_code=500, detail="APIFY_API_KEY not configured")
-    try:
-        info = await apify_tiktok.get_video_info(url)
-        return info
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-
 # ══════════════════════════════════════════════════════════════
 #  Upload-to-Fal — turn a data URL / base64 / file into a public Fal URL.
 #  Used by Manual Lab before sending refs to Kling/Seedance because Fal rejects
@@ -3728,86 +3622,9 @@ async def tts_generate_and_upload(req: TTSRequest):
         raise HTTPException(status_code=502, detail=f"TTS+Upload error: {str(e)}")
 
 
-@app.post("/api/tts/generate-file")
-async def tts_generate_file(req: TTSRequest):
-    """Generate TTS audio and save to temp file."""
-    try:
-        audio_bytes = tts.generate_audio(
-            text=req.text,
-            voice_id=req.voice_id,
-            model_id=req.model_id,
-            output_format=req.output_format,
-            stability=req.stability,
-            similarity_boost=req.similarity_boost,
-            style=req.style,
-            use_speaker_boost=req.use_speaker_boost,
-            speed=req.speed,
-        )
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3", dir="./tmp")
-        tmp.write(audio_bytes)
-        tmp.close()
-        return {"file_path": tmp.name, "size_bytes": len(audio_bytes)}
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"TTS error: {str(e)}")
-
-
 # ══════════════════════════════════════════════════════════════
 #  HeyGen Routes
 # ══════════════════════════════════════════════════════════════
-
-@app.get("/api/heygen/talking-photos")
-async def api_list_talking_photos():
-    if not heygen.is_configured():
-        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
-    try:
-        photos = await heygen.list_talking_photos()
-        return {"talking_photos": photos}
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-
-@app.post("/api/heygen/upload-talking-photo")
-async def api_upload_talking_photo(image: UploadFile = File(...)):
-    """Upload an image to HeyGen as a Photo Avatar."""
-    if not heygen.is_configured():
-        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
-    image_bytes = await image.read()
-    if len(image_bytes) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
-    try:
-        tp_id = await heygen.upload_talking_photo(
-            image_bytes, image.filename or "photo.jpg", image.content_type or "image/jpeg",
-        )
-        return {"talking_photo_id": tp_id}
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Upload failed: {str(e)}")
-
-
-@app.post("/api/heygen/generate-video")
-async def api_generate_video(req: LipSyncRequest):
-    if not heygen.is_configured():
-        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
-    if not req.audio_url:
-        raise HTTPException(status_code=400, detail="audio_url is required")
-    try:
-        video_id = await heygen.create_video(
-            talking_photo_id=req.talking_photo_id,
-            audio_url=req.audio_url,
-            title=req.title,
-        )
-        return {"video_id": video_id, "status": "pending"}
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-
-@app.get("/api/heygen/video-status/{video_id}")
-async def api_video_status(video_id: str):
-    if not heygen.is_configured():
-        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
-    try:
-        return await heygen.get_video_status(video_id)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -4676,41 +4493,6 @@ async def video_swap_status(job_id: str):
         return await beeble_switchx.get_status(job_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
-
-
-@app.post("/api/lipsync")
-async def create_lipsync(
-    audio: UploadFile = File(...),
-    talking_photo_id: str = Form(...),
-    title: str = Form("UGC Lip Sync"),
-):
-    """
-    All-in-one lip sync endpoint:
-    1. Uploads the audio file to HeyGen as asset
-    2. Creates a talking photo video with that audio
-    Returns video_id for status polling.
-    """
-    if not heygen.is_configured():
-        raise HTTPException(status_code=500, detail="HeyGen API key not configured")
-
-    audio_bytes = await audio.read()
-
-    try:
-        # Step 1: Upload audio as asset
-        asset = await heygen.upload_asset(audio_bytes, audio.filename or "audio.mp3", "audio/mpeg")
-        audio_url = asset.get("url")
-        if not audio_url:
-            raise Exception(f"No audio URL from asset upload: {asset}")
-
-        # Step 2: Create video
-        video_id = await heygen.create_video(
-            talking_photo_id=talking_photo_id,
-            audio_url=audio_url,
-            title=title,
-        )
-        return {"video_id": video_id, "status": "pending"}
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Lip sync failed: {str(e)}")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -5606,41 +5388,6 @@ class PortalNoteBody(BaseModel):
     text: str
 
 
-@app.post("/api/portal/{token}/notes")
-def create_portal_note(token: str, req: PortalNoteBody):
-    """El cliente deja una nota — NO crea trabajo.
-
-    Antes esto creaba una campaña directamente, y estaba mal: en una agencia el trabajo
-    nace de un briefing (reunión, scope, presupuesto), no de un cliente escribiendo en una
-    caja. La nota es input para esa conversación; convertirla en campaña es una decisión
-    nuestra. Ver docs/decisions-log.md 2026-08.
-    """
-    from datetime import datetime, timezone
-    text = (req.text or "").strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="La nota no puede estar vacía")
-    if len(text) > 2000:
-        raise HTTPException(status_code=400, detail="La nota es demasiado larga")
-
-    all_brands = brands.load_brands()
-    brand, access = _resolve_portal(token)
-    if not brand:
-        raise HTTPException(status_code=404, detail="Portal not found")
-    # _resolve_portal carga su propia copia; hay que escribir sobre la lista que guardamos.
-    brand = brands.find_brand(all_brands, brand["id"])
-
-    note = {
-        "id": f"note_{uuid.uuid4().hex[:10]}",
-        "text": text,
-        "by": (access or {}).get("name"),
-        "createdAt": datetime.now(timezone.utc).isoformat(),
-        "resolvedAt": None,
-    }
-    brand.setdefault("portalNotes", []).append(note)
-    brands.save_brands(all_brands)
-    return note
-
-
 @app.get("/api/brands/{brand_id}/portal/notes")
 def list_brand_notes(brand_id: str):
     """Las notas del cliente, del lado nuestro. Input para el próximo briefing."""
@@ -6071,16 +5818,6 @@ def delete_brand_prompt_override(brand_id: str, tool_id: str):
     return {"ok": True}
 
 
-@app.get("/api/action-presets")
-def get_action_presets():
-    """Return the global action presets library (all categories)."""
-    presets_path = Path(__file__).parent / "data" / "action_presets.json"
-    if not presets_path.exists():
-        return {"categories": []}
-    with open(presets_path) as f:
-        return json.load(f)
-
-
 @app.get("/api/brands/{brand_id}/actions")
 def get_brand_actions(brand_id: str):
     """Return merged action list: global presets + brand-specific extraActions."""
@@ -6101,18 +5838,6 @@ def get_brand_actions(brand_id: str):
         })
 
     return presets
-
-
-@app.put("/api/brands/{brand_id}/actions")
-def save_brand_actions(brand_id: str, req: dict):
-    """Save brand-specific extra actions."""
-    all_brands = brands.load_brands()
-    brand = brands.find_brand(all_brands, brand_id)
-    if not brand:
-        raise HTTPException(status_code=404, detail="Brand not found")
-    brand["extraActions"] = req.get("actions", [])
-    brands.save_brands(all_brands)
-    return {"ok": True}
 
 
 @app.post("/api/brands/{brand_id}/prompts/{tool_id}/preview")
@@ -6424,17 +6149,6 @@ class ManualLabSuggestRequest(BaseModel):
     prompt: str
     mode: str = "image"  # "image" | "video"
     hasRefs: bool = False
-
-
-@app.post("/api/manual/suggest-tool")
-async def manual_lab_suggest(req: ManualLabSuggestRequest):
-    """Given a free-form Manual Lab prompt, optionally suggest a structured pipeline."""
-    if not manual_lab.is_configured():
-        return {"tool_id": None, "reason": ""}
-    try:
-        return await manual_lab.suggest_tool(req.prompt, req.mode, req.hasRefs)
-    except Exception:
-        return {"tool_id": None, "reason": ""}
 
 
 class ManualLabRefInput(BaseModel):
