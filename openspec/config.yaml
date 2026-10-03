@@ -1,0 +1,43 @@
+schema: spec-driven
+
+# Contexto que lee el agente antes de proponer o aplicar un cambio.
+# El mapa completo (estado + proyección) está en docs/MAP.md.
+context: |
+  Producto: Coevo Studio — plataforma interna de Coevo para producir contenido de
+  marca con IA, foco en moda en video, en español, con calce real. Primero se usa
+  para vender output a clientes (Koxis, PROMAN); el SaaS es una etapa posterior.
+
+  Stack: React 19 + TypeScript + Vite + Tailwind v4 (frontend/) · FastAPI sobre
+  Python 3.9 (backend/) · sin base de datos: JSON en backend/data/.
+  Proveedores: Fal (Kling, FLUX 3, Nano Banana, SAM2, lip-sync), kie.ai (Seedance,
+  siempre), Google (Gemini, Veo), ElevenLabs (voz), OpenAI (GPT Image).
+
+  Idioma: specs, propuestas y UI en español rioplatense. Las palabras clave de los
+  requisitos (SHALL, MUST, WHEN, THEN, AND, GIVEN) quedan en inglés: el validador
+  de OpenSpec las busca.
+
+  Lenguaje de producto:
+  - Describir lo que el usuario ve y obtiene, no la implementación.
+  - Los mecanismos internos van en design.md o tasks.md, salvo que sean parte del
+    contrato (ej: "Seedance se genera por kie.ai" es contrato de costo).
+
+  Arquitectura que condiciona todo cambio:
+  - Una tool se registra en dos lados: frontend/src/tools/registry.ts (handlers y
+    approvalSteps) y backend/tools/registry.json (orden de pasos y hidden).
+  - frontend/src/pages/ToolRunPage.tsx tiene ~15.300 líneas: no sumarle lógica,
+    extraer a components/workspace/ o a tools/<id>/.
+  - Todo HTTP del front pasa por frontend/src/lib/api.ts.
+
+rules:
+  proposals:
+    - Citar la decisión del usuario textual cuando el cambio sale de una conversación.
+    - Si el cambio reabre algo ya decidido, linkear la entrada de docs/decisions-log.md.
+  specs:
+    - Requisitos sobre comportamiento observable; WHEN/THEN concretos y verificables.
+    - Si un requisito depende de un modelo, precio o endpoint externo, verificarlo
+      antes de escribirlo (no de memoria). Anotar la fecha de verificación.
+  tasks:
+    - Cada tarea termina con build verde y cero errores nuevos de tsc
+      (hay ~15 preexistentes: ToolConfig/StepContext).
+    - Nunca hacer POST de prueba a APIs de generación: encolan y cobran.
+    - Commit y push a main al cerrar cada tarea.

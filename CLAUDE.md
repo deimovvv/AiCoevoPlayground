@@ -8,6 +8,10 @@ las herramientas los heredan.
 [docs/README.md](docs/README.md) · **Por qué algo está como está:**
 [docs/decisions-log.md](docs/decisions-log.md) — leerlo antes de reabrir una discusión.
 
+**Spec-driven (OpenSpec):** lo que el sistema hace hoy está en `openspec/specs/`; lo propuesto,
+en `openspec/changes/<cambio>/` (proposal · tasks · spec delta). Antes de construir algo nuevo,
+buscar si ya hay un change; si no, proponerlo ahí primero.
+
 > Este archivo se carga en CADA sesión: mantenerlo corto. El detalle va a `docs/`.
 
 ## Correr
