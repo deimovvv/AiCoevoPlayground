@@ -2992,26 +2992,28 @@ export function ToolRunPage() {
                     key={step.id}
                     onClick={() => started && setActiveStep(i)}
                     disabled={!started}
+                    /* Monocromo (2026-10-05, pedido del usuario: "hay muchos colores, no está
+                       boutique"). Antes: verde/amarillo/rosa con brillo/blanco/rojo, en píldoras.
+                       Ahora el estado se lee por ícono y tono de gris; el color queda SÓLO donde
+                       hay que actuar: punto ámbar si espera revisión, rojo si falló. */
                     className={cn(
-                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] transition-colors shrink-0",
+                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--radius-xs)] text-[11px] transition-colors shrink-0 border",
                       started ? "cursor-pointer" : "cursor-default opacity-60",
                       active
-                        ? "bg-[var(--color-brand)] text-[var(--color-brand-fg)] font-semibold shadow-[0_0_16px_-2px_var(--color-brand-muted)]"
-                        : step.status === "done"
-                          ? "bg-[var(--color-success-muted)] text-[var(--color-success)] border border-[var(--color-success)]/30"
-                          : step.status === "review"
-                            ? "bg-[var(--color-warning-muted)] text-[var(--color-warning)] border border-[var(--color-warning)]/30"
+                        ? "bg-surface-2 text-fg border-edge-strong"
+                        : step.status === "error"
+                          ? "border-transparent text-[var(--color-error)] hover:bg-surface-1"
+                          : step.status === "done" || step.status === "review"
+                            ? "border-transparent text-fg-muted hover:text-fg hover:bg-surface-1"
                             : step.status === "running"
-                              ? "bg-fg text-[var(--color-canvas)]"
-                              : step.status === "error"
-                                ? "bg-[var(--color-error-muted)] text-[var(--color-error)] border border-[var(--color-error)]/30"
-                                : "bg-surface-1 text-fg-muted border border-edge",
+                              ? "border-transparent text-fg"
+                              : "border-transparent text-fg-faint",
                     )}
                   >
-                    <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 bg-black/10">
-                      {step.status === "done" ? <Check size={9} />
-                       : step.status === "running" ? <Loader2 size={9} className="animate-spin" />
-                       : step.status === "review" ? <Eye size={9} />
+                    <span className="w-3.5 h-3.5 flex items-center justify-center text-[9px] tabular-nums shrink-0">
+                      {step.status === "done" ? <Check size={11} />
+                       : step.status === "running" ? <Loader2 size={11} className="animate-spin" />
+                       : step.status === "review" ? <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-warning)]" />
                        : i + 1}
                     </span>
                     {meta.label}
@@ -10043,6 +10045,9 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
           </details>
         )}
 
+        {/* Con el timeline, las tarjetas de datos y la descarga sobran: la duración está
+            en la barra del editor y exportar es un solo botón. Pesaban más que el timeline. */}
+        {!(toolId && USE_TIMELINE.has(toolId)) && (<>
         <div className="grid grid-cols-4 gap-2">
           <InfoPill label="Duration" value={info.totalDuration} />
           <InfoPill label="Scenes" value={String(info.scenes)} />
@@ -10070,6 +10075,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
             </button>
           )}
         </div>
+        </>)}
       </div>
     );
   }

@@ -28,6 +28,13 @@ export interface TimelineClip {
     imageUrl?: string;
 }
 
+/** "image (65) · Plano general" → "Plano general". El título viene del nombre de la
+ *  prenda + el plano, y el nombre de archivo de la prenda no le dice nada al usuario. */
+const cleanTitle = (t: string) => {
+    const parts = t.split("·").map((x) => x.trim()).filter(Boolean);
+    return parts.length > 1 ? parts[parts.length - 1] : t;
+};
+
 const fmt = (t: number) => {
     if (!isFinite(t) || t < 0) t = 0;
     const m = Math.floor(t / 60);
@@ -184,13 +191,13 @@ export function VideoTimeline({
                     {fmt(globalTime)} <span className="text-fg-faint">/ {ready ? fmt(total) : "…"}</span>
                 </span>
                 <span className="text-[11px] text-fg-faint truncate">
-                    · clip {active + 1} de {clips.length}: {clips[active]?.title}
+                    {cleanTitle(clips[active]?.title || "")}
                 </span>
                 <div className="flex-1" />
                 {exportUrl && (
                     <button
                         onClick={onExport}
-                        className="flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-sm)] text-[12px] font-medium bg-[var(--color-action)] text-[var(--color-action-fg)] hover:opacity-90 cursor-pointer"
+                        className="flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-sm)] text-[12px] text-fg-muted border border-edge hover:text-fg hover:border-edge-strong cursor-pointer transition-colors"
                     >
                         <Download size={13} /> Exportar
                     </button>
@@ -198,7 +205,7 @@ export function VideoTimeline({
             </div>
 
             {/* ── Timeline ────────────────────────────────── */}
-            <div className="rounded-[var(--radius-md)] border border-edge bg-surface-0 p-2 space-y-1.5">
+            <div className="space-y-1">
                 {/* Regla */}
                 <div className="relative h-4">
                     {ticks.map((t) => (
@@ -213,35 +220,43 @@ export function VideoTimeline({
                 </div>
 
                 {/* Pista de video: cada bloque ancho ∝ su duración */}
-                <div ref={trackRef} onClick={onTrackClick} className="relative flex h-16 gap-px cursor-pointer select-none">
+                <div ref={trackRef} onClick={onTrackClick} className="relative flex h-11 gap-0.5 cursor-pointer select-none">
                     {clips.map((c, i) => (
                         <div
                             key={c.id}
                             title={`${c.title} · ${durations[i] ? fmt(durations[i]) : "…"}`}
                             className={cn(
-                                "relative overflow-hidden rounded-[var(--radius-xs)] border-2 bg-surface-2",
-                                i === active ? "border-[var(--color-brand)]" : "border-transparent",
+                                "relative overflow-hidden rounded-[var(--radius-xs)] bg-surface-1 transition-[box-shadow,opacity]",
+                                i === active ? "ring-1 ring-fg/70" : "opacity-70 hover:opacity-100",
                             )}
                             style={{ flexGrow: durations[i] || 1, flexBasis: 0, minWidth: 28 }}
                         >
+                            {/* Una sola miniatura, al inicio del bloque. Repetida a lo largo
+                                ensuciaba todo el timeline. */}
                             {c.imageUrl && (
-                                <div
-                                    className="absolute inset-0 bg-repeat-x bg-contain opacity-80"
-                                    style={{ backgroundImage: `url(${c.imageUrl})` }}
-                                />
+                                <img src={c.imageUrl} alt="" className="absolute left-0 top-0 h-full w-auto object-cover" />
                             )}
-                            <span className="absolute left-1 bottom-0.5 right-1 text-[9px] font-medium text-white truncate drop-shadow">
-                                {i + 1}. {c.title}
-                            </span>
                         </div>
                     ))}
                     {/* Cabezal */}
                     {ready && (
                         <div
-                            className="pointer-events-none absolute -top-1 -bottom-1 w-0.5 bg-[var(--color-brand)]"
+                            className="pointer-events-none absolute -top-1 -bottom-1 w-px bg-fg"
                             style={{ left: `${(globalTime / total) * 100}%` }}
                         />
                     )}
+                </div>
+                {/* Nombres debajo, sin texto encima de la imagen */}
+                <div className="flex gap-0.5">
+                    {clips.map((c, i) => (
+                        <span
+                            key={c.id}
+                            className={cn("text-[10px] truncate px-0.5", i === active ? "text-fg" : "text-fg-faint")}
+                            style={{ flexGrow: durations[i] || 1, flexBasis: 0, minWidth: 28 }}
+                        >
+                            {cleanTitle(c.title)}
+                        </span>
+                    ))}
                 </div>
             </div>
         </div>
