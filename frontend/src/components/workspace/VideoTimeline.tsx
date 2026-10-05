@@ -275,6 +275,24 @@ export function VideoTimeline({
         onEditsCommit?.(edits);
     };
 
+    // ── Scrub: arrastrar el cabezal (o la regla) para recorrer el video ──
+    const scrubbing = useRef(false);
+    const timeAt = (clientX: number) => {
+        const r = trackRef.current?.getBoundingClientRect();
+        return r && total ? ((clientX - r.left) / r.width) * total : 0;
+    };
+    const onScrubDown = (e: React.PointerEvent) => {
+        if (!ready || !total) return;
+        e.preventDefault(); e.stopPropagation();
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        scrubbing.current = true;
+        // Mientras se recorre, el video queda en pausa mostrando el cuadro de ese instante.
+        videoRef.current?.pause(); setPlaying(false); wantPlay.current = false;
+        seekTo(timeAt(e.clientX));
+    };
+    const onScrubMove = (e: React.PointerEvent) => { if (scrubbing.current) seekTo(timeAt(e.clientX)); };
+    const onScrubUp = () => { scrubbing.current = false; };
+
     // ── Reordenar: arrastrar un tramo ──
     const [dragFrom, setDragFrom] = useState<number | null>(null);
     const [dropAt, setDropAt] = useState<number | null>(null);
@@ -376,7 +394,14 @@ export function VideoTimeline({
 
             {/* ── Timeline ────────────────────────────────── */}
             <div className="space-y-1">
-                <div className="relative h-4">
+              <div className="relative">
+                {/* Regla: también se arrastra para recorrer el video */}
+                <div
+                    className="relative h-4 mb-1 cursor-ew-resize select-none"
+                    onPointerDown={onScrubDown}
+                    onPointerMove={onScrubMove}
+                    onPointerUp={onScrubUp}
+                >
                     {ticks.map((t) => (
                         <span key={t} className="absolute top-0 text-[9px] tabular-nums text-fg-faint -translate-x-1/2"
                             style={{ left: `${(t / total) * 100}%` }}>
@@ -458,11 +483,25 @@ export function VideoTimeline({
                         );
                     })}
 
-                    {ready && total > 0 && (
-                        <div className="pointer-events-none absolute -top-1 -bottom-1 w-px bg-fg z-30"
-                            style={{ left: `${(globalTime / total) * 100}%` }} />
-                    )}
                 </div>
+
+                {/* Cabezal: cruza regla y pista. La manija de arriba se agarra y arrastra. */}
+                {ready && total > 0 && (
+                    <div
+                        className="absolute top-0 bottom-0 z-30 -translate-x-1/2 flex flex-col items-center"
+                        style={{ left: `${(globalTime / total) * 100}%` }}
+                    >
+                        <div
+                            onPointerDown={onScrubDown}
+                            onPointerMove={onScrubMove}
+                            onPointerUp={onScrubUp}
+                            title="Arrastrá para recorrer el video"
+                            className="w-2.5 h-3 rounded-[2px] bg-fg cursor-ew-resize shrink-0 touch-none"
+                        />
+                        <div className="w-px flex-1 bg-fg pointer-events-none" />
+                    </div>
+                )}
+              </div>
 
                 <div className="flex gap-0.5">
                     {edits.map((ed, i) => (
