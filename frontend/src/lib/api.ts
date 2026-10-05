@@ -3158,6 +3158,8 @@ export async function concatVideos(
     addSubtitles: boolean = true,
     subtitleEngine: "auto" | "remotion" | "ffmpeg" | "none" = "auto",
     backgroundMusicUrl?: string,
+    /** Recortes del editor, alineados con videoUrls: {start, end} en segundos del clip, o null. */
+    trims?: Array<{ start: number; end: number } | null>,
 ): Promise<ConcatResult> {
     const res = await fetch(`${API_BASE}/api/video/concat`, {
         method: "POST",
@@ -3168,6 +3170,7 @@ export async function concatVideos(
             add_subtitles: addSubtitles,
             subtitle_engine: subtitleEngine,
             background_music_url: backgroundMusicUrl || null,
+            trims: trims || null,
         }),
     });
     if (!res.ok) {

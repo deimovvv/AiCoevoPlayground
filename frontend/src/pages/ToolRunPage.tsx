@@ -67,7 +67,7 @@ import { downloadFile, downloadZip } from "../lib/download";
 import { ImageEditPanel } from "../components/ImageEditPanel";
 import { SelectorPanel } from "../components/workspace/SelectorPanel";
 import { RecipeGrid, RecipeStrip } from "../components/workspace/RecipeGrid";
-import { VideoTimeline } from "../components/workspace/VideoTimeline";
+import { VideoTimeline, type TimelineEdit } from "../components/workspace/VideoTimeline";
 import { MOTION_RECIPES, recipeCostUsd, type MotionRecipe } from "../tools/fashion_reel/recipes";
 import type { KlingModel } from "../lib/api";
 import { ToolHelpButton } from "../components/ToolHelp";
@@ -10010,11 +10010,24 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
             id: c.sceneId, title: c.title, videoUrl: c.videoUrl, imageUrl: c.imageUrl,
           }));
           if (!clips.length) return null;
+          const saved = (result as { timelineEdits?: TimelineEdit[] }).timelineEdits;
           return (
             <VideoTimeline
               clips={clips}
-              exportUrl={fullVideoUrl}
-              onExport={() => fullVideoUrl && downloadFile(fullVideoUrl, "fashion_reel.mp4")}
+              initialEdits={saved}
+              // La edición se guarda en el resultado del Render: sobrevive a recargar.
+              onEditsCommit={(edits) => onUpdateStepResult?.("render", { ...(result as object), timelineEdits: edits })}
+              onExport={async (edits, edited) => {
+                // Sin cambios: el MP4 ya existe, no hace falta re-renderizar.
+                if (!edited) { if (fullVideoUrl) downloadFile(fullVideoUrl, "fashion_reel.mp4"); return; }
+                const byId = Object.fromEntries(clips.map((c) => [c.id, c]));
+                const r = await concatVideos(
+                  edits.map((e) => byId[e.clipId].videoUrl),
+                  [], false, "none", undefined,
+                  edits.map((e) => ({ start: e.start, end: e.end })),
+                );
+                downloadFile(`http://127.0.0.1:8000${r.video_url}`, "fashion_reel_editado.mp4");
+              }}
             />
           );
         })()}

@@ -252,9 +252,17 @@ async def concat_videos(
     add_subtitles: bool = True,
     subtitle_engine: str = "auto",
     background_music_url: Optional[str] = None,
+    trims: Optional[List[Optional[dict]]] = None,
 ) -> dict:
     """
     Download, concatenate video segments, and optionally add subtitles.
+
+    trims: opcional, alineado por índice con video_urls. Cada entrada es
+        {"start": s, "end": s} en segundos del clip original, o None para usarlo
+        entero. Lo manda el editor de video al exportar recortes. El recorte se
+        hace en el mismo paso de normalización (que ya re-codifica), así que no
+        suma otra pasada de FFmpeg. Reordenar y borrar no necesitan nada acá: el
+        editor manda los clips ya en el orden nuevo.
 
     Args:
         video_urls: List of video URLs (in order) to concatenate.
@@ -297,10 +305,19 @@ async def concat_videos(
             norm_path = work_dir / f"norm_{i:03d}.mp4"
             has_audio = await _has_audio_stream(seg_path)
 
+            # Recorte de este clip (editor). Como opción de ENTRADA: con re-codificación
+            # el corte es exacto al frame, y aplica sólo a este video (no al audio mudo).
+            trim = (trims[i] if trims and i < len(trims) else None) or {}
+            cut: List[str] = []
+            if trim.get("start") is not None and float(trim["start"]) > 0:
+                cut += ["-ss", f"{float(trim['start']):.3f}"]
+            if trim.get("end") is not None:
+                cut += ["-to", f"{float(trim['end']):.3f}"]
+
             if has_audio:
                 args = [
                     "ffmpeg", "-y",
-                    "-i", str(seg_path),
+                    *cut, "-i", str(seg_path),
                     "-c:v", "libx264",
                     "-c:a", "aac",
                     "-b:a", "192k",
@@ -315,7 +332,7 @@ async def concat_videos(
                 # Add silent stereo audio track matching the video duration
                 args = [
                     "ffmpeg", "-y",
-                    "-i", str(seg_path),
+                    *cut, "-i", str(seg_path),
                     "-f", "lavfi",
                     "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
                     "-c:v", "libx264",

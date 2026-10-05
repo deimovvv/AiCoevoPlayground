@@ -1,35 +1,43 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pause, Play, SkipBack, Download } from "lucide-react";
+import { Pause, Play, SkipBack, Download, Loader2, X, RotateCcw } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 /**
- * VideoTimeline — el editor de video, primera etapa (sólo lectura).
- * ──────────────────────────────────────────────────────────────────
- * Reemplaza la vista del paso Render en las tools de video: en vez de un MP4 ya
- * pegado, muestra los clips en un timeline y los reproduce en orden.
+ * VideoTimeline — el editor de video.
+ * ───────────────────────────────────
+ * Reemplaza la vista del paso Render en las tools de video: los clips en un
+ * timeline, reproducidos en orden, y editables.
  *
  * Spec: openspec/changes/shared-video-editor · docs/video-editor.md
  *
- * DECISIÓN DE ARQUITECTURA — el reproductor reproduce los CLIPS en secuencia, no el
- * video concatenado. En esta etapa da igual, pero en la siguiente (recortar,
- * reordenar) cada cambio se ve al instante en el navegador; si dependiera del MP4
- * pegado, cada cambio exigiría un render de FFmpeg para poder verse. FFmpeg queda
- * para exportar.
+ * Etapa 1: reproducir y navegar.  Etapa 2 (esta): recortar · reordenar · borrar ·
+ * exportar con los cambios.  Etapa 3: comentar en un timestamp → regenerar el clip.
  *
- * Etapas siguientes (tasks.md del change): recortar · reordenar · comentar en un
- * timestamp · regenerar sólo ese clip.
+ * DECISIÓN DE ARQUITECTURA — el reproductor reproduce los CLIPS en secuencia, no el
+ * MP4 pegado. Por eso recortar y reordenar se ven al instante, sin render: FFmpeg
+ * corre sólo al exportar (con los recortes, ver services/video_concat.py `trims`).
+ *
+ * Recortar sólo ACORTA un clip: para alargarlo hay que regenerarlo (etapa 3).
  */
 
 export interface TimelineClip {
     id: string;
     title: string;
     videoUrl: string;
-    /** Miniatura del clip (el frame base). Si falta, el bloque va sin imagen. */
+    /** Miniatura del clip (el frame base). */
     imageUrl?: string;
 }
 
-/** "image (65) · Plano general" → "Plano general". El título viene del nombre de la
- *  prenda + el plano, y el nombre de archivo de la prenda no le dice nada al usuario. */
+/** Un tramo del timeline: qué clip, y desde/hasta dónde (segundos del clip original). */
+export interface TimelineEdit {
+    clipId: string;
+    start: number;
+    end: number;
+}
+
+/** Duración mínima de un clip recortado: más corto que esto no se lee como plano. */
+const MIN_LEN = 0.5;
+
 const cleanTitle = (t: string) => {
     const parts = t.split("·").map((x) => x.trim()).filter(Boolean);
     return parts.length > 1 ? parts[parts.length - 1] : t;
@@ -43,82 +51,111 @@ const fmt = (t: number) => {
 };
 
 export function VideoTimeline({
-    clips, exportUrl, onExport,
+    clips, initialEdits, onEditsCommit, onExport,
 }: {
     clips: TimelineClip[];
-    /** El MP4 final ya renderizado, para exportar. */
-    exportUrl?: string;
-    onExport?: () => void;
+    /** Edición guardada de una sesión anterior (si la hay). */
+    initialEdits?: TimelineEdit[];
+    /** Se llama al SOLTAR cada cambio (no en cada movimiento): para persistir. */
+    onEditsCommit?: (edits: TimelineEdit[]) => void;
+    /** Exportar. `edited` = false si no hubo cambios (se puede bajar el MP4 existente). */
+    onExport?: (edits: TimelineEdit[], edited: boolean) => Promise<void> | void;
 }) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const trackRef = useRef<HTMLDivElement | null>(null);
-    /** Seek pendiente: al cambiar de clip hay que esperar a que cargue para ubicarlo. */
     const pendingSeek = useRef<number | null>(null);
     const wantPlay = useRef(false);
 
-    const [durations, setDurations] = useState<number[]>(() => clips.map(() => 0));
-    const [active, setActive] = useState(0);
-    const [clipTime, setClipTime] = useState(0);
-    const [playing, setPlaying] = useState(false);
-
-    // Duración de cada clip: se lee la metadata sin bajar el video entero.
+    // ── Duración original de cada clip (metadata, sin bajar el video entero) ──
+    const [srcDur, setSrcDur] = useState<Record<string, number>>({});
     useEffect(() => {
         let cancelled = false;
-        setDurations(clips.map(() => 0));
-        clips.forEach((c, i) => {
+        clips.forEach((c) => {
             const v = document.createElement("video");
             v.preload = "metadata";
             v.src = c.videoUrl;
             v.onloadedmetadata = () => {
                 if (cancelled) return;
                 const d = isFinite(v.duration) ? v.duration : 0;
-                setDurations((prev) => prev.map((x, j) => (j === i ? d : x)));
+                setSrcDur((prev) => ({ ...prev, [c.id]: d }));
                 v.removeAttribute("src");
             };
         });
         return () => { cancelled = true; };
     }, [clips]);
+    const ready = clips.every((c) => srcDur[c.id] > 0);
+    const byId = useMemo(() => Object.fromEntries(clips.map((c) => [c.id, c])), [clips]);
 
-    const total = useMemo(() => durations.reduce((a, b) => a + b, 0), [durations]);
-    const starts = useMemo(() => durations.map((_, i) => durations.slice(0, i).reduce((a, b) => a + b, 0)), [durations]);
+    // ── La edición: lista de tramos, en el orden en que se reproducen ──
+    const original = useCallback((): TimelineEdit[] =>
+        clips.map((c) => ({ clipId: c.id, start: 0, end: srcDur[c.id] || 0 })), [clips, srcDur]);
+    const [edits, setEdits] = useState<TimelineEdit[]>([]);
+    useEffect(() => {
+        if (!ready || edits.length) return;
+        const saved = (initialEdits || []).filter((e) => byId[e.clipId]);
+        setEdits(saved.length ? saved : original());
+    }, [ready, initialEdits, byId, original, edits.length]);
+
+    const edited = useMemo(() => {
+        const o = original();
+        return edits.length !== o.length || edits.some((e, i) =>
+            e.clipId !== o[i].clipId || Math.abs(e.start - o[i].start) > 0.01 || Math.abs(e.end - o[i].end) > 0.01);
+    }, [edits, original]);
+
+    const commit = (n: TimelineEdit[]) => { setEdits(n); onEditsCommit?.(n); };
+
+    // ── Tiempo ──
+    const lens = edits.map((e) => Math.max(0, e.end - e.start));
+    const total = lens.reduce((a, b) => a + b, 0);
+    const starts = lens.map((_, i) => lens.slice(0, i).reduce((a, b) => a + b, 0));
+    const [active, setActive] = useState(0);
+    const [clipTime, setClipTime] = useState(0);   // tiempo DENTRO del tramo (0 = su start)
+    const [playing, setPlaying] = useState(false);
+    const cur = edits[active];
     const globalTime = (starts[active] || 0) + clipTime;
-    const ready = durations.length > 0 && durations.every((d) => d > 0);
 
-    /** Ir a un instante del timeline completo: elige el clip y el offset dentro de él. */
     const seekTo = useCallback((t: number) => {
-        if (!ready) return;
-        const clamped = Math.max(0, Math.min(t, total - 0.01));
-        let i = starts.findIndex((s, k) => clamped >= s && clamped < s + durations[k]);
-        if (i < 0) i = clips.length - 1;
-        const offset = clamped - starts[i];
+        if (!edits.length || !total) return;
+        const c = Math.max(0, Math.min(t, total - 0.01));
+        let i = starts.findIndex((s, k) => c >= s && c < s + lens[k]);
+        if (i < 0) i = edits.length - 1;
+        const offset = c - starts[i];
         if (i === active && videoRef.current) {
-            videoRef.current.currentTime = offset;
-            setClipTime(offset);
+            videoRef.current.currentTime = edits[i].start + offset;
         } else {
-            pendingSeek.current = offset;
+            pendingSeek.current = edits[i].start + offset;
             setActive(i);
-            setClipTime(offset);
         }
-    }, [ready, total, starts, durations, clips.length, active]);
+        setClipTime(offset);
+    }, [edits, total, starts, lens, active]);
 
-    // Al cambiar de clip: aplicar el seek pendiente y seguir reproduciendo si venía sonando.
     const onLoaded = () => {
         const v = videoRef.current;
-        if (!v) return;
-        if (pendingSeek.current != null) { v.currentTime = pendingSeek.current; pendingSeek.current = null; }
+        if (!v || !cur) return;
+        v.currentTime = pendingSeek.current ?? cur.start;
+        pendingSeek.current = null;
         if (wantPlay.current) v.play().catch(() => setPlaying(false));
     };
 
-    const onEnded = () => {
-        if (active < clips.length - 1) {
-            wantPlay.current = true;
-            pendingSeek.current = 0;
+    const next = () => {
+        if (active < edits.length - 1) {
+            wantPlay.current = playing;
+            pendingSeek.current = null;
             setActive(active + 1);
             setClipTime(0);
         } else {
             wantPlay.current = false;
+            videoRef.current?.pause();
             setPlaying(false);
         }
+    };
+
+    const onTimeUpdate = () => {
+        const v = videoRef.current;
+        if (!v || !cur) return;
+        // El tramo termina en su `end`, no en el final del archivo.
+        if (playing && v.currentTime >= cur.end - 0.04) { next(); return; }
+        setClipTime(Math.max(0, v.currentTime - cur.start));
     };
 
     const togglePlay = () => {
@@ -128,43 +165,101 @@ export function VideoTimeline({
         else { wantPlay.current = false; v.pause(); setPlaying(false); }
     };
 
-    const restart = () => { wantPlay.current = playing; seekTo(0); };
+    // ── Recortar: arrastrar las manijas de un tramo ──
+    const drag = useRef<{ i: number; side: "start" | "end"; x0: number; v0: number; pxPerSec: number } | null>(null);
+    const [trimming, setTrimming] = useState<number | null>(null);
 
-    const onTrackClick = (e: React.MouseEvent) => {
-        const el = trackRef.current;
-        if (!el || !total) return;
-        const r = el.getBoundingClientRect();
-        seekTo(((e.clientX - r.left) / r.width) * total);
+    const onHandleDown = (e: React.PointerEvent, i: number, side: "start" | "end") => {
+        e.stopPropagation();
+        e.preventDefault();
+        const w = trackRef.current?.getBoundingClientRect().width || 1;
+        drag.current = { i, side, x0: e.clientX, v0: edits[i][side], pxPerSec: w / (total || 1) };
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        videoRef.current?.pause(); setPlaying(false); wantPlay.current = false;
+        setTrimming(i);
+        if (i !== active) { pendingSeek.current = edits[i][side]; setActive(i); }
+    };
+    const onHandleMove = (e: React.PointerEvent) => {
+        const d = drag.current;
+        if (!d) return;
+        const ed = edits[d.i];
+        const max = srcDur[ed.clipId] || ed.end;
+        let val = d.v0 + (e.clientX - d.x0) / d.pxPerSec;
+        val = d.side === "start"
+            ? Math.max(0, Math.min(val, ed.end - MIN_LEN))
+            : Math.min(max, Math.max(val, ed.start + MIN_LEN));
+        setEdits((prev) => prev.map((x, k) => (k === d.i ? { ...x, [d.side]: val } : x)));
+        // El reproductor muestra el cuadro exacto donde se está cortando.
+        if (videoRef.current) videoRef.current.currentTime = val;
+        setClipTime(d.side === "start" ? 0 : val - ed.start);
+    };
+    const onHandleUp = () => {
+        if (!drag.current) return;
+        drag.current = null;
+        setTrimming(null);
+        onEditsCommit?.(edits);
     };
 
-    // Espacio = play/pausa. Sólo si el foco no está en un campo de texto.
+    // ── Reordenar: arrastrar un tramo ──
+    const [dragFrom, setDragFrom] = useState<number | null>(null);
+    const [dropAt, setDropAt] = useState<number | null>(null);
+    const onDrop = (to: number) => {
+        if (dragFrom == null || dragFrom === to) { setDragFrom(null); setDropAt(null); return; }
+        const n = [...edits];
+        const [moved] = n.splice(dragFrom, 1);
+        n.splice(to, 0, moved);
+        commit(n);
+        setActive(to); setClipTime(0); pendingSeek.current = null;
+        setDragFrom(null); setDropAt(null);
+    };
+
+    // ── Quitar ──
+    const remove = (i: number) => {
+        if (edits.length <= 1) return;   // siempre queda al menos un clip
+        const n = edits.filter((_, k) => k !== i);
+        commit(n);
+        setActive(Math.min(i, n.length - 1)); setClipTime(0); pendingSeek.current = null;
+    };
+
+    const reset = () => { commit(original()); setActive(0); setClipTime(0); pendingSeek.current = null; };
+
+    // ── Exportar ──
+    const [exporting, setExporting] = useState(false);
+    const doExport = async () => {
+        if (!onExport) return;
+        setExporting(true);
+        try { await onExport(edits, edited); } finally { setExporting(false); }
+    };
+
+    // ── Teclado: espacio = play/pausa · supr/borrar = quitar el clip activo ──
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             const tag = (e.target as HTMLElement)?.tagName;
-            if (e.code === "Space" && tag !== "INPUT" && tag !== "TEXTAREA") { e.preventDefault(); togglePlay(); }
+            if (tag === "INPUT" || tag === "TEXTAREA") return;
+            if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+            if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); remove(active); }
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
     });
 
-    // Marcas de la regla: cada 1, 2 o 5 s según el largo total.
-    const step = total <= 12 ? 1 : total <= 40 ? 2 : 5;
-    const ticks = total ? Array.from({ length: Math.floor(total / step) + 1 }, (_, i) => i * step) : [];
+    const tickStep = total <= 12 ? 1 : total <= 40 ? 2 : 5;
+    const ticks = total ? Array.from({ length: Math.floor(total / tickStep) + 1 }, (_, i) => i * tickStep) : [];
 
     if (!clips.length) return null;
+    const activeClip = cur ? byId[cur.clipId] : undefined;
 
     return (
         <div className="space-y-3">
             {/* ── Reproductor ─────────────────────────────── */}
             <div className="flex justify-center">
                 <video
-                    key={clips[active]?.videoUrl}
+                    key={activeClip?.videoUrl}
                     ref={videoRef}
-                    src={clips[active]?.videoUrl}
+                    src={activeClip?.videoUrl}
                     onLoadedMetadata={onLoaded}
-                    onTimeUpdate={(e) => setClipTime((e.target as HTMLVideoElement).currentTime)}
-                    onEnded={onEnded}
-                    onPause={() => { if (!wantPlay.current) setPlaying(false); }}
+                    onTimeUpdate={onTimeUpdate}
+                    onEnded={next}
                     onClick={togglePlay}
                     playsInline
                     className="h-[46vh] max-h-[520px] aspect-[9/16] object-contain rounded-[var(--radius-md)] border border-edge bg-black cursor-pointer"
@@ -173,91 +268,137 @@ export function VideoTimeline({
 
             {/* ── Barra ───────────────────────────────────── */}
             <div className="flex items-center gap-2">
-                <button
-                    onClick={restart}
-                    title="Al principio"
-                    className="w-8 h-8 rounded-[var(--radius-sm)] flex items-center justify-center text-fg-muted hover:text-fg hover:bg-surface-2 cursor-pointer"
-                >
+                <button onClick={() => { wantPlay.current = playing; seekTo(0); }} title="Al principio"
+                    className="w-8 h-8 rounded-[var(--radius-sm)] flex items-center justify-center text-fg-muted hover:text-fg hover:bg-surface-2 cursor-pointer">
                     <SkipBack size={14} />
                 </button>
-                <button
-                    onClick={togglePlay}
-                    title={playing ? "Pausa (espacio)" : "Reproducir (espacio)"}
-                    className="w-8 h-8 rounded-[var(--radius-sm)] flex items-center justify-center bg-surface-2 text-fg hover:bg-surface-3 cursor-pointer"
-                >
+                <button onClick={togglePlay} title={playing ? "Pausa (espacio)" : "Reproducir (espacio)"}
+                    className="w-8 h-8 rounded-[var(--radius-sm)] flex items-center justify-center bg-surface-2 text-fg hover:bg-surface-3 cursor-pointer">
                     {playing ? <Pause size={14} /> : <Play size={14} />}
                 </button>
                 <span className="text-[11px] tabular-nums text-fg-muted">
                     {fmt(globalTime)} <span className="text-fg-faint">/ {ready ? fmt(total) : "…"}</span>
                 </span>
                 <span className="text-[11px] text-fg-faint truncate">
-                    {cleanTitle(clips[active]?.title || "")}
+                    {activeClip ? cleanTitle(activeClip.title) : ""}
+                    {trimming != null && cur && ` · ${fmt(cur.start)}–${fmt(cur.end)}`}
                 </span>
                 <div className="flex-1" />
-                {exportUrl && (
-                    <button
-                        onClick={onExport}
-                        className="flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-sm)] text-[12px] text-fg-muted border border-edge hover:text-fg hover:border-edge-strong cursor-pointer transition-colors"
-                    >
-                        <Download size={13} /> Exportar
+                {edited && (
+                    <button onClick={reset} title="Volver a los clips originales"
+                        className="flex items-center gap-1.5 h-8 px-2.5 rounded-[var(--radius-sm)] text-[11px] text-fg-faint hover:text-fg cursor-pointer">
+                        <RotateCcw size={12} /> Restablecer
+                    </button>
+                )}
+                {onExport && (
+                    <button onClick={doExport} disabled={exporting || !ready}
+                        className="flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-sm)] text-[12px] text-fg-muted border border-edge hover:text-fg hover:border-edge-strong cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-wait">
+                        {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                        {exporting ? "Exportando…" : "Exportar"}
                     </button>
                 )}
             </div>
 
             {/* ── Timeline ────────────────────────────────── */}
             <div className="space-y-1">
-                {/* Regla */}
                 <div className="relative h-4">
                     {ticks.map((t) => (
-                        <span
-                            key={t}
-                            className="absolute top-0 text-[9px] tabular-nums text-fg-faint -translate-x-1/2"
-                            style={{ left: `${(t / total) * 100}%` }}
-                        >
+                        <span key={t} className="absolute top-0 text-[9px] tabular-nums text-fg-faint -translate-x-1/2"
+                            style={{ left: `${(t / total) * 100}%` }}>
                             {fmt(t).replace(/\.\d$/, "")}
                         </span>
                     ))}
                 </div>
 
-                {/* Pista de video: cada bloque ancho ∝ su duración */}
-                <div ref={trackRef} onClick={onTrackClick} className="relative flex h-11 gap-0.5 cursor-pointer select-none">
-                    {clips.map((c, i) => (
-                        <div
-                            key={c.id}
-                            title={`${c.title} · ${durations[i] ? fmt(durations[i]) : "…"}`}
-                            className={cn(
-                                "relative overflow-hidden rounded-[var(--radius-xs)] bg-surface-1 transition-[box-shadow,opacity]",
-                                i === active ? "ring-1 ring-fg/70" : "opacity-70 hover:opacity-100",
-                            )}
-                            style={{ flexGrow: durations[i] || 1, flexBasis: 0, minWidth: 28 }}
-                        >
-                            {/* Una sola miniatura, al inicio del bloque. Repetida a lo largo
-                                ensuciaba todo el timeline. */}
-                            {c.imageUrl && (
-                                <img src={c.imageUrl} alt="" className="absolute left-0 top-0 h-full w-auto object-cover" />
-                            )}
-                        </div>
-                    ))}
-                    {/* Cabezal */}
-                    {ready && (
-                        <div
-                            className="pointer-events-none absolute -top-1 -bottom-1 w-px bg-fg"
-                            style={{ left: `${(globalTime / total) * 100}%` }}
-                        />
+                <div
+                    ref={trackRef}
+                    onClick={(e) => {
+                        if (drag.current || !total || !trackRef.current) return;
+                        const r = trackRef.current.getBoundingClientRect();
+                        seekTo(((e.clientX - r.left) / r.width) * total);
+                    }}
+                    className="relative flex h-11 gap-0.5 cursor-pointer select-none"
+                >
+                    {edits.map((ed, i) => {
+                        const c = byId[ed.clipId];
+                        const isActive = i === active;
+                        return (
+                            <div
+                                key={`${ed.clipId}_${i}`}
+                                draggable={trimming == null}
+                                onDragStart={(e) => { setDragFrom(i); e.dataTransfer.effectAllowed = "move"; }}
+                                onDragOver={(e) => { e.preventDefault(); setDropAt(i); }}
+                                onDragLeave={() => setDropAt((d) => (d === i ? null : d))}
+                                onDrop={(e) => { e.preventDefault(); onDrop(i); }}
+                                onDragEnd={() => { setDragFrom(null); setDropAt(null); }}
+                                title={`${cleanTitle(c?.title || "")} · ${fmt(ed.end - ed.start)} — arrastrá para mover, bordes para recortar`}
+                                className={cn(
+                                    "group relative overflow-hidden rounded-[var(--radius-xs)] bg-surface-1 transition-[box-shadow,opacity]",
+                                    isActive ? "ring-1 ring-fg/70" : "opacity-70 hover:opacity-100",
+                                    dragFrom === i && "opacity-30",
+                                    dropAt === i && dragFrom !== i && "ring-1 ring-fg",
+                                )}
+                                style={{ flexGrow: lens[i] || 1, flexBasis: 0, minWidth: 28 }}
+                            >
+                                {c?.imageUrl && (
+                                    <img src={c.imageUrl} alt="" draggable={false}
+                                        className="absolute left-0 top-0 h-full w-auto object-cover pointer-events-none" />
+                                )}
+
+                                {/* Manijas de recorte: una en cada borde */}
+                                {(["start", "end"] as const).map((side) => (
+                                    <div
+                                        key={side}
+                                        onPointerDown={(e) => onHandleDown(e, i, side)}
+                                        onPointerMove={onHandleMove}
+                                        onPointerUp={onHandleUp}
+                                        onClick={(e) => e.stopPropagation()}
+                                        title={side === "start" ? "Recortar el inicio" : "Recortar el final"}
+                                        className={cn(
+                                            "absolute top-0 bottom-0 w-2 cursor-ew-resize flex items-center justify-center z-10",
+                                            side === "start" ? "left-0" : "right-0",
+                                            trimming === i || isActive ? "bg-fg/25" : "bg-transparent group-hover:bg-fg/20",
+                                        )}
+                                    >
+                                        <span className="w-px h-4 bg-fg/80" />
+                                    </div>
+                                ))}
+
+                                {/* Quitar */}
+                                {edits.length > 1 && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); remove(i); }}
+                                        title="Quitar este clip (supr)"
+                                        className="absolute top-0.5 right-2.5 z-20 w-4 h-4 rounded-[var(--radius-xs)] bg-black/60 text-white/80 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+
+                    {ready && total > 0 && (
+                        <div className="pointer-events-none absolute -top-1 -bottom-1 w-px bg-fg z-30"
+                            style={{ left: `${(globalTime / total) * 100}%` }} />
                     )}
                 </div>
-                {/* Nombres debajo, sin texto encima de la imagen */}
+
                 <div className="flex gap-0.5">
-                    {clips.map((c, i) => (
-                        <span
-                            key={c.id}
+                    {edits.map((ed, i) => (
+                        <span key={`${ed.clipId}_${i}_n`}
                             className={cn("text-[10px] truncate px-0.5", i === active ? "text-fg" : "text-fg-faint")}
-                            style={{ flexGrow: durations[i] || 1, flexBasis: 0, minWidth: 28 }}
-                        >
-                            {cleanTitle(c.title)}
+                            style={{ flexGrow: lens[i] || 1, flexBasis: 0, minWidth: 28 }}>
+                            {cleanTitle(byId[ed.clipId]?.title || "")}
+                            {srcDur[ed.clipId] && lens[i] < srcDur[ed.clipId] - 0.05 ? " · recortado" : ""}
                         </span>
                     ))}
                 </div>
+
+                <p className="text-[10px] text-fg-faint pt-0.5">
+                    Arrastrá los bordes de un clip para recortarlo · arrastralo para moverlo · supr para quitarlo.
+                    Para alargar un clip hay que regenerarlo.
+                </p>
             </div>
         </div>
     );

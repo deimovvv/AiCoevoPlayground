@@ -4815,6 +4815,8 @@ class ConcatRequest(BaseModel):
     add_subtitles: bool = True
     subtitle_engine: str = "auto"  # "auto" | "remotion" | "ffmpeg" | "none"
     background_music_url: Optional[str] = None  # opcional — bed instrumental con ducking
+    # Recortes del editor de video, alineados con video_urls: {"start","end"} o None.
+    trims: Optional[List[Optional[dict]]] = None
 
 class OverlayAudioRequest(BaseModel):
     video_url: str
@@ -4848,6 +4850,7 @@ async def concat_videos_endpoint(req: ConcatRequest):
             add_subtitles=req.add_subtitles,
             subtitle_engine=req.subtitle_engine,
             background_music_url=req.background_music_url,
+            trims=req.trims,
         )
         output_path = result["output_path"]
         filename = os.path.basename(output_path)

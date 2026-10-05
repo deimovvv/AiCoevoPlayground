@@ -7,7 +7,9 @@
 
 ## 2. Editar
 
-- [ ] 2.1 Recortar inicio y fin; reordenar; borrar.
+- [x] 2.1 Recortar inicio y fin; reordenar; borrar. Exportar con los cambios (`trims` en
+      `video_concat.concat_videos`, probado con FFmpeg real: 6.04 s esperado, 6.07 s obtenido).
+      La edición se guarda en el resultado del Render. **Falta probarlo en el navegador.**
 - [ ] 2.2 Comentarios por timestamp.
 - [ ] 2.3 Regenerar un clip desde su comentario — tocando SÓLO ese clip (design.md §1).
 - [ ] 2.4 "Guardar como regla de la marca" → `brand.designSystem.motion_rules` (design.md §2).
