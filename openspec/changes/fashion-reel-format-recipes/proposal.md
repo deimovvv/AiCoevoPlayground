@@ -21,7 +21,10 @@ central:** el prompt de la receta no llega al generador — `recipe` es estado l
 | Movimiento y cámara (`motionPrompt`) | Modelo |
 | Cantidad de clips (según el `role` de las prendas) | Prendas |
 | Encuadre de la imagen base | **Fondo** — si lo elige, es la fuente de verdad |
-| Duración y modelo de video | |
+| | **Modelo de video y duración** — la receta los *sugiere* (los pre-carga); el usuario los cambia |
+
+Corrección del usuario (2026-10-05): *"debo poder seleccionar qué modelo quiero: si es
+Seedance o si es Kling, o si agrego más"*. La receta no fija el modelo: lo recomienda.
 
 Cantidad de clips con 4 looks: giro y retrato → 4 clips (uno por look); secuencia →
 1 video con 4 tomas; detalle → 1 clip (una sola prenda).

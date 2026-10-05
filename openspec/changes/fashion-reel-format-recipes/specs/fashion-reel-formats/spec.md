@@ -29,3 +29,16 @@ por defecto sólo si el usuario no elige ninguno.
 
 - **WHEN** el usuario elige "Giro en ciclorama" y 4 looks
 - **THEN** SHALL generarse 4 clips, uno por look, con el mismo movimiento
+
+### Requirement: El usuario elige el modelo de video
+
+Con una receta activa, el usuario SHALL poder elegir el modelo de video entre todos los
+disponibles. La receta SHALL pre-cargar su modelo y duración recomendados, sin impedir
+cambiarlos.
+
+#### Scenario: Cambiar Kling por Seedance en un formato
+
+- **GIVEN** el formato "Giro en ciclorama", que recomienda Kling V3 Pro
+- **WHEN** el usuario elige Seedance 2.5 en el selector de modelo
+- **THEN** el video SHALL generarse con Seedance por kie.ai, con el movimiento del formato
+- **AND** el costo mostrado SHALL ser el de Seedance

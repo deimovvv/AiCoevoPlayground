@@ -174,15 +174,20 @@ export const MOTION_RECIPES: MotionRecipe[] = [
     },
 ];
 
-/** Costo estimado de una receta, en USD. Tarifas verificadas en fal.ai (2026-09-23). */
+/** $/segundo por modelo. Kling verificado en fal.ai (2026-09-25); Seedance 2.5 por
+ *  kie.ai a 720p sin video de referencia (2026-10-01), que es como lo llama Fashion Reel. */
 const RATE_PER_SEC: Record<string, number> = {
     "v3-pro": 0.112,
+    "v3-std": 0.084,
+    "v2-6-pro": 0.07,
     "v2-5-turbo": 0.07,
+    "seedance": 0.315,
 };
 
-export function recipeCostUsd(r: MotionRecipe): number | null {
-    const rate = RATE_PER_SEC[r.fixed.model];
-    return rate == null ? null : rate * r.fixed.durationSec;
+/** Costo de UN clip de la receta con el modelo elegido (o el que sugiere la receta). */
+export function recipeCostUsd(r: MotionRecipe, model?: string, durationSec?: number): number | null {
+    const rate = RATE_PER_SEC[model || r.fixed.model];
+    return rate == null ? null : rate * (durationSec || r.fixed.durationSec);
 }
 
 /** Busca una receta por id. La usan los handlers: la config guarda sólo el id. */

@@ -771,9 +771,9 @@ export const handleAnimate: StepHandler = async (ctx) => {
   // Build the static brand-asset URL list once — used by Seedance as additional refs
   // beyond the curated scene image (which is also passed). The full set lets Seedance
   // anchor on the avatar's face, the actual product/clothing, and the location.
-  const engine: "kling" | "seedance" = recipe
-    ? (String(recipe.fixed.model).startsWith("seedance") ? "seedance" : "kling")
-    : ((cfg.animationEngine as "kling" | "seedance") || "kling");
+  // El motor lo elige el usuario. La receta sólo lo PRE-CARGA en la config al
+  // elegirla (ToolRunPage); si el usuario lo cambia, manda su elección.
+  const engine = (cfg.animationEngine as "kling" | "seedance") || "kling";
   const brandRefUrls: string[] = [];
   if (engine === "seedance") {
     const selectedAvatarIds = (cfg.selectedAvatarIds as string[]) || [];
@@ -816,14 +816,12 @@ export const handleAnimate: StepHandler = async (ctx) => {
   const rawCreativeMode = (cfg.creativeMode as string) || "single-frame";
   // La receta define su propio movimiento: nada de morph entre escenas.
   const useF2F = !recipe && engine === "kling" && rawCreativeMode === "frame-to-frame";
-  const klingModel = ((recipe && !String(recipe.fixed.model).startsWith("seedance")
-    ? recipe.fixed.model
-    : (cfg.videoModel as KlingModel)) || "v3-pro") as KlingModel;
+  const klingModel = ((cfg.videoModel as KlingModel) || "v3-pro") as KlingModel;
   // Duración por clip — depende del modelo (V3 Pro: 3–10; V2.x: 5/10). Clampeamos al set
   // permitido para no mandarle a Fal un valor que rechaza. Default 5s.
   const allowedDurations = klingDurationOptions(klingModel);
-  const wantedDuration = recipe ? String(recipe.fixed.durationSec) : String(cfg.clipDuration);
-  const clipDuration = allowedDurations.includes(wantedDuration) ? wantedDuration : "5";
+  // La duración también la pre-carga la receta y la puede cambiar el usuario.
+  const clipDuration = allowedDurations.includes(String(cfg.clipDuration)) ? String(cfg.clipDuration) : "5";
   // Debug log para troubleshooting del modo de clip. Si f2f no funciona, abrir la
   // consola del browser y ver estos valores — ayuda a distinguir entre "config
   // no se guardó" vs "lógica del handler no entra en la rama f2f".

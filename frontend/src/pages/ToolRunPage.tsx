@@ -970,8 +970,23 @@ export function ToolRunPage() {
   // La receta elegida viaja al generador por la config. Antes vivía sólo en la pantalla
   // y el handler nunca se enteraba: elegir un formato cambiaba la UI pero no el video.
   // Ver openspec/changes/fashion-reel-format-recipes (tarea 2.1).
+  // Al elegir una receta se PRE-CARGAN su motor, modelo y duración recomendados. Son
+  // una sugerencia: el usuario los cambia en "Motor de video" y manda su elección.
+  // Sólo corre cuando cambia la receta, así no pisa lo que el usuario elija después.
   useEffect(() => {
-    setConfig((p) => (p.recipeId === (recipe?.id ?? null) ? p : { ...p, recipeId: recipe?.id ?? null }));
+    setConfig((p) => {
+      if (p.recipeId === (recipe?.id ?? null)) return p;
+      if (!recipe) return { ...p, recipeId: null };
+      const m = String(recipe.fixed.model);
+      const isSeedance = m.startsWith("seedance");
+      return {
+        ...p,
+        recipeId: recipe.id,
+        animationEngine: isSeedance ? "seedance" : "kling",
+        ...(isSeedance ? {} : { videoModel: m }),
+        clipDuration: String(recipe.fixed.durationSec),
+      } as typeof p;
+    });
   }, [recipe?.id]);
   const [agentInfo, setAgentInfo] = useState<{ reasoning?: string; warnings?: string[] } | null>(null);
   // ── Batches acumulativas (tools multi-shot) ───────────────────────────────
@@ -3888,8 +3903,15 @@ function ConfigPanel({
           />
           {recipe && (
             <p className="text-[10px] text-fg-faint leading-snug">
-              {recipe.fixed.resolution} · {recipe.fixed.aspectRatio} · {recipe.fixed.durationSec}s
-              {recipeCostUsd(recipe) != null && ` · ≈ $${recipeCostUsd(recipe)!.toFixed(2)}`}
+              {(() => {
+                // Con el modelo que el usuario tenga elegido, no el que sugiere la receta.
+                const model = config.animationEngine === "seedance"
+                  ? "seedance"
+                  : ((config as { videoModel?: string }).videoModel || "v3-pro");
+                const secs = Number(config.clipDuration) || recipe.fixed.durationSec;
+                const cost = recipeCostUsd(recipe, model, secs);
+                return `${recipe.fixed.aspectRatio} · ${secs}s por clip${cost != null ? ` · ≈ $${cost.toFixed(2)} por clip` : ""}`;
+              })()}
               {recipe.expectedMotion == null && " · sin validar"}
             </p>
           )}
@@ -6656,16 +6678,38 @@ function ConfigPanel({
 
             {/* Animación — ModelDropdown unificado con Lab/imagen. El hint vive
                 dentro de cada opción en lugar de abajo como párrafo separado. */}
+            {tool.id === "fashion_reel" ? (
+              /* Fashion Reel: un solo selector con TODOS los modelos y su costo. El motor
+                 (kling / seedance) y el modelo de Kling salen de la misma elección. Si hay
+                 receta, viene pre-cargado con el que recomienda; el usuario decide. */
+              <ModelDropdown
+                label="Modelo de video"
+                value={config.animationEngine === "seedance"
+                  ? "seedance"
+                  : ((config as { videoModel?: string }).videoModel || "v3-pro")}
+                onChange={(next) => setConfig((p) => (next === "seedance"
+                  ? { ...p, animationEngine: "seedance" }
+                  : { ...p, animationEngine: "kling", videoModel: next }) as typeof p)}
+                options={[
+                  { id: "v3-pro", label: "Kling V3 Pro", sub: "Mejor identidad · 1080p · ~$0.67 por 6s" },
+                  { id: "v3-std", label: "Kling V3 Standard", sub: "Misma familia, más barato · ~$0.50 por 6s" },
+                  { id: "v2-6-pro", label: "Kling V2.6 Pro", sub: "Generación anterior · ~$0.42 por 6s" },
+                  { id: "v2-5-turbo", label: "Kling V2.5 Turbo", sub: "El más rápido · ~$0.42 por 6s" },
+                  { id: "seedance", label: "Seedance 2.5 (kie)", sub: "Multi-referencia · 720p · ~$1.89 por 6s" },
+                ]}
+              />
+            ) : (
             <ModelDropdown
               label="Animación"
               value={config.animationEngine ?? "kling"}
               onChange={(next) => setConfig((p) => ({ ...p, animationEngine: next as ToolConfig["animationEngine"] }))}
               options={[
                 { id: "kling", label: "Kling V3 Pro", sub: "Anima b-roll; escenas habladas por HeyGen + ElevenLabs" },
-                { id: "seedance", label: "Seedance 2.0", sub: "Anima b-roll; escenas habladas por HeyGen + ElevenLabs" },
+                { id: "seedance", label: "Seedance 2.5 (kie)", sub: "Anima b-roll; escenas habladas por HeyGen + ElevenLabs" },
                 { id: "veo", label: "Veo 3.1", sub: "Talking-head con voz nativa argentina, todo en uno" },
               ]}
             />
+            )}
 
             {/* Acento — solo con Veo (genera la voz nativa; le decimos qué tonada). Los
                 modos Seedance de voz se sacaron: Seedance bloquea caras. Kling/OmniHuman
