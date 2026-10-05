@@ -154,7 +154,7 @@ Cada una tiene su change en `openspec/changes/` (proposal · tasks · spec delta
 
 | # | Cambio | Qué resuelve | Spec | Estado |
 |---|---|---|---|---|
-| 1 | **Recetas de formato en Fashion Reel** | elegís un video conocido y lo completás, en vez de llenar campos | [fashion-reel-recipes.md](fashion-reel-recipes.md) | ◐ UI hecha; **el prompt de la receta no llega al handler** |
+| 1 | **Recetas de formato en Fashion Reel** | elegís un video conocido y lo completás, en vez de llenar campos | [fashion-reel-recipes.md](fashion-reel-recipes.md) | ◐ **conectada** (movimiento, clips, encuadre, fondo del usuario); falta validar generando |
 | 2 | **Editor de video compartido** | reemplaza el Render ciego de las 4 tools de video; un comentario regenera sólo ese clip | [video-editor.md](video-editor.md) | ○ |
 | 3 | **Campañas como centro del pedido** | imagen adentro; video corto animando una pieza; video largo lanzando la tool con todo precargado, y vuelve a la campaña | `openspec/changes/campaigns-as-hub` | ○ decidido, sin implementar |
 | 4 | **Casting** | armar el look una vez (outfit sheet → character sheet con ropa) y reusarlo; ataca el drift de identidad y prenda | `openspec/changes/casting` | ○ absorbe `avatar_creator` y `product_sheet` |

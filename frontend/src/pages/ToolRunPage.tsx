@@ -395,6 +395,9 @@ interface ToolConfig {
   numVariations: number;
   locationRef: string;
   styleRef: string;
+  /** Receta de formato de Fashion Reel (id de tools/fashion_reel/recipes.ts). Si está,
+   *  manda sobre el modo Story/Looks: define movimiento, clips, encuadre y duración. */
+  recipeId?: string | null;
   productIsWorn: boolean;
   aspectRatio: string;
   resolution: string;
@@ -964,6 +967,12 @@ export function ToolRunPage() {
   // the just-applied config instead of the stale closure from the hand-off effect.
   const [pendingAutoRun, setPendingAutoRun] = useState(false);
   const [config, setConfig] = useState<ToolConfig>(DEFAULT_CONFIG);
+  // La receta elegida viaja al generador por la config. Antes vivía sólo en la pantalla
+  // y el handler nunca se enteraba: elegir un formato cambiaba la UI pero no el video.
+  // Ver openspec/changes/fashion-reel-format-recipes (tarea 2.1).
+  useEffect(() => {
+    setConfig((p) => (p.recipeId === (recipe?.id ?? null) ? p : { ...p, recipeId: recipe?.id ?? null }));
+  }, [recipe?.id]);
   const [agentInfo, setAgentInfo] = useState<{ reasoning?: string; warnings?: string[] } | null>(null);
   // ── Batches acumulativas (tools multi-shot) ───────────────────────────────
   // Cada vez que termina una corrida exitosa del step generate_all en una tool

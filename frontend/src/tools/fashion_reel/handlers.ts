@@ -21,6 +21,7 @@ import {
 } from "../../lib/api";
 import type { KlingModel } from "../../lib/api";
 import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "./index";
+import { getRecipe } from "./recipes";
 // La dirección de arte de la marca (casting, luz, locaciones, movimiento) estaba
 // DECLARADA para fashion_reel en TOOL_BRAND_FIELDS pero nunca se leía: en Looks mode el
 // script se arma acá y no pasa por el prompt de Gemini, así que la marca no entraba por
@@ -96,9 +97,65 @@ const NO_TEXT_SUFFIX = " Single continuous frame. NO split screen, NO collage, N
 
 // ── Script ───────────────────────────────────────────────
 
+/**
+ * La config que ven los pasos. Con una receta activa, los controles de escenario
+ * que la pantalla OCULTA (preset de escenario, setting libre) se neutralizan acá,
+ * en un solo lugar: si no, se aplicaban a escondidas. El preset arranca en
+ * "studio_white" y le ganaba al fondo elegido — y además impedía mandar la imagen
+ * del fondo como referencia. Con receta, el fondo lo decide sólo el selector Fondo.
+ */
+const readCfg = (config: unknown): Record<string, unknown> => {
+  const cfg = config as Record<string, unknown>;
+  if (!cfg.recipeId) return cfg;
+  return { ...cfg, locationPreset: "brand", settingOverride: "", locationCustom: "" };
+};
+
+/**
+ * El fondo de la escena, con su prioridad de origen. Lo usan el modo Looks y las
+ * recetas: si el usuario eligió fondo, ESE manda — es la fuente de verdad.
+ * Devuelve "" si el usuario no eligió nada (cada camino decide su default).
+ */
+const resolveLocationLine = (
+  cfg: Record<string, unknown>,
+  config: { selectedBackgroundId?: string | null },
+  activeBrand: { backgrounds?: Array<{ id: string; name: string; description?: string }> },
+): string => {
+  // Location injection — prioridad de origen:
+  //   1) locationPreset (chip de escenario) si != "brand"  → texto fijo agresivo
+  //   2) settingOverride (textarea "Setting / Locación")    → texto del usuario
+  //   3) selectedBackground del Brand Kit                   → name + description
+  //   4) nada                                                → Nano Banana infiere
+  // Antes solo se inyectaba (2)+(3); el usuario reportó que el background del
+  // Brand Kit no funcionaba ("estudio blanco salió como casa") porque el name
+  // del background no era suficientemente explícito. Los presets fijos resuelven
+  // ese caso: tipean texto explícito que Nano Banana SÍ respeta.
+  const LOCATION_PRESETS: Record<string, string> = {
+    studio_white: `professional photo studio with a seamless infinite backdrop, a true cyclorama studio (NOT a room with white walls). ${STUDIO_STYLES.white.clause}`,
+    studio_black: "professional photo studio with seamless infinite BLACK backdrop, dramatic side lighting, deep shadows on the background, editorial fashion aesthetic.",
+    street: "urban street environment, real outdoor city, golden hour natural light, candid documentary fashion feel.",
+    natural: "outdoor natural environment, soft diffused daylight, organic textures, lifestyle fashion feel.",
+  };
+  const presetKey = (cfg.locationPreset as string) || "brand";
+  // "custom" → el texto libre del usuario manda como escenario forzado.
+  const presetText = presetKey === "custom"
+    ? ((cfg.locationCustom as string) || "").trim() || undefined
+    : LOCATION_PRESETS[presetKey];
+
+  const selectedBackgroundForPrompt = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
+  const settingOverride = (cfg.settingOverride as string)?.trim();
+  const locationLine = presetText
+    ? `SETTING (LOCKED): ${presetText} This is the EXACT environment for every scene — do NOT invent another. Ignore any conflicting environment cues from the reference images.`
+    : settingOverride
+      ? `SETTING: ${settingOverride}. This is the EXACT environment for every scene — do NOT invent another.`
+      : selectedBackgroundForPrompt
+        ? `SETTING: ${selectedBackgroundForPrompt.name}${selectedBackgroundForPrompt.description ? ` — ${selectedBackgroundForPrompt.description}` : ""}. This is the EXACT environment for every scene — do NOT invent another. The location reference image takes priority over any other inferred setting.`
+        : "";
+  return locationLine;
+};
+
 export const handleScript: StepHandler = async (ctx) => {
   const { activeBrand, config } = ctx;
-  const cfg = config as unknown as Record<string, unknown>;
+  const cfg = readCfg(config);
 
   const selectedAvatarIds = (cfg.selectedAvatarIds as string[]) || [];
   const selectedProductIds = (cfg.selectedProductIds as string[]) || [];
@@ -139,42 +196,56 @@ export const handleScript: StepHandler = async (ctx) => {
     }
   }
 
+  // ── RECETA DE FORMATO ─────────────────────────────────────────────────
+  // Si hay una receta elegida, MANDA sobre Story/Looks: define cuántas escenas hay
+  // (según el `role` de las prendas) y cómo se encuadra cada una. El fondo NO: lo
+  // elige el usuario y sólo si no elige se usa el default de la receta.
+  // Acordado con el usuario 2026-10-05 — openspec/changes/fashion-reel-format-recipes.
+  const recipe = getRecipe(cfg.recipeId as string | null | undefined);
+  // Sin prendas no hay escenas: avisar, en vez de caer en silencio al modo Story.
+  if (recipe && selectedClothing.length === 0) {
+    throw new Error(`El formato "${recipe.label}" necesita al menos una prenda. Elegila en Prendas.`);
+  }
+  if (recipe) {
+    const clothingInput = recipe.inputs.find((i) => i.kind === "clothing");
+    const role = clothingInput && "role" in clothingInput ? clothingInput.role : "one-per-clip";
+    const max = clothingInput && "max" in clothingInput ? clothingInput.max : selectedClothing.length;
+    // single → una sola prenda; el resto → una escena por prenda, hasta el máximo de la receta.
+    const garments = role === "single" ? selectedClothing.slice(0, 1) : selectedClothing.slice(0, max);
+
+    const avatarDesc = selectedAvatars[0]
+      ? `${selectedAvatars[0]!.name}${selectedAvatars[0]!.description ? `: ${selectedAvatars[0]!.description}` : ""}`
+      : "the model";
+    const userLocation = resolveLocationLine(cfg, config, activeBrand);
+    const locationLine = userLocation || `SETTING: ${recipe.defaultSetting}`;
+
+    return {
+      result: {
+        scenes: garments.map((garment, gi) => {
+          const garmentLabel = `${garment.name}${garment.description ? ` (${garment.description})` : ""}`;
+          return {
+            id: `recipe_${recipe.id}_${gi + 1}`,
+            title: `${garment.name} · ${recipe.label}`,
+            script: "",
+            image_prompt: `${recipe.framing} ${avatarDesc} wearing ${garmentLabel}. Confident fashion presence. ${locationLine}`,
+            sceneType: "creative" as const,
+            shot: "recipe",
+            note: `${garment.name} — ${recipe.label}`,
+            garmentId: garment.id,
+          };
+        }),
+      },
+      needsApproval: true,
+    };
+  }
+
   // Looks mode with clothing: generate scenes directly from each clothing item
   if (reelMode === "looks" && selectedClothing.length > 0) {
     const avatarDesc = selectedAvatars[0]
       ? `${selectedAvatars[0]!.name}${selectedAvatars[0]!.description ? `: ${selectedAvatars[0]!.description}` : ""}`
       : "the model";
 
-    // Location injection — prioridad de origen:
-    //   1) locationPreset (chip de escenario) si != "brand"  → texto fijo agresivo
-    //   2) settingOverride (textarea "Setting / Locación")    → texto del usuario
-    //   3) selectedBackground del Brand Kit                   → name + description
-    //   4) nada                                                → Nano Banana infiere
-    // Antes solo se inyectaba (2)+(3); el usuario reportó que el background del
-    // Brand Kit no funcionaba ("estudio blanco salió como casa") porque el name
-    // del background no era suficientemente explícito. Los presets fijos resuelven
-    // ese caso: tipean texto explícito que Nano Banana SÍ respeta.
-    const LOCATION_PRESETS: Record<string, string> = {
-      studio_white: `professional photo studio with a seamless infinite backdrop, a true cyclorama studio (NOT a room with white walls). ${STUDIO_STYLES.white.clause}`,
-      studio_black: "professional photo studio with seamless infinite BLACK backdrop, dramatic side lighting, deep shadows on the background, editorial fashion aesthetic.",
-      street: "urban street environment, real outdoor city, golden hour natural light, candid documentary fashion feel.",
-      natural: "outdoor natural environment, soft diffused daylight, organic textures, lifestyle fashion feel.",
-    };
-    const presetKey = (cfg.locationPreset as string) || "brand";
-    // "custom" → el texto libre del usuario manda como escenario forzado.
-    const presetText = presetKey === "custom"
-      ? ((cfg.locationCustom as string) || "").trim() || undefined
-      : LOCATION_PRESETS[presetKey];
-
-    const selectedBackgroundForPrompt = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
-    const settingOverride = (cfg.settingOverride as string)?.trim();
-    const locationLine = presetText
-      ? `SETTING (LOCKED): ${presetText} This is the EXACT environment for every scene — do NOT invent another. Ignore any conflicting environment cues from the reference images.`
-      : settingOverride
-        ? `SETTING: ${settingOverride}. This is the EXACT environment for every scene — do NOT invent another.`
-        : selectedBackgroundForPrompt
-          ? `SETTING: ${selectedBackgroundForPrompt.name}${selectedBackgroundForPrompt.description ? ` — ${selectedBackgroundForPrompt.description}` : ""}. This is the EXACT environment for every scene — do NOT invent another. The location reference image takes priority over any other inferred setting.`
-          : "";
+    const locationLine = resolveLocationLine(cfg, config, activeBrand);
 
     // Shots seleccionados por look. Si el usuario no marcó nada, defaults a general+detail.
     // Cada outfit × cada shot = una escena. El orden en `looksShots` es el orden en el
@@ -300,14 +371,15 @@ export const handleScript: StepHandler = async (ctx) => {
 
 export const handleBaseImage: StepHandler = async (ctx) => {
   const { activeBrand, config, getScriptScenes } = ctx;
-  const cfg = config as unknown as Record<string, unknown>;
+  const cfg = readCfg(config);
   const scenes = getScriptScenes();
   const firstScene = scenes[0];
   if (!firstScene) throw new Error("No scenes found.");
 
   const selectedAvatarIds = (cfg.selectedAvatarIds as string[]) || [];
   const selectedProductIds = (cfg.selectedProductIds as string[]) || [];
-  const reelMode = (cfg.reelMode as string) || "story";
+  // Con receta, cada escena tiene su prenda (garmentId), igual que en Looks.
+  const reelMode = cfg.recipeId ? "looks" : ((cfg.reelMode as string) || "story");
 
   const selectedAvatar = selectedAvatarIds.length
     ? (activeBrand.avatars || []).find((a) => selectedAvatarIds.includes(a.id))
@@ -331,7 +403,10 @@ export const handleBaseImage: StepHandler = async (ctx) => {
     ? (firstSceneClothing ? [firstSceneClothing] : allClothing.slice(0, 1))
     : allClothing.slice(0, 1); // Story: 1 sola prenda como wardrobe principal
 
-  const stylePrompt = getVisualStyle(cfg);
+  // Con receta, el "Estilo visual" (default iPhone handheld) NO se aplica: el selector
+  // está oculto y la receta ya define encuadre y escenario. Aplicarlo igual metería un
+  // look de celular a escondidas en, por ejemplo, un giro de estudio.
+  const stylePrompt = cfg.recipeId ? "" : getVisualStyle(cfg);
 
   // Assemble reference images in PRIORITY order, then cap the total. Nano Banana 2
   // rejects a job ("Could not generate images with the given prompts and images")
@@ -496,7 +571,7 @@ export const handleBaseImage: StepHandler = async (ctx) => {
 
 export const handleMultishot: StepHandler = async (ctx) => {
   const { activeBrand, config, getStepResult, getScriptScenes } = ctx;
-  const cfg = config as unknown as Record<string, unknown>;
+  const cfg = readCfg(config);
   const scenes = getScriptScenes();
   if (!scenes.length) throw new Error("No scenes found.");
 
@@ -504,7 +579,8 @@ export const handleMultishot: StepHandler = async (ctx) => {
   if (!baseImageResult?.url) throw new Error("Base image not found.");
 
   const selectedProductIds = (cfg.selectedProductIds as string[]) || [];
-  const reelMode = (cfg.reelMode as string) || "story";
+  // Con receta, cada escena tiene su prenda (garmentId), igual que en Looks.
+  const reelMode = cfg.recipeId ? "looks" : ((cfg.reelMode as string) || "story");
 
   const selectedProducts = selectedProductIds.length
     ? (activeBrand.products || []).filter((p) => selectedProductIds.includes(p.id))
@@ -512,7 +588,10 @@ export const handleMultishot: StepHandler = async (ctx) => {
   const selectedBackground = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
   const allClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
 
-  const stylePrompt = getVisualStyle(cfg);
+  // Con receta, el "Estilo visual" (default iPhone handheld) NO se aplica: el selector
+  // está oculto y la receta ya define encuadre y escenario. Aplicarlo igual metería un
+  // look de celular a escondidas en, por ejemplo, un giro de estudio.
+  const stylePrompt = cfg.recipeId ? "" : getVisualStyle(cfg);
 
   const REEL_VARIATIONS = [
     { label: "Alt pose", desc: "Same scene, slightly different body position — weight shift, head angle." },
@@ -650,7 +729,9 @@ export const handleMultishot: StepHandler = async (ctx) => {
 
 export const handleAnimate: StepHandler = async (ctx) => {
   const { activeBrand, config, getStepResult, getScriptScenes } = ctx;
-  const cfg = config as unknown as Record<string, unknown>;
+  const cfg = readCfg(config);
+  // Receta de formato: si está, fija motor, modelo, duración y movimiento.
+  const recipe = getRecipe(cfg.recipeId as string | null | undefined);
 
   const curationSelections = ctx.curationSelections || {};
   const rawMultishot = getStepResult("multishot") as
@@ -690,7 +771,9 @@ export const handleAnimate: StepHandler = async (ctx) => {
   // Build the static brand-asset URL list once — used by Seedance as additional refs
   // beyond the curated scene image (which is also passed). The full set lets Seedance
   // anchor on the avatar's face, the actual product/clothing, and the location.
-  const engine = (cfg.animationEngine as "kling" | "seedance") || "kling";
+  const engine: "kling" | "seedance" = recipe
+    ? (String(recipe.fixed.model).startsWith("seedance") ? "seedance" : "kling")
+    : ((cfg.animationEngine as "kling" | "seedance") || "kling");
   const brandRefUrls: string[] = [];
   if (engine === "seedance") {
     const selectedAvatarIds = (cfg.selectedAvatarIds as string[]) || [];
@@ -728,14 +811,19 @@ export const handleAnimate: StepHandler = async (ctx) => {
   // viera, y la decisión quedaba escondida. Ahora es elección consciente desde el bloque
   // "Movimiento de cada clip" en Fashion Reel (Looks + Kling).
   // Seedance no tiene path f2f → siempre single-frame (reference-to-video).
-  const reelMode = (cfg.reelMode as string) || "story";
+  // Con receta, cada escena tiene su prenda (garmentId), igual que en Looks.
+  const reelMode = cfg.recipeId ? "looks" : ((cfg.reelMode as string) || "story");
   const rawCreativeMode = (cfg.creativeMode as string) || "single-frame";
-  const useF2F = engine === "kling" && rawCreativeMode === "frame-to-frame";
-  const klingModel = ((cfg.videoModel as KlingModel) || "v3-pro") as KlingModel;
+  // La receta define su propio movimiento: nada de morph entre escenas.
+  const useF2F = !recipe && engine === "kling" && rawCreativeMode === "frame-to-frame";
+  const klingModel = ((recipe && !String(recipe.fixed.model).startsWith("seedance")
+    ? recipe.fixed.model
+    : (cfg.videoModel as KlingModel)) || "v3-pro") as KlingModel;
   // Duración por clip — depende del modelo (V3 Pro: 3–10; V2.x: 5/10). Clampeamos al set
   // permitido para no mandarle a Fal un valor que rechaza. Default 5s.
   const allowedDurations = klingDurationOptions(klingModel);
-  const clipDuration = allowedDurations.includes(String(cfg.clipDuration)) ? String(cfg.clipDuration) : "5";
+  const wantedDuration = recipe ? String(recipe.fixed.durationSec) : String(cfg.clipDuration);
+  const clipDuration = allowedDurations.includes(wantedDuration) ? wantedDuration : "5";
   // Debug log para troubleshooting del modo de clip. Si f2f no funciona, abrir la
   // consola del browser y ver estos valores — ayuda a distinguir entre "config
   // no se guardó" vs "lógica del handler no entra en la rama f2f".
@@ -747,7 +835,8 @@ export const handleAnimate: StepHandler = async (ctx) => {
   // Entry hook: the base_image step may have generated an empty-scene frame. When present,
   // scene 1 animates as a f2f from the EMPTY scene → the model present (model walks in).
   const baseStep = getStepResult("base_image") as { entryFrameUrl?: string } | undefined;
-  const entryFrameUrl = (cfg.entryHook as boolean) === true ? baseStep?.entryFrameUrl : undefined;
+  // La receta empieza con la modelo en cuadro: sin "entrada caminando".
+  const entryFrameUrl = !recipe && (cfg.entryHook as boolean) === true ? baseStep?.entryFrameUrl : undefined;
 
   const animatedResults: Array<{
     sceneId: string; title: string; videoUrl: string; imageUrl: string;
@@ -817,11 +906,16 @@ export const handleAnimate: StepHandler = async (ctx) => {
     const userDirection = frame.animationHint
       ? ` USER DIRECTION (priority): ${frame.animationHint}.`
       : "";
-    const motionPrompt = (shotMotion
+    // Con receta, el movimiento es el de la receta. Sin catálogo de tomas ni
+    // "intensidad": la receta ya está calibrada y la intensidad la contradiría.
+    // Se respetan la dirección del usuario y las reglas de movimiento de la marca.
+    const motionPrompt = recipe
+      ? `${recipe.motionPrompt}${userDirection} Vertical 9:16.${brandMotionClause}`
+      : ((shotMotion
       ? `${shotMotion} ${frame.note ? `Context: ${frame.note}.` : ""}${userDirection} Vertical 9:16.`
       : frame.note
         ? `Fashion model: ${frame.note}.${userDirection} Smooth, natural, confident movement. Vertical 9:16.`
-        : `Fashion model subtle natural movement — slight sway, confident pose, hair movement.${userDirection} Vertical 9:16.`) + intensityClause + brandMotionClause;
+        : `Fashion model subtle natural movement — slight sway, confident pose, hair movement.${userDirection} Vertical 9:16.`) + intensityClause + brandMotionClause);
 
     // Fuera del try: el catch necesita leerlo para no perder la referencia a la
     // corrida cuando algo falla después de haberla lanzado.

@@ -56,6 +56,9 @@ export interface ToolConfig {
   numVariations: number;
   locationRef: string;
   styleRef: string;
+  /** Receta de formato de Fashion Reel (id de tools/fashion_reel/recipes.ts). Si está,
+   *  manda sobre el modo Story/Looks: define movimiento, clips, encuadre y duración. */
+  recipeId?: string | null;
   productIsWorn: boolean;
   aspectRatio: string;
   resolution: string;

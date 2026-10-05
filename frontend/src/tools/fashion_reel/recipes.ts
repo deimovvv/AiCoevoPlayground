@@ -44,8 +44,16 @@ export interface MotionRecipe {
     /** Trazabilidad: si una receta deja de funcionar hay que poder volver al material. */
     sourceNote: string;
 
-    /** El prompt de movimiento, ya resuelto. */
+    /** El prompt de movimiento, ya resuelto. Describe SÓLO movimiento y cámara:
+     *  el fondo NO va acá, lo elige el usuario (ver `defaultSetting`). */
     motionPrompt: string;
+
+    /** Cómo se encuadra la imagen base. Un giro necesita cuerpo entero; un detalle,
+     *  primer plano. Sin esto el movimiento no tiene de dónde salir. */
+    framing: string;
+
+    /** Fondo que usa la receta SÓLO si el usuario no elige uno. Si elige, manda el suyo. */
+    defaultSetting: string;
 
     /** Lo que le pide al usuario. */
     inputs: RecipeInput[];
@@ -82,18 +90,13 @@ export const MOTION_RECIPES: MotionRecipe[] = [
             "constant speed, showing the outfit from front to profile to back. Her weight stays " +
             "centered, arms relaxed, one hand lightly holding the edge of the garment. Hair moves " +
             "naturally with the turn. The camera is locked off on a tripod at chest height, framing " +
-            "her full body against a seamless studio backdrop. Even, soft, diffused studio lighting " +
-            "with no visible shadows on the background. The motion is even and unhurried throughout, " +
+            "her full body. The motion is even and unhurried throughout, " +
             "like a fashion e-commerce turntable shot.",
+        framing: "FULL-BODY vertical 9:16: the model stands centered, the whole outfit visible head to toe, room above the head and below the feet for the turn.",
+        defaultSetting: "professional photo studio with a seamless cyclorama backdrop, soft even diffused light, no visible shadows on the background.",
         inputs: [
             { kind: "avatar", label: "Modelo", hint: "quién gira", required: true },
             { kind: "clothing", label: "Prendas", hint: "un clip por look", min: 1, max: 6, role: "one-per-clip" },
-            {
-                kind: "text",
-                label: "Color de fondo",
-                placeholder: "ej: amarillo pastel, gris claro, blanco roto",
-                required: false,
-            },
         ],
         fixed: {
             // Kling v3 Pro: 1080p, mejor retención de identidad, $0.56 los 5s
@@ -116,8 +119,10 @@ export const MOTION_RECIPES: MotionRecipe[] = [
         motionPrompt:
             "The model faces the camera in a medium shot, shoulders squared, making small natural " +
             "adjustments — a slight shift of weight, a calm breath, hair settling. Her gaze stays " +
-            "toward the lens. The camera holds steady at chest height against a clean light backdrop, " +
-            "soft even studio light. The movement is minimal and composed throughout.",
+            "toward the lens. The camera holds steady at chest height, " +
+            "and the movement is minimal and composed throughout.",
+        framing: "MEDIUM vertical 9:16: from the waist up, the model facing camera, the top of the outfit clearly visible, face fully visible.",
+        defaultSetting: "clean light studio backdrop, soft frontal light.",
         inputs: [
             { kind: "avatar", label: "Modelo", hint: "quién aparece", required: true },
             { kind: "clothing", label: "Prendas", hint: "un clip por look", min: 1, max: 6, role: "one-per-clip" },
@@ -135,8 +140,10 @@ export const MOTION_RECIPES: MotionRecipe[] = [
         motionPrompt:
             "A sequence of composed shots of the same model, one outfit per shot, each held steady " +
             "for a few seconds before cutting to the next. Within each shot the movement is minimal — " +
-            "a turn of the shoulders, a step toward camera. Consistent studio lighting and backdrop " +
+            "a turn of the shoulders, a step toward camera. Consistent lighting and setting " +
             "across all shots so the cuts feel like one session.",
+        framing: "FULL-BODY vertical 9:16: the model centered, the whole look visible, the same framing in every shot so the cuts feel like one session.",
+        defaultSetting: "professional photo studio with a seamless backdrop, consistent soft light across all shots.",
         inputs: [
             { kind: "avatar", label: "Modelo", hint: "la misma en todas las tomas", required: true },
             { kind: "clothing", label: "Looks", hint: "una toma por look, en orden", min: 2, max: 6, role: "sequence" },
@@ -155,7 +162,9 @@ export const MOTION_RECIPES: MotionRecipe[] = [
             "A slow push toward the garment detail — the weave of the fabric, a seam, a cuff, the way " +
             "the cloth falls. The model's face stays visible in the upper frame as an identity anchor, " +
             "slightly soft while the garment stays sharp. Camera moves gradually and evenly, no sudden " +
-            "reframing. Soft directional studio light that reveals texture.",
+            "reframing. ",
+        framing: "TIGHT MEDIUM CLOSE-UP vertical 9:16: the garment detail sharp and dominant, the model's face visible in the upper frame as the identity anchor.",
+        defaultSetting: "soft directional studio light that reveals fabric texture, neutral background.",
         inputs: [
             { kind: "avatar", label: "Modelo", hint: "ancla de identidad", required: true },
             { kind: "clothing", label: "Prenda", hint: "la que se muestra en detalle", min: 1, max: 1, role: "single" },
@@ -174,4 +183,10 @@ const RATE_PER_SEC: Record<string, number> = {
 export function recipeCostUsd(r: MotionRecipe): number | null {
     const rate = RATE_PER_SEC[r.fixed.model];
     return rate == null ? null : rate * r.fixed.durationSec;
+}
+
+/** Busca una receta por id. La usan los handlers: la config guarda sólo el id. */
+export function getRecipe(id: string | null | undefined): MotionRecipe | null {
+    if (!id) return null;
+    return MOTION_RECIPES.find((r) => r.id === id) ?? null;
 }
