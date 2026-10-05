@@ -50,6 +50,81 @@ const fmt = (t: number) => {
     return `${m}:${s.toFixed(1).padStart(4, "0")}`;
 };
 
+/** Cuadros por clip que se extraen una sola vez. Alcanza para que la tira se lea
+ *  como video; más sería tiempo de carga sin ganancia visible a esta altura. */
+const FRAMES_PER_CLIP = 14;
+
+/**
+ * Cuadros reales del clip, a lo largo de su duración. Se extraen una vez (video
+ * oculto → seek → canvas) y se cachean por URL. Los videos vienen del storage de
+ * Fal (otro origen): el canvas queda "tainted", que impide EXPORTARLO a imagen pero
+ * no MOSTRARLO — y acá sólo se muestra.
+ */
+const frameCache = new Map<string, Promise<HTMLCanvasElement[]>>();
+function extractFrames(url: string): Promise<HTMLCanvasElement[]> {
+    const hit = frameCache.get(url);
+    if (hit) return hit;
+    const job = new Promise<HTMLCanvasElement[]>((resolve) => {
+        const v = document.createElement("video");
+        v.muted = true; v.preload = "auto"; v.playsInline = true; v.src = url;
+        const out: HTMLCanvasElement[] = [];
+        v.onloadedmetadata = async () => {
+            const d = isFinite(v.duration) ? v.duration : 0;
+            const h = 88, w = Math.max(1, Math.round(h * (v.videoWidth / (v.videoHeight || 1))));
+            for (let k = 0; k < FRAMES_PER_CLIP; k++) {
+                const t = Math.min(d - 0.05, ((k + 0.5) / FRAMES_PER_CLIP) * d);
+                await new Promise<void>((ok) => { v.onseeked = () => ok(); v.currentTime = Math.max(0, t); });
+                const c = document.createElement("canvas");
+                c.width = w; c.height = h;
+                c.getContext("2d")?.drawImage(v, 0, 0, w, h);
+                out.push(c);
+            }
+            v.removeAttribute("src");
+            resolve(out);
+        };
+        v.onerror = () => resolve(out);
+    });
+    frameCache.set(url, job);
+    return job;
+}
+
+/** La tira de un tramo: cuadros del rango [start, end] del clip, a lo ancho del bloque. */
+function Filmstrip({ url, srcDuration, start, end }: { url: string; srcDuration: number; start: number; end: number }) {
+    const ref = useRef<HTMLCanvasElement | null>(null);
+    const [frames, setFrames] = useState<HTMLCanvasElement[]>([]);
+    const [size, setSize] = useState({ w: 0, h: 0 });
+
+    useEffect(() => { let on = true; extractFrames(url).then((f) => { if (on) setFrames(f); }); return () => { on = false; }; }, [url]);
+    useEffect(() => {
+        const el = ref.current?.parentElement;
+        if (!el) return;
+        const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
+    useEffect(() => {
+        const c = ref.current;
+        if (!c || !frames.length || !size.w || !srcDuration) return;
+        const dpr = window.devicePixelRatio || 1;
+        c.width = Math.round(size.w * dpr); c.height = Math.round(size.h * dpr);
+        const ctx = c.getContext("2d");
+        if (!ctx) return;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, size.w, size.h);
+        const fw = size.h * (frames[0].width / frames[0].height);
+        const slots = Math.max(1, Math.ceil(size.w / fw));
+        for (let k = 0; k < slots; k++) {
+            // Qué instante del clip representa este casillero, DENTRO del tramo recortado.
+            const t = start + ((k + 0.5) / slots) * (end - start);
+            const idx = Math.min(frames.length - 1, Math.max(0, Math.floor((t / srcDuration) * frames.length)));
+            ctx.drawImage(frames[idx], k * fw, 0, fw, size.h);
+        }
+    }, [frames, size, start, end, srcDuration]);
+
+    return <canvas ref={ref} className="absolute inset-0 w-full h-full pointer-events-none" />;
+}
+
 export function VideoTimeline({
     clips, initialEdits, onEditsCommit, onExport,
 }: {
@@ -340,9 +415,14 @@ export function VideoTimeline({
                                 )}
                                 style={{ flexGrow: lens[i] || 1, flexBasis: 0, minWidth: 28 }}
                             >
+                                {/* Tira de cuadros reales del tramo. Mientras se extraen, la
+                                    miniatura del frame base ocupa el lugar. */}
                                 {c?.imageUrl && (
                                     <img src={c.imageUrl} alt="" draggable={false}
                                         className="absolute left-0 top-0 h-full w-auto object-cover pointer-events-none" />
+                                )}
+                                {c && srcDur[c.id] > 0 && (
+                                    <Filmstrip url={c.videoUrl} srcDuration={srcDur[c.id]} start={ed.start} end={ed.end} />
                                 )}
 
                                 {/* Manijas de recorte: una en cada borde */}
