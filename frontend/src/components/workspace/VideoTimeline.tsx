@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pause, Play, SkipBack, Download, Loader2, X, RotateCcw } from "lucide-react";
+import { Pause, Play, SkipBack, Download, Loader2, X, RotateCcw, MessageSquare, Sparkles, BookmarkPlus, Undo2 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 /**
@@ -33,6 +33,18 @@ export interface TimelineEdit {
     clipId: string;
     start: number;
     end: number;
+}
+
+/** Un comentario sobre un momento del video. Etapa 3 del editor. */
+export interface TimelineComment {
+    id: string;
+    clipId: string;
+    /** Segundos dentro del clip ORIGINAL — sobrevive a recortes y reordenamientos. */
+    clipOffset: number;
+    text: string;
+    /** open · regenerated (se regeneró el clip con esto) · rule (se guardó como regla) */
+    status: "open" | "regenerated" | "rule";
+    createdAt: string;
 }
 
 /** Duración mínima de un clip recortado: más corto que esto no se lee como plano. */
@@ -127,6 +139,7 @@ function Filmstrip({ url, srcDuration, start, end }: { url: string; srcDuration:
 
 export function VideoTimeline({
     clips, initialEdits, onEditsCommit, onExport,
+    comments = [], onCommentsChange, onRegenerate, onRestore, versionsOf, onSaveRule, costFor, durationOptions,
 }: {
     clips: TimelineClip[];
     /** Edición guardada de una sesión anterior (si la hay). */
@@ -135,6 +148,22 @@ export function VideoTimeline({
     onEditsCommit?: (edits: TimelineEdit[]) => void;
     /** Exportar. `edited` = false si no hubo cambios (se puede bajar el MP4 existente). */
     onExport?: (edits: TimelineEdit[], edited: boolean) => Promise<void> | void;
+
+    // ── Etapa 3: comentar y regenerar ──
+    comments?: TimelineComment[];
+    onCommentsChange?: (c: TimelineComment[]) => void;
+    /** Regenera SÓLO ese clip con la indicación. `durationSec` permite alargarlo. */
+    onRegenerate?: (clipId: string, direction: string, durationSec?: number) => Promise<void>;
+    /** Vuelve a la versión anterior del clip. */
+    onRestore?: (clipId: string) => void;
+    /** Cuántas versiones anteriores tiene cada clip (0 = es el original). */
+    versionsOf?: (clipId: string) => number;
+    /** Guarda el texto como regla de movimiento de la MARCA (lo decide el operador). */
+    onSaveRule?: (text: string) => Promise<void>;
+    /** Costo de regenerar un clip de N segundos, para mostrarlo ANTES de confirmar. */
+    costFor?: (secs: number) => number | null;
+    /** Duraciones que acepta el modelo elegido (para alargar). */
+    durationOptions?: string[];
 }) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const trackRef = useRef<HTMLDivElement | null>(null);
@@ -142,22 +171,27 @@ export function VideoTimeline({
     const wantPlay = useRef(false);
 
     // ── Duración original de cada clip (metadata, sin bajar el video entero) ──
-    const [srcDur, setSrcDur] = useState<Record<string, number>>({});
+    // Se guarda por URL, no por clip: un clip regenerado cambia de video y puede
+    // durar distinto (si se alargó). La URL nueva mide su propia duración.
+    const [durByUrl, setDurByUrl] = useState<Record<string, number>>({});
     useEffect(() => {
         let cancelled = false;
         clips.forEach((c) => {
+            if (durByUrl[c.videoUrl]) return;
             const v = document.createElement("video");
             v.preload = "metadata";
             v.src = c.videoUrl;
             v.onloadedmetadata = () => {
                 if (cancelled) return;
                 const d = isFinite(v.duration) ? v.duration : 0;
-                setSrcDur((prev) => ({ ...prev, [c.id]: d }));
+                setDurByUrl((prev) => ({ ...prev, [c.videoUrl]: d }));
                 v.removeAttribute("src");
             };
         });
         return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [clips]);
+    const srcDur = useMemo(() => Object.fromEntries(clips.map((c) => [c.id, durByUrl[c.videoUrl] || 0])), [clips, durByUrl]);
     const ready = clips.every((c) => srcDur[c.id] > 0);
     const byId = useMemo(() => Object.fromEntries(clips.map((c) => [c.id, c])), [clips]);
 
@@ -178,6 +212,19 @@ export function VideoTimeline({
     }, [edits, original]);
 
     const commit = (n: TimelineEdit[]) => { setEdits(n); onEditsCommit?.(n); };
+
+    // Clip regenerado (cambió su video): su recorte vuelve a la duración completa del
+    // video nuevo. Se espera a conocer esa duración antes de tocarlo.
+    const lastUrl = useRef<Record<string, string>>({});
+    useEffect(() => {
+        if (!edits.length) { clips.forEach((c) => { lastUrl.current[c.id] ||= c.videoUrl; }); return; }
+        const changed = clips.filter((c) => lastUrl.current[c.id] && lastUrl.current[c.id] !== c.videoUrl && srcDur[c.id] > 0);
+        clips.forEach((c) => { lastUrl.current[c.id] ||= c.videoUrl; });
+        if (!changed.length) return;
+        changed.forEach((c) => { lastUrl.current[c.id] = c.videoUrl; });
+        commit(edits.map((e) => changed.some((c) => c.id === e.clipId) ? { ...e, start: 0, end: srcDur[e.clipId] } : e));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clips, srcDur]);
 
     // ── Tiempo ──
     const lens = edits.map((e) => Math.max(0, e.end - e.start));
@@ -324,6 +371,66 @@ export function VideoTimeline({
         try { await onExport(edits, edited); } finally { setExporting(false); }
     };
 
+    // ── Comentar y regenerar (etapa 3) ──
+    const [draft, setDraft] = useState("");
+    const [regenSecs, setRegenSecs] = useState("");
+    const [busy, setBusy] = useState<string | null>(null);        // clipId regenerándose
+    const [savingRule, setSavingRule] = useState<string | null>(null);
+    const [regenError, setRegenError] = useState<string | null>(null);
+
+    /** Dónde cae un comentario en el timeline actual (o null si su tramo quedó recortado). */
+    const commentGlobal = (c: TimelineComment): number | null => {
+        const i = edits.findIndex((e) => e.clipId === c.clipId);
+        if (i < 0) return null;
+        const e = edits[i];
+        if (c.clipOffset < e.start || c.clipOffset > e.end) return starts[i];
+        return starts[i] + (c.clipOffset - e.start);
+    };
+
+    const setComments = (n: TimelineComment[]) => onCommentsChange?.(n);
+    const curDur = cur ? srcDur[cur.clipId] : 0;
+    const regenDur = Number(regenSecs) || Math.round(curDur) || undefined;
+    const regenCost = regenDur && costFor ? costFor(regenDur) : null;
+
+    const addComment = async (andRegenerate: boolean) => {
+        if (!cur || !draft.trim()) return;
+        const c: TimelineComment = {
+            id: `c_${Date.now()}`,
+            clipId: cur.clipId,
+            clipOffset: cur.start + clipTime,
+            text: draft.trim(),
+            status: "open",
+            createdAt: new Date().toISOString(),
+        };
+        const list = [...comments, c];
+        setComments(list);
+        setDraft("");
+        if (andRegenerate) await regenerate(c, list);
+    };
+
+    const regenerate = async (c: TimelineComment, list = comments) => {
+        if (!onRegenerate || busy) return;
+        setBusy(c.clipId); setRegenError(null);
+        videoRef.current?.pause(); setPlaying(false); wantPlay.current = false;
+        try {
+            await onRegenerate(c.clipId, c.text, regenDur);
+            setComments(list.map((x) => (x.id === c.id ? { ...x, status: "regenerated" } : x)));
+        } catch (e) {
+            setRegenError(e instanceof Error ? e.message : "No se pudo regenerar el clip");
+        } finally {
+            setBusy(null);
+        }
+    };
+
+    const saveRule = async (c: TimelineComment) => {
+        if (!onSaveRule) return;
+        setSavingRule(c.id);
+        try {
+            await onSaveRule(c.text);
+            setComments(comments.map((x) => (x.id === c.id ? { ...x, status: "rule" } : x)));
+        } finally { setSavingRule(null); }
+    };
+
     // ── Teclado: espacio = play/pausa · supr/borrar = quitar el clip activo ──
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
@@ -344,8 +451,9 @@ export function VideoTimeline({
 
     return (
         <div className="space-y-3">
-            {/* ── Reproductor ─────────────────────────────── */}
-            <div className="flex justify-center">
+            {/* ── Reproductor + comentarios ───────────────── */}
+            <div className="flex gap-5 items-start">
+            <div className="flex-1 min-w-0 flex justify-center relative">
                 <video
                     key={activeClip?.videoUrl}
                     ref={videoRef}
@@ -357,6 +465,111 @@ export function VideoTimeline({
                     playsInline
                     className="h-[46vh] max-h-[520px] aspect-[9/16] object-contain rounded-[var(--radius-md)] border border-edge bg-black cursor-pointer"
                 />
+                {busy && cur && busy === cur.clipId && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <span className="flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-sm)] bg-black/70 text-[11px] text-white">
+                            <Loader2 size={12} className="animate-spin" /> Regenerando este clip…
+                        </span>
+                    </div>
+                )}
+            </div>
+
+            {onCommentsChange && (
+                <aside className="w-[280px] shrink-0 flex flex-col gap-3 max-h-[52vh]">
+                    {/* Comentar en el instante actual */}
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-1.5 text-[11px] text-fg-muted">
+                            <MessageSquare size={12} />
+                            <span className="tabular-nums">{fmt(globalTime)}</span>
+                            <span className="text-fg-faint truncate">· {activeClip ? cleanTitle(activeClip.title) : ""}</span>
+                        </div>
+                        <textarea
+                            value={draft}
+                            onChange={(e) => setDraft(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addComment(false); } }}
+                            rows={3}
+                            placeholder="Qué cambiar en este momento. Ej: se le deforma la mano, menos movimiento."
+                            className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-none"
+                        />
+                        <div className="flex items-center gap-1.5">
+                            <button onClick={() => addComment(false)} disabled={!draft.trim()}
+                                className="h-7 px-2.5 rounded-[var(--radius-sm)] text-[11px] text-fg-muted border border-edge hover:text-fg disabled:opacity-40 cursor-pointer">
+                                Anotar
+                            </button>
+                            {onRegenerate && (
+                                <button onClick={() => addComment(true)} disabled={!draft.trim() || !!busy}
+                                    title="Vuelve a animar SÓLO este clip con tu indicación. El resto no se toca."
+                                    className="flex-1 flex items-center justify-center gap-1.5 h-7 px-2.5 rounded-[var(--radius-sm)] text-[11px] bg-surface-2 text-fg hover:bg-surface-3 disabled:opacity-40 cursor-pointer">
+                                    <Sparkles size={11} />
+                                    Regenerar este clip{regenCost != null ? ` · $${regenCost.toFixed(2)}` : ""}
+                                </button>
+                            )}
+                        </div>
+                        {onRegenerate && durationOptions && durationOptions.length > 0 && (
+                            <label className="flex items-center gap-2 text-[10px] text-fg-faint">
+                                Duración del clip nuevo
+                                <select value={regenSecs || String(Math.round(curDur) || durationOptions[0])}
+                                    onChange={(e) => setRegenSecs(e.target.value)}
+                                    className="h-6 bg-surface-1 border border-edge rounded-[var(--radius-xs)] text-[10px] text-fg px-1.5 outline-none">
+                                    {durationOptions.map((d) => <option key={d} value={d}>{d} s</option>)}
+                                </select>
+                                <span className="text-fg-faint">— más largo = alargar</span>
+                            </label>
+                        )}
+                        {regenError && <p className="text-[10px] text-[var(--color-error)] leading-snug">{regenError}</p>}
+                    </div>
+
+                    {/* Lista */}
+                    <div className="flex-1 overflow-y-auto space-y-1.5 border-t border-edge pt-2.5">
+                        {comments.length === 0 && (
+                            <p className="text-[11px] text-fg-faint leading-relaxed">
+                                Pausá donde algo no está bien y escribí qué cambiar. Podés regenerar sólo ese clip,
+                                o guardar el comentario como regla de la marca para que no se repita.
+                            </p>
+                        )}
+                        {[...comments].reverse().map((c) => {
+                            const g = commentGlobal(c);
+                            const clip = byId[c.clipId];
+                            return (
+                                <div key={c.id} className="group rounded-[var(--radius-sm)] border border-edge p-2 space-y-1.5">
+                                    <div className="flex items-center gap-1.5 text-[10px]">
+                                        <button onClick={() => g != null && seekTo(g)} disabled={g == null}
+                                            className="tabular-nums text-fg-muted hover:text-fg cursor-pointer disabled:cursor-default">
+                                            {g != null ? fmt(g) : "—"}
+                                        </button>
+                                        <span className="text-fg-faint truncate">{clip ? cleanTitle(clip.title) : "clip quitado"}</span>
+                                        <span className="flex-1" />
+                                        {c.status === "regenerated" && <span className="text-fg-faint">regenerado</span>}
+                                        {c.status === "rule" && <span className="text-fg-faint">regla de la marca</span>}
+                                        <button onClick={() => setComments(comments.filter((x) => x.id !== c.id))} title="Borrar comentario"
+                                            className="text-fg-faint hover:text-fg opacity-0 group-hover:opacity-100 cursor-pointer">
+                                            <X size={11} />
+                                        </button>
+                                    </div>
+                                    <p className="text-[12px] text-fg leading-snug">{c.text}</p>
+                                    <div className="flex items-center gap-1">
+                                        {onRegenerate && clip && (
+                                            <button onClick={() => regenerate(c)} disabled={!!busy}
+                                                className="flex items-center gap-1 h-6 px-2 rounded-[var(--radius-xs)] text-[10px] text-fg-muted border border-edge hover:text-fg disabled:opacity-40 cursor-pointer">
+                                                {busy === c.clipId ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                                                {busy === c.clipId ? "Regenerando…" : "Regenerar"}
+                                            </button>
+                                        )}
+                                        {onSaveRule && c.status !== "rule" && (
+                                            <button onClick={() => saveRule(c)} disabled={savingRule === c.id}
+                                                title="Suma este comentario a las reglas de movimiento de la marca: lo leen TODOS sus próximos videos."
+                                                className="flex items-center gap-1 h-6 px-2 rounded-[var(--radius-xs)] text-[10px] text-fg-muted border border-edge hover:text-fg disabled:opacity-40 cursor-pointer">
+                                                {savingRule === c.id ? <Loader2 size={10} className="animate-spin" /> : <BookmarkPlus size={10} />}
+                                                Regla de la marca
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </aside>
+            )}
             </div>
 
             {/* ── Barra ───────────────────────────────────── */}
@@ -376,6 +589,12 @@ export function VideoTimeline({
                     {activeClip ? cleanTitle(activeClip.title) : ""}
                     {trimming != null && cur && ` · ${fmt(cur.start)}–${fmt(cur.end)}`}
                 </span>
+                {cur && versionsOf && versionsOf(cur.clipId) > 0 && onRestore && (
+                    <button onClick={() => onRestore(cur.clipId)} title="Volver a la versión anterior de este clip"
+                        className="flex items-center gap-1 h-7 px-2 rounded-[var(--radius-xs)] text-[10px] text-fg-faint hover:text-fg border border-edge cursor-pointer">
+                        <Undo2 size={11} /> v{versionsOf(cur.clipId) + 1} · volver a la anterior
+                    </button>
+                )}
                 <div className="flex-1" />
                 {edited && (
                     <button onClick={reset} title="Volver a los clips originales"
@@ -469,6 +688,12 @@ export function VideoTimeline({
                                     </div>
                                 ))}
 
+                                {busy === ed.clipId && (
+                                    <div className="absolute inset-0 z-20 bg-black/55 flex items-center justify-center">
+                                        <Loader2 size={13} className="animate-spin text-white" />
+                                    </div>
+                                )}
+
                                 {/* Quitar */}
                                 {edits.length > 1 && (
                                     <button
@@ -484,6 +709,17 @@ export function VideoTimeline({
                     })}
 
                 </div>
+
+                {/* Marcas de los comentarios sobre la regla */}
+                {ready && total > 0 && comments.map((c) => {
+                    const g = commentGlobal(c);
+                    if (g == null) return null;
+                    return (
+                        <button key={c.id} onClick={() => seekTo(g)} title={c.text}
+                            className="absolute top-0 z-20 -translate-x-1/2 w-1.5 h-1.5 mt-1 rounded-full bg-fg-muted hover:bg-fg cursor-pointer"
+                            style={{ left: `${(g / total) * 100}%` }} />
+                    );
+                })}
 
                 {/* Cabezal: cruza regla y pista. La manija de arriba se agarra y arrastra. */}
                 {ready && total > 0 && (

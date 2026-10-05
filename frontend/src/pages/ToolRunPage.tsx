@@ -44,7 +44,7 @@ import { useBrand } from "../lib/BrandContext";
 import {
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl, brandLogoImageUrl,
   type Brand,
-  generateCopy, regenerateScene, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen, klingDurationOptions,
+  generateCopy, regenerateScene, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen, klingDurationOptions, applyArtDirectionRule,
   concatVideos, saveGeneration,
   generateToolPrompt, createKlingVideo, pollKlingVideo,
   createKlingFrameToFrame, createSeedanceReferenceToVideo, pollSeedanceVideo,
@@ -67,8 +67,9 @@ import { downloadFile, downloadZip } from "../lib/download";
 import { ImageEditPanel } from "../components/ImageEditPanel";
 import { SelectorPanel } from "../components/workspace/SelectorPanel";
 import { RecipeGrid, RecipeStrip } from "../components/workspace/RecipeGrid";
-import { VideoTimeline, type TimelineEdit } from "../components/workspace/VideoTimeline";
-import { MOTION_RECIPES, recipeCostUsd, type MotionRecipe } from "../tools/fashion_reel/recipes";
+import { VideoTimeline, type TimelineEdit, type TimelineComment } from "../components/workspace/VideoTimeline";
+import { MOTION_RECIPES, recipeCostUsd, clipCostUsd, type MotionRecipe } from "../tools/fashion_reel/recipes";
+import { regenerateSceneClip } from "../tools/fashion_reel/handlers";
 import type { KlingModel } from "../lib/api";
 import { ToolHelpButton } from "../components/ToolHelp";
 import { SHOT_CATALOG, STUDIO_STYLES, POSE_PRESETS, ENHANCE_TEXTURE_PROMPT } from "../tools/ecommerce_pack";
@@ -8018,7 +8019,18 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
   onAddBatchImage?: (batchId: string, image: { id: string; url: string; label: string; status: string }) => void;
 }) {
   const meta = STEP_META[stepId];
-  const { activeBrand } = useBrand();
+  const { activeBrand, refreshBrands } = useBrand();
+  // Escritura segura del resultado del Render. Recortes, comentarios y el reinicio de
+  // recorte al regenerar escriben ahí, a veces casi juntos: cada escritura FUSIONA
+  // sobre la última versión (no sobre una copia vieja), así ninguna pisa a otra.
+  const renderLatest = useRef<unknown>(undefined);
+  const renderSrc = useRef<unknown>(undefined);
+  if (stepId === "render" && renderSrc.current !== result) { renderSrc.current = result; renderLatest.current = result; }
+  const writeRender = (patch: Record<string, unknown>) => {
+    const next = { ...((renderLatest.current as object) || {}), ...patch };
+    renderLatest.current = next;
+    onUpdateStepResult?.("render", next);
+  };
 
   // All hooks MUST be before any conditional returns (React Rules of Hooks)
   const [, setShowBrief] = useState(false);
@@ -10010,16 +10022,55 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
             id: c.sceneId, title: c.title, videoUrl: c.videoUrl, imageUrl: c.imageUrl,
           }));
           if (!clips.length) return null;
+          type AnimItem = { sceneId: string; title: string; videoUrl: string; imageUrl?: string; history?: string[] };
+          const items = (list || []) as AnimItem[];
+          const writeAnimate = (next: AnimItem[]) =>
+            onUpdateStepResult?.("animate", Array.isArray(raw) ? next : { ...(raw as object), variations: next });
           const saved = (result as { timelineEdits?: TimelineEdit[] }).timelineEdits;
+          const savedComments = (result as { timelineComments?: TimelineComment[] }).timelineComments || [];
+          const scriptScenes = ((allSteps.find((st) => st.id === "script")?.result as { scenes?: Array<{ id: string; note?: string; shotId?: string }> } | undefined)?.scenes) || [];
+          const isSeedance = config?.animationEngine === "seedance";
+          const model = isSeedance ? "seedance" : ((config as { videoModel?: string } | undefined)?.videoModel || "v3-pro");
+          const durationOptions = isSeedance ? ["4", "5", "6", "8", "10", "12", "15"] : klingDurationOptions(model);
+          // Si algún clip se regeneró, el MP4 del render quedó viejo: exportar re-renderiza.
+          const anyRegenerated = items.some((it) => (it.history || []).length > 0);
           return (
             <VideoTimeline
               clips={clips}
               initialEdits={saved}
               // La edición se guarda en el resultado del Render: sobrevive a recargar.
-              onEditsCommit={(edits) => onUpdateStepResult?.("render", { ...(result as object), timelineEdits: edits })}
+              onEditsCommit={(edits) => writeRender({ timelineEdits: edits })}
+              comments={savedComments}
+              onCommentsChange={(c) => writeRender({ timelineComments: c })}
+              versionsOf={(clipId) => (items.find((it) => it.sceneId === clipId)?.history || []).length}
+              costFor={(secs) => clipCostUsd(model, secs)}
+              durationOptions={durationOptions}
+              onRegenerate={async (clipId, direction, durationSec) => {
+                const it = items.find((x) => x.sceneId === clipId);
+                if (!it?.imageUrl || !config) throw new Error("No encontré el frame de este clip para regenerarlo.");
+                const sc = scriptScenes.find((x) => x.id === clipId);
+                const { videoUrl } = await regenerateSceneClip({
+                  activeBrand: activeBrand as never, config: config as never,
+                  imageUrl: it.imageUrl, note: sc?.note, shotId: sc?.shotId, direction, durationSec,
+                });
+                // La versión anterior NO se pierde: queda en history, para volver.
+                writeAnimate(items.map((x) => x.sceneId === clipId
+                  ? { ...x, videoUrl, history: [...(x.history || []), x.videoUrl] } : x));
+              }}
+              onRestore={(clipId) => writeAnimate(items.map((x) => {
+                if (x.sceneId !== clipId || !(x.history || []).length) return x;
+                const h = [...(x.history || [])];
+                const prev = h.pop()!;
+                return { ...x, videoUrl: prev, history: h };
+              }))}
+              onSaveRule={async (text) => {
+                if (!activeBrand) return;
+                await applyArtDirectionRule(activeBrand.id, "motion_rules", text);
+                await refreshBrands?.();
+              }}
               onExport={async (edits, edited) => {
-                // Sin cambios: el MP4 ya existe, no hace falta re-renderizar.
-                if (!edited) { if (fullVideoUrl) downloadFile(fullVideoUrl, "fashion_reel.mp4"); return; }
+                // Sin cambios ni regeneraciones: el MP4 ya existe, no hace falta re-renderizar.
+                if (!edited && !anyRegenerated) { if (fullVideoUrl) downloadFile(fullVideoUrl, "fashion_reel.mp4"); return; }
                 const byId = Object.fromEntries(clips.map((c) => [c.id, c]));
                 const r = await concatVideos(
                   edits.map((e) => byId[e.clipId].videoUrl),

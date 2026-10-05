@@ -727,6 +727,75 @@ export const handleMultishot: StepHandler = async (ctx) => {
 
 // ── Animate — Kling image-to-video per curated frame ─────
 
+// ── Piezas compartidas de la animación ───────────────────────────────────
+// Las usan handleAnimate (todas las escenas) y regenerateSceneClip (una sola, desde
+// el editor). Compartirlas es lo que garantiza que un clip regenerado se arme con la
+// MISMA lógica que el original — si no, la regeneración divergiría en silencio.
+
+type AnimBrand = Parameters<StepHandler>[0]["activeBrand"];
+type AnimConfig = Parameters<StepHandler>[0]["config"];
+
+/** Assets de la marca que Seedance recibe como referencias además del frame. */
+const collectSeedanceBrandRefs = (activeBrand: AnimBrand, config: AnimConfig, cfg: Record<string, unknown>): string[] => {
+  const brandRefUrls: string[] = [];
+  const selectedAvatarIds = (cfg.selectedAvatarIds as string[]) || [];
+  const selectedAvatar = selectedAvatarIds.length
+    ? (activeBrand.avatars || []).find((a) => selectedAvatarIds.includes(a.id))
+    : activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
+  if (selectedAvatar?.imageUrl) brandRefUrls.push(avatarImageUrl(selectedAvatar.imageUrl));
+
+  const selectedProductIds = (cfg.selectedProductIds as string[]) || [];
+  const selectedProducts = selectedProductIds.length
+    ? (activeBrand.products || []).filter((p) => selectedProductIds.includes(p.id))
+    : config.selectedProductId ? [(activeBrand.products || []).find((p) => p.id === config.selectedProductId)].filter(Boolean) : [];
+  for (const p of selectedProducts) {
+    if (p?.imageUrl) brandRefUrls.push(productImageUrl(p.imageUrl));
+  }
+
+  const selectedClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
+  for (const c of selectedClothing) {
+    if (c.imageUrl) brandRefUrls.push(clothingImageUrl(c.imageUrl));
+  }
+
+  const selectedBackground = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
+  if (selectedBackground?.imageUrl) brandRefUrls.push(backgroundImageUrl(selectedBackground.imageUrl));
+  return brandRefUrls;
+};
+
+/** Reglas de movimiento de la marca + intensidad elegida. */
+const motionClauses = (activeBrand: AnimBrand, cfg: Record<string, unknown>) => {
+  // Reglas de movimiento de la marca. Es el campo que el loop de feedback escribe cuando
+  // el cliente se queja del movimiento — si no entra acá, aceptar la regla no cambia nada.
+  // También lo escribe el editor de video ("guardar como regla de la marca").
+  const brandMotionRules = ((activeBrand.designSystem?.motion_rules as string) || "").trim();
+  const brandMotionClause = brandMotionRules ? ` BRAND MOTION RULES (mandatory): ${brandMotionRules}` : "";
+  const motionIntensity = ((cfg.motionIntensity as string) || "medio").toLowerCase();
+  const intensityBias = motionIntensity === "sutil" ? 0 : motionIntensity === "medio" ? 1 : 2;
+  const intensityClause =
+    motionIntensity === "dinamico"
+      ? " Make the motion noticeably DYNAMIC and editorial: a confident camera move (orbit / dolly / reframe), flowing hair and fabric, expressive body motion with a subtle step or turn — energetic, but the face stays clearly in frame the whole time."
+      : motionIntensity === "medio"
+        ? " Add a clear but graceful camera move and natural body motion — a smooth push-in or gentle orbit, soft hair and fabric movement. Face stays in frame."
+        : "";
+  return { brandMotionClause, intensityBias, intensityClause };
+};
+
+/** El prompt de movimiento de UN clip. Con receta manda la receta; si no, el catálogo de tomas. */
+const composeMotionPrompt = (o: {
+  recipe: ReturnType<typeof getRecipe>;
+  shotMotion?: string;
+  note?: string;
+  userDirection: string;
+  intensityClause: string;
+  brandMotionClause: string;
+}): string => o.recipe
+  ? `${o.recipe.motionPrompt}${o.userDirection} Vertical 9:16.${o.brandMotionClause}`
+  : ((o.shotMotion
+    ? `${o.shotMotion} ${o.note ? `Context: ${o.note}.` : ""}${o.userDirection} Vertical 9:16.`
+    : o.note
+      ? `Fashion model: ${o.note}.${o.userDirection} Smooth, natural, confident movement. Vertical 9:16.`
+      : `Fashion model subtle natural movement — slight sway, confident pose, hair movement.${o.userDirection} Vertical 9:16.`) + o.intensityClause + o.brandMotionClause);
+
 export const handleAnimate: StepHandler = async (ctx) => {
   const { activeBrand, config, getStepResult, getScriptScenes } = ctx;
   const cfg = readCfg(config);
@@ -774,30 +843,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
   // El motor lo elige el usuario. La receta sólo lo PRE-CARGA en la config al
   // elegirla (ToolRunPage); si el usuario lo cambia, manda su elección.
   const engine = (cfg.animationEngine as "kling" | "seedance") || "kling";
-  const brandRefUrls: string[] = [];
-  if (engine === "seedance") {
-    const selectedAvatarIds = (cfg.selectedAvatarIds as string[]) || [];
-    const selectedAvatar = selectedAvatarIds.length
-      ? (activeBrand.avatars || []).find((a) => selectedAvatarIds.includes(a.id))
-      : activeBrand.avatars?.find((a) => a.id === config.selectedAvatarId);
-    if (selectedAvatar?.imageUrl) brandRefUrls.push(avatarImageUrl(selectedAvatar.imageUrl));
-
-    const selectedProductIds = (cfg.selectedProductIds as string[]) || [];
-    const selectedProducts = selectedProductIds.length
-      ? (activeBrand.products || []).filter((p) => selectedProductIds.includes(p.id))
-      : config.selectedProductId ? [(activeBrand.products || []).find((p) => p.id === config.selectedProductId)].filter(Boolean) : [];
-    for (const p of selectedProducts) {
-      if (p?.imageUrl) brandRefUrls.push(productImageUrl(p.imageUrl));
-    }
-
-    const selectedClothing = (activeBrand.clothing || []).filter((c) => config.selectedClothingIds.includes(c.id));
-    for (const c of selectedClothing) {
-      if (c.imageUrl) brandRefUrls.push(clothingImageUrl(c.imageUrl));
-    }
-
-    const selectedBackground = (activeBrand.backgrounds || []).find((bg) => bg.id === config.selectedBackgroundId);
-    if (selectedBackground?.imageUrl) brandRefUrls.push(backgroundImageUrl(selectedBackground.imageUrl));
-  }
+  const brandRefUrls = engine === "seedance" ? collectSeedanceBrandRefs(activeBrand, config, cfg) : [];
 
   // Creative mode controls how each frame becomes a clip:
   //   - "single-frame"    → each curated image is animated in place (model moves within frame)
@@ -857,19 +903,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
   // arranca por la variante más quieta). "medio"/"dinamico" appendean una cláusula de energía al
   // prompt Y sesgan la selección de variante para NO arrancar por la más estática. La cara SIEMPRE
   // queda en cuadro (regla face-anchor). Reportado: "el motion queda siempre igual / muy quieto".
-  // Reglas de movimiento de la marca. Es el campo que el loop de feedback escribe cuando
-  // el cliente se queja del movimiento — si no entra acá, aceptar la regla no cambia nada.
-  const brandMotionRules = ((activeBrand.designSystem?.motion_rules as string) || "").trim();
-  const brandMotionClause = brandMotionRules ? ` BRAND MOTION RULES (mandatory): ${brandMotionRules}` : "";
-
-  const motionIntensity = ((cfg.motionIntensity as string) || "medio").toLowerCase();
-  const intensityBias = motionIntensity === "sutil" ? 0 : motionIntensity === "medio" ? 1 : 2;
-  const intensityClause =
-    motionIntensity === "dinamico"
-      ? " Make the motion noticeably DYNAMIC and editorial: a confident camera move (orbit / dolly / reframe), flowing hair and fabric, expressive body motion with a subtle step or turn — energetic, but the face stays clearly in frame the whole time."
-      : motionIntensity === "medio"
-        ? " Add a clear but graceful camera move and natural body motion — a smooth push-in or gentle orbit, soft hair and fabric movement. Face stays in frame."
-        : "";
+  const { brandMotionClause, intensityBias, intensityClause } = motionClauses(activeBrand, cfg);
 
   for (let i = 0; i < framesToAnimate.length; i++) {
     const frame = framesToAnimate[i];
@@ -907,13 +941,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
     // Con receta, el movimiento es el de la receta. Sin catálogo de tomas ni
     // "intensidad": la receta ya está calibrada y la intensidad la contradiría.
     // Se respetan la dirección del usuario y las reglas de movimiento de la marca.
-    const motionPrompt = recipe
-      ? `${recipe.motionPrompt}${userDirection} Vertical 9:16.${brandMotionClause}`
-      : ((shotMotion
-      ? `${shotMotion} ${frame.note ? `Context: ${frame.note}.` : ""}${userDirection} Vertical 9:16.`
-      : frame.note
-        ? `Fashion model: ${frame.note}.${userDirection} Smooth, natural, confident movement. Vertical 9:16.`
-        : `Fashion model subtle natural movement — slight sway, confident pose, hair movement.${userDirection} Vertical 9:16.`) + intensityClause + brandMotionClause);
+    const motionPrompt = composeMotionPrompt({ recipe, shotMotion, note: frame.note, userDirection, intensityClause, brandMotionClause });
 
     // Fuera del try: el catch necesita leerlo para no perder la referencia a la
     // corrida cuando algo falla después de haberla lanzado.
@@ -1030,3 +1058,63 @@ export const handleRender: StepHandler = async (ctx) => {
     },
   };
 };
+
+// ── Regenerar UN clip (editor de video, etapa 3) ─────────────────────────
+/**
+ * Vuelve a animar una sola escena, con la indicación del usuario como prioridad.
+ * La usa el editor cuando se comenta un clip: "se le deforma la mano, menos
+ * movimiento" → sólo ese clip se regenera, el resto del timeline no se toca.
+ *
+ * Arma el prompt con las MISMAS piezas que handleAnimate (composeMotionPrompt,
+ * motionClauses, collectSeedanceBrandRefs), así el clip nuevo no sale con otra
+ * lógica que el original. Siempre single-frame: anima el frame de la escena.
+ *
+ * Spec: openspec/changes/shared-video-editor (tareas 2.3 y "alargar").
+ */
+export async function regenerateSceneClip(o: {
+  activeBrand: AnimBrand;
+  config: AnimConfig;
+  /** El frame (imagen) de la escena, tal como la animó la corrida. */
+  imageUrl: string;
+  /** Datos de la escena del guion: nota y tipo de plano, para el motion original. */
+  note?: string;
+  shotId?: string;
+  /** Lo que escribió el usuario en el comentario. Va como prioridad. */
+  direction: string;
+  /** Segundos. Si falta, usa la duración configurada. Permite ALARGAR un clip. */
+  durationSec?: number;
+}): Promise<{ videoUrl: string; requestId: string; motionPrompt: string }> {
+  const cfg = readCfg(o.config);
+  const recipe = getRecipe(cfg.recipeId as string | null | undefined);
+  const engine = (cfg.animationEngine as "kling" | "seedance") || "kling";
+  const klingModel = ((cfg.videoModel as KlingModel) || "v3-pro") as KlingModel;
+  const allowed = klingDurationOptions(klingModel);
+  const wanted = String(o.durationSec ?? cfg.clipDuration);
+  const duration = engine === "seedance"
+    ? String(Math.max(4, Math.min(30, Math.round(Number(wanted) || 5))))
+    : (allowed.includes(wanted) ? wanted : "5");
+
+  const { brandMotionClause, intensityBias, intensityClause } = motionClauses(o.activeBrand, cfg);
+  let shotMotion: string | undefined;
+  if (!recipe && o.shotId) {
+    const meta = VIDEO_SHOT_CATALOG[o.shotId];
+    if (meta) {
+      const variants = meta.motionVariants?.length ? meta.motionVariants : [meta.motion];
+      shotMotion = variants[intensityBias % variants.length];
+    }
+  }
+  const userDirection = o.direction.trim() ? ` USER DIRECTION (priority): ${o.direction.trim()}.` : "";
+  const motionPrompt = composeMotionPrompt({ recipe, shotMotion, note: o.note, userDirection, intensityClause, brandMotionClause });
+
+  if (engine === "seedance") {
+    const refs = [o.imageUrl, ...collectSeedanceBrandRefs(o.activeBrand, o.config, cfg)].slice(0, 6);
+    const job = await createSeedanceReferenceToVideo({ prompt: motionPrompt, referenceImageUrls: refs, duration });
+    const r = job.video_url ? { video_url: job.video_url } : await pollSeedanceVideo(job.request_id);
+    if (!r.video_url) throw new Error("Seedance no devolvió el video.");
+    return { videoUrl: r.video_url, requestId: job.request_id, motionPrompt };
+  }
+  const job = await createKlingVideo(o.imageUrl, motionPrompt, duration, klingModel);
+  const r = await pollKlingVideo(job.request_id);
+  if (!r.video_url) throw new Error((r as { error?: string }).error || "Kling no devolvió el video.");
+  return { videoUrl: r.video_url, requestId: job.request_id, motionPrompt };
+}

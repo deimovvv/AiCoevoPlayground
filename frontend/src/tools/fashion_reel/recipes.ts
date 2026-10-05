@@ -190,6 +190,12 @@ export function recipeCostUsd(r: MotionRecipe, model?: string, durationSec?: num
     return rate == null ? null : rate * (durationSec || r.fixed.durationSec);
 }
 
+/** Costo de un clip de N segundos con un modelo (lo usa el editor al regenerar). */
+export function clipCostUsd(model: string, secs: number): number | null {
+    const rate = RATE_PER_SEC[model];
+    return rate == null ? null : rate * secs;
+}
+
 /** Busca una receta por id. La usan los handlers: la config guarda sólo el id. */
 export function getRecipe(id: string | null | undefined): MotionRecipe | null {
     if (!id) return null;
