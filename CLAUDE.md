@@ -47,6 +47,9 @@ buscar si ya hay un change; si no, proponerlo ahí primero.
 - **Nunca commitear ni imprimir `backend/.env`** ni ninguna key.
 - `backend/data/` son **datos reales de clientes** (JSON, sin base de datos). Backup antes de migrar.
 - Hooks de React **antes** de cualquier `return` condicional.
+- **Ciclos de import = pantalla negra en dev.** El build los esconde (reordena); el dev server
+  (ESM nativo) no. Nunca importar `tools/<id>/handlers.ts` desde afuera si ese archivo importa
+  de su `index.ts` — mover lo compartido a un archivo sin dependencias (ej. `fashion_reel/shots.ts`).
 - Antes de afirmar que un modelo, precio o endpoint existe: verificarlo. No hacer POST de
   prueba a APIs de generación — encolan y cobran.
 - Todo cambio se commitea y pushea a `main` al terminarlo (cuenta gh `deimovvv`).
