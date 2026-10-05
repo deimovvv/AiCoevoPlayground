@@ -18,3 +18,9 @@
       todo. La diferencia (clips separados vs un video) llega con `shared-video-editor`.
 - [ ] 2.5 Validar cada formato generando y medir su variabilidad de movimiento.
 - [ ] 2.6 Derivar formatos nuevos de los videos de Koxis (los baja Keila).
+
+## 3. Seedance copiando el movimiento (ver design.md)
+
+- [ ] 3.1 Prueba A/B: giro con Kling vs Seedance por kie con `[Video1]` = video real (~$1.81, requiere OK del usuario).
+- [ ] 3.2 Si gana: campo `sourceVideoUrl` en la receta (video original, público, 480p–720p).
+- [ ] 3.3 Rama Seedance con video de referencia en `handleAnimate`, manteniendo la aprobación del still.
