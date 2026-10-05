@@ -20,7 +20,7 @@ import {
   avatarImageUrl, clothingImageUrl, productImageUrl, backgroundImageUrl,
 } from "../../lib/api";
 import type { KlingModel } from "../../lib/api";
-import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "./index";
+import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "./shots";
 import { getRecipe } from "./recipes";
 // La dirección de arte de la marca (casting, luz, locaciones, movimiento) estaba
 // DECLARADA para fashion_reel en TOOL_BRAND_FIELDS pero nunca se leía: en Looks mode el
