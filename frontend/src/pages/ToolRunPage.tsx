@@ -67,6 +67,7 @@ import { downloadFile, downloadZip } from "../lib/download";
 import { ImageEditPanel } from "../components/ImageEditPanel";
 import { SelectorPanel } from "../components/workspace/SelectorPanel";
 import { RecipeGrid, RecipeStrip } from "../components/workspace/RecipeGrid";
+import { VideoTimeline } from "../components/workspace/VideoTimeline";
 import { MOTION_RECIPES, recipeCostUsd, type MotionRecipe } from "../tools/fashion_reel/recipes";
 import type { KlingModel } from "../lib/api";
 import { ToolHelpButton } from "../components/ToolHelp";
@@ -9994,8 +9995,30 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
           )}
         </div>
 
-        {/* Video player */}
-        {fullVideoUrl ? (
+        {/* Editor con timeline (tools en USE_TIMELINE): reproduce los clips del paso
+            animate en orden, con el timeline abajo. El MP4 pegado queda para exportar. */}
+        {(() => {
+          if (!toolId || !USE_TIMELINE.has(toolId)) return null;
+          const raw = allSteps.find((st) => st.id === "animate")?.result as
+            | Array<{ sceneId: string; title: string; videoUrl: string; imageUrl?: string }>
+            | { variations?: Array<{ sceneId: string; title: string; videoUrl: string; imageUrl?: string }> }
+            | undefined;
+          const list = Array.isArray(raw) ? raw : raw?.variations;
+          const clips = (list || []).filter((c) => c.videoUrl).map((c) => ({
+            id: c.sceneId, title: c.title, videoUrl: c.videoUrl, imageUrl: c.imageUrl,
+          }));
+          if (!clips.length) return null;
+          return (
+            <VideoTimeline
+              clips={clips}
+              exportUrl={fullVideoUrl}
+              onExport={() => fullVideoUrl && downloadFile(fullVideoUrl, "fashion_reel.mp4")}
+            />
+          );
+        })()}
+
+        {/* Video player — el de siempre, para las tools que no usan el timeline */}
+        {toolId && USE_TIMELINE.has(toolId) ? null : fullVideoUrl ? (
           <video
             src={fullVideoUrl}
             controls
@@ -12113,6 +12136,9 @@ function InfoPill({ label, value }: { label: string; value: string }) {
 const USE_SIDE_SELECTOR = new Set<string>(["fashion_reel", "ecommerce_pack"]);
 /** Tools que ya usan recetas de movimiento. Ver docs/fashion-reel-recipes.md */
 const USE_RECIPES = new Set<string>(["fashion_reel"]);
+/** Tools donde el Render muestra el editor con timeline en vez del MP4 suelto.
+ *  Etapa 1, sólo lectura. Ver openspec/changes/shared-video-editor. */
+const USE_TIMELINE = new Set<string>(["fashion_reel"]);
 
 /** Selector de assets abierto en la columna del medio. */
 type AssetSelectorState = null | { key: string; label: string; node: React.ReactNode };

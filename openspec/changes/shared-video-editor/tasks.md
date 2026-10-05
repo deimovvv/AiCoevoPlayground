@@ -1,6 +1,9 @@
 ## 1. Sólo lectura
 
-- [ ] 1.1 Editor dentro del Render de Fashion Reel: reproductor + timeline + exportar.
+- [x] 1.1 Editor dentro del Render de Fashion Reel: reproductor + timeline + exportar.
+      `components/workspace/VideoTimeline.tsx`, encendido con `USE_TIMELINE`. El reproductor
+      reproduce los CLIPS en secuencia (no el MP4 pegado) para que recortar/reordenar se vea al
+      instante en la etapa 2. **Falta verlo en el navegador** con una corrida real.
 
 ## 2. Editar
 
