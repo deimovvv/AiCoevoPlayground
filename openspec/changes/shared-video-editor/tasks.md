@@ -21,6 +21,12 @@
 
 - [x] Refresh vuelve al editor si el Render está hecho (antes abría Shots con el form abierto).
 - [x] Notas: título, caja visible con el instante, ejemplo y qué hace cada botón.
+- [x] Prueba en el navegador (Playwright, 2026-10-06): recarga → editor, nota, recorte (4.0 → 3.5 s),
+      exportar (11.6 s exactos). Sin errores de consola. **Falta: regenerar un clip real ($0.45).**
+- [x] Bug: notas, recortes y clips regenerados NO se guardaban — el autoguardado sólo miraba qué
+      pasos tenían resultado, no su contenido. Ahora compara contenido, con debounce de 600 ms.
+- [x] Bug: abrir un run con otra marca activa le cambiaba la marca al run. Ahora se guarda con la suya.
+- [x] Exportar reintenta la descarga de clips (un corte de red de Fal daba 502).
 
 ## 3. Extender
 

@@ -41,10 +41,24 @@ async def download_file(url: str, dest: Path) -> None:
         except Exception as e:
             raise ValueError(f"Failed to decode data URI: {e}")
 
-    async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        dest.write_bytes(resp.content)
+    # Reintenta errores de red y 5xx: el editor re-exporta bajando los clips de Fal
+    # cada vez, y un corte suelto hacía fallar la exportación entera (502).
+    last_err: Optional[Exception] = None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=120) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                dest.write_bytes(resp.content)
+                return
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code < 500:
+                raise
+            last_err = e
+        except httpx.TransportError as e:
+            last_err = e
+        await asyncio.sleep(1.5 * (attempt + 1))
+    raise last_err  # type: ignore[misc]
 
 
 async def _get_duration(path: Path) -> float:

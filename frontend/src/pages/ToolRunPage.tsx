@@ -1101,15 +1101,22 @@ export function ToolRunPage() {
   // Auto-save whenever a step transitions to done/review with a result.
   // Debounced via ref to avoid firing on every partial state change.
   const lastSavedSignatureRef = useRef<string>("");
+  /** Marca dueña del run abierto con ?gen= (ver autoSaveStep.runBrandId). */
+  const [loadedGenBrandId, setLoadedGenBrandId] = useState<string | null>(null);
+  // Guardado pendiente del debounce: si la página se desmonta antes de que corra, se
+  // ejecuta igual (si no, salir justo después de terminar un paso perdía ese guardado).
+  const pendingSaveRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { pendingSaveRef.current?.(); }, []);
   useEffect(() => {
     if (!tool || !activeBrand || !started) return;
     const doneSteps = steps.filter((s) => (s.status === "done" || s.status === "review") && s.result);
     if (doneSteps.length === 0) return;
 
-    // Signature = which steps have a result (by id) → only save when new results appear
-    const signature = doneSteps.map((s) => s.id).join("|");
+    // Signature = qué pasos tienen resultado Y qué contienen. Antes era sólo los ids,
+    // así que cambiar el resultado de un paso ya hecho (notas, recortes, clips
+    // regenerados en el editor — pagos) no se guardaba y se perdía al recargar.
+    const signature = doneSteps.map((s) => s.id).join("|") + "::" + JSON.stringify(doneSteps.map((s) => s.result));
     if (signature === lastSavedSignatureRef.current) return;
-    lastSavedSignatureRef.current = signature;
 
     // Derive payload from the last completed step
     const lastStep = doneSteps[doneSteps.length - 1];
@@ -1188,12 +1195,17 @@ export function ToolRunPage() {
     const lastPipelineStep = steps[steps.length - 1];
     const isFullyDone = lastPipelineStep?.status === "done" && !!lastPipelineStep?.result;
 
+    // Debounce: una edición puede disparar varios cambios seguidos; se guarda el último.
+    const save = () => {
+    pendingSaveRef.current = null;
+    lastSavedSignatureRef.current = signature;
     autoSaveStep({
       activeBrand,
       tool,
       config,
       steps,
       curationSelections,
+      runBrandId: generationId ? loadedGenBrandId : null,
       // Persisto las tandas para que al abrir un run viejo desde /content veas
       // TODAS las imágenes generadas, no solo la última tanda.
       batches: BATCHABLE_TOOLS.has(tool.id) && batches.length > 0
@@ -1209,7 +1221,11 @@ export function ToolRunPage() {
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       },
     }).catch(() => { /* handled inside */ });
-  }, [steps, tool, activeBrand, started, config, curationSelections, batches]);
+    };
+    pendingSaveRef.current = save;
+    const timer = setTimeout(save, 600);
+    return () => clearTimeout(timer);
+  }, [steps, tool, activeBrand, started, config, curationSelections, batches, generationId, loadedGenBrandId]);
 
   // Load saved generation pipeline state if ?gen= param present
   useEffect(() => {
@@ -1218,6 +1234,11 @@ export function ToolRunPage() {
       .then((r) => { if (!r.ok) throw new Error("Not found"); return r.json(); })
       .then((gen) => {
         if (!gen.pipelineState) return;
+        // El run se sigue guardando con SU marca, aunque la activa sea otra.
+        if (gen.brandId) {
+          setLoadedGenBrandId(gen.brandId);
+          setActiveGenId(tool.id, gen.brandId, generationId);
+        }
         const { steps: savedSteps, config: savedConfig, curationSelections: savedCurations, batches: savedBatches } = gen.pipelineState;
         // Restaurar tandas — sin esto, abrir un run viejo de ecommerce_pack solo
         // mostraba la última tanda generada.

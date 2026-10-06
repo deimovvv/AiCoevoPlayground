@@ -46,6 +46,9 @@ export interface AutoSaveInput {
    *  abrir un run viejo desde /content solo muestra la última tanda — perdés
    *  el resto del catálogo. Se persiste opaco como Record[]. */
   batches?: Array<Record<string, unknown>>;
+  /** Marca dueña del run abierto con ?gen=. Si viene, se guarda con ésta y no con la
+   *  activa: antes, abrir un run de otra marca se lo reasignaba a la marca activa. */
+  runBrandId?: string | null;
   payload: AutoSavePayload;
 }
 
@@ -55,8 +58,9 @@ export interface AutoSaveInput {
  */
 export async function autoSaveStep(input: AutoSaveInput): Promise<Generation | null> {
   try {
-    const { activeBrand, tool, config, steps, curationSelections, batches, payload } = input;
-    const genId = getActiveGenId(tool.id, activeBrand.id);
+    const { activeBrand, tool, config, steps, curationSelections, batches, runBrandId, payload } = input;
+    const brandId = runBrandId || activeBrand.id;
+    const genId = getActiveGenId(tool.id, brandId);
 
     const pipelineState: Record<string, unknown> = {
       steps: steps.map((s) => ({ id: s.id, status: s.status, result: s.result })),
@@ -66,7 +70,7 @@ export async function autoSaveStep(input: AutoSaveInput): Promise<Generation | n
     if (batches && batches.length > 0) pipelineState.batches = batches;
 
     const body = {
-      brandId: activeBrand.id,
+      brandId,
       toolId: tool.id,
       title: payload.title || `${tool.name} — ${new Date().toLocaleDateString()}`,
       type: payload.type,
@@ -82,7 +86,7 @@ export async function autoSaveStep(input: AutoSaveInput): Promise<Generation | n
       return await updateGeneration(genId, body);
     }
     const created = await saveGeneration(body);
-    setActiveGenId(tool.id, activeBrand.id, created.id);
+    setActiveGenId(tool.id, brandId, created.id);
     await linkToCampaign(created.id);
     return created;
   } catch (err) {
