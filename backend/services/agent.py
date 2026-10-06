@@ -30,8 +30,7 @@ AVAILABLE_TOOLS = {
 
 def is_configured() -> bool:
     import os
-    # Dos keys de Google en el .env: GEMINI_API_KEY apunta a un proyecto
-    # bloqueado por Google. google_key() devuelve la que funciona.
+    # Key de Google de Coevo (GEMINI_API_KEY), vía llm_router. Nunca la de Monks.
     from services import llm_router
     return bool(llm_router.google_key())
 

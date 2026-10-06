@@ -258,9 +258,7 @@ export function ManualLabV2() {
     // Image params
     const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
     const [resolution, setResolution] = useState<Resolution>("2K");
-    // Default temporal: Nano Banana vía Google directo (cuenta Monks). El de Fal queda como opción.
-    // Default por Fal: la ruta directa a Google (`nano-banana-google`) devuelve 403
-    // con la GEMINI_API_KEY de esta cuenta — el proyecto tiene el acceso denegado.
+    // Imágenes siempre por Fal. Nunca Google directo con la key de Monks (eliminado 2026-10-06).
     const [model, setModel] = useState<ImageModel>("nano-banana-2");
     const [variantCount, setVariantCount] = useState<number>(1);
 

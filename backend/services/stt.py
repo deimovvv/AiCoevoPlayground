@@ -23,7 +23,7 @@ def is_configured() -> bool:
 async def transcribe(audio_bytes: bytes, mime: str = "audio/webm", language: str = "es") -> str:
     """Transcribe audio bytes to text. Returns the plain transcription."""
     if not llm_router.google_key():
-        raise RuntimeError("Falta una key de Google (NANOBANANA_API_KEY o GEMINI_API_KEY)")
+        raise RuntimeError("Falta GEMINI_API_KEY (la key de Google de Coevo)")
     if not audio_bytes:
         return ""
 

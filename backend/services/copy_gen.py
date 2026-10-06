@@ -16,8 +16,7 @@ GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 def is_configured() -> bool:
-    # Dos keys de Google en el .env: la de GEMINI_API_KEY apunta a un proyecto
-    # bloqueado. llm_router.google_key() elige la que funciona.
+    # Key de Google de Coevo (GEMINI_API_KEY), vía llm_router. Nunca la de Monks.
     return bool(llm_router.google_key())
 
 
@@ -28,7 +27,7 @@ def _gemini_url(model: str = GEMINI_MODEL) -> str:
 async def _call_gemini(system_prompt: str, user_msg: str) -> str:
     """Send a request to Gemini and return the text response."""
     if not llm_router.google_key():
-        raise RuntimeError("Falta una key de Google: agregá NANOBANANA_API_KEY (preferida) o GEMINI_API_KEY al .env")
+        raise RuntimeError("Falta GEMINI_API_KEY (la key de Google de Coevo) en el .env")
 
     # Gemini 2.5 Flash handles ~1M input tokens (~3M chars) fine. The old hard cap of 15k
     # was destroying brand context for long docs. We allow up to 200k now, and if we have

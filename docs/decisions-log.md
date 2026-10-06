@@ -26,8 +26,30 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Pose y calce | Endpoints especializados, no pelear por prompt | 2026-09 "Pose y calce" |
 | Fashion Editorial | Convertida en preset de Campañas (hecho) | 2026-09-25 |
 | Campañas | Centro del pedido: imagen adentro, video lanzando la tool | 2026-10-03 · `changes/campaigns-as-hub` |
+| Keys de Google | Sólo la de Coevo (`GEMINI_API_KEY`) o falla; nunca una de Monks | 2026-10-06 |
 
 ---
+
+## 2026-10-06 — Nunca una key de Google de Monks
+
+**Qué pasó:** `NANOBANANA_API_KEY` era la key de Pixel (proyecto de Monks). El router de
+LLMs la usaba **primero** para todo el texto con Gemini, y la ruta "Nano Banana (Google)"
+generaba imágenes con ella: el uso de Coevo se le facturó a Monks desde ~2026-09-20. Salió
+en una revisión de gasto de GCP.
+
+**Decisión del usuario:** *"No la usemos nunca, nunca, la de Monks, ni para video ni para
+imagen ni para nada. Que Gemini use la de Coevo, que use key API o fail."*
+
+**Qué se hizo:**
+- `llm_router.google_key()` devuelve sólo `GEMINI_API_KEY`; sin ella, falla.
+- Se borró `services/nanobanana_google.py` y la ruta `nano-banana-google`. Pedidos viejos
+  con ese modelo caen a Fal.
+- La línea de la key se borró del `.env` y de su backup. La key sigue en el proyecto de
+  Monks, que es donde corresponde.
+- Regla global para todos los proyectos en `~/.claude/CLAUDE.md`.
+
+**Para reconocerla:** las primeras 10 letras del sha256 de la key de Pixel son `a579640ad1`.
+Antes de usar una key de Google en un proyecto de Coevo, compararla.
 
 ## 2026-10-03 — Campañas es el centro del pedido; el video largo se hace en la tool
 

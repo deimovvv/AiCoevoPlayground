@@ -115,21 +115,20 @@ def is_configured() -> bool:
 # ── Backends ──────────────────────────────────────────────────────────────
 
 def google_key() -> str:
-    """La key de Google que se usa, en orden de preferencia.
+    """La key de Google de COEVO. Sólo GEMINI_API_KEY; si falta, falla.
 
-    Hay DOS en el .env y no son intercambiables hoy: el proyecto de
-    GEMINI_API_KEY recibio un bloqueo automatico de Google (403
-    PERMISSION_DENIED en todo lo que consume cuota), mientras que
-    NANOBANANA_API_KEY apunta a otro proyecto y funciona con los mismos
-    modelos. Verificado 2026-09-20.
+    NUNCA NANOBANANA_API_KEY ni ninguna key de Monks/Pixel: era la de Pixel y le
+    facturó a Monks el uso de Coevo (2026-09-20 → 2026-10-06). Regla del usuario,
+    2026-10-06: "nunca más de Google de Monks" — ni texto, ni imagen, ni video.
+    Ver docs/decisions-log.md.
     """
-    return _env("NANOBANANA_API_KEY") or _env("GEMINI_API_KEY")
+    return _env("GEMINI_API_KEY")
 
 
 async def _call_google(prompt: str, images, model: str, max_tokens: int, timeout: int) -> str:
     key = google_key()
     if not key:
-        raise RuntimeError("Falta NANOBANANA_API_KEY o GEMINI_API_KEY")
+        raise RuntimeError("Falta GEMINI_API_KEY (la key de Google de Coevo)")
 
     parts = [{"text": prompt}]
     for img_bytes, mime in images:
@@ -293,7 +292,7 @@ async def call_audio(prompt: str, audio_bytes: bytes, mime: str = "audio/webm",
     if not key:
         raise RuntimeError(
             "La transcripcion de audio necesita una key de Google "
-            "(NANOBANANA_API_KEY o GEMINI_API_KEY)."
+            "(GEMINI_API_KEY, la de Coevo)."
         )
     model = _env("LLM_AUDIO_MODEL", "gemini-2.5-flash")
     payload = {

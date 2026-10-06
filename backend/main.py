@@ -54,7 +54,6 @@ from services import seedance_video
 from services import flux_video
 from services import veo_video
 from services import fal_rembg
-from services import nanobanana_google
 from services import beeble_switchx
 from services import omnihuman        # talking-character audio-driven (labios), v1.5
 from services import kling_avatar     # talking-character audio-driven, económico
@@ -4686,18 +4685,9 @@ async def image_gen_edit(
                 mask_url=resolved_mask,
             )
             prefixed_id = f"gpt2:{request_id}"
-        elif model == "nano-banana-google":
-            # Nano Banana 2 vía Google directo (cuenta Monks). Sincrónico → SYNC:<url>.
-            if not nanobanana_google.is_configured():
-                raise HTTPException(status_code=500, detail="NANOBANANA_API_KEY no configurada")
-            request_id = await nanobanana_google.create_edit(
-                image_urls=resolved_urls,
-                prompt=prompt,
-                aspect_ratio=aspect_ratio,
-                resolution=resolution,
-            )
-            prefixed_id = f"gg:{request_id}"
         else:
+            # "nano-banana-google" (Google directo con la key de Monks) se eliminó el
+            # 2026-10-06: configs viejas que lo pidan caen acá, por Fal.
             request_id = await image_gen.create_edit(
                 image_urls=resolved_urls,
                 prompt=prompt,
@@ -4741,16 +4731,8 @@ async def image_gen_text_to_image(
                 aspect_ratio=aspect_ratio,
             )
             prefixed_id = f"gpt2:{request_id}"
-        elif model == "nano-banana-google":
-            if not nanobanana_google.is_configured():
-                raise HTTPException(status_code=500, detail="NANOBANANA_API_KEY no configurada")
-            request_id = await nanobanana_google.create_text_to_image(
-                prompt=prompt,
-                aspect_ratio=aspect_ratio,
-                resolution=resolution,
-            )
-            prefixed_id = f"gg:{request_id}"
         else:
+            # "nano-banana-google" se eliminó (key de Monks): cae acá, por Fal.
             request_id = await image_gen.create_text_to_image(
                 prompt=prompt,
                 aspect_ratio=aspect_ratio,
@@ -4771,8 +4753,6 @@ def _resolve_image_service(request_id: str):
     """Return (service_module, stripped_request_id) based on prefix."""
     if request_id.startswith("gpt2:"):
         return gpt_image_gen, request_id[len("gpt2:"):]
-    if request_id.startswith("gg:"):
-        return nanobanana_google, request_id[len("gg:"):]
     return image_gen, request_id
 
 

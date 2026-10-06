@@ -34,8 +34,7 @@ buscar si ya hay un change; si no, proponerlo ahí primero.
 - **Una tool se registra en dos lados:** `frontend/src/tools/registry.ts` (handlers y
   `approvalSteps`) y `backend/tools/registry.json` (orden de pasos y `hidden`).
 - **Todo HTTP pasa por `frontend/src/lib/api.ts`.** Nada de `fetch()` suelto.
-- **LLMs:** pasan por `backend/services/llm_router.py`, que prefiere `NANOBANANA_API_KEY` y cae a
-  `GEMINI_API_KEY`. Las dos generan texto OK (verificado 2026-10-03; el 403 de sept. ya no está).
+- **LLMs:** pasan por `backend/services/llm_router.py` con **`GEMINI_API_KEY` (la de Coevo) o fallan**.
 - **Seedance va siempre por kie.ai** (`KIE_API_KEY`), nunca por Fal: `services/seedance_video.py`.
 - **Patrón de pantalla compartido:** `components/workspace/` (`SelectorPanel`, `SelectorTrigger`,
   `RecipeGrid`). Los selectores abren al costado, nunca hacia abajo.
@@ -45,6 +44,8 @@ buscar si ya hay un change; si no, proponerlo ahí primero.
 ## Reglas duras
 
 - **Nunca commitear ni imprimir `backend/.env`** ni ninguna key.
+- **Nunca una key de Google de Monks/Pixel** (`NANOBANANA_API_KEY` era la de Pixel): ni texto, ni
+  imagen, ni video. Google sólo con `GEMINI_API_KEY` de Coevo; imagen por Fal; Seedance por kie.
 - `backend/data/` son **datos reales de clientes** (JSON, sin base de datos). Backup antes de migrar.
 - Hooks de React **antes** de cualquier `return` condicional.
 - **Ciclos de import = pantalla negra en dev.** El build los esconde (reordena); el dev server

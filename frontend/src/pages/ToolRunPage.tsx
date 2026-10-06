@@ -469,8 +469,7 @@ interface ToolConfig {
   /** Género del modelo (Ecommerce Pack) → habilita el set de poses correcto (femenino/masculino).
    *  "female" | "male". Default "female". */
   ecomGender?: string;
-  /** Proveedor del modelo de imagen (Ecommerce Pack). "nano-banana-google" (Google directo,
-   *  cuenta Monks — default temporal) | "nano-banana-2" (Fal). */
+  /** Modelo de imagen (Ecommerce Pack). "nano-banana-2" (Fal). Google directo se eliminó: usaba la key de Monks. */
   ecomImageModel?: string;
   /** Pose en 1 paso (Ecommerce Pack): compone identidad+pose+prendas en una sola call en vez
    *  del 2-pasos (vestir → transferir). Default false (2 pasos). */
@@ -4563,8 +4562,7 @@ function ConfigPanel({
             ))}
           </div>
 
-          {/* Proveedor del modelo de imagen — selector temporal (Google directo vs Fal).
-              Default Google (cuenta Monks). El de Fal queda como opción, no se borró nada. */}
+          {/* Modelo de imagen. Sólo Fal: Google directo usaba la key de Monks y se eliminó (2026-10-06). */}
           <ModelDropdown
             label="Modelo de imagen"
             value={config.ecomImageModel || "nano-banana-2"}

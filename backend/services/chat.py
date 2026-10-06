@@ -21,8 +21,7 @@ GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 def is_configured() -> bool:
-    # Dos keys de Google en el .env: la de GEMINI_API_KEY apunta a un proyecto
-    # bloqueado. llm_router.google_key() elige la que funciona.
+    # Key de Google de Coevo (GEMINI_API_KEY), vía llm_router. Nunca la de Monks.
     return bool(llm_router.google_key())
 
 
@@ -68,7 +67,7 @@ async def chat(
     Returns the assistant's reply text.
     """
     if not llm_router.google_key():
-        raise RuntimeError("Falta una key de Google: agregá NANOBANANA_API_KEY (preferida) o GEMINI_API_KEY al .env")
+        raise RuntimeError("Falta GEMINI_API_KEY (la key de Google de Coevo) en el .env")
 
     system_prompt = build_chat_system_prompt(brand)
 

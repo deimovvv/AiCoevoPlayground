@@ -407,9 +407,10 @@ function selectGarmentPhotos(
 const handleGenerate: StepHandler = async (ctx) => {
   const { activeBrand, config } = ctx;
   const cfg = config as unknown as Record<string, unknown>;
-  // Proveedor del modelo de imagen (selector). Default temporal: Nano Banana vía Google
-  // directo (cuenta Monks). "nano-banana-2" = el de siempre por Fal. Ver ecomImageModel.
-  const imageModel = ((cfg.ecomImageModel as string) || "nano-banana-2") as ImageModel;
+  // Modelo de imagen (selector). Configs viejas con "nano-banana-google" (Google directo
+  // con la key de Monks, eliminado 2026-10-06) pasan a Fal.
+  const picked = (cfg.ecomImageModel as string) || "nano-banana-2";
+  const imageModel = (picked === "nano-banana-google" ? "nano-banana-2" : picked) as ImageModel;
   // Pose en 1 paso (toggle): en vez de vestir → transferir (2 calls), compone identidad +
   // pose + prendas en UNA sola call. Más rápido/barato. DEFAULT 1 paso (el 2-pasos cuesta el
   // doble) — solo va a 2-pasos si el flag es explícitamente false. Ver branch i===0 y 2-step.

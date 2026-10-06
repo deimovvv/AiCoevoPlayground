@@ -66,9 +66,9 @@ FRONTEND  React 19 + Vite + Tailwind v4          BACKEND  FastAPI (Python 3.9 en
 - Una tool se registra en **dos lados**: `frontend/src/tools/registry.ts` (los
   handlers y aprobaciones) y `backend/tools/registry.json` (el orden de pasos y
   `hidden`). Un paso que esté en uno y no en el otro es código muerto.
-- Las keys de Google: `llm_router.py` prefiere `NANOBANANA_API_KEY` y cae a
-  `GEMINI_API_KEY`. Las dos generan OK (verificado 2026-10-03); el 403 de
-  septiembre ya no está. `veo_video.py` usa `GEMINI_API_KEY` y ve los modelos Veo.
+- Key de Google: sólo `GEMINI_API_KEY` (proyecto de Coevo), o falla. `NANOBANANA_API_KEY`
+  y la generación de imágenes por Google directo se eliminaron el 2026-10-06: era la key de
+  Pixel (Monks). `veo_video.py` también usa `GEMINI_API_KEY`.
 
 ---
 
