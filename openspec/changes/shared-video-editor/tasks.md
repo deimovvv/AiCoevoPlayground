@@ -27,6 +27,10 @@
       pasos tenían resultado, no su contenido. Ahora compara contenido, con debounce de 600 ms.
 - [x] Bug: abrir un run con otra marca activa le cambiaba la marca al run. Ahora se guarda con la suya.
 - [x] Exportar reintenta la descarga de clips (un corte de red de Fal daba 502).
+- [x] Exportar guarda el video editado como el del run (Contenido muestra ése); el original queda
+      en `originalVideoUrl`.
+- [x] Marca del run (`lib/RunBrandContext.tsx`): regenerar, "regla de la marca" y autoguardar usan
+      la marca DUEÑA del run, no la activa. Probado con Koxis activa sobre un run de Geely.
 
 ## 3. Extender
 

@@ -85,6 +85,7 @@ import { greenScreenPrompt, compositePrompt, compositeOnPhotoPrompt } from "../t
 import { posterPrompt, subwayScenePrompt, foohCompositePrompt } from "../tools/fooh_subway";
 import { TOOL_EXAMPLES, TOOL_PREVIEW_MEDIA, type ToolExample } from "../lib/toolPreviews";
 import { autoSaveStep, setActiveGenId, clearActiveGen } from "../tools/shared/autoSave";
+import { RunBrandContext, useRunBrand } from "../lib/RunBrandContext";
 
 // ── Audio compartido ───────────────────────────────────────
 // Un solo <audio> para toda la página: tocar Play para el que sonaba (no se
@@ -941,7 +942,7 @@ export function ToolRunPage() {
   const generationId = searchParams.get("gen");
   const handoffKey = searchParams.get("handoff");
   const autoStartFromUrl = searchParams.get("autoStart") === "1";
-  const { activeBrand } = useBrand();
+  const { activeBrand, brands } = useBrand();
   const [tool, setTool] = useState<ToolEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [steps, setSteps] = useState<StepState[]>([]);
@@ -975,6 +976,7 @@ export function ToolRunPage() {
   // el contenido/config de abajo siguen siendo de ESTA marca, no de la nueva.
   const [runBrand, setRunBrand] = useState<{ id: string; name: string } | null>(null);
   const [mismatchDismissedFor, setMismatchDismissedFor] = useState<string | null>(null);
+  const runBrandObj = runBrand ? (brands.find((b) => b.id === runBrand.id) || null) : null;
   // Set when an agent/URL hand-off requests auto-start. A dedicated effect picks this
   // up and runs step 0 — done in an effect (not inline) so handleRunStep executes with
   // the just-applied config instead of the stale closure from the hand-off effect.
@@ -1045,7 +1047,8 @@ export function ToolRunPage() {
   // por tool".
   useEffect(() => { setBatches([]); setNewBatchPending(false); }, [toolId]);
   // Captura la marca de la corrida al arrancar (started false→true con marca presente);
-  // la limpia al resetear. Un solo lugar cubre handleStart, mock y load de generación.
+  // la limpia al resetear. Cubre handleStart y mock; el load de una generación la fija
+  // antes con la marca GUARDADA del run (no la activa), así que acá no se pisa.
   useEffect(() => {
     if (started && activeBrand && !runBrand) setRunBrand({ id: activeBrand.id, name: activeBrand.name });
     else if (!started && runBrand) setRunBrand(null);
@@ -1101,8 +1104,6 @@ export function ToolRunPage() {
   // Auto-save whenever a step transitions to done/review with a result.
   // Debounced via ref to avoid firing on every partial state change.
   const lastSavedSignatureRef = useRef<string>("");
-  /** Marca dueña del run abierto con ?gen= (ver autoSaveStep.runBrandId). */
-  const [loadedGenBrandId, setLoadedGenBrandId] = useState<string | null>(null);
   // Guardado pendiente del debounce: si la página se desmonta antes de que corra, se
   // ejecuta igual (si no, salir justo después de terminar un paso perdía ese guardado).
   const pendingSaveRef = useRef<(() => void) | null>(null);
@@ -1205,7 +1206,7 @@ export function ToolRunPage() {
       config,
       steps,
       curationSelections,
-      runBrandId: generationId ? loadedGenBrandId : null,
+      runBrandId: runBrand?.id ?? null,
       // Persisto las tandas para que al abrir un run viejo desde /content veas
       // TODAS las imágenes generadas, no solo la última tanda.
       batches: BATCHABLE_TOOLS.has(tool.id) && batches.length > 0
@@ -1225,7 +1226,7 @@ export function ToolRunPage() {
     pendingSaveRef.current = save;
     const timer = setTimeout(save, 600);
     return () => clearTimeout(timer);
-  }, [steps, tool, activeBrand, started, config, curationSelections, batches, generationId, loadedGenBrandId]);
+  }, [steps, tool, activeBrand, started, config, curationSelections, batches, runBrand]);
 
   // Load saved generation pipeline state if ?gen= param present
   useEffect(() => {
@@ -1236,7 +1237,7 @@ export function ToolRunPage() {
         if (!gen.pipelineState) return;
         // El run se sigue guardando con SU marca, aunque la activa sea otra.
         if (gen.brandId) {
-          setLoadedGenBrandId(gen.brandId);
+          setRunBrand({ id: gen.brandId, name: gen.brandId });
           setActiveGenId(tool.id, gen.brandId, generationId);
         }
         const { steps: savedSteps, config: savedConfig, curationSelections: savedCurations, batches: savedBatches } = gen.pipelineState;
@@ -2775,7 +2776,7 @@ export function ToolRunPage() {
         <div className="flex items-center gap-3 px-5 py-2 bg-[var(--color-error)]/10 border-b border-[var(--color-error)]/30 text-[12px] shrink-0">
           <AlertCircle size={13} className="text-[var(--color-error)] shrink-0" />
           <span className="text-fg flex-1 min-w-0">
-            Esta corrida es de <strong>{runBrand.name}</strong>, pero cambiaste a <strong>{activeBrand.name}</strong>. El contenido y la config de abajo siguen siendo de {runBrand.name}.
+            Esta corrida es de <strong>{runBrandObj?.name || runBrand.name}</strong>, pero cambiaste a <strong>{activeBrand.name}</strong>. El contenido y la config de abajo siguen siendo de {runBrandObj?.name || runBrand.name}.
           </span>
           <button
             onClick={resetForNewBrand}
@@ -3228,6 +3229,7 @@ export function ToolRunPage() {
               })()
               )
             ) : (
+              <RunBrandContext.Provider value={runBrandObj || activeBrand}>
               <StepPanel
                 tool={tool}
                 step={steps[activeStep]}
@@ -3275,6 +3277,7 @@ export function ToolRunPage() {
                   ));
                 }) : undefined}
               />
+              </RunBrandContext.Provider>
             )}
           </div>
         </main>
@@ -8076,6 +8079,9 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
 }) {
   const meta = STEP_META[stepId];
   const { activeBrand, refreshBrands } = useBrand();
+  // El editor actúa sobre el contenido del run: usa SU marca, no la activa.
+  const runBrandCtx = useRunBrand();
+  const brandForRun = runBrandCtx || activeBrand;
   // Escritura segura del resultado del Render. Recortes, comentarios y el reinicio de
   // recorte al regenerar escriben ahí, a veces casi juntos: cada escritura FUSIONA
   // sobre la última versión (no sobre una copia vieja), así ninguna pisa a otra.
@@ -10106,7 +10112,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                 if (!it?.imageUrl || !config) throw new Error("No encontré el frame de este clip para regenerarlo.");
                 const sc = scriptScenes.find((x) => x.id === clipId);
                 const { videoUrl } = await regenerateSceneClip({
-                  activeBrand: activeBrand as never, config: config as never,
+                  activeBrand: brandForRun as never, config: config as never,
                   imageUrl: it.imageUrl, note: sc?.note, shotId: sc?.shotId, direction, durationSec,
                 });
                 // La versión anterior NO se pierde: queda en history, para volver.
@@ -10120,8 +10126,8 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                 return { ...x, videoUrl: prev, history: h };
               }))}
               onSaveRule={async (text) => {
-                if (!activeBrand) return;
-                await applyArtDirectionRule(activeBrand.id, "motion_rules", text);
+                if (!brandForRun) return;
+                await applyArtDirectionRule(brandForRun.id, "motion_rules", text);
                 await refreshBrands?.();
               }}
               onExport={async (edits, edited) => {
@@ -10133,6 +10139,16 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                   [], false, "none", undefined,
                   edits.map((e) => ({ start: e.start, end: e.end })),
                 );
+                // El exportado pasa a ser el video del run (Contenido muestra éste). El
+                // original no se pierde: queda en originalVideoUrl.
+                const prev = result as { videoUrl?: string; originalVideoUrl?: string };
+                writeRender({
+                  videoUrl: r.video_url,
+                  totalDuration: `${r.duration.toFixed(1)}s`,
+                  scenes: edits.length,
+                  originalVideoUrl: prev.originalVideoUrl || prev.videoUrl,
+                  exportedAt: new Date().toISOString(),
+                });
                 downloadFile(`http://127.0.0.1:8000${r.video_url}`, "fashion_reel_editado.mp4");
               }}
             />
