@@ -38,7 +38,7 @@ import {
   Mountain,
   ChevronDown,
   GripVertical,
-  Trash2,
+  Trash2, SlidersHorizontal,
 } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
@@ -954,6 +954,17 @@ export function ToolRunPage() {
    * AL LADO empujando el canvas, no hacia abajo dentro del panel de config.
    */
   const [assetSelector, setAssetSelector] = useState<AssetSelectorState>(null);
+  /** El formulario se repliega en el editor: ya se generó, ahora se edita. Sólo hace
+   *  falta para generar otra vez, y mientras tanto le quitaba un tercio de pantalla al
+   *  editor. Pedido del usuario: "el form una vez que ya se generó, ¿tiene sentido?". */
+  const [configCollapsed, setConfigCollapsed] = useState(false);
+  // Al llegar al editor (Render hecho de una tool con timeline), el formulario se
+  // repliega solo. El usuario lo vuelve a abrir con la barra de la izquierda.
+  const editorStepId = steps[activeStep]?.id;
+  const editorStepDone = steps[activeStep]?.status === "done";
+  useEffect(() => {
+    if (tool && USE_TIMELINE.has(tool.id) && editorStepId === "render" && editorStepDone) setConfigCollapsed(true);
+  }, [tool, editorStepId, editorStepDone]);
 
   /** Receta de movimiento activa (Fashion Reel). Cuando hay una, el panel muestra
    *  SÓLO los inputs que ella declara — el resto se oculta.
@@ -2757,8 +2768,19 @@ export function ToolRunPage() {
              Todo lo que ConfigPanel mostraba antes en el "main content" cuando
              !started. Ahora se ve siempre — incluso después de empezar, podés
              ajustar config y re-correr steps. Footer sticky con Generar/Validar. */}
+        {configCollapsed && (
+          <aside className="w-12 shrink-0 border-r border-edge flex flex-col items-center pt-4 gap-3">
+            <button
+              onClick={() => setConfigCollapsed(false)}
+              title="Ajustar y generar otra vez"
+              className="w-8 h-8 rounded-[var(--radius-sm)] flex items-center justify-center text-fg-muted hover:text-fg hover:bg-surface-2 cursor-pointer"
+            >
+              <SlidersHorizontal size={15} />
+            </button>
+          </aside>
+        )}
         <aside
-          className="w-[440px] shrink-0 border-r border-edge flex flex-col"
+          className={cn("w-[440px] shrink-0 border-r border-edge flex flex-col", configCollapsed && "hidden")}
           style={{ background: "linear-gradient(to bottom, var(--color-surface-0), var(--color-canvas) 90%)" }}
         >
           {/* Form bloqueado: durante la generación (mockRunning) O ya cuando el
@@ -7249,11 +7271,15 @@ function StepPanel({
   };
   const { activeBrand } = useBrand();
   const [showResetModal, setShowResetModal] = useState(false);
+  // Modo editor: el Render de una tool con timeline, ya hecho. El editor es la mesa de
+  // trabajo — sin tarjeta ni encabezado de paso alrededor, que lo achicaban y le
+  // sumaban dos títulos ("Step 5: Render" + "Video final renderizado").
+  const editorMode = USE_TIMELINE.has(tool.id) && step.id === "render" && step.status === "done";
 
   return (
-    <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] overflow-hidden">
+    <div className={editorMode ? "" : "bg-surface-1 border border-edge rounded-[var(--radius-md)] overflow-hidden"}>
       {/* Step header */}
-      <div className="px-5 py-4 border-b border-edge flex items-center justify-between">
+      <div className={cn("px-5 py-4 border-b border-edge flex items-center justify-between", editorMode && "hidden")}>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-surface-2 flex items-center justify-center text-fg-muted">
             {meta.icon}
@@ -9999,7 +10025,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
 
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-2 mb-2">
+        <div className={cn("flex items-center gap-2 mb-2", toolId && USE_TIMELINE.has(toolId) && "hidden")}>
           <Check size={14} className="text-[var(--color-success)]" />
           <span className="text-[13px] font-medium text-fg">Video final renderizado</span>
           {info.subtitleEngine && (

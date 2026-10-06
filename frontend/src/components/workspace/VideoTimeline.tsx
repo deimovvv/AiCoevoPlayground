@@ -463,7 +463,7 @@ export function VideoTimeline({
                     onEnded={next}
                     onClick={togglePlay}
                     playsInline
-                    className="h-[46vh] max-h-[520px] aspect-[9/16] object-contain rounded-[var(--radius-md)] border border-edge bg-black cursor-pointer"
+                    className="h-[58vh] max-h-[640px] aspect-[9/16] object-contain rounded-[var(--radius-md)] bg-black cursor-pointer"
                 />
                 {busy && cur && busy === cur.clipId && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -475,7 +475,7 @@ export function VideoTimeline({
             </div>
 
             {onCommentsChange && (
-                <aside className="w-[280px] shrink-0 flex flex-col gap-3 max-h-[52vh]">
+                <aside className="w-[264px] shrink-0 flex flex-col gap-4 self-stretch border-l border-edge pl-5">
                     {/* Comentar en el instante actual */}
                     <div className="space-y-2">
                         <div className="flex items-center gap-1.5 text-[11px] text-fg-muted">
@@ -487,51 +487,50 @@ export function VideoTimeline({
                             value={draft}
                             onChange={(e) => setDraft(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addComment(false); } }}
-                            rows={3}
-                            placeholder="Qué cambiar en este momento. Ej: se le deforma la mano, menos movimiento."
-                            className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-[var(--color-edge-focus)] resize-none"
+                            rows={2}
+                            placeholder="Qué cambiar en este momento…"
+                            className="w-full bg-transparent border-0 border-b border-edge px-0 py-1.5 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-fg/40 resize-none"
                         />
                         <div className="flex items-center gap-1.5">
                             <button onClick={() => addComment(false)} disabled={!draft.trim()}
-                                className="h-7 px-2.5 rounded-[var(--radius-sm)] text-[11px] text-fg-muted border border-edge hover:text-fg disabled:opacity-40 cursor-pointer">
+                                className="h-7 px-1 text-[11px] text-fg-muted hover:text-fg disabled:opacity-30 cursor-pointer">
                                 Anotar
                             </button>
+                            <span className="flex-1" />
                             {onRegenerate && (
                                 <button onClick={() => addComment(true)} disabled={!draft.trim() || !!busy}
                                     title="Vuelve a animar SÓLO este clip con tu indicación. El resto no se toca."
-                                    className="flex-1 flex items-center justify-center gap-1.5 h-7 px-2.5 rounded-[var(--radius-sm)] text-[11px] bg-surface-2 text-fg hover:bg-surface-3 disabled:opacity-40 cursor-pointer">
+                                    className="flex items-center gap-1.5 h-7 px-1 text-[11px] text-fg hover:opacity-70 disabled:opacity-30 cursor-pointer">
                                     <Sparkles size={11} />
                                     Regenerar este clip{regenCost != null ? ` · $${regenCost.toFixed(2)}` : ""}
                                 </button>
                             )}
                         </div>
                         {onRegenerate && durationOptions && durationOptions.length > 0 && (
-                            <label className="flex items-center gap-2 text-[10px] text-fg-faint">
-                                Duración del clip nuevo
+                            <label className="flex items-center gap-2 text-[10px] text-fg-faint" title="Más largo que el actual = alargar el clip">
+                                Duración
                                 <select value={regenSecs || String(Math.round(curDur) || durationOptions[0])}
                                     onChange={(e) => setRegenSecs(e.target.value)}
                                     className="h-6 bg-surface-1 border border-edge rounded-[var(--radius-xs)] text-[10px] text-fg px-1.5 outline-none">
                                     {durationOptions.map((d) => <option key={d} value={d}>{d} s</option>)}
                                 </select>
-                                <span className="text-fg-faint">— más largo = alargar</span>
                             </label>
                         )}
                         {regenError && <p className="text-[10px] text-[var(--color-error)] leading-snug">{regenError}</p>}
                     </div>
 
                     {/* Lista */}
-                    <div className="flex-1 overflow-y-auto space-y-1.5 border-t border-edge pt-2.5">
+                    <div className="flex-1 overflow-y-auto divide-y divide-edge">
                         {comments.length === 0 && (
                             <p className="text-[11px] text-fg-faint leading-relaxed">
-                                Pausá donde algo no está bien y escribí qué cambiar. Podés regenerar sólo ese clip,
-                                o guardar el comentario como regla de la marca para que no se repita.
+                                Pausá donde algo no está bien y escribí qué cambiar.
                             </p>
                         )}
                         {[...comments].reverse().map((c) => {
                             const g = commentGlobal(c);
                             const clip = byId[c.clipId];
                             return (
-                                <div key={c.id} className="group rounded-[var(--radius-sm)] border border-edge p-2 space-y-1.5">
+                                <div key={c.id} className="group py-2.5 space-y-1.5">
                                     <div className="flex items-center gap-1.5 text-[10px]">
                                         <button onClick={() => g != null && seekTo(g)} disabled={g == null}
                                             className="tabular-nums text-fg-muted hover:text-fg cursor-pointer disabled:cursor-default">
@@ -550,7 +549,7 @@ export function VideoTimeline({
                                     <div className="flex items-center gap-1">
                                         {onRegenerate && clip && (
                                             <button onClick={() => regenerate(c)} disabled={!!busy}
-                                                className="flex items-center gap-1 h-6 px-2 rounded-[var(--radius-xs)] text-[10px] text-fg-muted border border-edge hover:text-fg disabled:opacity-40 cursor-pointer">
+                                                className="flex items-center gap-1 h-5 pr-2 text-[10px] text-fg-faint hover:text-fg disabled:opacity-40 cursor-pointer">
                                                 {busy === c.clipId ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
                                                 {busy === c.clipId ? "Regenerando…" : "Regenerar"}
                                             </button>
@@ -558,7 +557,7 @@ export function VideoTimeline({
                                         {onSaveRule && c.status !== "rule" && (
                                             <button onClick={() => saveRule(c)} disabled={savingRule === c.id}
                                                 title="Suma este comentario a las reglas de movimiento de la marca: lo leen TODOS sus próximos videos."
-                                                className="flex items-center gap-1 h-6 px-2 rounded-[var(--radius-xs)] text-[10px] text-fg-muted border border-edge hover:text-fg disabled:opacity-40 cursor-pointer">
+                                                className="flex items-center gap-1 h-5 pr-2 text-[10px] text-fg-faint hover:text-fg disabled:opacity-40 cursor-pointer">
                                                 {savingRule === c.id ? <Loader2 size={10} className="animate-spin" /> : <BookmarkPlus size={10} />}
                                                 Regla de la marca
                                             </button>
