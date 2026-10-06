@@ -1236,13 +1236,22 @@ export function ToolRunPage() {
               : "pending") as StepStatus,
             result: s.result,
           })));
-          // Start at multishot/curation if it has a result — that's the natural editing entry point.
-          // Fall back to the last step with a result otherwise.
+          // Si el Render ya está hecho y la tool tiene editor, se vuelve al editor: es
+          // donde estaba el usuario (antes un refresh lo mandaba a Shots con el form abierto).
+          // Si no, se arranca en multishot/curation — el punto natural de edición — o en
+          // el último paso con resultado.
+          const renderIdx = savedSteps.findIndex((s: { id: string; result?: unknown }) =>
+            s.id === "render" && s.result
+          );
           const multishotIdx = savedSteps.findIndex((s: { id: string; result?: unknown }) =>
             REVIEW_ON_RESTORE.has(s.id) && s.result
           );
           const lastDone = savedSteps.reduce((acc: number, s: { result?: unknown }, i: number) => s.result ? i : acc, 0);
-          setActiveStep(multishotIdx >= 0 ? multishotIdx : lastDone);
+          setActiveStep(
+            USE_TIMELINE.has(tool.id) && renderIdx >= 0 ? renderIdx
+              : multishotIdx >= 0 ? multishotIdx
+              : lastDone,
+          );
           setStarted(true);
         }
         if (savedConfig) {

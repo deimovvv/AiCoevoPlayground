@@ -17,6 +17,11 @@
       en Kling y Seedance. **Falta probarlo en el navegador con una regeneración real (cuesta).**
 - [x] 2.4 "Guardar como regla de la marca" → `brand.designSystem.motion_rules` (design.md §2).
 
+## 2b. Pulido (2026-10-06)
+
+- [x] Refresh vuelve al editor si el Render está hecho (antes abría Shots con el form abierto).
+- [x] Notas: título, caja visible con el instante, ejemplo y qué hace cada botón.
+
 ## 3. Extender
 
 - [ ] 3.1 Las otras 3 tools de video.
@@ -25,7 +30,11 @@
 ## 4. Segunda etapa (del antecedente §12)
 
 - [ ] 4.1 Overlay de música (pista, volumen, fade).
-- [ ] 4.2 Editor de subtítulos (texto, timing, estilo).
+- [ ] 4.2 Capa de texto manual: pista "Texto" con bloques (inicio/fin, texto, posición, estilo
+      de la marca). Vista previa como HTML encima del reproductor; se graba al exportar
+      (Remotion, que ya graba subtítulos). Incluye subtítulos (design.md §7, nivel 1).
+- [ ] 4.2b "Animar con IA": Sonnet/Opus 5.5 escribe la composición HTML de gráficos con el
+      design system de la marca; se corrige con las notas. Probar HyperFrames acá (design.md §7, nivel 2).
 - [ ] 4.3 Elegir el frame de portada.
 - [ ] 4.4 Control de calidad post-export: 3 frames, cara tapada / texto cortado (design.md §4).
 - [ ] 4.5 Corte automático de talking heads con aprobación del texto antes de cortar (design.md §3).

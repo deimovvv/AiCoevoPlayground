@@ -478,19 +478,27 @@ export function VideoTimeline({
                 <aside className="w-[264px] shrink-0 flex flex-col gap-4 self-stretch border-l border-edge pl-5">
                     {/* Comentar en el instante actual */}
                     <div className="space-y-2">
-                        <div className="flex items-center gap-1.5 text-[11px] text-fg-muted">
-                            <MessageSquare size={12} />
-                            <span className="tabular-nums">{fmt(globalTime)}</span>
-                            <span className="text-fg-faint truncate">· {activeClip ? cleanTitle(activeClip.title) : ""}</span>
+                        <div className="flex items-center gap-1.5">
+                            <MessageSquare size={12} className="text-fg-muted" />
+                            <span className="text-[12px] font-medium text-fg">Notas</span>
                         </div>
-                        <textarea
-                            value={draft}
-                            onChange={(e) => setDraft(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addComment(false); } }}
-                            rows={2}
-                            placeholder="Qué cambiar en este momento…"
-                            className="w-full bg-transparent border-0 border-b border-edge px-0 py-1.5 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-fg/40 resize-none"
-                        />
+                        <p className="text-[11px] text-fg-faint leading-snug">
+                            Pausá donde algo no está bien y escribí qué cambiar. La nota queda en ese instante.
+                        </p>
+                        <div className="rounded-[var(--radius-sm)] border border-edge bg-surface-1 focus-within:border-fg/40 transition-colors">
+                            <div className="flex items-center gap-1.5 px-2.5 pt-2 text-[10px] text-fg-muted">
+                                <span className="tabular-nums">En {fmt(globalTime)}</span>
+                                <span className="text-fg-faint truncate">· {activeClip ? cleanTitle(activeClip.title) : ""}</span>
+                            </div>
+                            <textarea
+                                value={draft}
+                                onChange={(e) => setDraft(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addComment(false); } }}
+                                rows={3}
+                                placeholder="Ej.: que gire más lento, sin mover la cámara"
+                                className="w-full bg-transparent border-0 px-2.5 py-1.5 text-[12px] text-fg placeholder:text-fg-faint outline-none resize-none"
+                            />
+                        </div>
                         <div className="flex items-center gap-1.5">
                             <button onClick={() => addComment(false)} disabled={!draft.trim()}
                                 className="h-7 px-1 text-[11px] text-fg-muted hover:text-fg disabled:opacity-30 cursor-pointer">
@@ -516,14 +524,19 @@ export function VideoTimeline({
                                 </select>
                             </label>
                         )}
+                        {onRegenerate && (
+                            <p className="text-[10px] text-fg-faint leading-snug">
+                                Anotar la guarda para después. Regenerar vuelve a animar sólo este clip con tu nota.
+                            </p>
+                        )}
                         {regenError && <p className="text-[10px] text-[var(--color-error)] leading-snug">{regenError}</p>}
                     </div>
 
                     {/* Lista */}
                     <div className="flex-1 overflow-y-auto divide-y divide-edge">
                         {comments.length === 0 && (
-                            <p className="text-[11px] text-fg-faint leading-relaxed">
-                                Pausá donde algo no está bien y escribí qué cambiar.
+                            <p className="pt-3 text-[11px] text-fg-faint leading-relaxed">
+                                Todavía no hay notas.
                             </p>
                         )}
                         {[...comments].reverse().map((c) => {
