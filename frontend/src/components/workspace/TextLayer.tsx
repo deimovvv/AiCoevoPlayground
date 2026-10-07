@@ -18,7 +18,7 @@
  * animación viven en textLayerModel.ts.
  */
 import type { CSSProperties } from "react";
-import { DESIGN_W, MAX_TEXT_W, blockMotion, type TextBlock, type TextStyleId, type TextPosition, type TextTheme } from "./textLayerModel";
+import { DESIGN_W, MAX_TEXT_W, blockMotion, type PlacedText, type TextStyleId, type TextPosition, type TextTheme } from "./textLayerModel";
 
 function baseSize(style: TextStyleId): number {
     return { titulo: 92, subtitulo: 58, prenda: 66, precio: 104, cta: 50 }[style];
@@ -31,7 +31,7 @@ function fitSize(text: string, style: TextStyleId): number {
     return Math.max(34, Math.min(base, MAX_TEXT_W / (longest * 0.58)));
 }
 
-function blockStyle(b: TextBlock, theme: TextTheme): CSSProperties {
+function blockStyle(b: PlacedText, theme: TextTheme): CSSProperties {
     const size = fitSize(b.text, b.style);
     const dark = b.tone === "dark";
     const ink = dark ? "#111111" : "#ffffff";
@@ -63,7 +63,7 @@ const POS: Record<TextPosition, CSSProperties> = {
  * en píxeles del contenedor (para escalar desde el cuadro de diseño de 1080).
  */
 export function TextLayer({ blocks, t, theme, width, height, selectedId }: {
-    blocks: TextBlock[];
+    blocks: PlacedText[];
     t: number;
     theme: TextTheme;
     width: number;

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, SkipBack, Download, Loader2, X, RotateCcw, MessageSquare, Sparkles, BookmarkPlus, Undo2, Type, Trash2 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { TextLayer } from "./TextLayer";
-import { TEXT_STYLES, TEXT_POSITIONS, type TextBlock, type TextStyleId, type TextPosition, type TextTheme } from "./textLayerModel";
+import { TEXT_STYLES, TEXT_POSITIONS, placeTexts, anchorAt, normalizeText, isLegacyText, type TextBlock, type PlacedText, type Placement, type TextAnchor, type TextStyleId, type TextPosition, type TextTheme } from "./textLayerModel";
 
 /**
  * VideoTimeline — el editor de video.
@@ -150,8 +150,8 @@ export function VideoTimeline({
     /** Se llama al SOLTAR cada cambio (no en cada movimiento): para persistir. */
     onEditsCommit?: (edits: TimelineEdit[]) => void;
     /** Exportar. `edited` = false si no hubo cambios (se puede bajar el MP4 existente).
-     *  `texts` = la capa de texto a grabar encima (vacía = sin textos). */
-    onExport?: (edits: TimelineEdit[], edited: boolean, texts: TextBlock[]) => Promise<void> | void;
+     *  `texts` = los textos ya UBICADOS en el video armado (sólo los que se ven). */
+    onExport?: (edits: TimelineEdit[], edited: boolean, texts: PlacedText[]) => Promise<void> | void;
 
     // ── Etapa 3: comentar y regenerar ──
     comments?: TimelineComment[];
@@ -381,7 +381,7 @@ export function VideoTimeline({
     const doExport = async () => {
         if (!onExport) return;
         setExporting(true);
-        try { await onExport(edits, edited, textBlocks); } finally { setExporting(false); }
+        try { await onExport(edits, edited, visibleTexts); } finally { setExporting(false); }
     };
 
     // ── Comentar y regenerar (etapa 3) ──
@@ -445,35 +445,69 @@ export function VideoTimeline({
     };
 
     // ── Capa de texto ──
-    const texts = textBlocks;
+    // Los textos se guardan ANCLADOS (a un clip, al inicio o al final: textLayerModel.ts) y
+    // se ubican en el video armado cada vez. Así respetan los tiempos aunque se recorte,
+    // reordene o quite un clip.
+    const texts = useMemo(() => textBlocks.map(normalizeText), [textBlocks]);
     const [selText, setSelText] = useState<string | null>(null);
-    const sel = texts.find((b) => b.id === selText) || null;
     const setTexts = (n: TextBlock[]) => onTextBlocksChange?.(n);
+    // Textos de antes de las anclas (segundos sueltos): se atan UNA vez al clip que tienen
+    // debajo, con el orden actual, y se guarda. Desde ahí siguen a su clip.
+    const migrated = useRef(false);
+    useEffect(() => {
+        if (migrated.current || !ready || !edits.length || !onTextBlocksChange) return;
+        if (!textBlocks.some(isLegacyText)) return;
+        migrated.current = true;
+        onTextBlocksChange(textBlocks.map((raw) => {
+            if (!isLegacyText(raw)) return normalizeText(raw);
+            const old = raw as unknown as { start: number; end: number };
+            return anchorAt(normalizeText(raw), "clip", old.start, old.end, edits);
+        }));
+    }, [ready, edits, textBlocks, onTextBlocksChange]);
     const patchText = (id: string, patch: Partial<TextBlock>) => setTexts(texts.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+
+    // Mientras se arrastra, la barra sigue al mouse; al soltar se vuelve a anclar.
+    const [dragPos, setDragPos] = useState<{ id: string; start: number; end: number } | null>(null);
+    const placements: Placement[] = useMemo(() => placeTexts(texts, edits).map((p) =>
+        dragPos && p.placed && p.block.id === dragPos.id
+            ? { ...p, placed: { ...p.placed, start: dragPos.start, end: dragPos.end }, state: "ok" as const } : p,
+    ), [texts, edits, dragPos]);
+    const visibleTexts = placements.filter((p) => p.placed).map((p) => p.placed!);
+    const hiddenTexts = placements.filter((p) => !p.placed);
+    const sel = texts.find((b) => b.id === selText) || null;
+    const selPl = placements.find((p) => p.block.id === selText) || null;
+
     const addText = (style: TextStyleId = "titulo") => {
         const def = TEXT_STYLES[style];
         const start = Math.min(globalTime, Math.max(0, total - 0.5));
-        const b: TextBlock = {
-            id: `t_${Date.now()}`, start, end: Math.min(total, start + def.defaultSecs),
-            text: "", style, position: def.defaultPosition, tone: "light",
+        const skeleton: TextBlock = {
+            id: `t_${Date.now()}`, text: "", style, position: def.defaultPosition, tone: "light",
+            anchor: { kind: "start" }, offset: 0, duration: def.defaultSecs,
         };
+        // Nace atado al clip que se está viendo.
+        const b = anchorAt(skeleton, "clip", start, Math.min(total, start + def.defaultSecs), edits);
         setTexts([...texts, b]);
         setSelText(b.id);
     };
     const removeText = (id: string) => { setTexts(texts.filter((b) => b.id !== id)); setSelText(null); };
+    const setAnchor = (kind: TextAnchor["kind"]) => {
+        if (!sel) return;
+        // Cambiar el ancla no mueve el texto: se re-ancla donde está (o en el cabezal, si no se veía).
+        const start = selPl?.placed?.start ?? globalTime;
+        const end = selPl?.placed?.end ?? Math.min(total, start + sel.duration);
+        setTexts(texts.map((b) => (b.id === sel.id ? anchorAt(b, kind, start, end, edits) : b)));
+    };
 
     // Mover / estirar un texto en su pista (cuerpo = mover, bordes = inicio / fin).
     const textTrackRef = useRef<HTMLDivElement | null>(null);
     const tdrag = useRef<{ id: string; mode: "move" | "start" | "end"; x0: number; s0: number; e0: number; pxPerSec: number } | null>(null);
-    const [draftTexts, setDraftTexts] = useState<TextBlock[] | null>(null);
-    const shownTexts = draftTexts || texts;
-    const onTextDown = (e: React.PointerEvent, b: TextBlock, mode: "move" | "start" | "end") => {
+    const onTextDown = (e: React.PointerEvent, p: PlacedText, mode: "move" | "start" | "end") => {
         e.stopPropagation(); e.preventDefault();
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         const w = textTrackRef.current?.getBoundingClientRect().width || 1;
-        tdrag.current = { id: b.id, mode, x0: e.clientX, s0: b.start, e0: b.end, pxPerSec: w / (total || 1) };
-        setSelText(b.id);
-        setDraftTexts(texts);
+        tdrag.current = { id: p.id, mode, x0: e.clientX, s0: p.start, e0: p.end, pxPerSec: w / (total || 1) };
+        setSelText(p.id);
+        setDragPos({ id: p.id, start: p.start, end: p.end });
     };
     const onTextMove = (e: React.PointerEvent) => {
         const d = tdrag.current;
@@ -484,15 +518,20 @@ export function VideoTimeline({
         if (d.mode === "move") { start = Math.max(0, Math.min(d.s0 + dt, total - len)); end = start + len; }
         if (d.mode === "start") start = Math.max(0, Math.min(d.s0 + dt, d.e0 - 0.3));
         if (d.mode === "end") end = Math.min(total, Math.max(d.e0 + dt, d.s0 + 0.3));
-        setDraftTexts(texts.map((b) => (b.id === d.id ? { ...b, start, end } : b)));
+        setDragPos({ id: d.id, start, end });
         seekTo(d.mode === "end" ? end - 0.05 : start + 0.4);   // el video muestra dónde cae el texto
     };
     const onTextUp = () => {
-        if (!tdrag.current) return;
+        const d = tdrag.current;
+        if (!d) return;
         tdrag.current = null;
-        if (draftTexts) setTexts(draftTexts);
-        setDraftTexts(null);
+        if (dragPos) {
+            // Con ancla de clip, toma el clip que quedó debajo: se puede pasar de un clip a otro.
+            setTexts(texts.map((b) => (b.id === d.id ? anchorAt(b, b.anchor.kind, dragPos.start, dragPos.end, edits) : b)));
+        }
+        setDragPos(null);
     };
+    const clipName = (b: TextBlock) => b.anchor.kind === "clip" ? cleanTitle(byId[(b.anchor as { clipId: string }).clipId]?.title || "clip quitado") : "";
 
     // Vista previa fluida: timeupdate llega ~4 veces por segundo; la animación del texto
     // necesita el tiempo de cada cuadro mientras reproduce.
@@ -558,9 +597,9 @@ export function VideoTimeline({
                     playsInline
                     className="w-full h-full object-cover rounded-[var(--radius-md)] bg-black cursor-pointer"
                 />
-                {textTheme && texts.length > 0 && stage.w > 0 && (
+                {textTheme && visibleTexts.length > 0 && stage.w > 0 && (
                     <div className="absolute inset-0 rounded-[var(--radius-md)] overflow-hidden pointer-events-none">
-                        <TextLayer blocks={shownTexts} t={previewT} theme={textTheme} width={stage.w} height={stage.h} selectedId={playing ? null : selText} />
+                        <TextLayer blocks={visibleTexts} t={previewT} theme={textTheme} width={stage.w} height={stage.h} selectedId={playing ? null : selText} />
                     </div>
                 )}
                 </div>
@@ -578,7 +617,9 @@ export function VideoTimeline({
                     <div className="flex items-center gap-1.5">
                         <Type size={12} className="text-fg-muted" />
                         <span className="text-[12px] font-medium text-fg">Texto</span>
-                        <span className="text-[10px] tabular-nums text-fg-faint">{fmt(sel.start)}–{fmt(sel.end)}</span>
+                        <span className="text-[10px] tabular-nums text-fg-faint">
+                            {selPl?.placed ? `${fmt(selPl.placed.start)}–${fmt(selPl.placed.end)}` : "no se ve"}
+                        </span>
                         <span className="flex-1" />
                         <button onClick={() => setSelText(null)} className="text-[11px] text-fg-muted hover:text-fg cursor-pointer">Listo</button>
                     </div>
@@ -601,9 +642,21 @@ export function VideoTimeline({
                     <TextChips label="Tono" value={sel.tone || "light"}
                         options={[["light", "Claro"], ["dark", "Oscuro"]]}
                         onChange={(v) => patchText(sel.id, { tone: v as "light" | "dark" })} />
+                    <TextChips label={sel.anchor.kind === "clip" ? `Atado a · ${clipName(sel)}` : "Atado a"} value={sel.anchor.kind}
+                        options={[["clip", "Su clip"], ["start", "Inicio"], ["end", "Final"]]}
+                        onChange={(v) => setAnchor(v as TextAnchor["kind"])} />
+                    {selPl && selPl.state !== "ok" && (
+                        <p className="text-[11px] text-fg leading-snug border-l-2 border-fg/40 pl-2">
+                            {selPl.state === "trimmed" && "Parte de este texto cae en el tramo recortado de su clip: se ve lo que queda."}
+                            {selPl.state === "cut" && "Este texto quedó entero en la parte recortada de su clip: no se ve. Atalo al inicio o al final, o alargá el clip."}
+                            {selPl.state === "orphan" && "Se quitó su clip: no se ve. Atalo al inicio o al final, o quitalo."}
+                            {selPl.state === "outside" && "El video quedó más corto que donde empieza este texto: no se ve. Arrastralo o atalo a un clip."}
+                        </p>
+                    )}
                     <p className="text-[10px] text-fg-faint leading-snug">
-                        Claro para fondos oscuros, oscuro para estudio o ciclorama. Corré el texto en su pista
-                        para cambiar cuándo aparece; los bordes cambian cuánto dura.
+                        <strong className="text-fg-muted font-medium">Su clip</strong>: si movés o recortás el clip, el texto lo
+                        sigue. <strong className="text-fg-muted font-medium">Final</strong>: queda pegado al cierre aunque el video
+                        cambie de largo. Arrastralo en su pista para cambiar cuándo aparece.
                     </p>
                     <button onClick={() => removeText(sel.id)}
                         className="flex items-center gap-1.5 text-[11px] text-fg-faint hover:text-fg cursor-pointer self-start">
@@ -871,16 +924,16 @@ export function VideoTimeline({
                             const r = textTrackRef.current?.getBoundingClientRect();
                             if (r && total) { seekTo(((e.clientX - r.left) / r.width) * total); addText(); }
                         }}>
-                        {shownTexts.length === 0 && (
+                        {texts.length === 0 && (
                             <button onClick={() => addText()} className="absolute inset-0 text-left px-2 text-[10px] text-fg-faint hover:text-fg cursor-pointer">
                                 + Texto · título, prenda, precio, CTA
                             </button>
                         )}
-                        {total > 0 && shownTexts.map((b) => (
+                        {total > 0 && visibleTexts.map((b) => (
                             <div key={b.id}
                                 onPointerDown={(e) => onTextDown(e, b, "move")} onPointerMove={onTextMove} onPointerUp={onTextUp}
                                 onClick={(e) => e.stopPropagation()}
-                                title={`${TEXT_STYLES[b.style].label} · ${fmt(b.start)}–${fmt(b.end)}`}
+                                title={`${TEXT_STYLES[b.style].label} · ${fmt(b.start)}–${fmt(b.end)}${placements.find((p) => p.block.id === b.id)?.state === "trimmed" ? " · recortado" : ""}`}
                                 className={cn(
                                     "absolute top-0.5 bottom-0.5 rounded-[var(--radius-xs)] px-2 flex items-center text-[10px] truncate cursor-grab touch-none",
                                     b.id === selText ? "bg-fg text-[var(--color-canvas)]" : "bg-surface-3 text-fg-muted hover:text-fg",
@@ -895,6 +948,12 @@ export function VideoTimeline({
                             </div>
                         ))}
                     </div>
+                )}
+                {hiddenTexts.length > 0 && (
+                    <button onClick={() => setSelText(hiddenTexts[0].block.id)}
+                        className="mt-1 text-[10px] text-fg-muted hover:text-fg cursor-pointer">
+                        {hiddenTexts.length === 1 ? "1 texto no se ve" : `${hiddenTexts.length} textos no se ven`} — quedaron fuera de lo que se ve del video. Ver
+                    </button>
                 )}
 
                 {/* Marcas de los comentarios sobre la regla */}

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { AbsoluteFill, OffthreadVideo, continueRender, delayRender, useCurrentFrame, useVideoConfig } from "remotion";
 import { TextLayer } from "../components/workspace/TextLayer";
-import type { TextBlock, TextTheme } from "../components/workspace/textLayerModel";
+import type { PlacedText, TextTheme } from "../components/workspace/textLayerModel";
 
 export type TextOverlayProps = {
     videoUrl: string;
-    blocks: TextBlock[];
+    blocks: PlacedText[];
     theme: TextTheme;
     /** URLs de Google Fonts — las MISMAS que cargó la vista previa (fontLoader.googleFontUrl). */
     fontUrls: string[];

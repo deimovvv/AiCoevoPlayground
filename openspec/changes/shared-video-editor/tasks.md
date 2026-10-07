@@ -46,7 +46,12 @@
       `remotion/render-text.mjs` ← `services/text_overlay.py` ← `POST /api/video/text-overlay`).
       Fuente y acento de la marca del run. Probado en navegador y con export real (design.md §8).
       **Falta:** subtítulos automáticos desde la voz (alineación forzada de ElevenLabs).
-- [ ] 4.2b "Animar con IA": Sonnet/Opus 5.5 escribe la composición HTML de gráficos con el
+- [x] 4.2b Textos ANCLADOS (2026-10-07): cada texto se ata a su clip (sigue al clip al reordenar o
+      recortar; el tiempo se guarda sobre el material del clip), al inicio o al final del video.
+      `textLayerModel.placeTexts` los ubica en cada cambio; avisa cuando un texto queda afuera
+      (clip quitado, recortado o video más corto). Los textos viejos se migran una vez a su clip.
+      13 casos de lógica + prueba en navegador (reordenar, quitar clip, CTA al final).
+- [ ] 4.2c "Animar con IA": Sonnet/Opus 5.5 escribe la composición HTML de gráficos con el
       design system de la marca; se corrige con las notas. Probar HyperFrames acá (design.md §7, nivel 2).
 - [ ] 4.3 Elegir el frame de portada.
 - [ ] 4.4 Control de calidad post-export: 3 frames, cara tapada / texto cortado (design.md §4).

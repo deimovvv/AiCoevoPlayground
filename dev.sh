@@ -15,7 +15,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$ROOT/backend"
 FRONTEND_DIR="$ROOT/frontend"
 BACKEND_PORT="${BACKEND_PORT:-8000}"
-FRONTEND_PORT="${FRONTEND_PORT:-5173}"
+FRONTEND_PORT="${FRONTEND_PORT:-5180}"   # = vite.config.ts (strictPort) y CLAUDE.md
 
 # Color codes (skip if NO_COLOR is set)
 if [ -z "$NO_COLOR" ] && [ -t 1 ]; then
