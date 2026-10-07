@@ -736,3 +736,56 @@ No dicen "la foto murió". Dicen: la foto sirve para el momento de marca, **el c
 Los "best of" que dominan la búsqueda están escritos por los propios competidores: `wearview.co/blog/*` (se rankea a sí mismo, testimonios falsos), `uwear.ai/blog/best-ai-fashion-generators`, `blendnow.com`, `metamodels.ai`, `aiorastudio.com`, más agregadores de afiliados (`nightjar.so`, `futurepedia.io`, `morphed.app`). **Los tres siguen listando Deep Agency, ZMO.ai y Lalaland como opciones vivas en artículos fechados 2026.**
 
 Fuentes limpias usadas: sitios de producto y pricing pages (primaria), help.shopify.com, support.google.com/merchants, TechCrunch, WWD/Sourcing Journal, Forbes, Fortune, PRNewswire, FashionUnited, Silicon Canals, BoF, Sacra, Balderton, AVP, EU-Startups, La Nación, iProUP, El Observador, Cancillería Argentina.
+
+---
+
+## NORA y Claura — servicios concretos (2026-10-07)
+
+Leídas página por página (home, precios, cómo funciona, preguntas, para quién / skills, agentes,
+contenido, CRM, outbound, automatización, capacitación, casos). Referencias del producto de
+marketing de Coevo (`coevo-web/docs/sistema-foundation.md`).
+
+### NORA (sistemanora.com) — contenido operado + sitio + medición
+
+| | Plus | Max |
+|---|---|---|
+| Precio | USD 990/mes + IVA | USD 1.490/mes + IVA |
+| Publicaciones/mes | 20 (imagen, carrusel, animación, video) | 30 |
+| Video | hasta 20 s, "profesional" | hasta 1 min, 2K |
+| Redes | IG, FB, LinkedIn | + TikTok, YouTube |
+| Sitio | actualización mensual | quincenal + 1 página de campaña |
+| Reporte | mensual (GA, sitio, anuncios) | quincenal |
+| Reunión | 45 min semanal por Zoom | + sesiones de campaña |
+| Pedidos | 3/semana, respuesta 48 h, 2 usuarios | 8/semana, 24 h, 6 usuarios |
+| NoraBot (chat sobre tus datos) | — | ✓ |
+
+- Mínimo 3 meses, sin contrato anual, aviso 30 días; sin setup; al salir exportan toda la marca.
+- **No manejan pauta** (no cobran % de inversión) pero la miden en el reporte.
+- Plataforma "Tu cuenta": hub de marca, pedidos por **texto, foto o nota de voz**, aprobación en
+  un clic, publica en redes + sitio, métricas en vivo. Doble revisión en rubros sensibles.
+- Dicen "1 especialista + 76 agentes + 1 plataforma". Rubros: transporte, salud, inmobiliario,
+  seguros, construcción, redes de beneficios, profesionales. No es para: emprendimientos sin
+  clientes, quien busca lo más barato, métricas de vanidad, quien no da 45 min/semana.
+- Quién está detrás: no aparece.
+
+### Claura (claura-ai.com) — agencia de automatización + capacitación + skills
+
+| Servicio | Qué es concretamente | Precio publicado |
+|---|---|---|
+| Research | monitoreo de lo viral en TikTok, IG, Reddit, Google Trends | — |
+| Contenido a escala | 5–10 piezas/día, ~300/mes; Claude para guiones, Higgsfield para reels, Canva para carruseles; avatar con lipsync; cuentas en "dispositivos físicos en LATAM"; reporte mensual de vistas y hooks | no público; 10–15 días de arranque |
+| Distribución | publicación en 7 canales | — |
+| Agentes | atención (WhatsApp, IG DM, email), calificador de leads, operaciones (CRM, recordatorios, reportes). 2–4 semanas | **USD 2.000/mes** 1 agente · **USD 4.500/mes** hasta 3; sin setup ni mínimo |
+| CRM | a medida sobre infraestructura "madura" no nombrada; Cal/Calendly, Meta, Gmail, Stripe, ManyChat, Slack | no público |
+| Outbound | email frío y tibio, WhatsApp Business, IG DM (ManyChat), LinkedIn; warmup; A/B | no público, cupos por nicho |
+| Automatización | n8n, Make, Zapier, Claude/GPT, Supabase; facturación, onboarding, stock, reportes | por alcance |
+| Capacitación | 8 semanas, 16 sesiones en vivo, entregan el stack "open source, tuyo"; módulos = los 6 sistemas | pago único, se define en la llamada; APIs aparte |
+| Skills | 19 (5 gratis por email: content-calendar, viral-hooks, faq-generator, guide-generator, social-captions) | 14 pagas |
+
+- **8 de las 19 skills llevan el nombre de skills públicas y gratuitas**: `brand-guidelines`,
+  `canvas-design`, `theme-factory` (anthropics/skills) y `cold-email`, `prospecting`,
+  `programmatic-seo`, `social`, `video` (coreyhaines31/marketingskills). Verificado contra los
+  repos el 2026-10-07; no se verificó si el contenido es el mismo.
+- Casos: 14 terminados + 4 en curso (Bissu Abogados, Luxom, Bitget Wallet, RE/MAX Patagon,
+  Loyalz…). Cifras propias sin verificar ("1.200+ piezas/mes", "85% más barato", "100+ negocios").
+- Capacidad declarada: máximo 8 proyectos simultáneos, "4 plazas este trimestre".
