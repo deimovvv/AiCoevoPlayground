@@ -45,7 +45,7 @@ import {
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl, brandLogoImageUrl,
   type Brand,
   generateCopy, regenerateScene, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen, klingDurationOptions, applyArtDirectionRule,
-  concatVideos, renderTextOverlay, saveGeneration,
+  concatVideos, renderTextOverlay, uploadMusic, detectMusicBeats, mixVideoMusic, createMusic, pollMusic, saveGeneration,
   generateToolPrompt, createKlingVideo, pollKlingVideo,
   createKlingFrameToFrame, createSeedanceReferenceToVideo, pollSeedanceVideo,
   resolveAgentBrief,
@@ -69,6 +69,7 @@ import { SelectorPanel } from "../components/workspace/SelectorPanel";
 import { RecipeGrid, RecipeStrip } from "../components/workspace/RecipeGrid";
 import { VideoTimeline, type TimelineEdit, type TimelineComment } from "../components/workspace/VideoTimeline";
 import { pickAccent, type TextBlock, type TextTheme } from "../components/workspace/textLayerModel";
+import { MUSIC_MOODS, type MusicTrack } from "../components/workspace/musicModel";
 import { loadBrandFonts, googleFontUrl, getCanvasFontFamily } from "../tools/shared/fontLoader";
 import { MOTION_RECIPES, recipeCostUsd, clipCostUsd, type MotionRecipe } from "../tools/fashion_reel/recipes";
 import { regenerateSceneClip } from "../tools/fashion_reel/handlers";
@@ -10115,6 +10116,17 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
               textBlocks={(result as { textBlocks?: TextBlock[] }).textBlocks || []}
               onTextBlocksChange={(b) => writeRender({ textBlocks: b })}
               textTheme={textTheme.theme}
+              music={(result as { music?: MusicTrack | null }).music ?? null}
+              onMusicChange={(m) => writeRender({ music: m })}
+              onUploadMusic={uploadMusic}
+              onGenerateMusic={async (mood) => {
+                const job = await createMusic(mood);
+                const r = await pollMusic(job.request_id);
+                if (!r.audio_url) throw new Error("Lyria no devolvió el tema. Probá de nuevo.");
+                const label = MUSIC_MOODS.find(([id]) => id === mood)?.[1] || mood;
+                return { url: r.audio_url, name: `${label} · generada` };
+              }}
+              onDetectBeats={detectMusicBeats}
               versionsOf={(clipId) => (items.find((it) => it.sceneId === clipId)?.history || []).length}
               costFor={(secs) => clipCostUsd(model, secs)}
               durationOptions={durationOptions}
@@ -10164,7 +10176,13 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                   const t = await renderTextOverlay({ videoUrl: base, blocks: withText, ...textTheme });
                   final = t.video_url; duration = t.duration;
                 }
-                // 3. El exportado pasa a ser el video del run (Contenido muestra éste). El
+                // 3. Música al final: atada al video entero, con fade y bajando bajo la voz.
+                const music = (result as { music?: MusicTrack | null }).music;
+                if (music?.url && final) {
+                  const m = await mixVideoMusic({ videoUrl: final, musicUrl: music.url, start: music.start, volume: music.volume, fadeOut: music.fadeOut });
+                  final = m.video_url; duration = m.duration;
+                }
+                // 4. El exportado pasa a ser el video del run (Contenido muestra éste). El
                 //    original no se pierde: queda en originalVideoUrl.
                 if (final !== prev.videoUrl) {
                   writeRender({
@@ -10176,7 +10194,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                   });
                 }
                 const url = final.startsWith("/") ? `http://127.0.0.1:8000${final}` : final;
-                downloadFile(url, edited || withText.length ? "fashion_reel_editado.mp4" : "fashion_reel.mp4");
+                downloadFile(url, edited || withText.length || music?.url ? "fashion_reel_editado.mp4" : "fashion_reel.mp4");
               }}
             />
           );

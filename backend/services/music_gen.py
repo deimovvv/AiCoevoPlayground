@@ -33,6 +33,26 @@ MOOD_PROMPTS = {
         "Gentle instrumental background bed, warm and understated, subtle acoustic textures, "
         "documentary underscore, fully instrumental, no vocals, no singing."
     ),
+    # ── Moda (editor de video, Fashion Reel). Pulso marcado: los cortes se ajustan al ritmo.
+    "editorial": (
+        "Minimal deep house for a fashion runway film, clean four-on-the-floor kick, warm sub "
+        "bass, sparse plucked synths, steady 118 BPM pulse, sleek and confident, fully "
+        "instrumental, no vocals, no singing."
+    ),
+    "lujo": (
+        "Cinematic luxury fashion underscore, slow pulsing strings and soft piano over a gentle "
+        "steady beat around 90 BPM, elegant, airy and expensive-feeling, fully instrumental, no "
+        "vocals, no singing."
+    ),
+    "urbano": (
+        "Laid-back lo-fi hip hop beat for a streetwear lookbook, dusty drums with a clear "
+        "backbeat around 90 BPM, warm bass, jazzy keys, cool and effortless, fully instrumental, "
+        "no vocals, no singing."
+    ),
+    "energia": (
+        "Upbeat indie dance track for a fashion reel, punchy drums, driving bassline, bright "
+        "guitar stabs, energetic 124 BPM groove, fully instrumental, no vocals, no singing."
+    ),
 }
 DEFAULT_NEGATIVE = "vocals, singing, lyrics, spoken word, rap, harsh, distorted, aggressive drums"
 

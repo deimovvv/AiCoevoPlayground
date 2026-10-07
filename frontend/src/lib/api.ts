@@ -36,6 +36,13 @@ export const WORK_STATUS_NEEDS_ACTION: WorkStatus[] = ["review", "changes"];
 
 const API_BASE = "http://127.0.0.1:8000";
 
+/** URL absoluta de un archivo servido por el backend ("/static/..." → backend). Las URLs
+ *  externas (Fal, etc.) pasan igual. Sin esto el navegador busca "/static/..." en el
+ *  frontend (otro puerto) y no lo encuentra. */
+export function backendUrl(path: string): string {
+    return path.startsWith("/") ? `${API_BASE}${path}` : path;
+}
+
 // ══════════════════════════════════════════════════════════════
 //  Brand Types & API
 // ══════════════════════════════════════════════════════════════
@@ -3020,6 +3027,43 @@ export async function pollMusic(
         await new Promise((r) => setTimeout(r, intervalMs));
     }
     throw new Error("Music timed out");
+}
+
+/** Sube un tema para la pista de música del editor (mp3, wav, m4a, aac, ogg, flac). */
+export async function uploadMusic(file: File): Promise<{ url: string; name: string }> {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${API_BASE}/api/music/upload`, { method: "POST", body: form });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "" }));
+        throw new Error(err.detail || `No se pudo subir el tema (${res.status})`);
+    }
+    return res.json();
+}
+
+/** Golpes del tema (en segundos del video, desde `start` del tema) para ajustar los cortes al ritmo. */
+export async function detectMusicBeats(musicUrl: string, start = 0, length?: number): Promise<{ bpm: number | null; beats: number[] }> {
+    const res = await fetch(`${API_BASE}/api/music/beats`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ music_url: musicUrl, start, length: length ?? null }),
+    });
+    if (!res.ok) throw new Error(`No se pudo leer el ritmo del tema (${res.status})`);
+    return res.json();
+}
+
+/** Mezcla la música en el video editado: atada al video entero, fade al final, baja bajo la voz. */
+export async function mixVideoMusic(p: { videoUrl: string; musicUrl: string; start: number; volume: number; fadeOut: number }): Promise<{ video_url: string; duration: number }> {
+    const res = await fetch(`${API_BASE}/api/video/music`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ video_url: p.videoUrl, music_url: p.musicUrl, start: p.start, volume: p.volume, fade_out: p.fadeOut }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "" }));
+        throw new Error(err.detail || `No se pudo mezclar la música (${res.status})`);
+    }
+    return res.json();
 }
 
 // ══════════════════════════════════════════════════════════════

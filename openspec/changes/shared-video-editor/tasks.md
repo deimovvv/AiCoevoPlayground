@@ -39,7 +39,13 @@
 
 ## 4. Segunda etapa (del antecedente §12)
 
-- [ ] 4.1 Overlay de música (pista, volumen, fade).
+- [x] 4.1 Música (2026-10-07): pista atada al video ENTERO. Subir un tema o generarlo con Lyria
+      (estilos de moda: editorial, lujo, urbano, energía · $0.10). Volumen, desde qué segundo arranca,
+      fade al final; en el export baja sola bajo la voz (sidechain). Vista previa sincronizada.
+      "Ajustar los cortes al ritmo": golpes con numpy (verificado exacto a 90/120/130 BPM con temas
+      sintéticos) y cada corte pasa al golpe anterior. `services/audio_mix.py` · `musicModel.ts` ·
+      `MusicPanel.tsx`. Export: pegar con recortes → textos → música.
+      Gotcha: Starlette 0.36 no sirve rangos → la vista previa baja el tema a memoria.
 - [x] 4.2 Capa de texto manual (2026-10-07): pista "Texto" con bloques — título, subtítulo, prenda,
       precio, CTA · arriba / centro / abajo · tono claro / oscuro. `TextLayer.tsx` es la `render(t)`:
       la misma en la vista previa (encima del reproductor) y en el export (Remotion,

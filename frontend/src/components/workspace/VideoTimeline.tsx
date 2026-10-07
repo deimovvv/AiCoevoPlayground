@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, SkipBack, Download, Loader2, X, RotateCcw, MessageSquare, Sparkles, BookmarkPlus, Undo2, Type, Trash2 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { backendUrl } from "../../lib/api";
 import { TextLayer } from "./TextLayer";
+import { MusicPanel } from "./MusicPanel";
+import { musicGainAt, snapCutsToBeats, type MusicTrack } from "./musicModel";
 import { TEXT_STYLES, TEXT_POSITIONS, placeTexts, anchorAt, normalizeText, isLegacyText, type TextBlock, type PlacedText, type Placement, type TextAnchor, type TextStyleId, type TextPosition, type TextTheme } from "./textLayerModel";
 
 /**
@@ -143,6 +146,7 @@ export function VideoTimeline({
     clips, initialEdits, onEditsCommit, onExport,
     comments = [], onCommentsChange, onRegenerate, onRestore, versionsOf, onSaveRule, costFor, durationOptions,
     textBlocks = [], onTextBlocksChange, textTheme,
+    music = null, onMusicChange, onUploadMusic, onGenerateMusic, onDetectBeats,
 }: {
     clips: TimelineClip[];
     /** Edición guardada de una sesión anterior (si la hay). */
@@ -174,6 +178,13 @@ export function VideoTimeline({
     onTextBlocksChange?: (b: TextBlock[]) => void;
     /** Tipografía y color de la marca del run. Sin theme no se muestra la pista de texto. */
     textTheme?: TextTheme;
+
+    // ── Música (musicModel.ts): atada al video entero; se mezcla al exportar ──
+    music?: MusicTrack | null;
+    onMusicChange?: (m: MusicTrack | null) => void;
+    onUploadMusic?: (file: File) => Promise<{ url: string; name: string }>;
+    onGenerateMusic?: (mood: string) => Promise<{ url: string; name: string }>;
+    onDetectBeats?: (url: string, start: number, length: number) => Promise<{ bpm: number | null; beats: number[] }>;
 }) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const trackRef = useRef<HTMLDivElement | null>(null);
@@ -536,19 +547,85 @@ export function VideoTimeline({
     // Vista previa fluida: timeupdate llega ~4 veces por segundo; la animación del texto
     // necesita el tiempo de cada cuadro mientras reproduce.
     const [smoothT, setSmoothT] = useState<number | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    // El tema se baja una vez a memoria: el backend (Starlette 0.36) no sirve rangos, y sin
+    // rangos el <audio> no puede saltar a un segundo del tema (quedaba clavado en 0).
+    const [audioSrc, setAudioSrc] = useState<string | null>(null);
     useEffect(() => {
-        if (!playing || !texts.length) { setSmoothT(null); return; }
+        if (!music?.url) { setAudioSrc(null); return; }
+        const direct = backendUrl(music.url);
+        let objectUrl: string | null = null, cancelled = false;
+        fetch(direct)
+            .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.blob(); })
+            .then((b) => { if (cancelled) return; objectUrl = URL.createObjectURL(b); setAudioSrc(objectUrl); })
+            .catch(() => { if (!cancelled) setAudioSrc(direct); });
+        return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+    }, [music?.url]);
+    // Posición del tema para un instante del video (en loop si el tema es más corto).
+    const musicPos = (t: number) => {
+        const a = audioRef.current;
+        if (!a || !music) return 0;
+        const p = music.start + t;
+        return a.duration && isFinite(a.duration) ? p % a.duration : p;
+    };
+    useEffect(() => {
+        if (!playing || (!texts.length && !music)) { setSmoothT(null); return; }
         let raf = 0;
         const tick = () => {
             const v = videoRef.current;
-            if (v && cur) setSmoothT((starts[active] || 0) + Math.max(0, v.currentTime - cur.start));
+            if (v && cur) {
+                const t = (starts[active] || 0) + Math.max(0, v.currentTime - cur.start);
+                setSmoothT(t);
+                // Música: volumen con el fade del final, y corrige la deriva (al pasar de
+                // un clip a otro el video se frena un instante; la música no).
+                const a = audioRef.current;
+                if (a && music) {
+                    a.volume = musicGainAt(music, t, total);
+                    if (Math.abs(a.currentTime - musicPos(t)) > 0.2) a.currentTime = musicPos(t);
+                }
+            }
             raf = requestAnimationFrame(tick);
         };
         raf = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [playing, active, cur?.start, texts.length]);
+    }, [playing, active, cur?.start, texts.length, music?.url, music?.start, music?.volume, music?.fadeOut, total]);
     const previewT = smoothT ?? globalTime;
+
+    // Música en la vista previa: suena con el video y salta con él.
+    useEffect(() => {
+        const a = audioRef.current;
+        if (!a || !music) return;
+        if (playing) { a.currentTime = musicPos(globalTime); a.volume = musicGainAt(music, globalTime, total); a.play().catch((e) => console.warn('[música] play falló:', e?.name, e?.message)); }
+        else a.pause();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [playing, music?.url, audioSrc]);
+    useEffect(() => {
+        if (!playing && audioRef.current && music) audioRef.current.currentTime = musicPos(globalTime);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [globalTime, playing]);
+
+    // Golpes del tema (para ajustar los cortes al ritmo): se leen al elegir el tema o
+    // cambiar desde qué segundo arranca, y se guardan con la música.
+    const [beatsLoading, setBeatsLoading] = useState(false);
+    useEffect(() => {
+        if (!music || music.beats || !onDetectBeats || !total || !onMusicChange) return;
+        let cancelled = false;
+        setBeatsLoading(true);
+        onDetectBeats(music.url, music.start, total + 2)
+            .then((r) => { if (!cancelled) onMusicChange({ ...music, beats: r.beats, bpm: r.bpm }); })
+            .catch(() => { /* sin ritmo: el botón queda deshabilitado */ })
+            .finally(() => { if (!cancelled) setBeatsLoading(false); });
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [music?.url, music?.start, music?.beats, total > 0]);
+    const [musicOpen, setMusicOpen] = useState(false);
+    const snapToBeats = () => {
+        if (!music?.beats?.length) return 0;
+        const r = snapCutsToBeats(edits, music.beats);
+        if (r.moved) commit(r.edits);
+        return r.moved;
+    };
 
     // Tamaño real del video en pantalla, para escalar los textos desde el cuadro de 1080.
     const stageRef = useRef<HTMLDivElement | null>(null);
@@ -586,6 +663,7 @@ export function VideoTimeline({
             <div className="flex gap-5 items-start">
             <div className="flex-1 min-w-0 flex justify-center relative">
                 <div ref={stageRef} className="relative h-[58vh] max-h-[640px]" style={{ aspectRatio: videoAR }}>
+                {music && audioSrc && <audio ref={audioRef} src={audioSrc} loop preload="auto" />}
                 <video
                     key={activeClip?.videoUrl}
                     ref={videoRef}
@@ -663,6 +741,9 @@ export function VideoTimeline({
                         <Trash2 size={11} /> Quitar este texto
                     </button>
                 </aside>
+            ) : musicOpen && onMusicChange ? (
+                <MusicPanel music={music} onChange={onMusicChange} onUpload={onUploadMusic} onGenerate={onGenerateMusic}
+                    onSnap={snapToBeats} beatsLoading={beatsLoading} onClose={() => setMusicOpen(false)} />
             ) : onCommentsChange && (
                 <aside className="w-[264px] shrink-0 flex flex-col gap-4 self-stretch border-l border-edge pl-5">
                     {/* Comentar en el instante actual */}
@@ -953,6 +1034,27 @@ export function VideoTimeline({
                     <button onClick={() => setSelText(hiddenTexts[0].block.id)}
                         className="mt-1 text-[10px] text-fg-muted hover:text-fg cursor-pointer">
                         {hiddenTexts.length === 1 ? "1 texto no se ve" : `${hiddenTexts.length} textos no se ven`} — quedaron fuera de lo que se ve del video. Ver
+                    </button>
+                )}
+
+                {/* Pista de música: de punta a punta, con los golpes marcados y el fade al final */}
+                {onMusicChange && (
+                    <button onClick={() => { setSelText(null); setMusicOpen(true); }}
+                        title={music ? `${music.name} — tocá para ajustar` : "Subí un tema o generalo con IA"}
+                        className={cn(
+                            "relative block w-full h-6 mt-1 rounded-[var(--radius-xs)] overflow-hidden text-left cursor-pointer select-none",
+                            music ? (musicOpen ? "bg-surface-3 ring-1 ring-fg/60" : "bg-surface-2 hover:bg-surface-3") : "bg-surface-1/60",
+                        )}>
+                        {music && total > 0 && (music.beats || []).filter((b) => b < total).map((b) => (
+                            <span key={b} className="absolute top-1.5 bottom-1.5 w-px bg-fg/25 pointer-events-none" style={{ left: `${(b / total) * 100}%` }} />
+                        ))}
+                        {music && total > 0 && music.fadeOut > 0 && (
+                            <span className="absolute top-0 bottom-0 right-0 bg-gradient-to-r from-transparent to-[var(--color-canvas)] pointer-events-none"
+                                style={{ width: `${(Math.min(music.fadeOut, total) / total) * 100}%` }} />
+                        )}
+                        <span className={cn("relative px-2 text-[10px] leading-6", music ? "text-fg-muted" : "text-fg-faint")}>
+                            {music ? `♪ ${music.name}${music.bpm ? ` · ${Math.round(music.bpm)} BPM` : ""}` : "+ Música · subir un tema o generarlo"}
+                        </span>
                     </button>
                 )}
 

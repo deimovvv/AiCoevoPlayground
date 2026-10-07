@@ -30,6 +30,7 @@ from services import tts, heygen, copy_gen, brands
 from services import campaigns as campaigns_service
 from services import stt
 from services import text_overlay
+from services import audio_mix
 from services import llm_router
 from services import fal_lipsync
 from services import kling_video
@@ -4823,6 +4824,50 @@ class TextOverlayRequest(BaseModel):
     theme: dict                        # TextTheme: fuentes y colores de la marca
     font_families: Optional[List[str]] = None
     font_urls: Optional[List[str]] = None   # las mismas URLs de Google Fonts que la vista previa
+
+
+app.mount("/static/music", StaticFiles(directory=str(audio_mix.get_music_dir())), name="music")
+
+
+@app.post("/api/music/upload")
+async def music_upload(file: UploadFile = File(...)):
+    """Tema subido por el operador para la pista de música del editor."""
+    try:
+        return audio_mix.save_upload(await file.read(), file.filename or "")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class MusicMixRequest(BaseModel):
+    video_url: str
+    music_url: str
+    start: float = 0.0        # desde qué segundo del tema arranca
+    volume: float = 0.6
+    fade_out: float = 1.5     # segundos de fade al final del video
+
+
+@app.post("/api/video/music")
+async def video_music(req: MusicMixRequest):
+    """Mezcla la música en el video editado: atada al video entero, con fade y bajando bajo la voz."""
+    try:
+        return await audio_mix.mix_music(req.video_url, req.music_url, req.start, req.volume, req.fade_out)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+class BeatsRequest(BaseModel):
+    music_url: str
+    start: float = 0.0
+    length: Optional[float] = None
+
+
+@app.post("/api/music/beats")
+async def music_beats(req: BeatsRequest):
+    """Golpes del tema en tiempo del video (para ajustar los cortes al ritmo)."""
+    try:
+        return await audio_mix.detect_beats(req.music_url, req.start, req.length)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @app.post("/api/video/text-overlay")
