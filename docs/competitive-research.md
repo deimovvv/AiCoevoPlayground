@@ -766,7 +766,7 @@ marketing de Coevo (`coevo-web/docs/sistema-foundation.md`).
 - Dicen "1 especialista + 76 agentes + 1 plataforma". Rubros: transporte, salud, inmobiliario,
   seguros, construcción, redes de beneficios, profesionales. No es para: emprendimientos sin
   clientes, quien busca lo más barato, métricas de vanidad, quien no da 45 min/semana.
-- Quién está detrás: no aparece.
+- Quién está detrás: no aparece. **El dominio sistemanora.com se registró el 2026-09-29** (whois, registrante oculto): la marca tiene días; sus cifras ("2.288 posteos", "60 informes") son de otra operación previa o no verificables.
 
 ### Claura (claura-ai.com) — agencia de automatización + capacitación + skills
 
@@ -789,3 +789,14 @@ marketing de Coevo (`coevo-web/docs/sistema-foundation.md`).
 - Casos: 14 terminados + 4 en curso (Bissu Abogados, Luxom, Bitget Wallet, RE/MAX Patagon,
   Loyalz…). Cifras propias sin verificar ("1.200+ piezas/mes", "85% más barato", "100+ negocios").
 - Capacidad declarada: máximo 8 proyectos simultáneos, "4 plazas este trimestre".
+
+### Cómo operan por dentro (2026-10-07)
+
+**Claura** (3 personas en /about: Mateo Caño, Lorenzo Imbrosciano, Malena Braun):
+- Tres capas: el fundador prueba en su cuenta (@ai._kid) → Claura lo industrializa para sí misma → recién ahí se vende. "Nada se vende antes de demostrar que funciona en producción."
+- Onboarding automatizado: al entrar un cliente se crea el workspace con 55 tareas y 4 vistas Kanban sincronizadas con el CRM, "en horas". Generador de propuestas: de la grabación de la llamada a un deck interactivo publicado como web.
+- Separan el aporte humano (qué decir, tono, casos) de la producción (grabar, editar, captions, carrusel, publicar). Bissu: los abogados aprueban **temas una vez por mes**; un cron diario produce reel con avatar lipsync + subtítulos karaoke + carrusel y publica a las 11 en 4 redes. Luxom: aprobación **semanal** en lote; entrevistas cortas grabadas una vez y cortadas en reels.
+- Agentes de WhatsApp con 5 reglas: preguntar antes de vender; precio de una sola planilla diaria; un segundo agente revisa cada respuesta; a los 8 mensajes sin cerrar entra un vendedor; cuando entra una persona el bot se calla.
+- Techo declarado: 8 proyectos de agentes simultáneos.
+
+**NORA**: 1 especialista por cuenta (reunión semanal de 45 min, "el ancla operativa") + producción automatizada ("76 agentes"); el cliente pide por texto/foto/voz y aprueba en un clic; doble revisión en rubros sensibles.
