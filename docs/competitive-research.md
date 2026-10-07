@@ -800,3 +800,28 @@ marketing de Coevo (`coevo-web/docs/sistema-foundation.md`).
 - Techo declarado: 8 proyectos de agentes simultáneos.
 
 **NORA**: 1 especialista por cuenta (reunión semanal de 45 min, "el ancla operativa") + producción automatizada ("76 agentes"); el cliente pide por texto/foto/voz y aprueba en un clic; doble revisión en rubros sensibles.
+
+### @ai._kid — la cara de Claura (Mateo Caño), analizada el 2026-10-07
+
+Scrape con `pipeline-contenido` (24 posts) + 5 reels analizados con Gemini + cuadros revisados a mano.
+
+- 52.695 seguidores, 189 posts, ~3,3 posts/semana; 17 de 24 son carruseles. Bio: "+50 marcas
+  100% automatizadas" (la web dice "100+"); link a claura-ai.com con UTM de Instagram.
+- **CTA idéntico en 24 de 24 posts:** "Comentá PALABRA y te mando X por DM" (SEO, LEADS, REELS,
+  RICITOS, AGENCIA, CLAUDE, SEEDANCE, HOOK…). Es ManyChat comment-to-DM: cada post tiene su
+  palabra y su regalo (guía, skill, plantilla, prompt). Los regalos viven en claura-ai.com
+  (skills gratis a cambio de email) → base de leads → "auditoría gratis de 30 min" → servicio.
+- **Temas:** herramientas nuevas y gratis (Claude Code gratis, plugins de SEO, Seedance,
+  Remotion), frameworks propios con nombre (TOFU de 5 temáticas, "Ricitos de Oro", método 6x5) y
+  su propio sistema ("un equipo de 7 agentes"). Él mismo explica el embudo en un reel: TOFU →
+  formato largo → historias y DMs → cliente.
+- **Alcance:** el reel más visto es real, de mayo (231.321 vistas, "No tengo diseñador…"). Los de
+  septiembre-octubre andan en 1.500–13.000 vistas. Los carruseles de herramientas rinden en likes
+  (7.650 el de Claude Code + Remotion).
+- **Avatar:** los reels del 28/9, 3/10, 4/10 y 7/10 tienen el mismo encuadre exacto (remera,
+  anteojos, silla, luz, posición) con días de diferencia; el de mayo es grabación real (otro
+  cuarto, auriculares, sin anteojos). Compatible con avatar entrenado sobre una sola toma —lo que
+  venden ("avatar lipsync diario", caso Margaret Bissu)—, o con grabación en lote. **Gemini no lo
+  detecta** (dijo "persona real" en los cinco).
+- **SEO del sitio:** 328 URLs en el sitemap: 214 artículos en /resources, 31 páginas de skills,
+  19 casos ×2 idiomas, glosario, 4 herramientas gratis, landings por keyword (/paginas-web-baratas).
