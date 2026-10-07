@@ -31,6 +31,7 @@ from services import campaigns as campaigns_service
 from services import stt
 from services import text_overlay
 from services import audio_mix
+from services import export_qa
 from services import llm_router
 from services import fal_lipsync
 from services import kling_video
@@ -4866,6 +4867,21 @@ async def music_beats(req: BeatsRequest):
     """Golpes del tema en tiempo del video (para ajustar los cortes al ritmo)."""
     try:
         return await audio_mix.detect_beats(req.music_url, req.start, req.length)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+class ExportQaRequest(BaseModel):
+    video_url: str            # el export CON textos
+    base_url: str             # el mismo video SIN textos (para ubicar cada texto)
+    texts: List[dict]         # PlacedText: id, text, start, end, position
+
+
+@app.post("/api/video/qa")
+async def video_qa(req: ExportQaRequest):
+    """Revisa el export: textos que tapan la cara, cortados en el borde o en la franja de UI."""
+    try:
+        return await export_qa.review_export(req.video_url, req.base_url, req.texts)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 

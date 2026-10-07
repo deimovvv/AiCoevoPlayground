@@ -3029,6 +3029,26 @@ export async function pollMusic(
     throw new Error("Music timed out");
 }
 
+export interface ExportQaIssue {
+    textId: string;
+    text: string;
+    t: number;
+    kinds: Array<"face" | "edge" | "unsafe">;
+    message: string;
+    thumbUrl: string;
+}
+
+/** Revisa el export del editor: textos que tapan la cara, cortados o en la franja de UI. */
+export async function reviewExport(p: { videoUrl: string; baseUrl: string; texts: unknown[] }): Promise<{ checked: number; issues: ExportQaIssue[] }> {
+    const res = await fetch(`${API_BASE}/api/video/qa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ video_url: p.videoUrl, base_url: p.baseUrl, texts: p.texts }),
+    });
+    if (!res.ok) throw new Error(`No se pudo revisar el export (${res.status})`);
+    return res.json();
+}
+
 /** Sube un tema para la pista de música del editor (mp3, wav, m4a, aac, ogg, flac). */
 export async function uploadMusic(file: File): Promise<{ url: string; name: string }> {
     const form = new FormData();

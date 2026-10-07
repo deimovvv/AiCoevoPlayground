@@ -166,3 +166,14 @@ export function blockMotion(b: PlacedText, t: number): { opacity: number; y: num
     const exit = easeOut((b.end - t) / EXIT);
     return { opacity: Math.min(enter, exit), y: 22 * (1 - enter), blur: 10 * (1 - enter) };
 }
+
+/** Huella de lo que se exportó (orden, recortes y textos ubicados). Si cambia, la revisión
+ *  del export quedó desactualizada. */
+export function exportSignature(edits: ClipSpan[], texts: PlacedText[]): string {
+    const r = (n: number) => Math.round(n * 100) / 100;
+    return JSON.stringify([
+        edits.map((e) => [e.clipId, r(e.start), r(e.end)]),
+        texts.map((t) => [t.id, t.text, t.style, t.position, t.tone, r(t.start), r(t.end)]),
+    ]);
+}
+

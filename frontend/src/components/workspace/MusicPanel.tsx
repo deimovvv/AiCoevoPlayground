@@ -36,7 +36,7 @@ export function MusicPanel({ music, onChange, onUpload, onGenerate, onSnap, beat
     };
 
     return (
-        <aside className="w-[264px] shrink-0 flex flex-col gap-4 self-stretch border-l border-edge pl-5">
+        <aside className="w-[264px] shrink-0 flex flex-col gap-4 self-start border-l border-edge pl-5 pr-1 h-[58vh] max-h-[640px] overflow-y-auto">
             <div className="flex items-center gap-1.5">
                 <Music2 size={12} className="text-fg-muted" />
                 <span className="text-[12px] font-medium text-fg">Música</span>

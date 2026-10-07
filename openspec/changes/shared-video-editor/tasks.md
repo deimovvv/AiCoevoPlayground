@@ -60,5 +60,19 @@
 - [ ] 4.2c "Animar con IA": Sonnet/Opus 5.5 escribe la composición HTML de gráficos con el
       design system de la marca; se corrige con las notas. Probar HyperFrames acá (design.md §7, nivel 2).
 - [ ] 4.3 Elegir el frame de portada.
-- [ ] 4.4 Control de calidad post-export: 3 frames, cara tapada / texto cortado (design.md §4).
+- [x] 4.4 Revisión automática del export (2026-10-07), sin IA y sin costo: por cada texto, el
+      cuadro exportado contra el mismo cuadro sin textos (mínimo de 3 cuadros vecinos: el clip va a
+      24 fps y el export a 30) ubica el texto en su franja; YuNet (OpenCV, MIT, `backend/models/`)
+      ubica la cara — Haar se descartó porque marcaba caras en el jean. Avisa: tapa la cara · toca
+      el borde · cae en la franja de botones. Miniatura con las cajas; el aviso abre el texto; si se
+      edita después, la revisión queda "desactualizada". `services/export_qa.py`.
 - [ ] 4.5 Corte automático de talking heads con aprobación del texto antes de cortar (design.md §3).
+
+## Pruebas pagas pendientes (el usuario las quiere hacer juntos, 2026-10-07)
+
+No correrlas sin su OK: cuestan plata real.
+- [ ] Generar música con Lyria desde el panel de música ($0.10). Mismo camino que Video Ad Creator.
+- [ ] Regenerar un clip desde una nota en el editor ($0.45 con Kling V3 Pro, 4 s).
+- [ ] A/B de recetas: Kling vs Seedance copiando el movimiento del video real (~$1.81,
+      `changes/fashion-reel-format-recipes` tarea 3.1).
+

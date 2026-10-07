@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, SkipBack, Download, Loader2, X, RotateCcw, MessageSquare, Sparkles, BookmarkPlus, Undo2, Type, Trash2 } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { backendUrl } from "../../lib/api";
+import { backendUrl, type ExportQaIssue } from "../../lib/api";
 import { TextLayer } from "./TextLayer";
 import { MusicPanel } from "./MusicPanel";
 import { musicGainAt, snapCutsToBeats, type MusicTrack } from "./musicModel";
-import { TEXT_STYLES, TEXT_POSITIONS, placeTexts, anchorAt, normalizeText, isLegacyText, type TextBlock, type PlacedText, type Placement, type TextAnchor, type TextStyleId, type TextPosition, type TextTheme } from "./textLayerModel";
+import { exportSignature, TEXT_STYLES, TEXT_POSITIONS, placeTexts, anchorAt, normalizeText, isLegacyText, type TextBlock, type PlacedText, type Placement, type TextAnchor, type TextStyleId, type TextPosition, type TextTheme } from "./textLayerModel";
 
 /**
  * VideoTimeline — el editor de video.
@@ -24,6 +24,15 @@ import { TEXT_STYLES, TEXT_POSITIONS, placeTexts, anchorAt, normalizeText, isLeg
  *
  * Recortar sólo ACORTA un clip: para alargarlo hay que regenerarlo (etapa 3).
  */
+
+/** Resultado de la revisión automática del último export (backend/services/export_qa.py). */
+export interface ExportQa {
+    checked: number;
+    issues: ExportQaIssue[];
+    /** Huella de lo exportado: si el editor cambió desde entonces, la revisión quedó vieja. */
+    sig: string;
+    at: string;
+}
 
 export interface TimelineClip {
     id: string;
@@ -146,7 +155,7 @@ export function VideoTimeline({
     clips, initialEdits, onEditsCommit, onExport,
     comments = [], onCommentsChange, onRegenerate, onRestore, versionsOf, onSaveRule, costFor, durationOptions,
     textBlocks = [], onTextBlocksChange, textTheme,
-    music = null, onMusicChange, onUploadMusic, onGenerateMusic, onDetectBeats,
+    music = null, onMusicChange, onUploadMusic, onGenerateMusic, onDetectBeats, qa = null,
 }: {
     clips: TimelineClip[];
     /** Edición guardada de una sesión anterior (si la hay). */
@@ -185,6 +194,9 @@ export function VideoTimeline({
     onUploadMusic?: (file: File) => Promise<{ url: string; name: string }>;
     onGenerateMusic?: (mood: string) => Promise<{ url: string; name: string }>;
     onDetectBeats?: (url: string, start: number, length: number) => Promise<{ bpm: number | null; beats: number[] }>;
+
+    /** Revisión automática del último export (textos sobre la cara, cortados…). */
+    qa?: ExportQa | null;
 }) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const trackRef = useRef<HTMLDivElement | null>(null);
@@ -542,6 +554,8 @@ export function VideoTimeline({
         }
         setDragPos(null);
     };
+    const qaStale = !!qa && qa.sig !== exportSignature(edits, visibleTexts);
+    const qaFor = (id: string) => (qa && !qaStale ? qa.issues.find((i) => i.textId === id) : undefined);
     const clipName = (b: TextBlock) => b.anchor.kind === "clip" ? cleanTitle(byId[(b.anchor as { clipId: string }).clipId]?.title || "clip quitado") : "";
 
     // Vista previa fluida: timeupdate llega ~4 veces por segundo; la animación del texto
@@ -691,7 +705,7 @@ export function VideoTimeline({
             </div>
 
             {sel && textTheme ? (
-                <aside className="w-[264px] shrink-0 flex flex-col gap-4 self-stretch border-l border-edge pl-5">
+                <aside className="w-[264px] shrink-0 flex flex-col gap-4 self-start border-l border-edge pl-5 pr-1 h-[58vh] max-h-[640px] overflow-y-auto">
                     <div className="flex items-center gap-1.5">
                         <Type size={12} className="text-fg-muted" />
                         <span className="text-[12px] font-medium text-fg">Texto</span>
@@ -723,6 +737,13 @@ export function VideoTimeline({
                     <TextChips label={sel.anchor.kind === "clip" ? `Atado a · ${clipName(sel)}` : "Atado a"} value={sel.anchor.kind}
                         options={[["clip", "Su clip"], ["start", "Inicio"], ["end", "Final"]]}
                         onChange={(v) => setAnchor(v as TextAnchor["kind"])} />
+                    {sel && qaFor(sel.id) && (
+                        <div className="space-y-1.5 border-l-2 border-[var(--color-error)]/60 pl-2">
+                            <p className="text-[11px] text-fg leading-snug">En el último export: {qaFor(sel.id)!.message}</p>
+                            <img src={backendUrl(qaFor(sel.id)!.thumbUrl)} alt="" className="w-24 rounded-[var(--radius-xs)] border border-edge" />
+                            <p className="text-[10px] text-fg-faint leading-snug">Rosa: el texto · naranja: la cara. Cambiale la posición o movelo a otro momento.</p>
+                        </div>
+                    )}
                     {selPl && selPl.state !== "ok" && (
                         <p className="text-[11px] text-fg leading-snug border-l-2 border-fg/40 pl-2">
                             {selPl.state === "trimmed" && "Parte de este texto cae en el tramo recortado de su clip: se ve lo que queda."}
@@ -745,7 +766,7 @@ export function VideoTimeline({
                 <MusicPanel music={music} onChange={onMusicChange} onUpload={onUploadMusic} onGenerate={onGenerateMusic}
                     onSnap={snapToBeats} beatsLoading={beatsLoading} onClose={() => setMusicOpen(false)} />
             ) : onCommentsChange && (
-                <aside className="w-[264px] shrink-0 flex flex-col gap-4 self-stretch border-l border-edge pl-5">
+                <aside className="w-[264px] shrink-0 flex flex-col gap-4 self-start border-l border-edge pl-5 pr-1 h-[58vh] max-h-[640px] overflow-y-auto">
                     {/* Comentar en el instante actual */}
                     <div className="space-y-2">
                         <div className="flex items-center gap-1.5">
@@ -898,6 +919,27 @@ export function VideoTimeline({
                     </button>
                 )}
             </div>
+
+            {/* ── Revisión del último export ─────────────── */}
+            {qa && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                    {qaStale ? (
+                        <span className="text-fg-faint">Revisión del export: cambiaste cosas después de exportar — se actualiza al volver a exportar.</span>
+                    ) : qa.issues.length === 0 ? (
+                        <span className="text-fg-muted">✓ Revisión del export: {qa.checked === 1 ? "el texto" : `los ${qa.checked} textos`} sin problemas — ninguno tapa la cara ni queda cortado.</span>
+                    ) : (
+                        <>
+                            <span className="text-fg">Revisión del export · {qa.issues.length === 1 ? "1 aviso" : `${qa.issues.length} avisos`}:</span>
+                            {qa.issues.map((i) => (
+                                <button key={i.textId + i.t} onClick={() => { seekTo(i.t); setMusicOpen(false); setSelText(i.textId); }}
+                                    className="text-fg-muted hover:text-fg cursor-pointer underline decoration-fg/20 underline-offset-2">
+                                    «{i.text.split("\n")[0].slice(0, 24) || "texto"}» {i.kinds.includes("face") ? "tapa la cara" : i.kinds.includes("edge") ? "queda cortado" : "cae en la franja de botones"} · {fmt(i.t)}
+                                </button>
+                            ))}
+                        </>
+                    )}
+                </div>
+            )}
 
             {/* ── Timeline ────────────────────────────────── */}
             <div className="space-y-1">
