@@ -29,6 +29,7 @@ load_dotenv()
 from services import tts, heygen, copy_gen, brands
 from services import campaigns as campaigns_service
 from services import stt
+from services import text_overlay
 from services import llm_router
 from services import fal_lipsync
 from services import kling_video
@@ -4812,6 +4813,23 @@ async def overlay_audio_endpoint(req: OverlayAudioRequest):
         renders_dir.mkdir(parents=True, exist_ok=True)
         result = await video_concat.overlay_audio(req.video_url, req.audio_url, str(renders_dir))
         return result
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+class TextOverlayRequest(BaseModel):
+    video_url: str                     # el video ya editado (/static/renders/... o URL)
+    blocks: List[dict]                 # TextBlock[] de frontend/src/components/workspace/TextLayer.tsx
+    theme: dict                        # TextTheme: fuentes y colores de la marca
+    font_families: Optional[List[str]] = None
+    font_urls: Optional[List[str]] = None   # las mismas URLs de Google Fonts que la vista previa
+
+
+@app.post("/api/video/text-overlay")
+async def video_text_overlay(req: TextOverlayRequest):
+    """Graba la capa de texto del editor sobre el video (Remotion, mismo componente que la vista previa)."""
+    try:
+        return await text_overlay.render_text_overlay(req.video_url, req.blocks, req.theme, req.font_families, req.font_urls)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 

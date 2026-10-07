@@ -38,6 +38,12 @@ const GOOGLE_FONT_MAP: Record<string, string> = {
   "manrope": "Manrope:wght@200..800",
   "space grotesk": "Space+Grotesk:wght@300..700",
   "dm sans": "DM+Sans:ital,wght@0,100..1000;1,100..1000",
+  "oswald": "Oswald:wght@200..700",
+  "outfit": "Outfit:wght@100..900",
+  "roboto": "Roboto:ital,wght@0,100..900;1,100..900",
+  "merriweather": "Merriweather:ital,wght@0,300..900;1,300..900",
+  "im fell english": "IM+Fell+English:ital@0;1",
+  "courier prime": "Courier+Prime:ital,wght@0,400;0,700;1,400;1,700",
 };
 
 /**
@@ -68,12 +74,20 @@ function getOrCreateLink(id: string, href: string) {
   }
 }
 
+/** URL de Google Fonts para una fuente de marca (la misma que carga la vista previa).
+ *  El export del editor (Remotion) la usa tal cual, así preview y video son iguales. */
+export function googleFontUrl(rawName: string): string {
+  const canonicalName = resolveFontName(rawName, rawName);
+  const query = GOOGLE_FONT_MAP[canonicalName]
+    || `${canonicalName.trim().split(/\s+/).map((w) => w[0].toUpperCase() + w.slice(1)).join("+")}:wght@400;700`;
+  return `https://fonts.googleapis.com/css2?family=${query}&display=swap`;
+}
+
 /** Load a single font into the document via Google Fonts */
 function loadGoogleFont(canonicalName: string) {
-  const query = GOOGLE_FONT_MAP[canonicalName];
-  if (!query) return; // not a known Google font — caller's responsibility to provide @font-face
+  // Fuera del mapa se intenta igual como Google Font (googleFontUrl).
   const id = `${FONT_LINK_PREFIX}${canonicalName.replace(/\s+/g, "-")}`;
-  getOrCreateLink(id, `https://fonts.googleapis.com/css2?family=${query}&display=swap`);
+  getOrCreateLink(id, googleFontUrl(canonicalName));
 }
 
 export interface ResolvedBrandFonts {

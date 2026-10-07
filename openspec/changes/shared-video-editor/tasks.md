@@ -40,9 +40,12 @@
 ## 4. Segunda etapa (del antecedente §12)
 
 - [ ] 4.1 Overlay de música (pista, volumen, fade).
-- [ ] 4.2 Capa de texto manual: pista "Texto" con bloques (inicio/fin, texto, posición, estilo
-      de la marca). Vista previa como HTML encima del reproductor; se graba al exportar
-      (Remotion, que ya graba subtítulos). Incluye subtítulos (design.md §7, nivel 1).
+- [x] 4.2 Capa de texto manual (2026-10-07): pista "Texto" con bloques — título, subtítulo, prenda,
+      precio, CTA · arriba / centro / abajo · tono claro / oscuro. `TextLayer.tsx` es la `render(t)`:
+      la misma en la vista previa (encima del reproductor) y en el export (Remotion,
+      `remotion/render-text.mjs` ← `services/text_overlay.py` ← `POST /api/video/text-overlay`).
+      Fuente y acento de la marca del run. Probado en navegador y con export real (design.md §8).
+      **Falta:** subtítulos automáticos desde la voz (alineación forzada de ElevenLabs).
 - [ ] 4.2b "Animar con IA": Sonnet/Opus 5.5 escribe la composición HTML de gráficos con el
       design system de la marca; se corrige con las notas. Probar HyperFrames acá (design.md §7, nivel 2).
 - [ ] 4.3 Elegir el frame de portada.

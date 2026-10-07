@@ -3180,6 +3180,33 @@ export async function concatVideos(
     return res.json();
 }
 
+/** Graba la capa de texto del editor sobre un video (Remotion, mismo componente que la
+ *  vista previa: components/workspace/TextLayer.tsx). Tarda ~2× la duración del video. */
+export async function renderTextOverlay(params: {
+    videoUrl: string;
+    blocks: unknown[];
+    theme: { headline: string; body: string; accent: string; accentInk: string };
+    fontFamilies: string[];
+    fontUrls: string[];
+}): Promise<{ video_url: string; duration: number }> {
+    const res = await fetch(`${API_BASE}/api/video/text-overlay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            video_url: params.videoUrl,
+            blocks: params.blocks,
+            theme: params.theme,
+            font_families: params.fontFamilies,
+            font_urls: params.fontUrls,
+        }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `No se pudieron grabar los textos (${res.status})`);
+    }
+    return res.json();
+}
+
 // ══════════════════════════════════════════════════════════════
 //  HeyGen Avatar 4 (via Fal) — Talking Head Video
 // ══════════════════════════════════════════════════════════════

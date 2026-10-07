@@ -45,7 +45,7 @@ import {
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl, moodboardImageUrl, brandLogoImageUrl,
   type Brand,
   generateCopy, regenerateScene, generateTTS, generateTTSAndUpload, createImageEdit, pollImageGen, klingDurationOptions, applyArtDirectionRule,
-  concatVideos, saveGeneration,
+  concatVideos, renderTextOverlay, saveGeneration,
   generateToolPrompt, createKlingVideo, pollKlingVideo,
   createKlingFrameToFrame, createSeedanceReferenceToVideo, pollSeedanceVideo,
   resolveAgentBrief,
@@ -68,6 +68,8 @@ import { ImageEditPanel } from "../components/ImageEditPanel";
 import { SelectorPanel } from "../components/workspace/SelectorPanel";
 import { RecipeGrid, RecipeStrip } from "../components/workspace/RecipeGrid";
 import { VideoTimeline, type TimelineEdit, type TimelineComment } from "../components/workspace/VideoTimeline";
+import { pickAccent, type TextBlock, type TextTheme } from "../components/workspace/textLayerModel";
+import { loadBrandFonts, googleFontUrl, getCanvasFontFamily } from "../tools/shared/fontLoader";
 import { MOTION_RECIPES, recipeCostUsd, clipCostUsd, type MotionRecipe } from "../tools/fashion_reel/recipes";
 import { regenerateSceneClip } from "../tools/fashion_reel/handlers";
 import type { KlingModel } from "../lib/api";
@@ -8080,6 +8082,14 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
   // El editor actúa sobre el contenido del run: usa SU marca, no la activa.
   const runBrandCtx = useRunBrand();
   const brandForRun = runBrandCtx || activeBrand;
+  // Capa de texto del editor: tipografía y acento de la marca del run. Las mismas URLs de
+  // fuentes van al export (Remotion), así lo que se ve es lo que se graba.
+  const textTheme = useMemo((): { theme: TextTheme; fontFamilies: string[]; fontUrls: string[] } => {
+    const f = loadBrandFonts(brandForRun?.fonts);
+    const { accent, accentInk } = pickAccent((brandForRun?.dna?.colors || []).map((c) => c.hex));
+    const families = [...new Set([getCanvasFontFamily(f.headline), getCanvasFontFamily(f.body)])];
+    return { theme: { headline: f.headline, body: f.body, accent, accentInk }, fontFamilies: families, fontUrls: families.map(googleFontUrl) };
+  }, [brandForRun]);
   // Escritura segura del resultado del Render. Recortes, comentarios y el reinicio de
   // recorte al regenerar escriben ahí, a veces casi juntos: cada escritura FUSIONA
   // sobre la última versión (no sobre una copia vieja), así ninguna pisa a otra.
@@ -10102,6 +10112,9 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
               onEditsCommit={(edits) => writeRender({ timelineEdits: edits })}
               comments={savedComments}
               onCommentsChange={(c) => writeRender({ timelineComments: c })}
+              textBlocks={(result as { textBlocks?: TextBlock[] }).textBlocks || []}
+              onTextBlocksChange={(b) => writeRender({ textBlocks: b })}
+              textTheme={textTheme.theme}
               versionsOf={(clipId) => (items.find((it) => it.sceneId === clipId)?.history || []).length}
               costFor={(secs) => clipCostUsd(model, secs)}
               durationOptions={durationOptions}
@@ -10128,26 +10141,42 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                 await applyArtDirectionRule(brandForRun.id, "motion_rules", text);
                 await refreshBrands?.();
               }}
-              onExport={async (edits, edited) => {
-                // Sin cambios ni regeneraciones: el MP4 ya existe, no hace falta re-renderizar.
-                if (!edited && !anyRegenerated) { if (fullVideoUrl) downloadFile(fullVideoUrl, "fashion_reel.mp4"); return; }
-                const byId = Object.fromEntries(clips.map((c) => [c.id, c]));
-                const r = await concatVideos(
-                  edits.map((e) => byId[e.clipId].videoUrl),
-                  [], false, "none", undefined,
-                  edits.map((e) => ({ start: e.start, end: e.end })),
-                );
-                // El exportado pasa a ser el video del run (Contenido muestra éste). El
-                // original no se pierde: queda en originalVideoUrl.
+              onExport={async (edits, edited, texts) => {
                 const prev = result as { videoUrl?: string; originalVideoUrl?: string };
-                writeRender({
-                  videoUrl: r.video_url,
-                  totalDuration: `${r.duration.toFixed(1)}s`,
-                  scenes: edits.length,
-                  originalVideoUrl: prev.originalVideoUrl || prev.videoUrl,
-                  exportedAt: new Date().toISOString(),
-                });
-                downloadFile(`http://127.0.0.1:8000${r.video_url}`, "fashion_reel_editado.mp4");
+                const original = prev.originalVideoUrl || prev.videoUrl;
+                const withText = texts.filter((b) => b.text.trim());
+                // 1. Base: el video editado. Sin cambios ni regeneraciones, el original (nunca
+                //    un export anterior con textos: quedarían grabados dos veces).
+                let base = original || "";
+                let duration: number | null = null;
+                if (edited || anyRegenerated) {
+                  const byId = Object.fromEntries(clips.map((c) => [c.id, c]));
+                  const r = await concatVideos(
+                    edits.map((e) => byId[e.clipId].videoUrl),
+                    [], false, "none", undefined,
+                    edits.map((e) => ({ start: e.start, end: e.end })),
+                  );
+                  base = r.video_url; duration = r.duration;
+                }
+                // 2. Textos encima (Remotion, mismo TextLayer que la vista previa).
+                let final = base;
+                if (withText.length) {
+                  const t = await renderTextOverlay({ videoUrl: base, blocks: withText, ...textTheme });
+                  final = t.video_url; duration = t.duration;
+                }
+                // 3. El exportado pasa a ser el video del run (Contenido muestra éste). El
+                //    original no se pierde: queda en originalVideoUrl.
+                if (final !== prev.videoUrl) {
+                  writeRender({
+                    videoUrl: final,
+                    ...(duration != null ? { totalDuration: `${duration.toFixed(1)}s` } : {}),
+                    scenes: edits.length,
+                    originalVideoUrl: original,
+                    exportedAt: new Date().toISOString(),
+                  });
+                }
+                const url = final.startsWith("/") ? `http://127.0.0.1:8000${final}` : final;
+                downloadFile(url, edited || withText.length ? "fashion_reel_editado.mp4" : "fashion_reel.mp4");
               }}
             />
           );

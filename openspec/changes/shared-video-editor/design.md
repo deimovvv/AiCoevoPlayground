@@ -127,3 +127,26 @@ Dos niveles, en este orden:
 Recomendación: nivel 1 con lo que ya hay (overlay en el navegador + Remotion al
 exportar, que ya graba subtítulos). Probar HyperFrames recién para el nivel 2, donde
 la ventaja de "un modelo escribe HTML" es real. No sumar un segundo motor sin necesidad.
+
+### 8. Cómo se hizo la capa de texto (2026-10-07)
+
+**Método de las skills de Coevo, no inventado acá.** `pipeline-contenido` (montajes con PIL
+cuadro a cuadro) y `experiencia-viva` (HTML con `render(t)` y `?rec=1`) resuelven el texto
+igual: **el texto es código que dibuja cada cuadro para un tiempo `t`**. En el editor eso es
+`components/workspace/TextLayer.tsx`: el mismo componente React se monta en la vista previa
+(con el `t` del reproductor) y en Remotion (con `t = cuadro / fps`). Lo que se ve es lo que
+se graba; las URLs de Google Fonts son las mismas en los dos lados (`fontLoader.googleFontUrl`).
+
+**Reglas que vienen de piezas reales** (`pipeline-contenido/LEARNINGS.md`): entrada sin
+rebote (sube + desenfoque → nítido), ancho máximo 940 px de 1080, precio grande con alto
+contraste, la posición se decide viendo el video.
+
+**Lo que enseñó la primera prueba** (clip de Koxis en ciclorama):
+- Blanco sobre ciclorama no se lee → tono **oscuro** (tinta negra sin sombra) por texto.
+- "Arriba" al 13 % tapaba la cara en planos enteros → 9 %. Igual depende del aire que deje
+  cada clip: por eso la posición es manual y hace falta la revisión post-export (4.4).
+- El texto recién creado nace en el cabezal, donde su animación arranca invisible → el
+  texto que se está editando se muestra completo en pausa.
+
+**Remotion y no HyperFrames, por ahora:** ya estaba instalado y grabando subtítulos UGC;
+graba 4 s de video en ~9 s. HyperFrames queda para el nivel 2 ("animar con IA").
