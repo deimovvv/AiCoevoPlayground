@@ -87,6 +87,15 @@ start_backend() {
     cd "$BACKEND_DIR" || exit 1
     # shellcheck disable=SC1091
     source .venv/bin/activate
+    # Base de datos de desarrollo (infra-v1): Postgres en Docker + migraciones al día.
+    if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+      docker compose -f "$ROOT/docker-compose.yml" up -d db >/dev/null 2>&1 \
+        && for _ in $(seq 1 30); do docker exec coevo-db pg_isready -U coevo -d coevo_studio >/dev/null 2>&1 && break; sleep 1; done \
+        && alembic upgrade head >/dev/null 2>&1 \
+        && echo "base de datos lista (127.0.0.1:5433)"
+    else
+      echo "AVISO: Docker no está corriendo — los proyectos de video por marca no van a andar (abrí Docker)."
+    fi
     exec python -m uvicorn main:app --reload --port "$BACKEND_PORT" 2>&1 \
       | sed -u "s/^/$(printf "${C_BACK}[backend]${C_RESET} ")/"
   ) &

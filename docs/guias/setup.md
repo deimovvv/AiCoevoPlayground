@@ -50,6 +50,18 @@ python -m uvicorn main:app --reload --port 8000
 Backend runs at: http://localhost:8000
 API docs at: http://localhost:8000/docs
 
+### Base de datos (desde 2026-10-09)
+
+Postgres 16 corre en Docker (hace falta Docker Desktop abierto):
+
+```bash
+docker compose up -d db                     # 127.0.0.1:5433, usuario/clave coevo/coevo (sólo local)
+cd backend && .venv/bin/alembic upgrade head  # crea/actualiza las tablas
+```
+
+`./dev.sh` hace las dos cosas solo. En producción, `DATABASE_URL` en el entorno
+(`postgresql+asyncpg://…`). Por qué este stack: `openspec/changes/infra-v1`.
+
 ## 2. Frontend
 
 ```bash

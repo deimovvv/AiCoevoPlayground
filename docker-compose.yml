@@ -1,0 +1,21 @@
+# Base de datos de DESARROLLO (openspec/changes/infra-v1).
+#   docker compose up -d db      → Postgres 16 en 127.0.0.1:5433
+# Credenciales sólo locales; producción usa DATABASE_URL de su entorno.
+services:
+  db:
+    image: postgres:16
+    container_name: coevo-db
+    environment:
+      POSTGRES_USER: coevo
+      POSTGRES_PASSWORD: coevo
+      POSTGRES_DB: coevo_studio
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - coevo-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coevo -d coevo_studio"]
+      interval: 2s
+      retries: 30
+volumes:
+  coevo-db-data:

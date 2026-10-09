@@ -7,15 +7,28 @@
 Hoy `IntegrationsPage` y `PerformancePage` son pantallas de muestra (métricas de placeholder);
 lo único real es el scraping de Instagram (Apify). No hay conexión a Meta ni a Postiz.
 
+## Hallazgo (2026-10-09): Postiz ya resuelve lo difícil de Meta
+
+Verificado en docs.postiz.com: el cliente conecta sus cuentas a Postiz con un **link de
+invitación** (sin pasar contraseñas), y Postiz trae **métricas por canal y por publicación**
+de 10+ redes (Instagram, Facebook, TikTok, YouTube, LinkedIn, X, Threads…), también por su
+**API pública** (`GET /public/v1/analytics/{canal}?date=7|30|90`, 30 pedidos por hora) y por
+MCP. O sea: **la revisión de app de Meta, los tokens y los cambios de API los maneja Postiz.**
+Coevo no necesita su propia integración con Meta para lo orgánico.
+
+Límites a tener en cuenta: mira hacia atrás 7/30/90 días (para tener historia hay que guardar
+cada día); Meta **Ads** (inversión, costo por resultado) no aparece en Postiz. Plan Cloud con API:
+desde $29/mes (5 canales) hasta $99 (100 canales).
+
 ## What Changes
 
 Por marca, tres integraciones que alimentan el dashboard solas:
 
-1. **Meta orgánico** (Instagram + Facebook de la marca): alcance, interacciones, seguidores,
-   rendimiento por publicación. Se conecta una vez (OAuth de Meta) y se sincroniza **todos los
-   días** sin que nadie haga nada.
-2. **Meta Ads**: inversión, resultados y costo por resultado por campaña y por pieza. Misma
-   conexión, mismo ritmo.
+1. **Métricas orgánicas vía Postiz**: Coevo lee de la API de Postiz, **todos los días**, las
+   métricas de cada canal y de cada publicación de la marca, y las guarda (así se arma la
+   historia más allá de 90 días). Sin integración propia con Meta.
+2. **Meta Ads** (opcional, después): inversión y costo por resultado. Éste sí necesita la
+   Marketing API de Meta propia; sólo si un cliente paga pauta con Coevo.
 3. **Postiz** (publicación): lo que se aprueba en Coevo Studio se programa en Postiz; el
    dashboard muestra qué está programado, qué salió y cuándo, y lo cruza con las métricas de
    Meta de esa publicación.

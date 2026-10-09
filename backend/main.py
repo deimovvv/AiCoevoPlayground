@@ -33,6 +33,7 @@ from services import text_overlay
 from services import audio_mix
 from services import export_qa
 from services import editor_project
+from routers import video_projects as video_projects_router
 from fastapi import Request
 from urllib.parse import quote
 from services import llm_router
@@ -4872,6 +4873,10 @@ async def music_beats(req: BeatsRequest):
         return await audio_mix.detect_beats(req.music_url, req.start, req.length)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+# Proyectos de video por marca, en la base (routers/video_projects.py · infra-v1).
+app.include_router(video_projects_router.router)
 
 
 # ── Proyectos del editor (timeline.json en una carpeta) ─────────────────────

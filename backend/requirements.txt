@@ -11,3 +11,9 @@ curl_cffi>=0.7.0
 Pillow>=10.0.0
 pillow-heif>=0.18.0
 opencv-python-headless<4.11   # revisión del export: detección de caras (YuNet, backend/models/)
+# Base de datos (openspec/changes/infra-v1). Versiones FIJAS a propósito: sin fijar, un build
+# puede traer otro driver de Postgres y romper en producción.
+sqlalchemy[asyncio]==2.0.48
+asyncpg==0.30.0
+alembic==1.16.5
+greenlet==3.2.5

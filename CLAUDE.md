@@ -24,6 +24,9 @@ las herramientas los heredan.
 ```
 - Front `http://localhost:5180` (`strictPort`: si está ocupado falla, no salta).
 - Back `http://127.0.0.1:8000` — usar `127.0.0.1`, no `localhost`.
+- Base de datos: **Postgres 16 en Docker** (`docker-compose.yml`, 127.0.0.1:5433). `dev.sh` la levanta y
+  aplica las migraciones. Tablas nuevas: modelo en `backend/db/models.py` → `alembic revision --autogenerate`
+  → `alembic upgrade head`. Nunca `create_all`. Los JSON de `backend/data/` se migran de a uno (`changes/infra-v1`).
 - Python del venv es **3.9**: nada de `str | None`, usar `Optional[str]`.
 - Verificar antes de dar por terminado: `npm run build` y `npx tsc --noEmit -p tsconfig.app.json`
   en `frontend/`. Hay ~15 errores de tsc preexistentes (`ToolConfig`/`StepContext`): el criterio

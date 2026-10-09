@@ -1,14 +1,15 @@
 ## 0. Antes de construir
 
-- [ ] 0.1 Verificar la API de Postiz (alojado o propio) y qué expone.
+- [x] 0.1 API de Postiz: métricas por canal y por publicación, grupos de clientes, links de invitación, MCP (2026-10-09).
 - [ ] 0.2 Verificar permisos de Meta (Instagram Graph API, Marketing API) y si hace falta revisión de app.
 - [ ] 0.3 Decidir dónde viven credenciales, tareas programadas y métricas (base de datos).
 
-## 1. Meta
+## 1. Métricas vía Postiz
 
-- [ ] 1.1 Conectar la cuenta de una marca (OAuth) y guardar el token de forma segura.
-- [ ] 1.2 Sincronización diaria de orgánico y ads.
-- [ ] 1.3 PerformancePage con datos reales (reemplaza el placeholder).
+- [ ] 1.1 Asociar cada marca de Coevo a su grupo de clientes en Postiz (API key en .env).
+- [ ] 1.2 Sincronización diaria: métricas por canal y por publicación, guardadas en la base (infra-v1).
+- [ ] 1.3 PerformancePage con datos reales (reemplaza el placeholder) y reporte mensual en el portal del cliente.
+- [ ] 1.4 (Después, opcional) Meta Ads con la Marketing API propia.
 
 ## 2. Postiz
 

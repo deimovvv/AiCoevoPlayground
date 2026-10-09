@@ -27,9 +27,23 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Fashion Editorial | Convertida en preset de Campañas (hecho) | 2026-09-25 |
 | Campañas | Centro del pedido: imagen adentro, video lanzando la tool | 2026-10-03 · `changes/campaigns-as-hub` |
 | Keys de Google | Sólo la de Coevo (`GEMINI_API_KEY`) o falla; nunca una de Monks | 2026-10-06 |
+| Infraestructura | FastAPI + PostgreSQL + SQLAlchemy 2 + Alembic; archivos en R2; migrar de a una | 2026-10-09 · `changes/infra-v1` |
+| Reportes a clientes | Se leen de Postiz (ya resuelve Meta orgánico); una plataforma multi-marca, nunca un dashboard por cliente | 2026-10-09 · `changes/brand-integrations` |
 | Tools / editor / skills | Tool genera · editor monta (uno solo) · skill descubre; lo validado pasa a la app como plantilla o receta | 2026-10-09 |
 
 ---
+
+## 2026-10-09 — Infraestructura y reportes
+
+**Stack:** FastAPI se queda (6.500 líneas + 43 servicios; Flask, como Google-App, sería
+reescribir sin ganar nada). De Google-App se toma la **infraestructura**, que no depende del
+framework: PostgreSQL + SQLAlchemy 2 + Alembic. Archivos en **Cloudflare R2**: la salida de datos
+es gratis, y Coevo sirve video todo el día (en GCS ~$0.12/GB). Proyecto de nube **de Coevo**,
+nunca el de Monks. Migración de a una: primero proyectos de video, después lo demás.
+
+**Reportes:** una sola plataforma multi-marca; cada cliente ve la suya (portal). Nunca un
+dashboard por cliente (N sistemas para mantener). Las métricas orgánicas **se leen de Postiz**,
+que ya maneja la conexión con Meta, los tokens y las revisiones de app.
 
 ## 2026-10-09 — Tool, editor y skill son tres cosas distintas
 
