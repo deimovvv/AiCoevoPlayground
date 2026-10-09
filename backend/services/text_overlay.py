@@ -48,8 +48,10 @@ async def render_text_overlay(
     theme: dict,
     font_families: Optional[List[str]] = None,
     font_urls: Optional[List[str]] = None,
+    out_path: Optional[Path] = None,
 ) -> dict:
-    """Devuelve {"video_url": "/static/renders/...", "duration": s}."""
+    """Devuelve {"video_url": "/static/renders/...", "duration": s}. Con `out_path` escribe
+    ahí (proyectos del editor: el export queda en la carpeta del proyecto) y devuelve "path"."""
     if not is_configured():
         raise RuntimeError("Falta node, ffprobe o el script de Remotion para grabar los textos")
     src = f"{LOCAL_BASE}{video_url}" if video_url.startswith("/") else video_url
@@ -58,7 +60,7 @@ async def render_text_overlay(
     width, height = info["width"] - info["width"] % 2, info["height"] - info["height"] % 2
 
     RENDERS_DIR.mkdir(parents=True, exist_ok=True)
-    out = RENDERS_DIR / f"text_{uuid.uuid4().hex[:8]}.mp4"
+    out = out_path or RENDERS_DIR / f"text_{uuid.uuid4().hex[:8]}.mp4"
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump({
             "videoUrl": src, "blocks": blocks, "theme": theme, "fontFamilies": font_families or [], "fontUrls": font_urls or [],
@@ -78,4 +80,6 @@ async def render_text_overlay(
     finally:
         Path(job_path).unlink(missing_ok=True)
 
+    if out_path:
+        return {"path": str(out), "duration": round(info["duration"], 2)}
     return {"video_url": f"/static/renders/{out.name}", "duration": round(info["duration"], 2)}

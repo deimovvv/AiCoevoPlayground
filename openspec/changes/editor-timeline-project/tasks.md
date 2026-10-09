@@ -5,10 +5,12 @@
 
 ## 2. Backend
 
-- [ ] 2.1 Abrir y guardar un proyecto desde una carpeta (raíces permitidas).
-- [ ] 2.2 Servir sus archivos con rangos (para poder saltar en el video).
-- [ ] 2.3 Notas → `notas.md`.
-- [ ] 2.4 Exportar un proyecto con FFmpeg (tramos, congelado, rótulos, voz).
+- [x] 2.1 Abrir y guardar un proyecto desde una carpeta (raíces permitidas; conflicto si Claude lo cambió).
+- [x] 2.2 Servir sus archivos con rangos (206 verificado; rechaza rutas fuera del proyecto).
+- [x] 2.3 Notas → `notas.md`.
+- [x] 2.4 Exportar un proyecto con FFmpeg (tramos, congelado, rótulos, voz, `extra`) → textos → música →
+      revisión, todo en `<proyecto>/export/`. End Cards (`montar5.sh`): 62,97 s vs 62,86 s, cuadros iguales
+      en 1,5 / 20 / 35 / 50 / 61,5 s.
 
 ## 3. Editor
 

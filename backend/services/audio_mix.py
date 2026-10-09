@@ -68,8 +68,9 @@ async def mix_music(
     start: float = 0.0,
     volume: float = 0.6,
     fade_out: float = 1.5,
+    out_path: Optional[Path] = None,
 ) -> dict:
-    """Devuelve {"video_url": "/static/renders/...", "duration": s}."""
+    """Devuelve {"video_url": "/static/renders/...", "duration": s}; con `out_path`, "path"."""
     video, music = _abs(video_url), _abs(music_url)
     dur = await _duration(video)
     vol = max(0.0, min(1.5, volume))
@@ -87,7 +88,7 @@ async def mix_music(
     else:
         fc = mus.replace("[mus]", "[a]")
     RENDERS_DIR.mkdir(parents=True, exist_ok=True)
-    out = RENDERS_DIR / f"music_{uuid.uuid4().hex[:8]}.mp4"
+    out = out_path or RENDERS_DIR / f"music_{uuid.uuid4().hex[:8]}.mp4"
     await _run(
         "ffmpeg", "-y", "-v", "error", "-i", video,
         "-stream_loop", "-1", "-ss", f"{max(0.0, start):.3f}", "-i", music,
@@ -95,6 +96,8 @@ async def mix_music(
         "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-t", f"{dur:.3f}",
         "-movflags", "+faststart", str(out),
     )
+    if out_path:
+        return {"path": str(out), "duration": round(dur, 2)}
     return {"video_url": f"/static/renders/{out.name}", "duration": round(dur, 2)}
 
 

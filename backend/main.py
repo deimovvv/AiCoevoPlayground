@@ -32,6 +32,9 @@ from services import stt
 from services import text_overlay
 from services import audio_mix
 from services import export_qa
+from services import editor_project
+from fastapi import Request
+from urllib.parse import quote
 from services import llm_router
 from services import fal_lipsync
 from services import kling_video
@@ -4869,6 +4872,107 @@ async def music_beats(req: BeatsRequest):
         return await audio_mix.detect_beats(req.music_url, req.start, req.length)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+# ── Proyectos del editor (timeline.json en una carpeta) ─────────────────────
+# Claude (desde una skill) y la UI editan el mismo archivo. Nada se copia a backend/data:
+# el export queda en <proyecto>/export/. Ver services/editor_project.py.
+
+def _project_err(e: Exception):
+    if isinstance(e, editor_project.ProjectError):
+        code = 409 if str(e).startswith("conflicto") else 400
+        raise HTTPException(status_code=code, detail=str(e))
+    raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.get("/api/editor/project")
+async def editor_project_load(path: str):
+    try:
+        return await editor_project.load(path)
+    except Exception as e:
+        _project_err(e)
+
+
+@app.get("/api/editor/project/mtime")
+async def editor_project_mtime(path: str):
+    try:
+        return {"mtime": editor_project.mtime(path)}
+    except Exception as e:
+        _project_err(e)
+
+
+class EditorProjectSave(BaseModel):
+    path: str
+    project: dict
+    base_mtime: Optional[float] = None
+
+
+@app.put("/api/editor/project")
+async def editor_project_save(req: EditorProjectSave):
+    try:
+        return editor_project.save(req.path, req.project, req.base_mtime)
+    except Exception as e:
+        _project_err(e)
+
+
+class EditorNotesSave(BaseModel):
+    path: str
+    notes: List[dict]   # [{t, segment, text, status}]
+
+
+@app.put("/api/editor/notes")
+async def editor_notes_save(req: EditorNotesSave):
+    try:
+        return editor_project.save_notes(req.path, req.notes)
+    except Exception as e:
+        _project_err(e)
+
+
+@app.get("/api/editor/file")
+async def editor_file(project: str, path: str, request: Request):
+    """Archivo del proyecto, con rangos (Starlette 0.36 no los sirve y sin ellos no se puede saltar)."""
+    try:
+        return editor_project.file_response(project, path, request.headers.get("range"))
+    except Exception as e:
+        _project_err(e)
+
+
+class EditorExport(BaseModel):
+    path: str
+    segments: List[dict]                 # resueltos por el editor: {src, in, duration, voice?, overlay?}
+    texts: Optional[List[dict]] = None   # PlacedText
+    theme: Optional[dict] = None
+    font_families: Optional[List[str]] = None
+    font_urls: Optional[List[str]] = None
+    music: Optional[dict] = None         # {url, start, volume, fadeOut}
+
+
+@app.post("/api/editor/export")
+async def editor_export(req: EditorExport):
+    """Export de un proyecto: tramos (FFmpeg) → textos → música → revisión. Todo en <proyecto>/export/."""
+    try:
+        d = editor_project.resolve_dir(req.path)
+        file_url = lambda rel: f"http://127.0.0.1:8000/api/editor/file?project={quote(str(d))}&path={quote(rel)}"
+        r = await editor_project.render(req.path, req.segments)
+        base_rel = r["file"]; final_rel = base_rel; duration = r["duration"]; qa = None
+        texts = [t for t in (req.texts or []) if str(t.get("text", "")).strip()]
+        if texts and req.theme:
+            out = d / base_rel.replace(".mp4", "_textos.mp4")
+            t = await text_overlay.render_text_overlay(file_url(base_rel), texts, req.theme, req.font_families, req.font_urls, out_path=out)
+            final_rel = str(out.relative_to(d)); duration = t["duration"]
+            qa = await export_qa.review_export(str(d / final_rel), str(d / base_rel), texts, thumbs_dir=d / "export" / "revision")
+            for i in qa["issues"]:
+                i["thumbFile"] = str(Path(i.pop("thumbUrl")).relative_to(d))
+        if req.music and req.music.get("url"):
+            mu = req.music["url"]
+            music_src = mu if mu.startswith(("/static/", "http")) else str(editor_project.resolve_file(d, mu))
+            out = d / final_rel.replace(".mp4", "_musica.mp4")
+            m = await audio_mix.mix_music(str(d / final_rel), music_src, float(req.music.get("start", 0)),
+                                          float(req.music.get("volume", 0.6)), float(req.music.get("fadeOut", 1.5)), out_path=out)
+            final_rel = str(out.relative_to(d)); duration = m["duration"]
+        return {"file": final_rel, "duration": duration, "qa": qa}
+    except Exception as e:
+        _project_err(e)
 
 
 class ExportQaRequest(BaseModel):

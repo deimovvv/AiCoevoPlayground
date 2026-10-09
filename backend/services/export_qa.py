@@ -109,7 +109,7 @@ def _overlap(a: tuple, b: tuple) -> float:
     return (ix * iy) / area if area else 0.0
 
 
-def _thumb(img: np.ndarray, text: Optional[tuple], faces: List[tuple]) -> str:
+def _thumb(img: np.ndarray, text: Optional[tuple], faces: List[tuple], out_dir: Optional[Path] = None) -> str:
     vis = img.copy()
     h, w = vis.shape[:2]
     lw = max(2, w // 300)
@@ -120,13 +120,17 @@ def _thumb(img: np.ndarray, text: Optional[tuple], faces: List[tuple]) -> str:
     cv2.line(vis, (0, int(h * (1 - UNSAFE_BOTTOM))), (w, int(h * (1 - UNSAFE_BOTTOM))), (160, 160, 160), max(1, lw // 2))
     scale = 360 / w
     vis = cv2.resize(vis, (360, int(h * scale)), interpolation=cv2.INTER_AREA)
-    RENDERS_DIR.mkdir(parents=True, exist_ok=True)
     name = f"qa_{uuid.uuid4().hex[:8]}.jpg"
+    if out_dir:   # proyectos del editor: la miniatura queda en su carpeta
+        out_dir.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(out_dir / name), vis, [cv2.IMWRITE_JPEG_QUALITY, 82])
+        return str(out_dir / name)
+    RENDERS_DIR.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(RENDERS_DIR / name), vis, [cv2.IMWRITE_JPEG_QUALITY, 82])
     return f"/static/renders/{name}"
 
 
-async def review_export(final_url: str, base_url: str, texts: List[dict]) -> dict:
+async def review_export(final_url: str, base_url: str, texts: List[dict], thumbs_dir: Optional[Path] = None) -> dict:
     """Revisa cada texto del export. `texts`: PlacedText (id, text, start, end, position).
 
     Devuelve {"checked": n, "issues": [{textId, text, t, kinds, message, thumbUrl}]}.
@@ -160,6 +164,6 @@ async def review_export(final_url: str, base_url: str, texts: List[dict]) -> dic
         if kinds:
             issues.append({
                 "textId": tx.get("id"), "text": tx.get("text", ""), "t": round(t, 2), "kinds": kinds,
-                "message": "; ".join(msgs).capitalize() + ".", "thumbUrl": _thumb(a, box, faces),
+                "message": "; ".join(msgs).capitalize() + ".", "thumbUrl": _thumb(a, box, faces, thumbs_dir),
             })
     return {"checked": len(texts), "issues": issues}

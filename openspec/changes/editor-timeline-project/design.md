@@ -23,8 +23,11 @@ rótulo PNG transparente encima, y **cada tramo dura lo que su línea de locuci�
 ```
 
 - Rutas **relativas a la carpeta** del proyecto.
-- **Duración de un tramo:** `duration` si está; si no, lo que dure `voice`; si no, `out − in`;
-  si no, el largo del archivo (imagen: 3 s).
+- **Duración de un tramo:** `duration` si está; si no, lo que dure `voice` **+ `extra`**; si no,
+  `out − in`; si no, el largo del archivo (imagen: 3 s).
+- **`extra`**: segundos de más después de la locución, rellenados con silencio. Salió de
+  `montar5.sh` (vuelta del 2026-10-08): lo que hay que ver —el envío a Drive cargando— no entra
+  en 3 s de voz. Es como lo piensa quien edita, por eso es un campo y no una `duration` calculada.
 - **Fuente más corta que el tramo** (pasa en 2 de 11 tramos de End Cards): se **congela el
   último cuadro**. `montar4.sh` repetía el clip; repetir una grabación de pantalla reinicia
   la acción a mitad de camino, congelar se lee mejor. Vista previa y export hacen lo mismo.
