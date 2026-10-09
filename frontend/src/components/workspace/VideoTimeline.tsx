@@ -37,9 +37,22 @@ export interface ExportQa {
 export interface TimelineClip {
     id: string;
     title: string;
+    /** Fuente del tramo. Con kind "image", la URL de la imagen. */
     videoUrl: string;
     /** Miniatura del clip (el frame base). */
     imageUrl?: string;
+    // ── Proyectos timeline.json (openspec/changes/editor-timeline-project) ──
+    /** "image" = placa fija; dura `length`. */
+    kind?: "video" | "image";
+    /** Desde qué segundo de la fuente arranca por defecto. */
+    in?: number;
+    /** Largo por defecto del tramo (p. ej. lo que dura su locución + extra). Si la fuente es
+     *  más corta, se congela su último cuadro. */
+    length?: number;
+    /** Locución del tramo: arranca con el tramo. */
+    voiceUrl?: string;
+    /** Rótulo (PNG transparente del tamaño del cuadro) encima del tramo. */
+    overlayUrl?: string;
 }
 
 /** Un tramo del timeline: qué clip, y desde/hasta dónde (segundos del clip original). */
@@ -154,7 +167,7 @@ function Filmstrip({ url, srcDuration, start, end }: { url: string; srcDuration:
 export function VideoTimeline({
     clips, initialEdits, onEditsCommit, onExport,
     comments = [], onCommentsChange, onRegenerate, onRestore, versionsOf, onSaveRule, costFor, durationOptions,
-    textBlocks = [], onTextBlocksChange, textTheme,
+    textBlocks = [], onTextBlocksChange, textTheme, aspect, background = "#000000",
     music = null, onMusicChange, onUploadMusic, onGenerateMusic, onDetectBeats, qa = null,
 }: {
     clips: TimelineClip[];
@@ -187,6 +200,10 @@ export function VideoTimeline({
     onTextBlocksChange?: (b: TextBlock[]) => void;
     /** Tipografía y color de la marca del run. Sin theme no se muestra la pista de texto. */
     textTheme?: TextTheme;
+    /** Proporción fija del cuadro (proyectos: width/height). Sin esto, la del video. */
+    aspect?: number;
+    /** Fondo del cuadro detrás de fuentes que no lo llenan (proyectos: `background`). */
+    background?: string;
 
     // ── Música (musicModel.ts): atada al video entero; se mezcla al exportar ──
     music?: MusicTrack | null;
@@ -211,6 +228,7 @@ export function VideoTimeline({
         let cancelled = false;
         clips.forEach((c) => {
             if (durByUrl[c.videoUrl]) return;
+            if (c.kind === "image") { setDurByUrl((prev) => ({ ...prev, [c.videoUrl]: c.length || 3 })); return; }
             const v = document.createElement("video");
             v.preload = "metadata";
             v.src = c.videoUrl;
@@ -230,7 +248,10 @@ export function VideoTimeline({
 
     // ── La edición: lista de tramos, en el orden en que se reproducen ──
     const original = useCallback((): TimelineEdit[] =>
-        clips.map((c) => ({ clipId: c.id, start: 0, end: srcDur[c.id] || 0 })), [clips, srcDur]);
+        clips.map((c) => {
+            const start = c.in ?? 0;
+            return { clipId: c.id, start, end: c.length ? start + c.length : srcDur[c.id] || 0 };
+        }), [clips, srcDur]);
     const [edits, setEdits] = useState<TimelineEdit[]>([]);
     useEffect(() => {
         if (!ready || edits.length) return;
@@ -269,6 +290,11 @@ export function VideoTimeline({
     // Proporción real del video: el recuadro de la vista previa (y los textos) la siguen.
     const [videoAR, setVideoAR] = useState(9 / 16);
     const cur = edits[active];
+    const curClip = cur ? byId[cur.clipId] : undefined;
+    const curIsImage = curClip?.kind === "image";
+    // Fuente más corta que el tramo: se congela su último cuadro y el tramo sigue con reloj propio.
+    const [frozen, setFrozen] = useState(false);
+    const clockMode = curIsImage || frozen;
     const globalTime = (starts[active] || 0) + clipTime;
 
     const seekTo = useCallback((t: number) => {
@@ -277,25 +303,35 @@ export function VideoTimeline({
         let i = starts.findIndex((s, k) => c >= s && c < s + lens[k]);
         if (i < 0) i = edits.length - 1;
         const offset = c - starts[i];
+        const src = edits[i].start + offset;
+        const dur = srcDur[edits[i].clipId] || Infinity;
+        const isImg = byId[edits[i].clipId]?.kind === "image";
+        setFrozen(!isImg && src >= dur - 0.05);
         if (i === active && videoRef.current) {
-            videoRef.current.currentTime = edits[i].start + offset;
+            videoRef.current.currentTime = Math.min(src, dur - 0.05);
+        } else if (i === active && isImg) {
+            // imagen: sólo cambia el reloj
         } else {
             pendingSeek.current = edits[i].start + offset;
             setActive(i);
         }
         setClipTime(offset);
-    }, [edits, total, starts, lens, active]);
+    }, [edits, total, starts, lens, active, srcDur, byId]);
 
     const onLoaded = () => {
         const v = videoRef.current;
         if (!v || !cur) return;
         if (v.videoWidth && v.videoHeight) setVideoAR(v.videoWidth / v.videoHeight);
-        v.currentTime = pendingSeek.current ?? cur.start;
+        const target = pendingSeek.current ?? cur.start;
+        const frz = isFinite(v.duration) && target >= v.duration - 0.05;
+        v.currentTime = frz ? Math.max(0, v.duration - 0.05) : target;
         pendingSeek.current = null;
-        if (wantPlay.current) v.play().catch(() => setPlaying(false));
+        setFrozen(frz);
+        if (wantPlay.current && !frz) v.play().catch(() => setPlaying(false));
     };
 
     const next = () => {
+        setFrozen(false);
         if (active < edits.length - 1) {
             wantPlay.current = playing;
             pendingSeek.current = null;
@@ -310,15 +346,25 @@ export function VideoTimeline({
 
     const onTimeUpdate = () => {
         const v = videoRef.current;
-        if (!v || !cur) return;
+        if (!v || !cur || frozen) return;
         // El tramo termina en su `end`, no en el final del archivo.
         if (playing && v.currentTime >= cur.end - 0.04) { next(); return; }
         setClipTime(Math.max(0, v.currentTime - cur.start));
     };
 
+    // El archivo terminó antes que el tramo (la voz es más larga): se congela y sigue el reloj.
+    const onVideoEnded = () => {
+        const v = videoRef.current;
+        if (v && cur && cur.end - v.duration > 0.05) { setFrozen(true); return; }
+        next();
+    };
+
     const togglePlay = () => {
         const v = videoRef.current;
-        if (!v) return;
+        if (clockMode || !v) {
+            // Imagen o cuadro congelado: no hay video corriendo, el reloj lleva el tiempo.
+            wantPlay.current = !playing; setPlaying(!playing); return;
+        }
         if (v.paused) { wantPlay.current = true; v.play().then(() => setPlaying(true)).catch(() => setPlaying(false)); }
         else { wantPlay.current = false; v.pause(); setPlaying(false); }
     };
@@ -341,14 +387,18 @@ export function VideoTimeline({
         const d = drag.current;
         if (!d) return;
         const ed = edits[d.i];
-        const max = srcDur[ed.clipId] || ed.end;
+        // Se puede estirar más allá de la fuente (se congela su último cuadro): hasta su
+        // largo por defecto, o 60 s si es una imagen.
+        const c0 = byId[ed.clipId];
+        const max = c0?.kind === "image" ? ed.start + 60
+            : Math.max(srcDur[ed.clipId] || ed.end, c0?.length ? (c0.in ?? 0) + c0.length : 0);
         let val = d.v0 + (e.clientX - d.x0) / d.pxPerSec;
         val = d.side === "start"
             ? Math.max(0, Math.min(val, ed.end - MIN_LEN))
             : Math.min(max, Math.max(val, ed.start + MIN_LEN));
         setEdits((prev) => prev.map((x, k) => (k === d.i ? { ...x, [d.side]: val } : x)));
         // El reproductor muestra el cuadro exacto donde se está cortando.
-        if (videoRef.current) videoRef.current.currentTime = val;
+        if (videoRef.current) videoRef.current.currentTime = Math.min(val, (srcDur[ed.clipId] || val) - 0.05);
         setClipTime(d.side === "start" ? 0 : val - ed.start);
     };
     const onHandleUp = () => {
@@ -558,6 +608,38 @@ export function VideoTimeline({
     const qaFor = (id: string) => (qa && !qaStale ? qa.issues.find((i) => i.textId === id) : undefined);
     const clipName = (b: TextBlock) => b.anchor.kind === "clip" ? cleanTitle(byId[(b.anchor as { clipId: string }).clipId]?.title || "clip quitado") : "";
 
+    // ── Reloj propio (imagen o cuadro congelado): no hay video que lleve el tiempo ──
+    useEffect(() => {
+        if (!playing || !clockMode) return;
+        let raf = 0, last = performance.now();
+        const tick = (now: number) => {
+            const dt = Math.min(0.1, (now - last) / 1000); last = now;
+            setClipTime((t) => t + dt);
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+    }, [playing, clockMode, active]);
+    useEffect(() => {
+        if (playing && clockMode && cur && clipTime >= cur.end - cur.start - 0.01) next();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clipTime, playing, clockMode]);
+
+    // ── Locución del tramo: arranca con el tramo y sigue al cabezal ──
+    const voiceRef = useRef<HTMLAudioElement | null>(null);
+    useEffect(() => {
+        const a = voiceRef.current;
+        if (!a) return;
+        if (playing) { if (clipTime < (a.duration || Infinity)) { a.currentTime = clipTime; a.play().catch(() => {}); } }
+        else { a.pause(); a.currentTime = Math.min(clipTime, a.duration || clipTime); }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [playing, active, curClip?.voiceUrl]);
+    useEffect(() => {
+        const a = voiceRef.current;
+        if (!a || !isFinite(a.duration) || clipTime >= a.duration) return;
+        if (Math.abs(a.currentTime - clipTime) > 0.25) a.currentTime = clipTime;   // salto o deriva
+    }, [clipTime]);
+
     // Vista previa fluida: timeupdate llega ~4 veces por segundo; la animación del texto
     // necesita el tiempo de cada cuadro mientras reproduce.
     const [smoothT, setSmoothT] = useState<number | null>(null);
@@ -676,19 +758,30 @@ export function VideoTimeline({
             {/* ── Reproductor + comentarios ───────────────── */}
             <div className="flex gap-5 items-start">
             <div className="flex-1 min-w-0 flex justify-center relative">
-                <div ref={stageRef} className="relative h-[58vh] max-h-[640px]" style={{ aspectRatio: videoAR }}>
+                <div ref={stageRef} className="relative h-[58vh] max-h-[640px] max-w-full" style={{ aspectRatio: aspect ?? videoAR }}>
                 {music && audioSrc && <audio ref={audioRef} src={audioSrc} loop preload="auto" />}
+                {curClip?.voiceUrl && <audio key={curClip.voiceUrl} ref={voiceRef} src={curClip.voiceUrl} preload="auto" />}
+                {curIsImage ? (
+                    <img key={activeClip?.videoUrl} src={activeClip?.videoUrl} alt="" onClick={togglePlay} draggable={false}
+                        className="w-full h-full object-contain rounded-[var(--radius-md)] cursor-pointer" style={{ background }} />
+                ) : (
                 <video
                     key={activeClip?.videoUrl}
                     ref={videoRef}
                     src={activeClip?.videoUrl}
                     onLoadedMetadata={onLoaded}
                     onTimeUpdate={onTimeUpdate}
-                    onEnded={next}
+                    onEnded={onVideoEnded}
                     onClick={togglePlay}
                     playsInline
-                    className="w-full h-full object-cover rounded-[var(--radius-md)] bg-black cursor-pointer"
+                    className="w-full h-full object-contain rounded-[var(--radius-md)] cursor-pointer"
+                    style={{ background }}
                 />
+                )}
+                {curClip?.overlayUrl && (
+                    <img src={curClip.overlayUrl} alt="" draggable={false}
+                        className="absolute inset-0 w-full h-full object-contain rounded-[var(--radius-md)] pointer-events-none" />
+                )}
                 {textTheme && visibleTexts.length > 0 && stage.w > 0 && (
                     <div className="absolute inset-0 rounded-[var(--radius-md)] overflow-hidden pointer-events-none">
                         <TextLayer blocks={visibleTexts} t={previewT} theme={textTheme} width={stage.w} height={stage.h} selectedId={playing ? null : selText} />
@@ -995,7 +1088,7 @@ export function VideoTimeline({
                                     <img src={c.imageUrl} alt="" draggable={false}
                                         className="absolute left-0 top-0 h-full w-auto object-cover pointer-events-none" />
                                 )}
-                                {c && srcDur[c.id] > 0 && (
+                                {c && c.kind !== "image" && srcDur[c.id] > 0 && (
                                     <Filmstrip url={c.videoUrl} srcDuration={srcDur[c.id]} start={ed.start} end={ed.end} />
                                 )}
 
@@ -1135,7 +1228,12 @@ export function VideoTimeline({
                             className={cn("text-[10px] truncate px-0.5", i === active ? "text-fg" : "text-fg-faint")}
                             style={{ flexGrow: lens[i] || 1, flexBasis: 0, minWidth: 28 }}>
                             {cleanTitle(byId[ed.clipId]?.title || "")}
-                            {srcDur[ed.clipId] && lens[i] < srcDur[ed.clipId] - 0.05 ? " · recortado" : ""}
+                            {(() => {
+                                // "recortado" = más corto que como venía (su largo por defecto, o el archivo entero)
+                                const c = byId[ed.clipId];
+                                const full = c?.length ?? srcDur[ed.clipId];
+                                return full && lens[i] < full - 0.05 ? " · recortado" : "";
+                            })()}
                         </span>
                     ))}
                 </div>

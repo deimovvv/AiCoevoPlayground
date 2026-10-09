@@ -25,6 +25,7 @@ import { ChatPage } from "./pages/ChatPage";
 // v1 (ManualLab) está desconectada del flujo pero el archivo se mantiene en disco
 // como fallback. Si alguien lo necesita: importar y agregar de vuelta la ruta.
 import { ManualLabV2 } from "./pages/ManualLabV2";
+import { EditorProjectPage } from "./pages/EditorProjectPage";
 import { VoiceLab } from "./pages/VoiceLab";
 import { EcommerceBatch } from "./pages/EcommerceBatch";
 
@@ -89,6 +90,8 @@ function App() {
             como alias por compat con cualquier link viejo apuntando a la beta. */}
         <Route path="lab" element={<ErrorBoundary><ManualLabV2 /></ErrorBoundary>} />
         <Route path="lab-v2" element={<ErrorBoundary><ManualLabV2 /></ErrorBoundary>} />
+        {/* Editor de proyectos timeline.json (Claude + UI editan el mismo archivo) */}
+        <Route path="editor" element={<ErrorBoundary><EditorProjectPage /></ErrorBoundary>} />
         <Route path="voice-lab" element={<ErrorBoundary><VoiceLab /></ErrorBoundary>} />
         <Route path="ecommerce-batch" element={<ErrorBoundary><EcommerceBatch /></ErrorBoundary>} />
         <Route path="tools/images" element={<ToolsPage />} />

@@ -3029,6 +3029,104 @@ export async function pollMusic(
     throw new Error("Music timed out");
 }
 
+// ══════════════════════════════════════════════════════════════
+//  Proyectos del editor — timeline.json en una carpeta
+//  (openspec/changes/editor-timeline-project). Claude y la UI editan el mismo archivo.
+// ══════════════════════════════════════════════════════════════
+
+export interface EditorProjectSegment {
+    id: string;
+    src: string;
+    in?: number;
+    out?: number;
+    duration?: number;
+    voice?: string;
+    /** Segundos de más después de la locución (se rellenan con silencio). */
+    extra?: number;
+    overlay?: string;
+    label?: string;
+    [k: string]: unknown;
+}
+
+export interface EditorProject {
+    version: number;
+    title?: string;
+    width: number;
+    height: number;
+    fps?: number;
+    background?: string;
+    segments: EditorProjectSegment[];
+    texts?: unknown[];
+    music?: unknown;
+    notes?: unknown[];
+    theme?: { headline?: string; body?: string; accent?: string };
+    [k: string]: unknown;
+}
+
+export interface EditorProjectLoad {
+    dir: string;
+    project: EditorProject;
+    mtime: number;
+    /** Duración de cada archivo del proyecto (null = imagen, "missing" = no está). */
+    media: Record<string, number | null | "missing">;
+    notes: string;
+}
+
+/** URL de un archivo del proyecto (servido con rangos, para poder saltar). */
+export function editorFileUrl(dir: string, rel: string): string {
+    return `${API_BASE}/api/editor/file?project=${encodeURIComponent(dir)}&path=${encodeURIComponent(rel)}`;
+}
+
+async function editorJson<T>(res: Response, what: string): Promise<T> {
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "" }));
+        const e = new Error(err.detail || `${what} (${res.status})`) as Error & { conflict?: boolean };
+        e.conflict = res.status === 409;
+        throw e;
+    }
+    return res.json();
+}
+
+export async function loadEditorProject(path: string): Promise<EditorProjectLoad> {
+    return editorJson(await fetch(`${API_BASE}/api/editor/project?path=${encodeURIComponent(path)}`), "No se pudo abrir el proyecto");
+}
+
+export async function editorProjectMtime(path: string): Promise<number> {
+    const r = await editorJson<{ mtime: number }>(await fetch(`${API_BASE}/api/editor/project/mtime?path=${encodeURIComponent(path)}`), "No se pudo leer el proyecto");
+    return r.mtime;
+}
+
+/** Guarda el proyecto. Si Claude lo cambió en disco desde `baseMtime`, falla con `conflict`. */
+export async function saveEditorProject(path: string, project: EditorProject, baseMtime: number): Promise<{ mtime: number }> {
+    return editorJson(await fetch(`${API_BASE}/api/editor/project`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, project, base_mtime: baseMtime }),
+    }), "No se pudo guardar el proyecto");
+}
+
+/** Escribe notas.md en la carpeta del proyecto (las lee Claude). */
+export async function saveEditorNotes(path: string, notes: Array<{ t: number; segment: string; text: string; status?: string }>): Promise<void> {
+    await editorJson(await fetch(`${API_BASE}/api/editor/notes`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, notes }),
+    }), "No se pudieron guardar las notas");
+}
+
+export async function exportEditorProject(p: {
+    path: string;
+    segments: Array<{ src: string; in: number; duration: number; voice?: string; overlay?: string }>;
+    texts?: unknown[];
+    theme?: unknown;
+    fontFamilies?: string[];
+    fontUrls?: string[];
+    music?: unknown;
+}): Promise<{ file: string; duration: number; qa: { checked: number; issues: Array<ExportQaIssue & { thumbFile?: string }> } | null }> {
+    return editorJson(await fetch(`${API_BASE}/api/editor/export`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: p.path, segments: p.segments, texts: p.texts, theme: p.theme, font_families: p.fontFamilies, font_urls: p.fontUrls, music: p.music }),
+    }), "No se pudo exportar");
+}
+
 export interface ExportQaIssue {
     textId: string;
     text: string;

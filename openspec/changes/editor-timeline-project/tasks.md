@@ -14,11 +14,14 @@
 
 ## 3. Editor
 
-- [ ] 3.1 Tramos de imagen fija.
-- [ ] 3.2 Locución por tramo (el tramo dura lo que su voz) y rótulo encima.
-- [ ] 3.3 Página del editor por proyecto; recarga si Claude cambió el archivo.
+- [x] 3.1 Tramos de imagen fija (reloj propio).
+- [x] 3.2 Locución por tramo (el tramo dura lo que su voz + extra; voz sincronizada ±0,1 s), rótulo encima,
+      y congelado del último cuadro si la fuente es más corta (verificado en el tramo 3 de End Cards).
+- [x] 3.3 Página `/dashboard/editor?path=…`; guarda en el mismo timeline.json (409 si Claude lo cambió);
+      se recarga sola si el archivo cambia (probado: < 3 s). Traducción en `editorProjectModel.ts`
+      (13 casos). Notas → notas.md.
 
 ## 4. Casos de prueba
 
-- [ ] 4.1 End Cards: abre, reproduce y exporta igual a `ENDCARDS.mp4` (salvo el congelado).
+- [x] 4.1 End Cards (`montar5.sh`): abre los 12 tramos, reproduce con voz y rótulos, exporta igual.
 - [ ] 4.2 Morph (`reel-marca`): necesita bloques animados — otro change.
