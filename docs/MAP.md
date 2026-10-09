@@ -23,6 +23,20 @@ los heredan.
 Primero se usa para **vender output** a clientes (Koxis, PROMAN). El SaaS para
 artistas de IA y marcas es una etapa posterior, no el plan actual.
 
+### Tools, editor y skills — tres cosas distintas (2026-10-09)
+
+| Qué | Para qué | Dónde vive |
+|---|---|---|
+| **Tool** | **genera** material nuevo, con pasos que el operador aprueba | la app (`tools/`) |
+| **Editor** | **monta** un video con material que ya existe. Uno solo, para todo | la app (`components/workspace/VideoTimeline`) |
+| **Skill** | Claude produciendo en la terminal y **descubriendo** qué funciona | `coevo-skills` |
+
+A veces se genera material nuevo (tool → editor) y a veces se parte de material que ya
+existe (directo al editor). Lo que una skill valida pasa a la app como **plantilla del
+editor** o **receta de una tool** — no como una tool nueva. El editor y las skills comparten
+el formato de proyecto `timeline.json`, para que Claude y la UI editen el mismo video.
+Ver `openspec/changes/editor-timeline-project`.
+
 ---
 
 ## 2. Las pantallas (lo que ve el usuario)

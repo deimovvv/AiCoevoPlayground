@@ -27,8 +27,24 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Fashion Editorial | Convertida en preset de Campañas (hecho) | 2026-09-25 |
 | Campañas | Centro del pedido: imagen adentro, video lanzando la tool | 2026-10-03 · `changes/campaigns-as-hub` |
 | Keys de Google | Sólo la de Coevo (`GEMINI_API_KEY`) o falla; nunca una de Monks | 2026-10-06 |
+| Tools / editor / skills | Tool genera · editor monta (uno solo) · skill descubre; lo validado pasa a la app como plantilla o receta | 2026-10-09 |
 
 ---
+
+## 2026-10-09 — Tool, editor y skill son tres cosas distintas
+
+**Qué pasó:** el usuario armó con la skill `reel-marca` un reel para Morph y lo llamó "una
+tool nueva"; a la vez se planeaba llevar el editor a otras tools. Se mezclaban conceptos.
+
+**Decisión:** una **tool genera** material (con pasos aprobados); el **editor monta** un video
+con material que ya existe (uno solo, para todo); una **skill** es Claude produciendo en la
+terminal y descubriendo qué funciona. El reel de Morph no es una tool: es la primera
+**plantilla del editor**.
+
+**Por qué el editor importa más ahora:** el usuario itera los videos por prompt con Claude
+(*"necesito el timeline porque yo voy modificando con prompt"*). El editor es la mesa donde
+se ve y se señala; Claude y la UI editan el mismo `timeline.json`, y las notas vuelven a
+Claude por `notas.md`. Change: `openspec/changes/editor-timeline-project`.
 
 ## 2026-10-06 — Nunca una key de Google de Monks
 
