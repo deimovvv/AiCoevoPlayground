@@ -1,5 +1,5 @@
 """
-Node model — Fase 0 de la arquitectura de nodos (ver docs/architecture-nodes.md).
+Node model — Fase 0 de la arquitectura de nodos (ver docs/producto/architecture-nodes.md).
 
 Descriptor de nodo como DATO puro (serializable) + una fn `execute` separada — el split
 de n8n. Los ports son TIPADOS (vocabulario chico, estilo ComfyUI) para que un renderer

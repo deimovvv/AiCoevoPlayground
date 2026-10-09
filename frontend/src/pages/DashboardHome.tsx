@@ -11,7 +11,7 @@ import { cn } from "../lib/utils";
 
 /**
  * Sugerencias del intake — nombran la tool a propósito, así el operador aprende el mapa
- * mientras pide. Ver docs/competitive-research.md § Superside (el "What can we do for you?"
+ * mientras pide. Ver docs/negocio/competitive-research.md § Superside (el "What can we do for you?"
  * de Superspace es un campo de texto, no un formulario).
  */
 const INTAKE_SUGGESTIONS: Array<{ text: string; tool: string; toolId: string }> = [

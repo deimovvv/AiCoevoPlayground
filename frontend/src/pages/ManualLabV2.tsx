@@ -341,7 +341,7 @@ export function ManualLabV2() {
    Para reactivar: volver a montar una fila <SelectorTrigger label="Consistencia">
    en la sección Referencias y renderizar su panel DENTRO del <SelectorPanel> de la
    columna del medio (igual que Look & Feel) — nunca inline en el sidebar, ver
-   docs/workspace-template.md §2.
+   docs/producto/workspace-template.md §2.
    Los @ts-expect-error / eslint-disable de abajo existen sólo mientras esté pausada. */
     // @ts-expect-error -- pausado, ver nota de Consistencia arriba
     const [consistencyAnalyzing, setConsistencyAnalyzing] = useState(false);
@@ -1457,7 +1457,7 @@ export function ManualLabV2() {
                                         active={showLookFeel}
                                         onClick={() => {
                                             // Abre en la columna del medio, no hacia abajo:
-                                            // docs/workspace-template.md §2 — "el selector no se
+                                            // docs/producto/workspace-template.md §2 — "el selector no se
                                             // despliega hacia abajo dentro del panel".
                                             setShowLookFeel((v) => !v);
                                             setSelectorKind(null);
@@ -1973,7 +1973,7 @@ export function ManualLabV2() {
                 >
                     {/* Look & Feel vive acá, en la columna del medio, por la misma razón que
                         los assets: mientras elegís un grade querés seguir viendo lo que ya
-                        generaste para comparar. (docs/workspace-template.md §2) */}
+                        generaste para comparar. (docs/producto/workspace-template.md §2) */}
                     {/* Warning amarillo en modo "image": Nano Banana a veces devuelve la
                         imagen del L&F en vez de aplicarla como grade. */}
                     {showLookFeel && mode === "image" && !selectorKind && (

@@ -8,7 +8,7 @@ video conocido** y completarlo invierte eso.
 
 Una galería de formatos derivados de video real (giro en ciclorama, retrato frontal,
 secuencia de looks, detalle de prenda). Cada formato trae su prompt resuelto y
-declara qué inputs pide. Diseño completo: `docs/fashion-reel-recipes.md`.
+declara qué inputs pide. Diseño completo: `docs/producto/fashion-reel-recipes.md`.
 
 **Estado:** la UI está hecha (tira en loop, grilla, inputs filtrados). **Falta lo
 central:** el prompt de la receta no llega al generador — `recipe` es estado local de

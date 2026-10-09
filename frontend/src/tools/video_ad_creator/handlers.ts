@@ -283,7 +283,7 @@ export const handleCharacter: StepHandler = async (ctx) => {
 // Fondo por escena: solo se ancla una FOTO REAL cuando la escena MUESTRA la planta
 // (verdad visual). El resto de locaciones (bahía, manglar, panga, orilla, centro comunitario…)
 // las imagina la IA desde el prompt + el contexto de marca — NO se fuerza una imagen. El fondo
-// manual del config, si el usuario lo eligió, sigue como override. Ver docs/video-dialogue-pipeline.md.
+// manual del config, si el usuario lo eligió, sigue como override. Ver docs/producto/video-dialogue-pipeline.md.
 const PLANT_SCENE_KW = /(planta|fertilizante|construcci|domo|contenedor|gr[úu]a|torre industrial|f[áa]brica|CERREY|refiner)/i;
 function plantBackgroundUrls(text: string, brand: { backgrounds?: Array<{ name?: string; imageUrl?: string }> }): string[] {
   if (!PLANT_SCENE_KW.test(text || "")) return [];
@@ -535,7 +535,7 @@ export const handleAnimate: StepHandler = async (ctx) => {
 
   // UN CLIP POR TOMA (no frame-to-frame). Toma con diálogo de un personaje (audio + speaker que
   // no sea narrador) → OmniHuman/Kling Avatar (labios, duración = el audio). Ambiente / narrador /
-  // insert → Kling image-to-video (movimiento sutil). Ver docs/video-dialogue-pipeline.md.
+  // insert → Kling image-to-video (movimiento sutil). Ver docs/producto/video-dialogue-pipeline.md.
   const segments: Array<{ index: number; videoUrl: string; startFrame: number; endFrame: number; status: string; audioUrl: string; talking: boolean; model: string }> = [];
   for (let i = 0; i < successfulImages.length; i++) {
     const img = successfulImages[i];

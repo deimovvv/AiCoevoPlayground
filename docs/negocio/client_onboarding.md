@@ -34,7 +34,7 @@ Sin esto Coevo no funciona. Si el cliente no te da nada de esto, no podés ni em
 
 - **Mínimo 1 foto frontal**, buena luz, sin filtros raros
 - Idealmente **5-10 fotos variadas**: distintos ángulos, expresiones, ropa
-- Si NO hay persona real → podemos generar un avatar sintético con [Avatar Creator tool](MAP.md)
+- Si NO hay persona real → podemos generar un avatar sintético con [Avatar Creator tool](../MAP.md)
 
 ### 1.3 Productos
 
@@ -105,7 +105,7 @@ Para reemplazar la voz default por una voz **real** que se sienta de la marca:
   - Grabación con celu en cuarto silencioso
   - Clip de un IG live / podcast donde aparezca
 
-→ Lo subís en [BrandSettings → Voces → Clonar voz](../frontend/src/pages/BrandSettings.tsx) y queda lista para todas las tools.
+→ Lo subís en [BrandSettings → Voces → Clonar voz](../../frontend/src/pages/BrandSettings.tsx) y queda lista para todas las tools.
 
 ### 3.2 Voice Design (alternativa)
 
@@ -227,7 +227,7 @@ Una vez que cargaste todo, validá:
 - [ ] Al menos 1 voz en presets (default o clonada)
 - [ ] El sample de TTS suena bien al hacerle play en el panel de Voces
 
-Si todo eso está, andá a [Generar tool](../frontend/src/pages/GeneratePage.tsx) y elegí UGC Creator. Está listo para correr.
+Si todo eso está, andá a [Generar tool](../../frontend/src/pages/GeneratePage.tsx) y elegí UGC Creator. Está listo para correr.
 
 ---
 

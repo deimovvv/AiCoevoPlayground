@@ -1,7 +1,7 @@
 # Setup del equipo — Coevo Studio
 
 Guía corta para trabajar en equipo. Para la instalación completa (Node, Python, deps),
-ver [`docs/setup.md`](docs/setup.md).
+ver [`docs/guias/setup.md`](docs/guias/setup.md).
 
 ---
 

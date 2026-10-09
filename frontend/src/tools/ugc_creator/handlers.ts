@@ -1279,7 +1279,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
       continue;
     }
 
-    // ── Talking scene: fuente de voz elegida (A/B/C del estudio, ver docs/ugc-audio.md) ──
+    // ── Talking scene: fuente de voz elegida (A/B/C del estudio, ver docs/guias/ugc-audio.md) ──
     // "elevenlabs" (default): la voz de ElevenLabs se PRESERVA → va a HeyGen/Sync, que
     //   sincronizan a TU audio sin cambiarlo. Mejor acento (porteño), sin ambiente (se
     //   suma en la mezcla).
@@ -1290,7 +1290,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
     //   pero el acento regional sale flojo (sesgo inglés) y dispara filtro de contenido.
     // ── Veo 3.1: talking-head con voz nativa (acepta caras que Seedance bloquea) ──
     // Genera video + voz en una sola pasada desde la imagen base + el guion en el prompt.
-    // No usa ElevenLabs. Ver docs/ugc-talking-head-tests.md.
+    // No usa ElevenLabs. Ver docs/producto/ugc-talking-head-tests.md.
     if (engineForTalk === "veo" && scriptText) {
       try {
         const accent = (cfgRec2.ugcAccent as string || "argentino rioplatense").trim();

@@ -242,7 +242,7 @@ class SaveGenerationRequest(BaseModel):
     pipelineState: Optional[dict] = None  # Full pipeline: {steps, config, curationSelections}
     # Costo REAL de los modelos que consumió la corrida — lo arma `costLedger` en el
     # front y viaja acá. Shape: {usd, images, videoClips, videoSeconds, ttsChars,
-    # byModel, verified}. Ver docs/pricing-credits.md.
+    # byModel, verified}. Ver docs/negocio/pricing-credits.md.
     cost: Optional[dict] = None
     # Estado de TRABAJO (draft | in_progress | review | sent | changes | approved).
     # Distinto de `status`, que dice si la corrida terminó.
@@ -426,7 +426,7 @@ def list_tools():
 
 # ══════════════════════════════════════════════════════════════
 #  Sistema de nodos (Fase 1) — catálogo + runner de grafos
-#  Ver docs/architecture-nodes.md. Aditivo: no toca las tools existentes.
+#  Ver docs/producto/architecture-nodes.md. Aditivo: no toca las tools existentes.
 # ══════════════════════════════════════════════════════════════
 
 # Cachés de grafo en memoria por `cache_key` → habilita el skip-por-hash de ComfyUI
@@ -2685,7 +2685,7 @@ def list_system_presets(kind: str):
     """Presets del SISTEMA por eje: framing | vibe (y lighting, abajo).
 
     Migrados de Fashion Editorial cuando se convirtió en preset de Campañas
-    (2026-09-25, ver docs/tools-audit.md §3b). Cada uno trae su `prompt` — el
+    (2026-09-25, ver docs/producto/tools-audit.md §3b). Cada uno trae su `prompt` — el
     fragmento que se inyecta al generar; sin eso sería una etiqueta decorativa.
 
     ⚠️ Las 5 cláusulas de LUZ de Fashion Editorial no se migraron: `lighting.json`
@@ -3931,7 +3931,7 @@ async def synclipsync_result(request_id: str):
 
 # ══════════════════════════════════════════════════════════════
 #  Google Veo 3.1 — Image/Text-to-Video con audio nativo
-#  (acepta caras que Seedance bloquea — ver docs/ugc-talking-head-tests.md)
+#  (acepta caras que Seedance bloquea — ver docs/producto/ugc-talking-head-tests.md)
 # ══════════════════════════════════════════════════════════════
 
 class VeoImageToVideoRequest(BaseModel):

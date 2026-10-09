@@ -153,7 +153,7 @@ te lleva ahí, preguntá antes de meterte.
 
 ## 5. Leé el decisions-log
 
-[`docs/decisions-log.md`](decisions-log.md) es lo más valioso del repo para tu perfil.
+[`docs/decisions-log.md`](../decisions-log.md) es lo más valioso del repo para tu perfil.
 
 No dice qué hace el código: dice **por qué está así**, qué se probó antes y qué salió mal.
 Cada entrada nació de un problema real de output.

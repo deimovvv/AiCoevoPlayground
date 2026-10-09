@@ -248,4 +248,4 @@ propia: obliga a aprobar paso por paso, que es la regla de trabajo del proyecto
 - Analizadas con la skill `ver-imagenes` (Gemini 3.1 Pro), que transcribe etiquetas literales.
 - ⚠️ Las proporciones en píxeles son **estimadas por el modelo de visión**, no medidas.
 - ⚠️ Los hex de color son aproximaciones visuales.
-- El research de negocio de Genera (pricing, funding, moat técnico) está en `docs/competitive-research.md`.
+- El research de negocio de Genera (pricing, funding, moat técnico) está en `docs/negocio/competitive-research.md`.

@@ -3,7 +3,7 @@
 ## Purpose
 El patrón de pantalla compartido por las pantallas donde se genera contenido: un
 panel de controles, un selector que se abre al costado y un canvas que nunca
-desaparece. Detalle y motivación en `docs/workspace-template.md`.
+desaparece. Detalle y motivación en `docs/producto/workspace-template.md`.
 
 Implementado en: Lab, Campañas, Fashion Reel, Ecommerce Pack. El resto de las
 tools sigue con el layout anterior (ver change `workspace-template-tools-migration`

@@ -1,7 +1,7 @@
 # Pipeline de video con diálogo — spec + aprendizajes (validado en PROMAN)
 
 > Destilado de la sesión de PROMAN (guiones 3 "El vivero de la abuela" y 4 "Diez kilómetros del Pechocho"), Ago 2026.
-> Es el **spec** del selector por-plano del Video Ad Creator y la guía de costos. Ver también [`video-ad-production-sop.md`](video-ad-production-sop.md) (método del operador) y [`pricing-credits.md`](pricing-credits.md).
+> Es el **spec** del selector por-plano del Video Ad Creator y la guía de costos. Ver también [`video-ad-production-sop.md`](../guias/video-ad-production-sop.md) (método del operador) y [`pricing-credits.md`](../negocio/pricing-credits.md).
 
 ## El problema central: labios que se muevan bien
 Ningún modelo mueve labios bien en **plano general con caras chicas** (juguete/papel o foto). Lo aprendido, en orden:

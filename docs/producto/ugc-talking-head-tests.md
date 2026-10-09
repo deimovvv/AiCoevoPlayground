@@ -4,7 +4,7 @@ Registro de TODOS los tests que hicimos para el video UGC "persona hablando a c�
 (caso testigo: **aviso UTN Mendoza — Tecnicatura en Programación**), para ir acumulando
 evidencia y quedarnos con el mejor pipeline.
 
-> Complementa `docs/ugc-audio.md` (research de audio/voz). Este doc es la **bitácora práctica**
+> Complementa `docs/guias/ugc-audio.md` (research de audio/voz). Este doc es la **bitácora práctica**
 > con archivos concretos y veredictos. Fecha de arranque: 2026-07-28.
 
 ---
@@ -72,7 +72,7 @@ evidencia y quedarnos con el mejor pipeline.
    "mi personaje puntual hablando".
 
 3. **La voz nunca del modelo de video** (para acento regional). Seedance/Veo nativo no clavan
-   porteño/argentino y pueden pronunciar mal. ElevenLabs sí. (Ver `docs/ugc-audio.md`.)
+   porteño/argentino y pueden pronunciar mal. ElevenLabs sí. (Ver `docs/guias/ugc-audio.md`.)
 
 4. **"Suena a estudio" se arregla worldizeando**, no generando la voz en el modelo. Es lo que
    hace la producción pro (ADR + diseño de sonido).

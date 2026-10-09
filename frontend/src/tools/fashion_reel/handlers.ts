@@ -1069,7 +1069,7 @@ export const handleRender: StepHandler = async (ctx) => {
  * motionClauses, collectSeedanceBrandRefs), así el clip nuevo no sale con otra
  * lógica que el original. Siempre single-frame: anima el frame de la escena.
  *
- * Spec: openspec/changes/shared-video-editor (tareas 2.3 y "alargar").
+ * Spec: openspec/changes/archive/2026-10-09-shared-video-editor (tareas 2.3 y "alargar").
  */
 export async function regenerateSceneClip(o: {
   activeBrand: AnimBrand;

@@ -1,7 +1,7 @@
 # Video Ad Creator — estado as-built (Ago 2026)
 
 > Cómo funciona HOY el Video Ad Creator después del rework de Ago 2026 (sesión PROMAN).
-> Diseño/decisiones: [`video-dialogue-pipeline.md`](video-dialogue-pipeline.md) (spec) · [`video-ad-production-sop.md`](video-ad-production-sop.md) (método del operador) · [`pricing-credits.md`](pricing-credits.md) (costos).
+> Diseño/decisiones: [`video-dialogue-pipeline.md`](video-dialogue-pipeline.md) (spec) · [`video-ad-production-sop.md`](../guias/video-ad-production-sop.md) (método del operador) · [`pricing-credits.md`](../negocio/pricing-credits.md) (costos).
 
 ## Idea
 Pegás un **brief o un guión escena-por-escena** → la IA interpreta, propone personajes, arma el storyboard, genera imágenes consistentes, voz por personaje, anima con labios, música y subtítulos. **Brief-first**: casi todo se deriva del guión + el Brand System; los selectores son overrides.

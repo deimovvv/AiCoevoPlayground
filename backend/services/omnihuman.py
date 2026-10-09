@@ -4,7 +4,7 @@ ByteDance OmniHuman v1.5 (via Fal) — talking-character desde imagen + audio
 Audio-driven: toma una imagen (rostro real o ilustrado — funciona sobre papel/
 juguete) + audio de ElevenLabs y anima la boca sincronizada al audio. A diferencia
 de Veo (prompt-driven), NO necesita cara grande ni prompt de diálogo, pero anima
-UNA sola cara por clip y deja el fondo quieto. Ver docs/video-dialogue-pipeline.md.
+UNA sola cara por clip y deja el fondo quieto. Ver docs/producto/video-dialogue-pipeline.md.
 
 v1.5 (no v1): soporta audios largos (hasta ~60s) y resolución 720p/1080p.
 v1 truncaba audios >~5s y taggeaba mal la rotación.

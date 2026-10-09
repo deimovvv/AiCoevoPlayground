@@ -6,7 +6,7 @@
  *
  * La diferencia con ContentPage: aquélla es un archivo (qué hicimos), ésta es un
  * tablero (qué falta hacer). Los dos primeros filtros responden "¿qué necesita algo
- * de mí?" — ver docs/competitive-research.md § Superside.
+ * de mí?" — ver docs/negocio/competitive-research.md § Superside.
  *
  * NO vive adentro de ToolRunPage a propósito: esta capa CONSUME las tools, nunca al revés.
  */

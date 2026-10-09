@@ -1,6 +1,6 @@
 /**
  * Traducción entre un proyecto `timeline.json` y el editor (VideoTimeline).
- * Formato: openspec/changes/editor-timeline-project/design.md.
+ * Formato: openspec/changes/archive/2026-10-09-editor-timeline-project/design.md.
  *
  * Ida: cada tramo → un clip con su largo (voz + extra, o duration, o out−in…) y un recorte.
  * Vuelta: el orden y los recortes de la UI → los mismos campos del tramo, conservando todo

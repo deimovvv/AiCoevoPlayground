@@ -4,7 +4,7 @@ Google Lyria 2 (via Fal) — música instrumental de fondo
 Genera un bed instrumental para "fondear" el video sin protagonismo. El mood
 sale del brief/guión (Gemini) o se elige a mano. La mezcla con ducking (bajar la
 música cuando hay voz) se hace en el paso de render con FFmpeg sidechain — acá
-solo se genera el track. Ver docs/video-dialogue-pipeline.md.
+solo se genera el track. Ver docs/producto/video-dialogue-pipeline.md.
 
 $0.10 / 30s. Output: WAV url. REST flow (Fal queue): submit → poll → result.
 """

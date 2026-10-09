@@ -954,7 +954,7 @@ export function ToolRunPage() {
   const [started, setStarted] = useState(false);
   /**
    * Qué selector de assets está abierto en la columna del medio. `null` = ninguno.
-   * Patrón de Lab y Campañas (ver docs/workspace-template.md): el selector se abre
+   * Patrón de Lab y Campañas (ver docs/producto/workspace-template.md): el selector se abre
    * AL LADO empujando el canvas, no hacia abajo dentro del panel de config.
    */
   const [assetSelector, setAssetSelector] = useState<AssetSelectorState>(null);
@@ -972,7 +972,7 @@ export function ToolRunPage() {
 
   /** Receta de movimiento activa (Fashion Reel). Cuando hay una, el panel muestra
    *  SÓLO los inputs que ella declara — el resto se oculta.
-   *  Ver docs/fashion-reel-recipes.md §4. */
+   *  Ver docs/producto/fashion-reel-recipes.md §4. */
   const [recipe, setRecipe] = useState<MotionRecipe | null>(null);
   // Marca a la que pertenece la corrida actual (id + nombre). Se captura cuando la
   // corrida arranca; si después cambiás de marca, el banner de mismatch avisa que
@@ -2935,7 +2935,7 @@ export function ToolRunPage() {
         {/* ── SELECTOR (columna del medio) ───────────────────────────
              Se abre al tocar una fila de asset en el panel de config y EMPUJA el
              main — no lo tapa. Mientras elegís seguís viendo lo generado.
-             Ver docs/workspace-template.md §3.3. */}
+             Ver docs/producto/workspace-template.md §3.3. */}
         <SelectorPanel
           open={assetSelector !== null}
           title={assetSelector?.label ?? ""}
@@ -2943,7 +2943,7 @@ export function ToolRunPage() {
           width={340}
         >
           {/* La receta abre su grilla ACÁ, en la columna del medio — igual que
-              los assets. No es un modal: docs/fashion-reel-recipes.md §4.1. */}
+              los assets. No es un modal: docs/producto/fashion-reel-recipes.md §4.1. */}
           {assetSelector?.key === "recipe" && (
             <RecipeGrid
               recipes={MOTION_RECIPES}
@@ -3953,7 +3953,7 @@ function ConfigPanel({
       {/* ── FORMATO DE VIDEO ──────────────────────────────────────────
            Tira horizontal EN LOOP: se entiende sin abrir nada que son videos y
            que son elegibles. "Ver todos" abre la grilla completa al costado.
-           Con 25-40 formatos la tira no crece — docs/fashion-reel-recipes.md §13. */}
+           Con 25-40 formatos la tira no crece — docs/producto/fashion-reel-recipes.md §13. */}
       {USE_RECIPES.has(tool.id) && (
         <div className="space-y-2">
           <RecipeStrip
@@ -5291,7 +5291,7 @@ function ConfigPanel({
           FORMATO elegido. El formato ya define la secuencia de tomas y la estética
           —los sacó del video analizado—, así que tenerlos juntos son dos gobiernos
           para lo mismo. Reportado por el usuario: "si elijo movimiento, está claro
-          que yo no debo poder elegir los planos". Ver docs/fashion-reel-recipes.md §11.
+          que yo no debo poder elegir los planos". Ver docs/producto/fashion-reel-recipes.md §11.
           ⚠️ Looks NO desaparece como concepto: pasa a declararlo la receta vía
           `role: one-per-clip`. Lo que se va es el TOGGLE. */}
       {tool.id === "fashion_reel" && !recipe && (
@@ -5796,7 +5796,7 @@ function ConfigPanel({
       {/* El explicativo "Cómo se reparten los inputs" se quitó de Fashion Reel
           (2026-09-23): existía para explicar una complejidad que las recetas de
           movimiento eliminan — la receta ya declara qué inputs usa y para qué.
-          Ver docs/fashion-reel-recipes.md §4. */}
+          Ver docs/producto/fashion-reel-recipes.md §4. */}
 
       {/* Ecommerce Pack: SOLO Look & Feel. La Referencia de POSE global fue
           eliminada porque las pose refs por shot (en el bloque "Tomas a generar")
@@ -6283,7 +6283,7 @@ function ConfigPanel({
             <AssetSelector
               /* Selector AL LADO en vez de desplegar abajo. Encendido tool por
                  tool: `USE_SIDE_SELECTOR` lista las migradas. Ver
-                 docs/workspace-template.md §3.3. */
+                 docs/producto/workspace-template.md §3.3. */
               {...(USE_SIDE_SELECTOR.has(tool.id) ? {
                 externalOpen: assetSelector?.key === "avatar",
                 onOpenExternal: () => setAssetSelector((cur) =>
@@ -6774,7 +6774,7 @@ function ConfigPanel({
 
             {/* Acento — solo con Veo (genera la voz nativa; le decimos qué tonada). Los
                 modos Seedance de voz se sacaron: Seedance bloquea caras. Kling/OmniHuman
-                usan ElevenLabs por default. Ver docs/ugc-talking-head-tests.md. */}
+                usan ElevenLabs por default. Ver docs/producto/ugc-talking-head-tests.md. */}
             {tool.id === "ugc_creator" && config.animationEngine === "veo" && (
               <div className="space-y-1.5 pt-2">
                 <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Acento de la voz (Veo)</span>
@@ -12325,15 +12325,15 @@ function InfoPill({ label, value }: { label: string; value: string }) {
 /**
  * Tools con el selector de assets AL LADO (columna del medio) en vez de
  * desplegado dentro del panel. Se enciende de a una para no romper las 17 juntas.
- * Ver docs/workspace-template.md.
+ * Ver docs/producto/workspace-template.md.
  */
 // Tools migradas al patrón de workspace: los selectores abren AL LADO (columna
-// del medio) en vez de desplegarse abajo. Ver docs/workspace-template.md §3.3.
+// del medio) en vez de desplegarse abajo. Ver docs/producto/workspace-template.md §3.3.
 const USE_SIDE_SELECTOR = new Set<string>(["fashion_reel", "ecommerce_pack"]);
-/** Tools que ya usan recetas de movimiento. Ver docs/fashion-reel-recipes.md */
+/** Tools que ya usan recetas de movimiento. Ver docs/producto/fashion-reel-recipes.md */
 const USE_RECIPES = new Set<string>(["fashion_reel"]);
 /** Tools donde el Render muestra el editor con timeline en vez del MP4 suelto.
- *  Etapa 1, sólo lectura. Ver openspec/changes/shared-video-editor. */
+ *  Etapa 1, sólo lectura. Ver openspec/changes/archive/2026-10-09-shared-video-editor. */
 const USE_TIMELINE = new Set<string>(["fashion_reel"]);
 
 /** Selector de assets abierto en la columna del medio. */
@@ -12434,7 +12434,7 @@ function AssetSelector({
   /**
    * Si se provee, el componente NO despliega la grilla adentro: se dibuja como
    * una FILA que abre el selector en la columna del medio (patrón de Lab y
-   * Campañas — ver docs/workspace-template.md).
+   * Campañas — ver docs/producto/workspace-template.md).
    *
    * Es opcional a propósito: se enciende tool por tool sin tocar las demás.
    * Sin esta prop, el comportamiento es el de siempre.

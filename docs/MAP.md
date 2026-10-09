@@ -16,7 +16,7 @@ funcionalidad. Si hay que leer un solo archivo para orientarse, es este.
 
 Plataforma interna de Coevo para producir contenido de marca con IA — foco en
 **moda en video, en español, con calce real** (ver
-[market-positioning.md](market-positioning.md)). Cada marca carga sus assets
+[market-positioning.md](negocio/market-positioning.md)). Cada marca carga sus assets
 una vez (modelos, prendas, productos, fondos, looks) y todas las herramientas
 los heredan.
 
@@ -35,7 +35,7 @@ A veces se genera material nuevo (tool → editor) y a veces se parte de materia
 existe (directo al editor). Lo que una skill valida pasa a la app como **plantilla del
 editor** o **receta de una tool** — no como una tool nueva. El editor y las skills comparten
 el formato de proyecto `timeline.json`, para que Claude y la UI editen el mismo video.
-Ver `openspec/changes/editor-timeline-project`.
+Contrato: `openspec/specs/video-editor/` (con la referencia de `timeline.json` y la API).
 
 ---
 
@@ -101,7 +101,7 @@ FRONTEND  React 19 + Vite + Tailwind v4          BACKEND  FastAPI (Python 3.9 en
 | Login / multi-usuario | ○ | |
 | Base de datos | ○ | hoy JSON en `backend/data/` |
 
-### Patrón de pantalla — [workspace-template.md](workspace-template.md)
+### Patrón de pantalla — [workspace-template.md](producto/workspace-template.md)
 | | | |
 |---|---|---|
 | Controles · selector al costado · canvas que no desaparece | ✅ | Lab, Campañas, Fashion Reel, Ecommerce Pack |
@@ -116,7 +116,7 @@ FRONTEND  React 19 + Vite + Tailwind v4          BACKEND  FastAPI (Python 3.9 en
 | Inpaint con máscara (caja / varita SAM2 / pincel) | ✅ | sólo GPT Image |
 | Consistencia (anclar identidad) | ⏸ | pausada a propósito; la lógica sigue en el código |
 
-### Tools — [tools-audit.md](tools-audit.md)
+### Tools — [tools-audit.md](producto/tools-audit.md)
 | Tool | | Nota |
 |---|---|---|
 | `ugc_creator` | ✅ | 6 pasos, 5 aprobaciones |
@@ -168,13 +168,15 @@ Cada una tiene su change en `openspec/changes/` (proposal · tasks · spec delta
 
 | # | Cambio | Qué resuelve | Spec | Estado |
 |---|---|---|---|---|
-| 1 | **Recetas de formato en Fashion Reel** | elegís un video conocido y lo completás, en vez de llenar campos | [fashion-reel-recipes.md](fashion-reel-recipes.md) | ◐ **conectada** (movimiento, clips, encuadre, fondo del usuario); falta validar generando |
-| 2 | **Editor de video compartido** | reemplaza el Render ciego de las 4 tools de video; un comentario regenera sólo ese clip | [video-editor.md](video-editor.md) | ◐ etapa 1 (timeline de sólo lectura) en Fashion Reel |
+| 1 | **Recetas de formato en Fashion Reel** | elegís un video conocido y lo completás, en vez de llenar campos | [fashion-reel-recipes.md](producto/fashion-reel-recipes.md) | ◐ **conectada** (movimiento, clips, encuadre, fondo del usuario); falta validar generando |
+| 2 | **Editor de video** | monta el video: recortes, notas que regeneran un clip, textos anclados, música, revisión automática, proyectos `timeline.json` que editan Claude y la UI | `openspec/specs/video-editor/` (vigente) · `changes/video-editor-next` | ● **hecho** en Fashion Reel y proyectos de carpeta · ○ resto en `video-editor-next` |
 | 3 | **Campañas como centro del pedido** | imagen adentro; video corto animando una pieza; video largo lanzando la tool con todo precargado, y vuelve a la campaña | `openspec/changes/campaigns-as-hub` | ○ decidido, sin implementar |
 | 4 | **Casting** | armar el look una vez (outfit sheet → character sheet con ropa) y reusarlo; ataca el drift de identidad y prenda | `openspec/changes/casting` | ○ absorbe `avatar_creator` y `product_sheet` |
-| 5 | **Gates de Ecommerce Pack** | una toma → mostrar → confirmar → siguiente | [tools-audit.md](tools-audit.md) §3 | ○ |
-| 6 | **Presets de Campañas** | migrar scene_reconstruct, screen_mockup, fooh_subway | [tools-audit.md](tools-audit.md) | ○ |
-| 7 | **Capa de marca por código** | precio, prenda, logo animado sobre el video; el texto generativo se deforma | [video-editor.md](video-editor.md) §6 | ○ después del editor |
+| 5 | **Gates de Ecommerce Pack** | una toma → mostrar → confirmar → siguiente | [tools-audit.md](producto/tools-audit.md) §3 | ○ |
+| 6 | **Presets de Campañas** | migrar scene_reconstruct, screen_mockup, fooh_subway | [tools-audit.md](producto/tools-audit.md) | ○ |
+| 7 | **Capa de marca por código** | precio, prenda, logo animado sobre el video; el texto generativo se deforma | `openspec/specs/video-editor/` | ◐ textos hechos · bloques animados en `video-editor-next` |
+| 8 | **Video nuevo, proyectos por marca y plantillas** | armar un video con la biblioteca de la marca; guardar un estilo y reusarlo en otra marca | `openspec/changes/video-editor-next` | ○ propuesto |
+| 9 | **Integraciones: Meta y Postiz** | métricas de la marca que se actualizan solas; lo programado y lo publicado, con sus números | `openspec/changes/brand-integrations` | ○ propuesto (hoy son pantallas de muestra) |
 
 **El ciclo que conecta todo:** las recetas proponen, el editor muestra, el
 comentario corrige y queda guardado en la receta. Es el mismo principio en
@@ -188,8 +190,8 @@ se reusa.*
 | Para saber… | Leer |
 |---|---|
 | Por qué algo está como está | [decisions-log.md](decisions-log.md) |
-| El patrón de pantalla | [workspace-template.md](workspace-template.md) |
-| Qué tools se justifican | [tools-audit.md](tools-audit.md) |
-| Cómo correrlo en local | [setup.md](setup.md) |
-| Mercado, competencia, números | [market-positioning.md](market-positioning.md) · [competitive-research.md](competitive-research.md) · [financial-model.md](financial-model.md) |
-| El estado de cada doc | [docs-audit.md](docs-audit.md) |
+| El patrón de pantalla | [workspace-template.md](producto/workspace-template.md) |
+| Qué tools se justifican | [tools-audit.md](producto/tools-audit.md) |
+| Cómo correrlo en local | [setup.md](guias/setup.md) |
+| Mercado, competencia, números | [market-positioning.md](negocio/market-positioning.md) · [competitive-research.md](negocio/competitive-research.md) · [financial-model.md](negocio/financial-model.md) |
+| El estado de cada doc | [docs-audit.md](archive/docs-audit.md) |

@@ -8,9 +8,12 @@ las herramientas los heredan.
 [docs/README.md](docs/README.md) · **Por qué algo está como está:**
 [docs/decisions-log.md](docs/decisions-log.md) — leerlo antes de reabrir una discusión.
 
-**Spec-driven (OpenSpec):** lo que el sistema hace hoy está en `openspec/specs/`; lo propuesto,
-en `openspec/changes/<cambio>/` (proposal · tasks · spec delta). Antes de construir algo nuevo,
-buscar si ya hay un change; si no, proponerlo ahí primero.
+**Dónde va cada cosa (regla, 2026-10-09):**
+- Lo que el sistema hace **hoy** (contrato) → `openspec/specs/<capacidad>/`.
+- Lo que se está **construyendo** → `openspec/changes/<cambio>/` (proposal · tasks · spec delta).
+  Antes de construir, buscar si ya hay un change; si no, proponerlo ahí primero. **Al terminarlo,
+  su contrato pasa a `specs/` y la carpeta a `changes/archive/AAAA-MM-DD-<cambio>/`.**
+- Todo lo demás → `docs/`: `negocio/`, `producto/`, `guias/`; arriba sólo MAP, README, decisions-log, backlog.
 
 > Este archivo se carga en CADA sesión: mantenerlo corto. El detalle va a `docs/`.
 

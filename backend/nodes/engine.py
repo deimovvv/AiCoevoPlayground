@@ -1,5 +1,5 @@
 """
-Motor de grafos — Fase 1 (ver docs/architecture-nodes.md).
+Motor de grafos — Fase 1 (ver docs/producto/architecture-nodes.md).
 
 Deserializa un grafo (JSON) → topological sort → corre cada nodo pasando los outputs
 tipados de los upstream por los edges. Ejecuta en el BACKEND (siempre), como todos los

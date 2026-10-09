@@ -14,7 +14,7 @@ abre con cualquier video desde Content, el Lab o una campaña.
 Lo que lo diferencia: cada clip sabe de qué escena salió, así que **un comentario
 regenera sólo ese clip** y queda guardado en la receta que lo generó.
 
-Diseño completo: `docs/video-editor.md`.
+Diseño completo: `docs/producto/video-editor.md`.
 
 **Antecedente** (`pending-features.md` §12, archivado): ya se había propuesto un editor
 "ligero" post-render. Suma ideas que el diseño nuevo no tenía: **overlay de música**,

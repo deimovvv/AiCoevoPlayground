@@ -1,5 +1,5 @@
 /**
- * Pricing / créditos — costing layer (ver docs/pricing-credits.md).
+ * Pricing / créditos — costing layer (ver docs/negocio/pricing-credits.md).
  * ──────────────────────────────────────────────────────────────────
  * Convierte operaciones (imágenes, video, voz) a costo en USD y a CRÉDITOS (con markup).
  * Base del estimador de costo (antes de correr) y del costo REAL registrado por corrida

@@ -44,7 +44,7 @@ terminal y descubriendo qué funciona. El reel de Morph no es una tool: es la pr
 **Por qué el editor importa más ahora:** el usuario itera los videos por prompt con Claude
 (*"necesito el timeline porque yo voy modificando con prompt"*). El editor es la mesa donde
 se ve y se señala; Claude y la UI editan el mismo `timeline.json`, y las notas vuelven a
-Claude por `notas.md`. Change: `openspec/changes/editor-timeline-project`.
+Claude por `notas.md`. Change: `openspec/changes/archive/2026-10-09-editor-timeline-project`.
 
 ## 2026-10-06 — Nunca una key de Google de Monks
 
@@ -583,7 +583,7 @@ cada tool "es como un canvas" (pipeline de steps) — ref al node-canvas de Plet
    `tool.id === "..."`). Investigación del landscape (n8n/ComfyUI/Langflow/Dify) →
    **primitivas de step tipadas + renderer genérico**, **stacked-steps primero** (canvas
    React Flow después como renderer aditivo), **ejecución backend**, migración
-   **tool-por-tool detrás de un adapter**. Plan completo: `docs/architecture-nodes.md`.
+   **tool-por-tool detrás de un adapter**. Plan completo: `docs/producto/architecture-nodes.md`.
 3. **Framing Studio vs App**: dos renderers sobre UN grafo. **App** (cliente corre un form
    simple → output) = App-first, es lo que ya somos. **Studio** (agencia compone) = Fase
    posterior. NO invertir el orden (canvas-first = anti-pattern del research).
@@ -885,7 +885,7 @@ La evidencia de que funciona así ya está en el repo, tres veces:
   Pack. La tool no se diseñó y después se validó; salió de resolver un caso bien.
 - **Garçon García** → el sistema de proporciones adolescentes y el banco de poses
   por plano.
-- **PROMAN** → el SOP de video documental en `docs/video-ad-production-sop.md`.
+- **PROMAN** → el SOP de video documental en `docs/guias/video-ad-production-sop.md`.
 
 Ninguna de esas capacidades se podría haber especificado por adelantado. Salieron
 de que un cliente exigente señalara un error concreto.

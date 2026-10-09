@@ -3,7 +3,7 @@
 //
 // COSTO: cada submit a un modelo pago registra su operación en `costLedger`. Se hace acá
 // y no en las tools a propósito — así una tool nueva queda medida sola. Ver
-// docs/pricing-credits.md.
+// docs/negocio/pricing-credits.md.
 
 import { recordImage, recordKling, recordSeedance, claimFor, pendingSummary } from "./costLedger";
 import type { CostSummary } from "./costLedger";
@@ -1714,7 +1714,7 @@ export interface Generation {
     scenes?: Array<{ id: string; title: string; script?: string; imageUrl?: string; videoUrl?: string }>;
     metadata?: Record<string, unknown>;
     /** Costo REAL de los modelos que consumió esta corrida. Lo llena `costLedger`
-     *  automáticamente al guardar — ver docs/pricing-credits.md. */
+     *  automáticamente al guardar — ver docs/negocio/pricing-credits.md. */
     cost?: CostSummary;
     /** Estado de TRABAJO (no de pipeline): dónde está la pieza en la operación.
      *  `status` dice si la corrida terminó; esto dice si el cliente ya la vio. */
@@ -3031,7 +3031,7 @@ export async function pollMusic(
 
 // ══════════════════════════════════════════════════════════════
 //  Proyectos del editor — timeline.json en una carpeta
-//  (openspec/changes/editor-timeline-project). Claude y la UI editan el mismo archivo.
+//  (openspec/changes/archive/2026-10-09-editor-timeline-project). Claude y la UI editan el mismo archivo.
 // ══════════════════════════════════════════════════════════════
 
 export interface EditorProjectSegment {

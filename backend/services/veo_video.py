@@ -3,7 +3,7 @@ Google Veo 3.1 — Image-to-Video con audio nativo (vía Gemini API)
 ────────────────────────────────────────────────────────────────
 Veo genera video + voz nativa en una sola pasada desde una imagen inicial + prompt.
 A diferencia de Seedance, NO tiene el filtro de caras agresivo → acepta un retrato
-(real o IA) como frame inicial y anima a la persona hablando. Ver docs/ugc-talking-head-tests.md.
+(real o IA) como frame inicial y anima a la persona hablando. Ver docs/producto/ugc-talking-head-tests.md.
 
 Flujo REST (long-running operation):
   1. POST :predictLongRunning  → operation name

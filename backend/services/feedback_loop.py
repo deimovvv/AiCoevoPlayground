@@ -4,7 +4,7 @@ Feedback loop — convierte devoluciones del cliente en reglas de dirección de 
 El Brand Kit sabe lo que la marca DICE de sí misma (extraído de su web, su brief).
 Esto agrega lo que la marca aprendió TRABAJANDO: por qué rechazó las piezas que rechazó.
 
-Es la mitad que faltaba. Ver docs/competitive-research.md § Superside — su Brand Brain come
+Es la mitad que faltaba. Ver docs/negocio/competitive-research.md § Superside — su Brand Brain come
 "past projects + feedback", y ese loop es lo único que tienen y nosotros no.
 
 Flujo:

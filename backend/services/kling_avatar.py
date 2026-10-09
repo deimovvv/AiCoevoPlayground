@@ -3,7 +3,7 @@ Kling AI Avatar v2 (via Fal) — talking-character desde imagen + audio
 ─────────────────────────────────────────────────────────────────────
 Audio-driven como OmniHuman (anima la boca al audio, una cara por clip, fondo
 quieto), pero MÁS BARATO: v2 standard ~$0.056/s vs $0.16/s de OmniHuman v1.5.
-El clip dura lo que el audio. Ver docs/video-dialogue-pipeline.md.
+El clip dura lo que el audio. Ver docs/producto/video-dialogue-pipeline.md.
 
 Tiers: `standard` (barato, default) | `pro` (~$0.115/s, más calidad).
 REST flow (Fal queue). El audio se sube con fal_lipsync.upload_file_v2.

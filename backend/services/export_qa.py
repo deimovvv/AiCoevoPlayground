@@ -2,7 +2,7 @@
 Revisión automática del export del editor
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 "Revisar cuadros del inicio, el medio y el final y corregir lo que tape la cara o se
-salga de cuadro" (guía de edición, openspec/changes/shared-video-editor/design.md §4).
+salga de cuadro" (guía de edición, openspec/changes/archive/2026-10-09-shared-video-editor/design.md §4).
 Acá se hace sin IA y sin costo, por cada texto del video:
 
 1. Dónde quedó el texto: se compara el cuadro EXPORTADO con el mismo cuadro del video

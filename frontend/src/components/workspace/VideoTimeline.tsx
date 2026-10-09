@@ -13,7 +13,7 @@ import { exportSignature, TEXT_STYLES, TEXT_POSITIONS, placeTexts, anchorAt, nor
  * Reemplaza la vista del paso Render en las tools de video: los clips en un
  * timeline, reproducidos en orden, y editables.
  *
- * Spec: openspec/changes/shared-video-editor · docs/video-editor.md
+ * Spec: openspec/changes/archive/2026-10-09-shared-video-editor · docs/producto/video-editor.md
  *
  * Etapa 1: reproducir y navegar.  Etapa 2 (esta): recortar · reordenar · borrar ·
  * exportar con los cambios.  Etapa 3: comentar en un timestamp → regenerar el clip.
@@ -41,7 +41,7 @@ export interface TimelineClip {
     videoUrl: string;
     /** Miniatura del clip (el frame base). */
     imageUrl?: string;
-    // ── Proyectos timeline.json (openspec/changes/editor-timeline-project) ──
+    // ── Proyectos timeline.json (openspec/changes/archive/2026-10-09-editor-timeline-project) ──
     /** "image" = placa fija; dura `length`. */
     kind?: "video" | "image";
     /** Desde qué segundo de la fuente arranca por defecto. */

@@ -43,7 +43,7 @@ cada sesión.
 
 **Propuesta: CLAUDE.md de ~900 tokens** con sólo lo que un agente necesita
 siempre — qué es, comandos, 5 gotchas del mapa, reglas duras, y punteros a
-[MAP.md](MAP.md) y `openspec/`. Ahorro: ~3.600 tokens por sesión.
+[MAP.md](../MAP.md) y `openspec/`. Ahorro: ~3.600 tokens por sesión.
 
 ---
 
@@ -84,7 +84,7 @@ markdown roto.
 | Doc | Estado | Acción | Destino |
 |---|---|---|---|
 | `fashion-reel-recipes.md` | dice "sin implementar"; la UI existe | **A** el estado | `changes/fashion-reel-format-recipes` |
-| `video-editor.md` | vigente | **C** | `changes/shared-video-editor` |
+| `video-editor.md` | vigente | **C** | `changes/archive/2026-10-09-shared-video-editor` |
 | `video-dialogue-pipeline.md` | desactualizado; se pisa con video-ad-creator | **F** gotchas → video-ad-creator; resto → change | `changes/video-ad-per-shot-selector` |
 | `pending-features.md` | mezcla hecho con pendiente | **dividir; borrar lo hecho** | un `changes/<nombre>` por ítem abierto |
 | `frontera-diseno-infra.md` | parcial | **dividir y Ar** | recetas → change; el proceso entre chats queda fuera |
@@ -120,7 +120,7 @@ Entradas del log que contradicen decisiones posteriores sin decirlo: Fraunces
 ### Nuevos
 | Doc | |
 |---|---|
-| [MAP.md](MAP.md) | el overview: estado actual + proyección funcional. Borrador de `openspec/project.md` |
+| [MAP.md](../MAP.md) | el overview: estado actual + proyección funcional. Borrador de `openspec/project.md` |
 | `docs-audit.md` | este archivo |
 
 ---

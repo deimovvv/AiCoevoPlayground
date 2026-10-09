@@ -75,5 +75,5 @@ generador (ya existe en `handleAnimate`). Las recetas sin video siguen en Kling.
 Una prueba A/B con el mismo still aprobado y el giro en ciclorama:
 Kling V3 Pro ($0.67) contra Seedance por kie con `[Video1]` = `ref.mp4` a 720p
 ($1.14). Total ≈ **$1.81**. Medir la variabilidad de movimiento (§7 de
-`docs/fashion-reel-recipes.md`; la referencia real da std 8.8), la identidad y si
+`docs/producto/fashion-reel-recipes.md`; la referencia real da std 8.8), la identidad y si
 el filtro rechaza algo. Requiere aprobación del usuario: es gasto real.

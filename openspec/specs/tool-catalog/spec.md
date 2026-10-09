@@ -2,7 +2,7 @@
 
 ## Purpose
 Qué cuenta como una "tool" en Coevo Studio y cómo se registra. La clasificación de
-las 17 tools contra este criterio está en `docs/tools-audit.md`.
+las 17 tools contra este criterio está en `docs/producto/tools-audit.md`.
 
 ## Requirements
 

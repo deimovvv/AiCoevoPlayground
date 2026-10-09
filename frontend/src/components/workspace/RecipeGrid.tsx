@@ -7,7 +7,7 @@ import type { MotionRecipe } from "../../tools/fashion_reel/recipes";
  * RecipeGrid — la grilla de recetas de movimiento.
  * ────────────────────────────────────────────────
  * Vive DENTRO del SelectorPanel (columna del medio), igual que los avatares o
- * las prendas. No es un modal: ver docs/fashion-reel-recipes.md §4.1 —
+ * las prendas. No es un modal: ver docs/producto/fashion-reel-recipes.md §4.1 —
  * "no se abre un modal que tape todo" (workspace-template §2).
  *
  * PERFORMANCE — la grilla carga sólo los JPEG (~6 KB cada uno). El `<video>` se
@@ -121,7 +121,7 @@ function RecipeCard({
  *
  * PERFORMANCE — sólo los de la tira reproducen. Con 40 recetas en catálogo, acá
  * se montan 4 videos de ~25 KB; el resto vive en la grilla, que carga JPEG y
- * monta el video únicamente en hover. Ver docs/fashion-reel-recipes.md §13.
+ * monta el video únicamente en hover. Ver docs/producto/fashion-reel-recipes.md §13.
  */
 export function RecipeStrip({
     recipes, selectedId, onSelect, onSeeAll, visible = 4,

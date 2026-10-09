@@ -1,7 +1,7 @@
 {
   "id": "screen_mockup",
   "label": "Screen Mockup",
-  "description": "Screen Mockup como GRAFO (Fase 2, ver docs/architecture-nodes.md). Prueba que la tool se puede expresar como data + correr por el motor de nodos, al lado del handler viejo. scene(nano_image, pantalla verde) -> composite(nano_image_edit, encaja la UI en el verde).",
+  "description": "Screen Mockup como GRAFO (Fase 2, ver docs/producto/architecture-nodes.md). Prueba que la tool se puede expresar como data + correr por el motor de nodos, al lado del handler viejo. scene(nano_image, pantalla verde) -> composite(nano_image_edit, encaja la UI en el verde).",
   "inputs": [
     { "name": "ui_url", "type": "IMAGE", "description": "El screenshot de la UI del usuario (Fal URL)." },
     { "name": "scene_prompt", "type": "PROMPT", "description": "Prompt de la escena verde ya compuesto (greenScreenPrompt(escena))." }

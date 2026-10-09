@@ -112,8 +112,8 @@
 2. **Postgres** (managed — Supabase or Neon) once there's login / multi-user. Scales, and Supabase ships auth + Row Level Security for the Client Portal.
 
 - Alembic migrations
-- Generation data model: `generation → step → asset` (full provenance per AI image). See [pending-features.md](pending-features.md) #1.
-- Media persistence: download Fal outputs to our own storage (disk → R2/S3), store the storage key in the DB instead of the third-party URL. See [pending-features.md](pending-features.md) #1.
+- Generation data model: `generation → step → asset` (full provenance per AI image). See [pending-features.md](pending-features-2026-09.md) #1.
+- Media persistence: download Fal outputs to our own storage (disk → R2/S3), store the storage key in the DB instead of the third-party URL. See [pending-features.md](pending-features-2026-09.md) #1.
 - Redis job queues for background processing
 - Batch generation (multiple videos at once)
 - Generation search/filter/pagination

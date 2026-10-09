@@ -167,7 +167,7 @@ acá el canvas es el reproductor y el control principal es el timeline.
 
 | Capacidad | Nota |
 |---|---|
-| Capa de texto y gráficos de marca (precio, nombre de prenda, logo) | video por código (HTML/JS → render cuadro a cuadro), con el design system de la marca. Resuelve que el texto en video generativo se deforma. **Plan en dos niveles (manual → IA) y Remotion vs HyperFrames:** `openspec/changes/shared-video-editor/design.md` §7 |
+| Capa de texto y gráficos de marca (precio, nombre de prenda, logo) | video por código (HTML/JS → render cuadro a cuadro), con el design system de la marca. Resuelve que el texto en video generativo se deforma. **Plan en dos niveles (manual → IA) y Remotion vs HyperFrames:** `openspec/changes/archive/2026-10-09-shared-video-editor/design.md` §7 |
 | Varias pistas de audio (voz + música) | `video_concat.overlay_audio` ya mezcla una |
 | Transiciones | |
 | Corte automático de talking heads (tomas falsas, silencios) | transcripción con `services/stt.py`; para UGC |

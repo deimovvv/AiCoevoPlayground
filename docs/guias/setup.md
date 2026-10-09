@@ -114,7 +114,7 @@ $0.05 y Nano Banana a $0.01). Fuentes que se mantienen:
 
 - **Tarifas que usa la app:** `frontend/src/lib/pricing.ts` y `VIDEO_RATE_PER_SEC`
   en `frontend/src/pages/ManualLabV2.tsx`.
-- **Modelos y proveedores:** [MAP.md](MAP.md) §4 y
+- **Modelos y proveedores:** [MAP.md](../MAP.md) §4 y
   `openspec/specs/video-generation/spec.md`.
 
 ## File structure

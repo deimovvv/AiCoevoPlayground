@@ -1,5 +1,5 @@
 """
-Sistema de nodos — Fase 0 (modelo + registry). Ver docs/architecture-nodes.md.
+Sistema de nodos — Fase 0 (modelo + registry). Ver docs/producto/architecture-nodes.md.
 
 Importar este paquete registra todas las primitivas (side-effect de importar `primitives`).
 Cero cambio de comportamiento en las tools actuales: es solo el catálogo del que Fase 1

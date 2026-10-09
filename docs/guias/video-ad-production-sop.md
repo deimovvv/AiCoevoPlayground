@@ -2,7 +2,7 @@
 
 > **Origen:** destilado del proyecto PROMAN / GPO Fertilizantes (Emisarios, Ago 2026), del operador que hoy lo hace **manual**.
 > **Objetivo:** convertir un guion + una referencia estética + material del cliente en un set de imágenes consistentes, con el mínimo de intervención humana.
-> **Uso en Coevo:** es el método a **superar** con el Video Ad Creator. Ver [`decisions-log.md`](decisions-log.md) para cómo se va mapeando al tool. Estado del mapeo al final de este doc.
+> **Uso en Coevo:** es el método a **superar** con el Video Ad Creator. Ver [`decisions-log.md`](../decisions-log.md) para cómo se va mapeando al tool. Estado del mapeo al final de este doc.
 
 ---
 

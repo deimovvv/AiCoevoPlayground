@@ -5,7 +5,7 @@
  * prompt resuelto. El usuario aporta el QUÉ (modelo, prendas, fondo); la receta
  * aporta el CÓMO.
  *
- * Spec completo: docs/fashion-reel-recipes.md
+ * Spec completo: docs/producto/fashion-reel-recipes.md
  *
  * ⚠️ La regla que las define: una receta TRAE SU PROMPT. Si el usuario tiene que
  * escribir el movimiento, no es una receta — es el formulario de siempre con una
@@ -100,7 +100,7 @@ export const MOTION_RECIPES: MotionRecipe[] = [
         ],
         fixed: {
             // Kling v3 Pro: 1080p, mejor retención de identidad, $0.56 los 5s
-            // (Seedance 2.5 tope 720p y ~$2.31). Ver docs/fashion-reel-recipes.md §8.
+            // (Seedance 2.5 tope 720p y ~$2.31). Ver docs/producto/fashion-reel-recipes.md §8.
             model: "v3-pro",
             mode: "i2v",
             durationSec: 6,

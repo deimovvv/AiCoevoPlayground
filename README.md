@@ -136,7 +136,7 @@ Abrí **http://localhost:5173**.
 | **Content Analyzer** | imágenes | Analizá cualquier video, extraé guion/escenas/estilo, mapealo a tus assets de marca, recreá. |
 | **Manual Lab** | sandbox | Chat sin marca: Nano Banana 2 + Kling + Seedance directo, con tagging de refs `[image1]`/`[image2]`, encadenado multi-turno y galería. En `/dashboard/lab`. |
 
-Ver [`docs/tools.md`](docs/tools.md) para pipelines, inputs y reglas completas.
+Qué tool se justifica y cuál es preset: [`docs/producto/tools-audit.md`](docs/producto/tools-audit.md). Lo vigente de cada capacidad: `openspec/specs/`.
 
 ---
 
@@ -153,7 +153,8 @@ backend/
   services/           # integraciones de IA (gemini, fal, elevenlabs, heygen, beeble, ffmpeg, agent, ...)
   tools/              # registry.json + default_prompt.txt por tool
   data/               # storage JSON + media de marca (ver "Datos" abajo)
-docs/                 # arquitectura, tools, stack, pipeline, diseño, onboarding
+openspec/             # specs/ = lo que el sistema hace hoy · changes/ = lo que se está construyendo
+docs/                 # negocio/ · producto/ · guias/ + MAP, decisions-log, backlog
 dev.sh                # runner de desarrollo local (backend + frontend)
 ```
 
@@ -185,13 +186,21 @@ Los outputs generados pesados y los archivos de runtime están **gitignoreados**
 
 ## Documentación
 
-- [`docs/architecture.md`](docs/architecture.md) — diseño del sistema, endpoints, estructuras de datos
-- [`docs/tools.md`](docs/tools.md) — todas las tools: prompts, pipelines, inputs, reglas
-- [`docs/stack.md`](docs/stack.md) — tecnologías, servicios, entorno
-- [`docs/pipeline.md`](docs/pipeline.md) — flujos de generación, optimización de costo, PromptBuilder
-- [`docs/client_onboarding.md`](docs/client_onboarding.md) — qué pedirle a los clientes (brief de marca, assets)
-- [`docs/design_language.md`](docs/design_language.md) — sistema de diseño, tokens, componentes
-- [`docs/product_vision_ux.md`](docs/product_vision_ux.md) — filosofía de UX, flujos de usuario
+Dónde va cada cosa (regla en `CLAUDE.md`):
+
+| Qué | Dónde |
+|---|---|
+| Lo que el sistema hace **hoy** (contrato, requisitos) | `openspec/specs/<capacidad>/` |
+| Lo que se está **construyendo** (propuesta, tareas) | `openspec/changes/<cambio>/` → al terminarse se archiva |
+| Todo lo demás | `docs/` |
+
+En `docs/`:
+- [`docs/MAP.md`](docs/MAP.md) — mapa de la app: qué hace y hacia dónde va. **Empezar acá.**
+- [`docs/README.md`](docs/README.md) — índice de todos los documentos.
+- [`docs/decisions-log.md`](docs/decisions-log.md) — por qué algo está como está.
+- `docs/negocio/` — precios, modelo financiero, mercado, competencia, alta de clientes.
+- `docs/producto/` — diseño y auditorías de producto (editor, recetas, tools, arquitectura).
+- `docs/guias/` — cómo hacer: setup, SOPs, audio UGC.
 
 ---
 

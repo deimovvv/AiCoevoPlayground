@@ -14,7 +14,7 @@ import { loadBrandFonts, googleFontUrl, getCanvasFontFamily } from "../tools/sha
 
 /**
  * Editor de un proyecto `timeline.json` en una carpeta local.
- * openspec/changes/editor-timeline-project — Claude (desde una skill) y esta pantalla editan
+ * openspec/changes/archive/2026-10-09-editor-timeline-project — Claude (desde una skill) y esta pantalla editan
  * el MISMO archivo: lo que se cambia acá se guarda ahí; si Claude lo cambia, se recarga.
  * Las notas por momento van a `notas.md` de la carpeta, para que Claude las lea.
  */

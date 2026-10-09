@@ -2,7 +2,7 @@
 Proyectos del editor de video (`timeline.json` en una carpeta)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Un proyecto es una carpeta con `timeline.json` (formato en
-openspec/changes/editor-timeline-project/design.md). Lo escriben Claude (desde una skill)
+openspec/changes/archive/2026-10-09-editor-timeline-project/design.md). Lo escriben Claude (desde una skill)
 y el editor (desde la UI): los dos editan el MISMO archivo.
 
 - Sólo se abren carpetas dentro de las raíces permitidas; los archivos se resuelven dentro

@@ -1,5 +1,5 @@
 /**
- * Cost Ledger — costo REAL por corrida (ver docs/pricing-credits.md).
+ * Cost Ledger — costo REAL por corrida (ver docs/negocio/pricing-credits.md).
  * ────────────────────────────────────────────────────────────────────
  * `pricing.ts` estima ANTES de correr. Esto registra lo que efectivamente se consumió.
  *

@@ -1,6 +1,6 @@
 ## Context
 
-Diseño completo del editor: `docs/video-editor.md`. Este archivo suma lo aprendido
+Diseño completo del editor: `docs/producto/video-editor.md`. Este archivo suma lo aprendido
 de la guía de RoboNuggets *"Automate your video editing with Sonnet 5.5"* (PDF que
 pasó el usuario el 2026-10-05), la del editor RUBRIC que se vio en el video.
 
