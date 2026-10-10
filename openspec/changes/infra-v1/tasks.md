@@ -17,4 +17,14 @@
 
 ## 4. Usuarios
 
-- [ ] 4.1 Login y permisos por marca (antes de usuarios externos).
+- [ ] 4.1 Equipo: Cloudflare Access (login con Google) delante de app y API. Confirmar el límite gratis.
+- [ ] 4.2 Clientes con cuenta propia (portal): Supabase Auth o Clerk — después.
+
+## 5. Producción (design.md: ≈ US$26/mes)
+
+- [ ] 5.0 Decidir: DigitalOcean (US$24) o Hetzner (€19,49). Cuentas a nombre de Coevo.
+- [ ] 5.1 Imagen Docker del backend (FastAPI + FFmpeg + Node/Remotion).
+- [ ] 5.2 Servidor con Docker Compose: API + Postgres + tarea diaria; backups diarios a R2.
+- [ ] 5.3 Frontend en Cloudflare Pages; dominio propio.
+- [ ] 5.4 Verificar la licencia de Remotion para el tamaño del equipo (si es paga: HyperFrames).
+- [ ] 5.5 Claude no corre en producción: subir proyectos locales a la marca (puente) en vez de llamar a la API.
