@@ -20,9 +20,9 @@
 - [ ] 4.1 Equipo: Cloudflare Access (login con Google) delante de app y API. Confirmar el límite gratis.
 - [ ] 4.2 Clientes con cuenta propia (portal): Supabase Auth o Clerk — después.
 
-## 5. Producción (design.md: ≈ US$26/mes)
+## 5. Producción (design.md: ≈ US$10–17/mes)
 
-- [ ] 5.0 Decidir: DigitalOcean (US$24) o Hetzner (€19,49). Cuentas a nombre de Coevo.
+- [ ] 5.0 Servidor: Hostinger VPS KVM 2 (recomendado, US$8,99 → 14,99). Confirmar qué plan de Hostinger tiene hoy el usuario (compartido no sirve). Cuenta de Coevo.
 - [ ] 5.1 Imagen Docker del backend (FastAPI + FFmpeg + Node/Remotion).
 - [ ] 5.2 Servidor con Docker Compose: API + Postgres + tarea diaria; backups diarios a R2.
 - [ ] 5.3 Frontend en Cloudflare Pages; dominio propio.

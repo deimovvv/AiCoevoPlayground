@@ -22,7 +22,8 @@ login Clerk o contraseña compartida, Vercel + Render/Railway". Esto lo ajusta c
 
 | Opción | Costo/mes | Qué incluye | Contras |
 |---|---|---|---|
-| **DigitalOcean droplet 2 vCPU / 4 GB** | **US$24** | todo en una máquina con Docker: API + Postgres + tarea diaria; 4 TB de transferencia | hay que cuidar backups y actualizaciones |
+| **Hostinger VPS KVM 2 (2 vCPU / 8 GB / 100 GB NVMe)** | **US$8,99** con pago adelantado; renueva a **US$14,99** | root, Ubuntu, Docker y Docker Compose; 8 TB de transferencia; el usuario ya tiene cuenta en Hostinger | precio promocional atado a pagar el período por adelantado |
+| DigitalOcean droplet 2 vCPU / 4 GB | US$24 | todo en una máquina con Docker: API + Postgres + tarea diaria; 4 TB de transferencia | hay que cuidar backups y actualizaciones |
 | Hetzner CPX22 2 vCPU / 4 GB | €19,49 + €0,50 IPv4 | igual que arriba | subió de precio el 2026-06-15; los planes baratos (CX/CAX, €5–6) figuran "no disponibles" |
 | Railway | US$5 + uso (~US$20 por vCPU-mes, ~US$10 por GB-mes) → ~US$40+ siempre prendido | administrado, deploy desde GitHub | se va de precio con un servidor siempre encendido |
 | Render | US$25 (1 CPU / 2 GB) · US$85 (2 CPU / 4 GB) + Postgres aparte | administrado | caro para 4 GB |
@@ -60,21 +61,28 @@ herramienta interna de agencia lo es) → descartado.
   personas puede ser paga — **verificar antes de producción**. Alternativa sin costo:
   HyperFrames (Apache 2.0), que ya está en el plan para los bloques animados.
 
-## Recomendación
+**Hosting web compartido de Hostinger** (el de las webs): **no sirve para el backend** — no da
+root, ni Docker, ni Postgres, ni procesos de Python siempre prendidos. Sí sirve para webs.
+
+## Recomendación (actualizada 2026-10-09: Hostinger VPS)
+
+El usuario ya trabaja con Hostinger. Su **VPS KVM 2** da el doble de RAM que DigitalOcean (8 GB vs
+4 GB, mejor para los renders) a un tercio del precio. Reemplaza a DigitalOcean en el diagrama.
+
 
 ```
  Cloudflare Pages (frontend, gratis)
         │  Cloudflare Access (login con Google, gratis)
         ▼
- DigitalOcean 2 vCPU / 4 GB — US$24/mes
+ Hostinger VPS KVM 2 (2 vCPU / 8 GB) — US$8,99/mes (renueva US$14,99)
    Docker: API FastAPI · Postgres · tarea diaria · FFmpeg/Remotion
         │                                   │
         ▼                                   ▼
  Cloudflare R2 (videos, ~US$1–2/mes)   backups diarios de Postgres → R2
 ```
 
-**≈ US$26/mes** para todo el equipo, más Postiz (aparte, ver `brand-integrations`). Todo en
-una cuenta **de Coevo** (Cloudflare y DigitalOcean), nunca de Monks.
+**≈ US$10–17/mes** para todo el equipo, más Postiz (aparte, ver `brand-integrations`). Todo en
+una cuenta **de Coevo** (Cloudflare y Hostinger), nunca de Monks.
 
 Por qué no lo "más administrado": Railway/Render + Supabase cuestan 2–3× por lo mismo. El costo
 del servidor propio es mantenerlo: se compensa con Docker (un comando para levantar todo) y
@@ -84,6 +92,6 @@ reescribir nada.
 ## Fuentes
 
 digitalocean.com/pricing/droplets · docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/
-· railway.com/pricing · render.com/pricing · docs.fly.io/about/pricing · cloud.google.com/run/pricing
+· railway.com/pricing · render.com/pricing · docs.fly.io/about/pricing · hostinger.com/vps-hosting · hostinger.com/web-hosting · cloud.google.com/run/pricing
 · supabase.com/pricing · neon.com/pricing · developers.cloudflare.com/r2/pricing/
 · developers.cloudflare.com/pages/platform/limits/ · vercel.com/docs/limits/fair-use-guidelines · clerk.com/pricing
