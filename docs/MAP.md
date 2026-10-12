@@ -95,6 +95,7 @@ FRONTEND  React 19 + Vite + Tailwind v4          BACKEND  FastAPI (Python 3.9 en
 |---|---|---|
 | Brand Kit (assets, DNA, multi-foto por prenda, logos) | ✅ | |
 | Campañas: brief → plan → piezas, con `history[]` por pieza | ✅ | |
+| Campañas: Dirección creativa (lee moodboard y luz antes de generar, sin brief) · un dueño por dominio · fondo literal | ✅ | `specs/campaigns` |
 | Portal de cliente por token + reviews | ✅ | sin login de usuarios |
 | Ledger de costos (estimador por corrida) | ✅ | `lib/pricing.ts`, `costLedger.ts` |
 | Persistencia del estado de pipeline | ◐ | `data/pipeline_states/` |

@@ -26,10 +26,49 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Pose y calce | Endpoints especializados, no pelear por prompt | 2026-09 "Pose y calce" |
 | Fashion Editorial | Convertida en preset de Campañas (hecho) | 2026-09-25 |
 | Campañas | Centro del pedido: imagen adentro, video lanzando la tool | 2026-10-03 · `changes/campaigns-as-hub` |
+| Referencias de Campañas | Un dueño por dominio; el moodboard se lee (texto), el fondo se usa literal | 2026-10-12 · `specs/campaigns` |
 | Keys de Google | Sólo la de Coevo (`GEMINI_API_KEY`) o falla; nunca una de Monks | 2026-10-06 |
 | Infraestructura | FastAPI + PostgreSQL + SQLAlchemy 2 + Alembic; archivos en R2; migrar de a una | 2026-10-09 · `changes/infra-v1` |
 | Reportes a clientes | Se leen de Postiz (ya resuelve Meta orgánico); una plataforma multi-marca, nunca un dashboard por cliente | 2026-10-09 · `changes/brand-integrations` |
 | Tools / editor / skills | Tool genera · editor monta (uno solo) · skill descubre; lo validado pasa a la app como plantilla o receta | 2026-10-09 |
+
+---
+
+## 2026-10-12 — Campañas: un dueño por dominio y el moodboard como texto
+
+**Problema.** *"Le pasé fondo y el fondo no lo agarró."* Todas las referencias
+llegaban al generador en un array y el prompt solo explicaba modelo, producto y
+prenda. Nadie leía el moodboard (el planner solo lee el brief, y con 15+ caracteres)
+y la luz tenía tres dueños: preset, Look & feel y la luz del moodboard.
+
+**Decisión (patrón de Invent, cliente confidencial: se adaptan patrones, no código).**
+Cada referencia tiene un solo dominio y el input específico le gana al moodboard en
+el suyo. El moodboard se **lee** antes de generar (Dirección creativa, visible, sin
+brief) y llega como texto: la imagen no se le manda al generador, así no la copia.
+La referencia de luz aporta solo luz, porque la prueba de Invent del 2026-09-29 mostró que el
+grade casi no suma. Iluminación y Look & feel quedan en un solo control. Lo que suma
+Coevo: el **fondo literal**, que Invent no tiene.
+
+**Lo que enseñó la prueba (Taller Santa Clara, sin brief).** Filtrar el campo
+`environment` no alcanzó: el blanco infinito del moodboard se coló por el estilo, la
+paleta y la luz, y le ganó al fondo en 3 de 3 tiradas. Lo que lo arregló: pedir el
+análisis sabiendo que hay fondo, mantener cada campo en su dominio (el estilo habla
+de cámara, no del set), omitir paleta y luz del moodboard cuando hay fondo, y nombrar
+el fondo **al principio** del prompt. Resultado: fondo literal en 2 de 2, con la
+identidad, la prenda y el mood intactos.
+
+**Regla que queda.** Cuando una referencia tiene que ganar, no alcanza con quitar el
+campo que compite: el mismo contenido vuelve por otros campos. Hay que cuidar el
+dominio de cada campo desde el análisis y darle a la referencia que gana el primer
+lugar del prompt.
+
+**Alternativas descartadas.** Matriz de 27 imágenes comparando "moodboard como imagen
+vs texto": Invent ya lo había decidido, alcanzaba con validar (usuario: *"hagamos
+menos imágenes"*). Renombrar el control a "Lighting" en la UI: es un nombre visible y
+le toca al chat de diseño; por dentro las claves siguen `lookFeelId`.
+
+**Abierto.** Sin prenda de abajo, el pantalón varía entre tiradas, y el modelo suma
+props chicos (cajas, cables). Spec: `openspec/specs/campaigns/`.
 
 ---
 

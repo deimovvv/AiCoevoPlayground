@@ -1843,6 +1843,53 @@ export async function briefFromFile(file: File): Promise<{ filename: string; tex
     return res.json();
 }
 
+/** Dirección creativa de una campaña: lo que se leyó del moodboard y de la referencia
+ *  de luz ANTES de generar. Los campos de dirección están en inglés (van al prompt);
+ *  `summary_es` es para la persona que la aprueba.
+ *  Ver openspec/specs/campaigns. */
+export interface CampaignDirection {
+    ok: boolean;
+    reason?: string;
+    summary_es?: string;
+    palette?: string[];
+    photography_style?: string;
+    environment?: string;
+    pose?: string;
+    mood?: string;
+    lighting?: string;
+    /** De dónde sale la luz: la referencia de Lighting, el moodboard, o ninguna. */
+    lighting_source?: "reference" | "moodboard" | "none";
+    has_moodboard?: boolean;
+    cached?: boolean;
+}
+
+/** Lee moodboard + referencia de luz (+ brief) y devuelve la Dirección creativa.
+ *  No tira por un fallo del análisis: devuelve `{ok:false, reason}` para avisar y degradar. */
+export async function getCampaignDirection(opts: {
+    moodboardUrl?: string | null;
+    lightingUrl?: string | null;
+    brief?: string;
+    /** La campaña tiene fondo propio: el análisis no propone entorno. */
+    fixedBackground?: boolean;
+}): Promise<CampaignDirection> {
+    try {
+        const res = await fetch(`${API_BASE}/api/campaigns/direction`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                moodboardUrl: opts.moodboardUrl ?? null,
+                lightingUrl: opts.lightingUrl ?? null,
+                brief: opts.brief ?? "",
+                fixedBackground: !!opts.fixedBackground,
+            }),
+        });
+        if (!res.ok) return { ok: false, reason: `El servidor respondió ${res.status}` };
+        return res.json();
+    } catch (e) {
+        return { ok: false, reason: e instanceof Error ? e.message : "Sin conexión con el backend" };
+    }
+}
+
 export async function planCampaign(
     brandId: string,
     brief: string,

@@ -839,6 +839,26 @@ async def brief_from_file(file: UploadFile = File(...)):
     return {"filename": file.filename, "text": text[:40_000], "chars": len(text)}
 
 
+class DirectionRequest(BaseModel):
+    moodboardUrl: Optional[str] = None
+    lightingUrl: Optional[str] = None
+    brief: str = ""
+    # La campaña tiene fondo propio: el análisis no debe proponer entorno.
+    fixedBackground: bool = False
+
+
+@app.post("/api/campaigns/direction")
+async def campaign_direction_endpoint(req: DirectionRequest):
+    """Dirección creativa: lee moodboard + referencia de luz (+ brief) ANTES de generar.
+
+    Devuelve paleta, estilo, entorno, pose, mood y luz. No genera imágenes. Nunca
+    responde 500 por un fallo del análisis: devuelve {ok: false, reason} para que la
+    pantalla lo avise y degrade. Ver openspec/specs/campaigns.
+    """
+    from services import campaign_direction
+    return await campaign_direction.build_direction(req.moodboardUrl, req.lightingUrl, req.brief, req.fixedBackground)
+
+
 @app.post("/api/campaigns/plan")
 async def plan_campaign_endpoint(req: PlanRequest):
     """Lee un brief y devuelve el pedido armado: assets, formatos y tomas.

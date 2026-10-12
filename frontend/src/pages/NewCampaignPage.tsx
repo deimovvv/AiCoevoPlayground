@@ -48,6 +48,7 @@ import {
   avatarImageUrl, productImageUrl, clothingImageUrl, backgroundImageUrl,
   moodboardImageUrl, lookAndFeelImageUrl, poseImageUrl,
   planCampaign, type CampaignPlan,
+  getCampaignDirection, type CampaignDirection,
   briefFromFile,
 } from "../lib/api";
 import { imagesUsd, formatUsd } from "../lib/pricing";
@@ -278,8 +279,11 @@ const ROLE_INSTRUCTION: Record<RefRole, string> = {
     "POSE — reproduce ONLY this body posture and camera framing/crop. Ignore this image's person, clothing, colors, background and lighting completely.",
   moodboard:
     "MOODBOARD — this is a board of MANY references read TOGETHER as one direction. Take the overall mood: atmosphere, attitude, energy, styling sensibility, palette tendency. Do NOT copy any single image from it, do NOT reproduce its layout, and do NOT take its people, products or backgrounds literally.",
+  // Antes decía "solo color y grade". La prueba de Invent (2026-09-29) mostró que de
+  // una referencia de "look" lo que se transfiere es la LUZ; el grade casi no suma.
+  // Solo se manda como imagen si la Dirección creativa falló (degradación).
   lookfeel:
-    "LOOK & FEEL — take ONLY the color grade and tonal treatment (contrast, saturation, warmth, film quality). Nothing else from this image: not its content, subject, composition or background.",
+    "LIGHTING — match ONLY this image's light: source, direction, hardness, temperature, contrast and shadows. Do NOT take its composition, subject, location, props or colour grade.",
   reference:
     "REFERENCE — general visual reference. Use it as inspiration, not literally.",
 };
@@ -289,6 +293,89 @@ function describeRefs(refs: Array<{ role: RefRole; name: string }>): string {
   if (!refs.length) return "";
   return "\n\nREFERENCE IMAGES (in order):\n" +
     refs.map((r, i) => `- Image ${i + 1} (${r.name}): ${ROLE_INSTRUCTION[r.role] || ROLE_INSTRUCTION.reference}`).join("\n");
+}
+
+/**
+ * La Dirección creativa como texto para el generador, aplicando la REGLA DE
+ * PRECEDENCIA: el input específico le gana al moodboard en su dominio. Con fondo,
+ * no va el entorno del moodboard; con pose, no va su pose. La luz la decide el
+ * caller (preset o referencia), así que acá no entra.
+ * Ver openspec/specs/campaigns.
+ */
+function directionPrompt(d: CampaignDirection, has: { background: boolean; pose: boolean }): string {
+  if (!d.ok || !d.has_moodboard) return "";
+  const lines = [
+    d.mood && `Mood: ${d.mood}`,
+    // Con fondo, la paleta del moodboard es la de SU set y pelea con el fondo elegido.
+    !has.background && d.palette?.length && `Palette tendency: ${d.palette.join(", ")}`,
+    d.photography_style && `Photographic style: ${d.photography_style}`,
+    !has.background && d.environment && `Environment: ${d.environment}`,
+    !has.pose && d.pose && `Pose attitude: ${d.pose}`,
+  ].filter(Boolean);
+  if (!lines.length) return "";
+  return "\n\nCREATIVE DIRECTION (read from the campaign moodboard — follow its world, do not copy any single reference):\n" +
+    lines.map((l) => `- ${l}`).join("\n") +
+    (has.background || has.pose
+      ? "\nWhere a reference image below defines the background or the pose, that image wins over this direction."
+      : "");
+}
+
+/** Lo que entendió de las referencias, visible ANTES de generar (el paso de creative
+ *  strategy). Si falló, lo dice: un fallo callado se lee como "no respeta el moodboard". */
+function DirectionCard({ status, d, onRetry }: {
+  status: "loading" | "ready" | "failed";
+  d: CampaignDirection | null;
+  onRetry: () => void;
+}) {
+  return (
+    <section className="px-8 pt-7 pb-5 max-w-[680px]" aria-live="polite">
+      <div className="text-[9.5px] uppercase tracking-[.1em] mb-2.5 flex items-center gap-2" style={{ color: C.ink3 }}>
+        Dirección creativa
+        {status === "loading" && <Loader2 size={11} className="animate-spin" />}
+      </div>
+      {status === "loading" && (
+        <p className="text-[12.5px]" style={{ color: C.ink3 }}>Leyendo el moodboard y las referencias…</p>
+      )}
+      {status === "failed" && (
+        <p className="text-[12.5px] leading-relaxed" style={{ color: C.err }}>
+          No se pudo leer el moodboard{d?.reason ? ` (${d.reason})` : ""}. Si generás igual, va como imagen con
+          su instrucción, que es menos fiel.{" "}
+          <button type="button" onClick={onRetry} className="underline cursor-pointer">Reintentar</button>
+        </p>
+      )}
+      {status === "ready" && d?.ok && (
+        <>
+          {d.summary_es && (
+            <p className="text-[15px] leading-relaxed mb-4" style={{ fontFamily: SERIF, color: C.ink }}>{d.summary_es}</p>
+          )}
+          {!!d.palette?.length && (
+            <div className="flex gap-1.5 mb-4" title="Paleta del moodboard">
+              {d.palette.map((hex) => (
+                <span key={hex} className="w-6 h-6 rounded-[2px]" style={{ background: hex, boxShadow: `inset 0 0 0 1px ${C.hair}` }} title={hex} />
+              ))}
+            </div>
+          )}
+          <dl className="grid grid-cols-[110px_1fr] gap-x-4 gap-y-2 text-[12px]" style={{ borderTop: `1px solid ${C.hair}`, paddingTop: 12 }}>
+            {[
+              ["Estilo", d.photography_style],
+              ["Entorno", d.environment],
+              ["Pose", d.pose],
+              ["Luz", d.lighting],
+            ].filter(([, v]) => v).map(([k, v]) => (
+              <div key={k} className="contents">
+                <dt style={{ color: C.ink3 }}>{k}</dt>
+                <dd className="leading-snug" style={{ color: C.ink2 }}>{v}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="text-[10.5px] mt-3" style={{ color: C.ink3 }}>
+            Se aplica como texto: la imagen del moodboard no se le manda al generador, así no la copia.
+            {d.lighting_source === "reference" && " La luz sale de tu referencia de iluminación."}
+          </p>
+        </>
+      )}
+    </section>
+  );
 }
 
 /** File → data URL. Los blob: URL solo existen en este navegador; el backend no los baja. */
@@ -511,6 +598,85 @@ export function NewCampaignPage() {
     return () => clearTimeout(t);
   }, [brief, b?.id]);
 
+  // ── Dirección creativa ─────────────────────────────────────────────────────
+  // Lee el moodboard y la referencia de luz ANTES de generar y lo muestra. Funciona
+  // sin brief. Ver openspec/specs/campaigns.
+
+  /** Quién manda en la luz: lo último que eligió el usuario. Un preset y una imagen
+   *  de referencia se excluyen — antes convivían con el moodboard y nadie ganaba. */
+  const [lightSource, setLightSource] = useState<"preset" | "image" | null>(null);
+  const ownHas = (t: CampaignInput["type"]) =>
+    savedInputs.some((i) => i.type === t) || pendingInputs.some((i) => i.type === t);
+  const effectiveLight: "preset" | "image" | null =
+    lightSource ?? (lookFeelId || ownHas("lookfeel") ? "image" : lightingId ? "preset" : null);
+  /** Hay fondo propio: es el set, y nada del moodboard puede pisarlo. */
+  const hasBackground = !!backgroundId || ownHas("background");
+
+  /** Referencia de una sola imagen (moodboard o luz): del Brand Kit o propia de la
+   *  campaña. `key` identifica la imagen sin depender de su URL (las pendientes no
+   *  tienen URL todavía). */
+  type OneRef = { key: string; url: string | null; file: File | null } | null;
+  const pickOne = (brandUrl: string | null | undefined, brandKey: string | null,
+                   type: CampaignInput["type"]): OneRef => {
+    if (brandUrl && brandKey) return { key: `brand:${brandKey}`, url: brandUrl, file: null };
+    const sv = [...savedInputs].reverse().find((i) => i.type === type);
+    if (sv) return { key: `own:${sv.id}`, url: sv.url, file: null };
+    const pd = [...pendingInputs].reverse().find((i) => i.type === type);
+    if (pd) return { key: `pend:${pd.key}`, url: null, file: pd.file };
+    return null;
+  };
+  const brandMood = (b?.moodboards || []).find((m) => m.id === moodboardId);
+  const moodRef = pickOne(brandMood?.imageUrl, brandMood?.id ?? null, "moodboard");
+  const brandLight = (b?.lookAndFeel || []).find((l) => l.id === lookFeelId);
+  const lightRef = effectiveLight === "image" ? pickOne(brandLight?.imageUrl, brandLight?.id ?? null, "lookfeel") : null;
+
+  // El brief suma contexto, pero no se re-analiza en cada tecla.
+  const [briefForDir, setBriefForDir] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setBriefForDir(brief.trim()), 1200);
+    return () => clearTimeout(t);
+  }, [brief]);
+
+  const [direction, setDirection] = useState<CampaignDirection | null>(null);
+  const [dirStatus, setDirStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
+  const dirReq = useRef<{ key: string; promise: Promise<CampaignDirection | null> } | null>(null);
+  const dirKey = JSON.stringify([moodRef?.key ?? null, lightRef?.key ?? null, briefForDir, hasBackground]);
+
+  /** Pide la dirección (o devuelve la que ya está en vuelo para estas mismas refs).
+   *  Generar la espera, así nunca se genera con una dirección vieja. */
+  const ensureDirection = (force = false): Promise<CampaignDirection | null> => {
+    if (!moodRef && !lightRef) {
+      dirReq.current = null;
+      setDirection(null);
+      setDirStatus("idle");
+      return Promise.resolve(null);
+    }
+    if (!force && dirReq.current?.key === dirKey) return dirReq.current.promise;
+    const key = dirKey;
+    setDirStatus("loading");
+    const promise = (async () => {
+      const toUrl = async (r: OneRef) => (r ? r.url ?? (r.file ? await fileToDataUrl(r.file) : null) : null);
+      const d = await getCampaignDirection({
+        moodboardUrl: await toUrl(moodRef),
+        lightingUrl: await toUrl(lightRef),
+        brief: briefForDir,
+        fixedBackground: hasBackground,
+      });
+      // Solo pinta si sigue siendo la combinación vigente.
+      if (dirReq.current?.key === key) {
+        setDirection(d);
+        setDirStatus(d.ok ? "ready" : "failed");
+      }
+      return d;
+    })();
+    dirReq.current = { key, promise };
+    return promise;
+  };
+  useEffect(() => {
+    void ensureDirection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirKey]);
+
   /** Marca el campo como tocado a mano y aplica el cambio. La interpretación
    *  automática respeta todo lo que hayas elegido vos. */
   /** Lo que quedó seleccionado del banco de la marca — venga de la interpretación
@@ -622,10 +788,17 @@ export function NewCampaignPage() {
    * patrón que usa Ecommerce Pack, que es el que funciona.
    */
   type Ref = { url: string; role: RefRole; name: string };
-  const buildRefs = async (): Promise<Ref[]> => {
+  const buildRefs = async (dir: CampaignDirection | null): Promise<Ref[]> => {
+    // Moodboard y luz llegan como TEXTO (la dirección). Solo van como imagen si el
+    // análisis falló — degradación, avisada en la tarjeta. La luz por imagen solo
+    // cuando la fuente vigente es una imagen (si es un preset, el preset manda).
+    const sendMood = !dir?.ok;
+    const sendLight = !dir?.ok && effectiveLight === "image";
+    const skip = (role: RefRole) =>
+      (role === "moodboard" && !sendMood) || (role === "lookfeel" && !sendLight);
     const refs: Ref[] = [];
     const push = (url: string | undefined | null, role: RefRole, name: string) => {
-      if (url) refs.push({ url, role, name });
+      if (url && !skip(role)) refs.push({ url, role, name });
     };
 
     // Orden = prioridad. Si hay que recortar por el cap de 8, se pierde lo de abajo.
@@ -650,6 +823,7 @@ export function NewCampaignPage() {
     // Los pendientes tienen un blob: URL que solo existe en ESTE navegador — el backend
     // no lo puede bajar. Se mandan como data URL, que sí viaja.
     for (const pi of pendingInputs) {
+      if (skip(pi.type as RefRole)) continue;
       push(await fileToDataUrl(pi.file), pi.type as RefRole, pi.name);
     }
     return refs.slice(0, 8);
@@ -702,8 +876,10 @@ export function NewCampaignPage() {
         }
       }
 
-      const refs = await buildRefs();
-      if (refs.length === 0 && !b.brandContext) {
+      const dir = await ensureDirection();
+      const refs = await buildRefs(dir);
+      // Un moodboard leído cuenta como insumo aunque no viaje como imagen.
+      if (refs.length === 0 && !b.brandContext && !dir?.ok) {
         setError("Elegí al menos un asset (producto, modelo, moodboard…) o cargá brand context.");
         setSaving(false);
         return;
@@ -715,14 +891,26 @@ export function NewCampaignPage() {
       const light = lighting.find((l) => l.id === lightingId);
       const basePrompt =
         `Professional advertising campaign photograph for the brand ${b.name}. ` +
+        // Prueba 2026-10-12: el fondo solo al final (en la lista de refs) perdió las 3
+        // tiradas contra el mundo del moodboard. Nombrado arriba, manda.
+        `${hasBackground ? "SETTING: the scene takes place in the EXACT location shown in the BACKGROUND reference image — same space, architecture, surfaces, colours, tones and ambient light. Do NOT brighten, whiten, simplify or restyle it, and do NOT move the scene to a studio. " : ""}` +
         `${avatarId ? "Use the EXACT model from the identity reference (same face, hair, skin). " : ""}` +
         `${prodNames ? `Feature the product(s): ${prodNames}, reproduced faithfully from the reference. ` : ""}` +
         `${clothingNames ? `The model wears: ${clothingNames}, matched to the reference. ` : ""}` +
         `${ctx} ` +
         // El preset de iluminación inyecta SU fragmento de prompt — es lo que hace
         // que el banco de luces sirva y no sea sólo una miniatura.
-        `${light ? `Lighting: ${light.prompt}. ` : ""}` +
+        // Un solo dueño de la luz: el preset, o la luz leída de la referencia, o la
+        // del moodboard. Nunca dos a la vez (antes eran tres órdenes peleando).
+        // Con fondo, la luz del MOODBOARD no va: la escena se ilumina como el fondo.
+        // Una luz elegida a propósito (preset o referencia) sí va.
+        `${effectiveLight === "preset" && light ? `Lighting: ${light.prompt}. `
+          : dir?.ok && dir.lighting && !(hasBackground && dir.lighting_source === "moodboard") ? `Lighting: ${dir.lighting} ` : ""}` +
         `High-end editorial commercial quality, sharp, photorealistic. No text, no watermark, no logo overlay.` +
+        (dir ? directionPrompt(dir, {
+          background: !!backgroundId || ownHas("background"),
+          pose: !!poseId || ownHas("pose"),
+        }) : "") +
         describeRefs(refs);
 
       const ars = aspectRatios.length ? aspectRatios : ["9:16"];
@@ -889,15 +1077,16 @@ export function NewCampaignPage() {
               de `lighting` y no de `byKind()`. */}
           <Control
             label="Iluminación"
-            items={lightingId ? lighting.filter((l) => l.id === lightingId).map((l) => ({ id: l.id, name: l.name, thumb: systemAssetUrl(l.imageUrl) })) : []}
+            items={effectiveLight === "image"
+              ? byKind("Look & feel")
+              : lightingId ? lighting.filter((l) => l.id === lightingId).map((l) => ({ id: l.id, name: l.name, thumb: systemAssetUrl(l.imageUrl) })) : []}
             onOpen={() => setPicker("lighting")}
-            empty="automática"
+            empty={moodRef ? "la del moodboard" : "automática"}
           />
           {/* Pose y Look & feel tenían su Picker escrito pero NINGÚN control que lo
               abriera, así que eran inalcanzables desde la UI. La pose importa: define
               postura Y encuadre, y es el input que más se pasa suelto. */}
           <Control label="Pose"        items={byKind("Pose")}        onOpen={() => setPicker("pose")} empty="libre" />
-          <Control label="Look & feel" items={byKind("Look & feel")} onOpen={() => setPicker("lookFeel")} empty="de la marca" />
 
         </div>
 
@@ -995,20 +1184,31 @@ export function NewCampaignPage() {
                   onRemoveOwn={removeOwn} uploading={uploadingInput}
                   onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
         )}
-        {picker === "lookFeel" && (
-          <Picker label="Look & feel" hint="color"
-                  items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
-                  selectedId={lookFeelId} onSingle={mark("lookFeel", setLookFeelId)}
-                  ownItems={ownOf("lookfeel")} onUpload={(f) => addInputs(f, "lookfeel")}
-                  onRemoveOwn={removeOwn} uploading={uploadingInput}
-                  onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
-        )}
+        {/* Iluminación = un solo dueño de la luz: un preset del sistema O una imagen de
+            referencia (lo que antes era "Look & feel"). Elegir uno deselecciona el otro.
+            La imagen aporta SOLO la luz — se lee en la Dirección creativa. */}
         {picker === "lighting" && (
           pickerTab === "presets" ? (
             <Picker label="Iluminación" hint={`${lighting.length} presets`}
                     items={lighting.map((l) => ({ id: l.id, name: l.name, thumb: systemAssetUrl(l.imageUrl) }))}
-                    selectedId={lightingId} onSingle={mark("lighting", setLightingId)}
-                  onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
+                    selectedId={effectiveLight === "preset" ? lightingId : null}
+                    onSingle={mark("lighting", (id: string | null) => {
+                      setLightingId(id);
+                      if (id) { setLightSource("preset"); setLookFeelId(null); } else setLightSource(null);
+                    })}
+                    onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
+          ) : pickerTab === "mine" ? (
+            <Picker label="Referencia de luz" hint="solo aporta la luz"
+                    items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
+                    selectedId={effectiveLight === "image" ? lookFeelId : null}
+                    onSingle={mark("lookFeel", (id: string | null) => {
+                      setLookFeelId(id);
+                      if (id) { setLightSource("image"); setLightingId(null); } else setLightSource(null);
+                    })}
+                    ownItems={ownOf("lookfeel")}
+                    onUpload={(f) => { addInputs(f, "lookfeel"); setLightSource("image"); setLightingId(null); }}
+                    onRemoveOwn={removeOwn} uploading={uploadingInput}
+                    onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
           ) : (
             <EmptyTab tab={pickerTab} />
           )
@@ -1044,6 +1244,10 @@ export function NewCampaignPage() {
         className="flex-1 overflow-y-auto relative"
         style={{ background: "radial-gradient(ellipse 50% 30% at 50% 0%, var(--color-surface-0), var(--color-canvas) 80%)" }}
       >
+        {/* Dirección creativa: qué se leyó del moodboard y la luz, ANTES de generar. */}
+        {dirStatus !== "idle" && (
+          <DirectionCard status={dirStatus} d={direction} onRetry={() => { void ensureDirection(true); }} />
+        )}
         {plan ? (
           /* Lo que entendió del brief: el plan de tomas */
           <div className="p-8 max-w-[680px]">

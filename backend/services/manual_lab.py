@@ -220,7 +220,7 @@ async def _fetch_image_bytes(url: str) -> tuple[bytes, str]:
 
     fetch_url = url
     if url.startswith("/static/"):
-        fetch_url = f"http://localhost:8000{url}"
+        fetch_url = f"http://127.0.0.1:8000{url}"  # no localhost: puede resolver a IPv6 y fallar
 
     async with httpx.AsyncClient(timeout=30) as client:
         res = await client.get(fetch_url)
