@@ -6,6 +6,8 @@
 // docs/negocio/pricing-credits.md.
 
 import { recordImage, recordKling, recordSeedance, claimFor, pendingSummary } from "./costLedger";
+import type { ImageCostMeta } from "./costLedger";
+import type { GptQuality } from "./pricing";
 import type { CostSummary } from "./costLedger";
 
 import { API_BASE } from "./config";
@@ -2516,6 +2518,15 @@ export interface ImageGenResult {
     request_id: string;
     status: string;
     image_url?: string;
+    /** Qué generó de verdad el backend (modelo, calidad y tamaño de GPT). Se usa para el costo. */
+    meta?: ImageCostMeta;
+}
+
+/** Sin `meta` del backend (versión vieja): el modelo pedido, con la calidad pedida o medium. */
+function fallbackMeta(model: ImageModel, resolution: string, quality?: GptQuality | null): ImageCostMeta {
+    return model === "gpt-image-2"
+        ? { model, quality: quality || "medium" }
+        : { model, resolution };
 }
 
 export interface ImageGenStatus {
@@ -2541,6 +2552,8 @@ export async function createImageEdit(
     /** Máscara para edición LOCAL (data URL PNG, zonas editables transparentes).
      *  Sólo la soporta `gpt-image-2` — Nano Banana no acepta máscara. */
     maskDataUrl?: string | null,
+    /** Sólo GPT Image 2. Sin valor, el backend usa medium (high ≈ 4× el costo). */
+    quality?: GptQuality | null,
 ): Promise<ImageGenResult> {
     const formData = new FormData();
     formData.append("prompt", prompt);
@@ -2549,6 +2562,7 @@ export async function createImageEdit(
     if (maskDataUrl) formData.append("mask_url", maskDataUrl);
     formData.append("resolution", resolution);
     formData.append("model", model);
+    if (quality) formData.append("quality", quality);
 
     const res = await fetch(`${API_BASE}/api/image-gen/edit`, {
         method: "POST",
@@ -2561,8 +2575,9 @@ export async function createImageEdit(
         throw new Error(detail || `Image gen failed (${res.status})`);
     }
 
-    recordImage(resolution);
-    return res.json();
+    const data: ImageGenResult = await res.json();
+    recordImage(resolution, 1, data.meta ?? fallbackMeta(model, resolution, quality));
+    return data;
 }
 
 export async function analyzePoseReference(imageFile: File): Promise<{ pose_description: string }> {
@@ -2812,12 +2827,15 @@ export async function createTextToImage(
     aspectRatio: string = "1:1",
     resolution: string = "2K",
     model: ImageModel = "nano-banana-2",
+    /** Sólo GPT Image 2. Sin valor, el backend usa medium. */
+    quality?: GptQuality | null,
 ): Promise<ImageGenResult> {
     const formData = new FormData();
     formData.append("prompt", prompt);
     formData.append("aspect_ratio", aspectRatio);
     formData.append("resolution", resolution);
     formData.append("model", model);
+    if (quality) formData.append("quality", quality);
 
     const res = await fetch(`${API_BASE}/api/image-gen/text-to-image`, {
         method: "POST",
@@ -2830,8 +2848,9 @@ export async function createTextToImage(
         throw new Error(detail || `Text-to-image failed (${res.status})`);
     }
 
-    recordImage(resolution);
-    return res.json();
+    const data: ImageGenResult = await res.json();
+    recordImage(resolution, 1, data.meta ?? fallbackMeta(model, resolution, quality));
+    return data;
 }
 
 export async function checkImageGenStatus(requestId: string): Promise<ImageGenStatus> {

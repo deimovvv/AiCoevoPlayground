@@ -37,7 +37,6 @@ rules:
     - Si un requisito depende de un modelo, precio o endpoint externo, verificarlo
       antes de escribirlo (no de memoria). Anotar la fecha de verificación.
   tasks:
-    - Cada tarea termina con build verde y cero errores nuevos de tsc
-      (hay ~15 preexistentes: ToolConfig/StepContext).
-    - Nunca hacer POST de prueba a APIs de generación: encolan y cobran.
+    - "Cada tarea termina con build verde y cero errores nuevos de tsc (hay ~15 preexistentes: ToolConfig/StepContext)."
+    - "Nunca hacer POST de prueba a APIs de generación: encolan y cobran."
     - Commit y push a main al cerrar cada tarea.

@@ -68,3 +68,11 @@ total del período sigue bien. Se arregla cuando el motor de pipelines pase un r
 reconstruir con exactitud. La pantalla Trabajo las cuenta aparte en vez de asumir cero.
 
 Fase 2 (auth + ledger por cliente + top-up) sigue esperando autenticación.
+
+**GPT Image 2 (2026-10-13, change `image-models`).** Hasta esta fecha cada imagen de GPT se
+registraba como Nano Banana y a su precio, y el backend la pedía siempre en calidad `high`
+(~US$0,21 a 1024²) y en tamaño 1024×768 sin importar el formato (mandaba `size` en vez de
+`image_size`). Ahora: calidad por defecto `medium` (~US$0,05), el tamaño respeta formato y
+resolución, y el ledger la registra como `gpt-image-2:<calidad>` con la tabla de Fal
+(`pricing.ts → GPT_IMAGE_TABLE`, por tamaño y calidad). Los costos de GPT anteriores en
+`generations.json` están subestimados (figuran a precio de Nano Banana).

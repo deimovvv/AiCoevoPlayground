@@ -17,7 +17,7 @@
  * pieza no. Se arregla cuando el motor de pipelines pase un runId a través de api.ts.
  */
 
-import { imageUsd, videoUsd, seedanceUsd, ttsUsd, UNIT_USD } from "./pricing";
+import { imageUsd, gptImageUsd, videoUsd, seedanceUsd, ttsUsd, UNIT_USD } from "./pricing";
 
 export type OpKind = "image" | "video" | "tts";
 
@@ -69,18 +69,34 @@ function summarize(ops: CostOp[]): CostSummary {
   return s;
 }
 
-function push(kind: OpKind, model: string, usd: number, units: number) {
+function push(kind: OpKind, model: string, usd: number, units: number, verified?: boolean) {
   if (!(usd > 0) && kind !== "tts") return;
   pending.push({
     kind, model, usd, units,
-    verified: VERIFIED_MODELS.has(model),
+    verified: verified ?? VERIFIED_MODELS.has(model),
     at: new Date().toISOString(),
   });
 }
 
-/** Una imagen generada/editada con Nano Banana. */
-export function recordImage(resolution = "2K", count = 1) {
-  push("image", "nano-banana-2", imageUsd(resolution) * count, count);
+/** Lo que el backend dice que generó (`meta` de /api/image-gen/*). */
+export interface ImageCostMeta {
+  model: string;
+  resolution?: string;
+  quality?: string;
+  width?: number;
+  height?: number;
+}
+
+/** Una imagen generada/editada, registrada con su modelo REAL. Sin `meta` (backend viejo)
+ *  se asume Nano Banana, como antes. GPT Image 2 se registra como `gpt-image-2:<calidad>`. */
+export function recordImage(resolution = "2K", count = 1, meta?: ImageCostMeta) {
+  if (meta?.model === "gpt-image-2") {
+    const quality = meta.quality || "medium";
+    const { usd, exact } = gptImageUsd(quality, meta.width, meta.height);
+    push("image", `gpt-image-2:${quality}`, usd * count, count, exact);
+    return;
+  }
+  push("image", "nano-banana-2", imageUsd(meta?.resolution || resolution) * count, count);
 }
 
 /** Un clip de Kling. `duration` en segundos (string o number, como llega de la UI). */
@@ -131,4 +147,5 @@ export function discardPending() {
 /** Precios usados, para mostrarlos en la UI sin re-importar pricing. */
 export const PRICE_NOTE =
   `Nano Banana $${UNIT_USD.nanoImageBase.toFixed(2)}/img (1K, ×1.5 en 2K) · ` +
+  `GPT Image 2 ~$${gptImageUsd("medium").usd}/img (medium, 1024²; high ×4) · ` +
   `Kling V3 Pro $${UNIT_USD.klingPerSecond["v3-pro"]}/seg`;

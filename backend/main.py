@@ -4573,6 +4573,15 @@ async def segment_point(req: SegmentRequest):
         raise HTTPException(status_code=502, detail=f"Segmentación falló: {str(e)[:200]}")
 
 
+def _image_meta(model: str, aspect_ratio: str, resolution: str, quality: Optional[str]) -> dict:
+    """Qué se generó de verdad, para que el front registre el costo con el modelo real
+    (openspec/changes/image-models). El precio vive en frontend/src/lib/pricing.ts."""
+    if model == "gpt-image-2":
+        size = gpt_image_gen.size_for(aspect_ratio, resolution)
+        return {"model": "gpt-image-2", "quality": gpt_image_gen.normalize_quality(quality), **size}
+    return {"model": "nano-banana-2", "resolution": resolution}
+
+
 @app.post("/api/image-gen/edit")
 async def image_gen_edit(
     prompt: str = Form(...),
@@ -4581,6 +4590,8 @@ async def image_gen_edit(
     aspect_ratio: str = Form("9:16"),
     resolution: str = Form("1K"),
     model: str = Form("nano-banana-2"),  # "nano-banana-2" | "gpt-image-2"
+    # Sólo GPT Image 2: "low" | "medium" | "high". Default medium (high ≈ 4× el costo).
+    quality: Optional[str] = Form(None),
     # Máscara para EDICIÓN LOCAL: sólo se regenera la zona marcada. PNG con las
     # zonas editables TRANSPARENTES. Sólo la soporta gpt-image-2 — Nano Banana NO
     # acepta máscara (verificado 2026-09-21).
@@ -4710,6 +4721,8 @@ async def image_gen_edit(
                 prompt=prompt,
                 aspect_ratio=aspect_ratio,
                 mask_url=resolved_mask,
+                resolution=resolution,
+                quality=gpt_image_gen.normalize_quality(quality),
             )
             prefixed_id = f"gpt2:{request_id}"
         else:
@@ -4723,15 +4736,17 @@ async def image_gen_edit(
             )
             prefixed_id = request_id  # nano-banana-2 default (no prefix for back-compat)
 
+        meta = _image_meta(model, aspect_ratio, resolution, quality)
         # Handle sync result
         if request_id.startswith("SYNC:"):
             return {
                 "request_id": prefixed_id,
                 "status": "completed",
                 "image_url": request_id[5:],
+                "meta": meta,
             }
 
-        return {"request_id": prefixed_id, "status": "pending"}
+        return {"request_id": prefixed_id, "status": "pending", "meta": meta}
 
     except HTTPException:
         raise
@@ -4746,6 +4761,7 @@ async def image_gen_text_to_image(
     aspect_ratio: str = Form("1:1"),
     resolution: str = Form("2K"),
     model: str = Form("nano-banana-2"),
+    quality: Optional[str] = Form(None),  # sólo GPT Image 2; default medium
 ):
     """Text-to-image. Routes by model (nano-banana-2 default, gpt-image-2 optional)."""
     if not image_gen.is_configured():
@@ -4756,6 +4772,8 @@ async def image_gen_text_to_image(
             request_id = await gpt_image_gen.create_text_to_image(
                 prompt=prompt,
                 aspect_ratio=aspect_ratio,
+                resolution=resolution,
+                quality=gpt_image_gen.normalize_quality(quality),
             )
             prefixed_id = f"gpt2:{request_id}"
         else:
@@ -4766,9 +4784,10 @@ async def image_gen_text_to_image(
                 resolution=resolution,
             )
             prefixed_id = request_id
+        meta = _image_meta(model, aspect_ratio, resolution, quality)
         if request_id.startswith("SYNC:"):
-            return {"request_id": prefixed_id, "status": "completed", "image_url": request_id[5:]}
-        return {"request_id": prefixed_id, "status": "pending"}
+            return {"request_id": prefixed_id, "status": "completed", "image_url": request_id[5:], "meta": meta}
+        return {"request_id": prefixed_id, "status": "pending", "meta": meta}
     except HTTPException:
         raise
     except Exception as e:

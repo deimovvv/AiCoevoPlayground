@@ -35,18 +35,53 @@ def is_configured() -> bool:
     return bool(_get_key())
 
 
-# Map our aspect ratio labels to GPT Image 2 size strings.
-# GPT Image 2 accepts: "1024x1024", "1536x1024" (landscape), "1024x1536" (portrait).
-_SIZE_BY_ASPECT = {
-    "1:1": "1024x1024",
-    "16:9": "1536x1024",
-    "9:16": "1024x1536",
-    "4:5": "1024x1536",  # closest portrait
+# Tamaño de salida. Fal espera `image_size` (NO `size`, que ignora en silencio: hasta el
+# 2026-10-13 todo salía 1024×768 en t2i). Acepta {width, height} con estos límites
+# (schema OpenAPI de Fal, 2026-10-13): múltiplos de 16, borde ≤ 3840, proporción ≤ 3:1,
+# entre 655.360 y 8.294.400 píxeles. Ver openspec/changes/image-models/design.md.
+_PIXELS_BY_RESOLUTION = {
+    "0.5K": 655_360,
+    "1K": 1_048_576,
+    "2K": 2_359_296,
+    "4K": 8_294_400,
 }
+_MIN_PIXELS, _MAX_PIXELS, _MAX_EDGE = 655_360, 8_294_400, 3840
+QUALITIES = ("low", "medium", "high")
+DEFAULT_QUALITY = "medium"
 
 
-def _size_for(aspect_ratio: str) -> str:
-    return _SIZE_BY_ASPECT.get(aspect_ratio, "1024x1536")
+def _ratio(aspect_ratio: str) -> float:
+    try:
+        w, h = (float(x) for x in aspect_ratio.split(":"))
+        r = w / h
+    except Exception:
+        r = 9 / 16
+    return min(max(r, 1 / 3), 3.0)
+
+
+def size_for(aspect_ratio: str = "9:16", resolution: str = "1K") -> dict:
+    """{width, height} para el formato y la resolución pedidos, dentro de los límites de Fal."""
+    r = _ratio(aspect_ratio)
+    px = _PIXELS_BY_RESOLUTION.get(str(resolution).upper(), _PIXELS_BY_RESOLUTION["1K"])
+    w = (px * r) ** 0.5
+    h = w / r
+    scale = min(1.0, _MAX_EDGE / max(w, h))
+    w, h = w * scale, h * scale
+
+    def snap(v: float) -> int:
+        return max(16, int(round(v / 16)) * 16)
+
+    w, h = snap(w), snap(h)
+    # Redondear puede dejarlo apenas fuera de rango: se corrige de a 16 px.
+    while w * h > _MAX_PIXELS or max(w, h) > _MAX_EDGE:
+        w, h = (w - 16, h) if w >= h else (w, h - 16)
+    while w * h < _MIN_PIXELS:
+        w, h = (w + 16, h) if w <= h else (w, h + 16)
+    return {"width": w, "height": h}
+
+
+def normalize_quality(quality: Optional[str]) -> str:
+    return quality if quality in QUALITIES else DEFAULT_QUALITY
 
 
 # ══════════════════════════════════════════════════════════════
@@ -58,8 +93,9 @@ async def create_edit(
     prompt: str,
     aspect_ratio: str = "9:16",
     num_images: int = 1,
-    quality: str = "high",
+    quality: str = DEFAULT_QUALITY,
     mask_url: Optional[str] = None,
+    resolution: str = "1K",
 ) -> str:
     """
     Submit a GPT Image 2 edit job.
@@ -67,7 +103,8 @@ async def create_edit(
     image_urls: reference images. The FIRST image is treated as the BASE to edit;
                 additional images act as references/context.
     prompt: editing instructions in natural language.
-    quality: "low" | "medium" | "high" | "auto"
+    quality: "low" | "medium" | "high" (default medium; high ≈ 4× el costo)
+    resolution: "0.5K" | "1K" | "2K" | "4K" — junto con aspect_ratio define image_size
     mask_url: máscara para EDICIÓN LOCAL — sólo se regenera lo que la máscara marca,
               el resto de la imagen queda intacto. PNG donde las zonas TRANSPARENTES
               son las editables. Es la razón por la que las ediciones puntuales van
@@ -77,19 +114,19 @@ async def create_edit(
     if not image_urls:
         raise ValueError("GPT Image 2 edit requires at least one reference image")
 
-    size = _size_for(aspect_ratio)
+    size = size_for(aspect_ratio, resolution)
     payload = {
         "prompt": prompt,
         "image_urls": image_urls,
-        "size": size,
+        "image_size": size,
         "num_images": num_images,
-        "quality": quality,
+        "quality": normalize_quality(quality),
         "output_format": "png",
     }
     if mask_url:
         payload["mask_url"] = mask_url
 
-    print(f"[gpt-image-2] Submitting edit to {FAL_MODEL} (size={size}, refs={len(image_urls)})")
+    print(f"[gpt-image-2] Submitting edit to {FAL_MODEL} (size={size}, quality={payload['quality']}, refs={len(image_urls)})")
     print(f"[gpt-image-2] Prompt: {prompt[:120]}")
 
     async with httpx.AsyncClient(timeout=30) as client:
@@ -123,15 +160,16 @@ async def create_text_to_image(
     prompt: str,
     aspect_ratio: str = "9:16",
     num_images: int = 1,
-    quality: str = "high",
+    quality: str = DEFAULT_QUALITY,
+    resolution: str = "1K",
 ) -> str:
     """Generate an image from prompt alone (no references)."""
-    size = _size_for(aspect_ratio)
+    size = size_for(aspect_ratio, resolution)
     payload = {
         "prompt": prompt,
-        "size": size,
+        "image_size": size,
         "num_images": num_images,
-        "quality": quality,
+        "quality": normalize_quality(quality),
         "output_format": "png",
     }
 
