@@ -7,8 +7,8 @@ import type { Generation, ReviewData } from "../lib/api";
 import { cn, downloadUrl } from "../lib/utils";
 import { downloadFile } from "../lib/download";
 
-const API_BASE = "http://127.0.0.1:8000";
 
+import { API_BASE } from "../lib/config";
 type ContentType = "all" | "image" | "video" | "copy";
 type StatusFilter = "all" | "draft" | "completed";
 type ViewMode = "grid" | "list";

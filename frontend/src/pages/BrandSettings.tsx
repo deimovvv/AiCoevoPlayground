@@ -85,6 +85,7 @@ import { BusinessCard, BrandSourcesCard, CustomerReviewsCard, CompetitorsCard, B
 import { BrandLearningSection } from "./BrandBrainPage";
 import { BrandAccessSection } from "./ClientsPage";
 
+import { API_BASE } from "../lib/config";
 /**
  * Derive a human-friendly asset name from an uploaded filename.
  * Strips the extension, normalizes separators, drops trailing "(1)" copy markers,
@@ -962,7 +963,7 @@ function ProductsCard() {
                     formData.append("image", files[0]);
                     formData.append("type", "product");
                     formData.append("name", name);
-                    const res = await fetch("http://127.0.0.1:8000/api/analyze/image", { method: "POST", body: formData });
+                    const res = await fetch(`${API_BASE}/api/analyze/image`, { method: "POST", body: formData });
                     if (res.ok) {
                       const data = await res.json();
                       setDescription(data.description || "");
@@ -1093,7 +1094,7 @@ function ProductTile({
       formData.append("image", blob, "product.jpg");
       formData.append("type", "product");
       formData.append("name", editName);
-      const analyzeRes = await fetch("http://127.0.0.1:8000/api/analyze/image", { method: "POST", body: formData });
+      const analyzeRes = await fetch(`${API_BASE}/api/analyze/image`, { method: "POST", body: formData });
       if (analyzeRes.ok) {
         const data = await analyzeRes.json();
         setEditDesc(data.description || "");
@@ -3535,7 +3536,7 @@ function LogoCard() {
   const handleDeleteLegacy = async () => {
     setDeleting("__legacy__");
     try {
-      await fetch(`http://127.0.0.1:8000/api/brands/${activeBrand.id}/logo`, { method: "DELETE" });
+      await fetch(`${API_BASE}/api/brands/${activeBrand.id}/logo`, { method: "DELETE" });
       await refreshBrands();
     } catch { /* silent */ } finally {
       setDeleting(null);

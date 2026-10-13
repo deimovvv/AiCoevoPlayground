@@ -29,6 +29,8 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Referencias de Campañas | Un dueño por dominio; el moodboard se lee (texto), el fondo se usa literal | 2026-10-12 · `specs/campaigns` |
 | Keys de Google | Sólo la de Coevo (`GEMINI_API_KEY`) o falla; nunca una de Monks | 2026-10-06 |
 | Infraestructura | FastAPI + PostgreSQL + SQLAlchemy 2 + Alembic; archivos en R2; migrar de a una | 2026-10-09 · `changes/infra-v1` |
+| Servidor de producción | Hostinger VPS KVM 2 (2 vCPU/8 GB) + Cloudflare (Pages, Access, Tunnel, R2) | 2026-10-13 · `infra-v1`, `docs/guias/produccion.md` |
+| Remotion | Gratis hasta 3 empleados; después US$100/mes mínimo → reemplazarlo antes de crecer | 2026-10-13 · `infra-v1` |
 | Reportes a clientes | Se leen de Postiz (ya resuelve Meta orgánico); una plataforma multi-marca, nunca un dashboard por cliente | 2026-10-09 · `changes/brand-integrations` |
 | Tools / editor / skills | Tool genera · editor monta (uno solo) · skill descubre; lo validado pasa a la app como plantilla o receta | 2026-10-09 |
 

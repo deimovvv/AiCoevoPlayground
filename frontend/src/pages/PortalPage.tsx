@@ -21,7 +21,8 @@ import { Loader2, Upload, ArrowLeft, Check } from "lucide-react";
 import { getPortal, fetchPortalPlan, uploadPortalPieces } from "../lib/api";
 import type { PortalData, PortalItem, PortalPlanItem } from "../lib/api";
 
-const API = "http://127.0.0.1:8000";
+import { API_BASE } from "../lib/config";
+const API = `${API_BASE}`;
 const resolveUrl = (u?: string | null) => (u ? (u.startsWith("http") ? u : `${API}${u}`) : "");
 
 /** Paleta del portal. Explícita y no tokenizada: esta pantalla NO sigue el tema de la app. */

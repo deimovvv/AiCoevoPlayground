@@ -19,7 +19,8 @@ import { useParams, useSearchParams, Link } from "react-router";
 import { Check, Loader2, ArrowRight, ArrowLeft } from "lucide-react";
 import { getReview, submitReviewFeedback, type ReviewData } from "../lib/api";
 
-const API = "http://127.0.0.1:8000";
+import { API_BASE } from "../lib/config";
+const API = `${API_BASE}`;
 const resolveUrl = (u: string) => (u && u.startsWith("http") ? u : `${API}${u}`);
 
 /** Misma paleta clara del portal — es la misma casa. */

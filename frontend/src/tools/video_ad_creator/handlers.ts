@@ -17,6 +17,7 @@ import {
 } from "../../lib/api";
 import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstraints";
 
+import { API_BASE } from "../../lib/config";
 // ── Visual styles available ─────────────────────────────
 
 // `prompt` = descripción rica del estilo que se inyecta en la generación (no solo el label),
@@ -647,8 +648,7 @@ async function createKlingFrameToFrame(
   duration: string = "5",
   aspectRatio: string = "9:16",
 ): Promise<string> {
-  const API_BASE = "http://127.0.0.1:8000";
-  const res = await fetch(`${API_BASE}/api/kling/frame-to-frame`, {
+    const res = await fetch(`${API_BASE}/api/kling/frame-to-frame`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

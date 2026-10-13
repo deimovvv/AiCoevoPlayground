@@ -1,0 +1,60 @@
+# Producción en el VPS (openspec/changes/infra-v1). En el servidor:
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Secretos (NUNCA en git): keys de la app en backend/.env; DB_PASSWORD y
+# CLOUDFLARE_TUNNEL_TOKEN en el .env de la raíz (Docker Compose lo lee solo).
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: coevo
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Falta DB_PASSWORD}
+      POSTGRES_DB: coevo_studio
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coevo -d coevo_studio"]
+      interval: 5s
+      retries: 30
+
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://coevo:${DB_PASSWORD}@db:5432/coevo_studio
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/data:/app/backend/data          # datos y medios (hasta mudarlos a R2)
+    ports:
+      - "127.0.0.1:8000:8000"                      # sólo local: entra por el túnel de Cloudflare
+
+  # Backup diario de la base a ./backups (se suben a R2 cuando exista la cuenta de Cloudflare).
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup-db.sh:/backup-db.sh:ro
+    entrypoint: ["sh", "-c", "while true; do sh /backup-db.sh; sleep 86400; done"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Túnel de Cloudflare: publica la API sin abrir puertos del VPS, con HTTPS y el login de
+  # Cloudflare Access delante. Se activa cuando haya cuenta de Cloudflare (perfil "tunnel").
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    profiles: ["tunnel"]
+    depends_on: [api]
+
+volumes:
+  db-data:

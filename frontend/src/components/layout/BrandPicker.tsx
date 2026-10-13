@@ -17,8 +17,8 @@ import { useBrand } from "../../lib/BrandContext";
 import { cn } from "../../lib/utils";
 import type { Brand } from "../../lib/api";
 
-const API_BASE = "http://127.0.0.1:8000";
 
+import { API_BASE } from "../../lib/config";
 function initials(name: string) {
   return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }

@@ -11,6 +11,7 @@ import type { ToolDefinition, StepHandler } from "../types";
 import { generateToolPrompt, createImageEdit, createTextToImage, pollImageGen } from "../../lib/api";
 import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstraints";
 
+import { API_BASE } from "../../lib/config";
 // ── Prompt — generates copy + image prompt ──────────────
 
 const handlePrompt: StepHandler = async (ctx) => {
@@ -34,7 +35,7 @@ const handlePrompt: StepHandler = async (ctx) => {
   let templatePrompt = "";
   if (templateId) {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/tools/static-ad/templates");
+      const res = await fetch(`${API_BASE}/api/tools/static-ad/templates`);
       const data = await res.json();
       const template = (data.templates || []).find((t: { id: string }) => t.id === templateId);
       if (template) {
@@ -304,7 +305,7 @@ const handleGenerateAll: StepHandler = async (ctx) => {
 
   if (isBatch) {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/tools/static-ad/templates");
+      const res = await fetch(`${API_BASE}/api/tools/static-ad/templates`);
       const data = await res.json();
       const allTemplates = (data.templates || []) as Array<{ id: string; name: string; category?: string; prompt: string; needs_person?: boolean }>;
       const categoryFilter = (config as unknown as Record<string, unknown>).staticAdCategory as string || "";

@@ -16,6 +16,7 @@ import { useBrand } from "../lib/BrandContext";
 import { cn } from "../lib/utils";
 import { TOOL_PREVIEW_MEDIA } from "../lib/toolPreviews";
 
+import { API_BASE } from "../lib/config";
 interface ToolEntry {
   id: string;
   name: string;
@@ -151,7 +152,7 @@ export function GeneratePage() {
   const [filter, setFilter] = useState<"all" | "video" | "images" | "copy">("all");
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/api/tools")
+    fetch(`${API_BASE}/api/tools`)
       .then((r) => r.json())
       .then((data) => {
         setTools(data.tools || []);

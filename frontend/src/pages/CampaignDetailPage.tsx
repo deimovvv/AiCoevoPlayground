@@ -17,6 +17,7 @@ import type { CostSummary } from "../lib/costLedger";
 import { uploadCampaignPieces } from "../lib/api";
 import { cn } from "../lib/utils";
 
+import { API_BASE } from "../lib/config";
 const STATUS_LABEL: Record<Campaign["status"], { label: string; cls: string }> = {
   draft: { label: "Borrador", cls: "bg-surface-2 text-fg-muted" },
   generating: { label: "Generando", cls: "bg-[var(--color-action-muted)] text-[var(--color-action)]" },
@@ -298,7 +299,7 @@ export function CampaignDetailPage() {
   const st = STATUS_LABEL[campaign.status] || STATUS_LABEL.draft;
   const pieces = campaign.pieces || [];
   // Las generadas vienen de Fal con URL absoluta; las subidas viven en nuestro backend.
-  const pieceUrl = (u: string) => (u.startsWith("http") ? u : `http://127.0.0.1:8000${u}`);
+  const pieceUrl = (u: string) => (u.startsWith("http") ? u : `${API_BASE}${u}`);
 
   // Todos los assets asignados (avatar, productos, prendas, fondo, moodboard, look&feel)
   // como una sola lista para el strip compacto.

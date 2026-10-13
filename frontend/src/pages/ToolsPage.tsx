@@ -3,6 +3,7 @@ import { useLocation } from "react-router";
 import { Sparkles, Eraser, Film, Image, Video, Play, ChevronRight, Clock, Loader2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 
+import { API_BASE } from "../lib/config";
 interface ToolConfig {
     id: string;
     name: string;
@@ -44,7 +45,7 @@ export default function ToolsPage() {
     const CategoryIcon = routeCategory === "video" ? Video : Image;
 
     useEffect(() => {
-        fetch("http://127.0.0.1:8000/api/tools")
+        fetch(`${API_BASE}/api/tools`)
             .then((r) => r.json())
             .then((data) => {
                 setTools(data.tools || []);
@@ -151,7 +152,7 @@ function ToolDetailModal({
     const handleRun = async () => {
         setRunning(true);
         try {
-            const res = await fetch(`http://127.0.0.1:8000/api/tools/${tool.id}/run`, {
+            const res = await fetch(`${API_BASE}/api/tools/${tool.id}/run`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(formData),

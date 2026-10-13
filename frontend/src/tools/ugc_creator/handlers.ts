@@ -22,6 +22,7 @@ import {
 import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstraints";
 import { resolveSceneBackground } from "../shared/resolveBackground";
 
+import { API_BASE } from "../../lib/config";
 // ── Visual Style Prompts ─────────────────────────────────
 
 const VISUAL_STYLE_PROMPTS: Record<string, string> = {
@@ -1254,7 +1255,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
           sceneId: scene.sceneId,
           title: scene.title,
           scriptText: "",
-          videoUrl: klingVideoUrl.startsWith("http") ? klingVideoUrl : `http://127.0.0.1:8000${klingVideoUrl}`,
+          videoUrl: klingVideoUrl.startsWith("http") ? klingVideoUrl : `${API_BASE}${klingVideoUrl}`,
           hookVideoUrl,
           imageUrl: scene.selectedUrl,
           sceneType: "creative",
@@ -1262,7 +1263,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
         continue;
       }
       const overlayResult = await overlayAudio(
-        klingVideoUrl.startsWith("http") ? klingVideoUrl : `http://127.0.0.1:8000${klingVideoUrl}`,
+        klingVideoUrl.startsWith("http") ? klingVideoUrl : `${API_BASE}${klingVideoUrl}`,
         falAudioUrl,
       );
       lipsyncResults.push({
@@ -1271,7 +1272,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
         scriptText,
         videoUrl: overlayResult.video_url.startsWith("http")
           ? overlayResult.video_url
-          : `http://127.0.0.1:8000${overlayResult.video_url}`,
+          : `${API_BASE}${overlayResult.video_url}`,
         hookVideoUrl,
         imageUrl: scene.selectedUrl,
         sceneType: "creative",
@@ -1305,7 +1306,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
         });
         const result = await pollVeoVideo(operation);
         if (result.status === "completed" && result.video_url) {
-          const vurl = result.video_url.startsWith("http") ? result.video_url : `http://127.0.0.1:8000${result.video_url}`;
+          const vurl = result.video_url.startsWith("http") ? result.video_url : `${API_BASE}${result.video_url}`;
           lipsyncResults.push({
             sceneId: scene.sceneId, title: scene.title, scriptText,
             videoUrl: vurl, hookVideoUrl, imageUrl: scene.selectedUrl, sceneType: "talking",
@@ -1393,7 +1394,7 @@ export const handleLipsync: StepHandler = async (ctx) => {
         klingDuration,
       );
       const lipsyncJob = await createSyncLipsync({
-        video_url: klingVideoUrl.startsWith("http") ? klingVideoUrl : `http://127.0.0.1:8000${klingVideoUrl}`,
+        video_url: klingVideoUrl.startsWith("http") ? klingVideoUrl : `${API_BASE}${klingVideoUrl}`,
         audio_url: falAudioUrl!,
         sync_mode: "cut_off",
       });

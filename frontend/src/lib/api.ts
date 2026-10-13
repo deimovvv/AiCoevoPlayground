@@ -8,6 +8,7 @@
 import { recordImage, recordKling, recordSeedance, claimFor, pendingSummary } from "./costLedger";
 import type { CostSummary } from "./costLedger";
 
+import { API_BASE } from "./config";
 /**
  * Estado de TRABAJO de una pieza — el vocabulario de la pantalla Trabajo.
  * Deliberadamente corto: cada valor responde "¿qué necesita algo de mí?".
@@ -34,7 +35,6 @@ export const WORK_STATUS_LABEL: Record<WorkStatus, string> = {
 /** Los que exigen una acción nuestra — el filtro por defecto de la pantalla Trabajo. */
 export const WORK_STATUS_NEEDS_ACTION: WorkStatus[] = ["review", "changes"];
 
-const API_BASE = "http://127.0.0.1:8000";
 
 /** URL absoluta de un archivo servido por el backend ("/static/..." → backend). Las URLs
  *  externas (Fal, etc.) pasan igual. Sin esto el navegador busca "/static/..." en el

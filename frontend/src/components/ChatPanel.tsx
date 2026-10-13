@@ -7,6 +7,7 @@ import type { ChatMessage, ChatScriptScene, ChatPromptCandidate, ChatImage } fro
 import { cn } from "../lib/utils";
 import { ConfigPreviewCard } from "./ConfigPreviewCard";
 
+import { API_BASE } from "../lib/config";
 // ── Chat History Types ──────────────────────────────────────
 
 interface ChatSession {
@@ -704,7 +705,7 @@ export function ChatPanel({ compact = false }: { compact?: boolean }) {
                       )}
                     >
                       {a.imageUrl ? (
-                        <img src={a.imageUrl.startsWith("http") ? a.imageUrl : `http://127.0.0.1:8000${a.imageUrl}`} alt={a.name} className="w-7 h-7 object-cover rounded-sm shrink-0" />
+                        <img src={a.imageUrl.startsWith("http") ? a.imageUrl : `${API_BASE}${a.imageUrl}`} alt={a.name} className="w-7 h-7 object-cover rounded-sm shrink-0" />
                       ) : (
                         <div className="w-7 h-7 bg-surface-2 rounded-sm shrink-0" />
                       )}
@@ -946,7 +947,7 @@ function IgReplicateBubble({ result }: { result: import("../lib/api").InstagramR
       for (const s of result.scraped.slides.slice(0, 10)) {
         if (!s?.url) { slideDataUrls.push(""); continue; }
         try {
-          const fullUrl = s.url.startsWith("http") ? s.url : `http://127.0.0.1:8000${s.url}`;
+          const fullUrl = s.url.startsWith("http") ? s.url : `${API_BASE}${s.url}`;
           const r = await fetch(fullUrl);
           if (!r.ok) { slideDataUrls.push(""); continue; }
           const blob = await r.blob();
@@ -1016,7 +1017,7 @@ function IgReplicateBubble({ result }: { result: import("../lib/api").InstagramR
       {result.scraped.slides && result.scraped.slides.length > 0 && (
         <div className="grid grid-cols-5 gap-1.5">
           {result.scraped.slides.slice(0, 10).map((s, i) => {
-            const thumbUrl = s.url.startsWith("http") ? s.url : `http://127.0.0.1:8000${s.url}`;
+            const thumbUrl = s.url.startsWith("http") ? s.url : `${API_BASE}${s.url}`;
             return (
               <div key={i} className="relative aspect-square rounded-[var(--radius-sm)] overflow-hidden border border-edge">
                 <img src={thumbUrl} alt={`slide ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -1490,7 +1491,7 @@ function AssetsPanel({
             items={(brand.avatars || []).map((a) => ({
               id: a.id,
               name: a.name,
-              imageUrl: a.imageUrl ? `http://127.0.0.1:8000${a.imageUrl}` : undefined,
+              imageUrl: a.imageUrl ? `${API_BASE}${a.imageUrl}` : undefined,
             }))}
             selected={selections.avatarIds}
             onToggle={toggleAvatar}
@@ -1508,7 +1509,7 @@ function AssetsPanel({
             items={(brand.products || []).map((p) => ({
               id: p.id,
               name: p.name,
-              imageUrl: p.imageUrl ? `http://127.0.0.1:8000${p.imageUrl}` : undefined,
+              imageUrl: p.imageUrl ? `${API_BASE}${p.imageUrl}` : undefined,
             }))}
             selected={selections.productIds}
             onToggle={toggleProduct}
@@ -1526,7 +1527,7 @@ function AssetsPanel({
             items={(brand.clothing || []).map((c) => ({
               id: c.id,
               name: c.name,
-              imageUrl: c.imageUrl ? `http://127.0.0.1:8000${c.imageUrl}` : undefined,
+              imageUrl: c.imageUrl ? `${API_BASE}${c.imageUrl}` : undefined,
             }))}
             selected={selections.clothingIds}
             onToggle={toggleClothing}
@@ -1544,7 +1545,7 @@ function AssetsPanel({
             items={(brand.backgrounds || []).map((b) => ({
               id: b.id,
               name: b.name,
-              imageUrl: b.imageUrl ? `http://127.0.0.1:8000${b.imageUrl}` : undefined,
+              imageUrl: b.imageUrl ? `${API_BASE}${b.imageUrl}` : undefined,
             }))}
             selected={selections.backgroundIds}
             onToggle={toggleBackground}

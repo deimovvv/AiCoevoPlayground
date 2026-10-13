@@ -10,8 +10,8 @@ import type { StepHandler } from "../types";
 import { createTextToImage, createImageEdit, pollImageGen, uploadAvatar, replaceAvatarImage, avatarImageUrl, moodboardImageUrl } from "../../lib/api";
 import { AVATAR_VIEWS } from "./index";
 
-const API_BASE = "http://127.0.0.1:8000";
 
+import { API_BASE } from "../../lib/config";
 // ── Avatar style configs ─────────────────────────────────────
 
 export const AVATAR_STYLES = [

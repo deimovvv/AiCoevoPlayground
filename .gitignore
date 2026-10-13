@@ -77,3 +77,6 @@ backend/data/campaign_uploads/
 # Backups de migración de datos — pesados, locales, no van al repo
 backend/data/*.pre-*-migration
 backend/data/*.bak
+
+# Backups de la base en producción (scripts/backup-db.sh) — datos de clientes
+backups/

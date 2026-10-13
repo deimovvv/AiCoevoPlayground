@@ -18,8 +18,8 @@ import {
 } from "../../lib/api";
 import { PRODUCT_BASE_PROMPT, PRODUCT_FIDELITY_RULES, PRODUCT_VIEW_CATALOG, DEFAULT_PRODUCT_VIEWS } from "./index";
 
-const API_BASE = "http://127.0.0.1:8000";
 
+import { API_BASE } from "../../lib/config";
 // ── Brief shape (mirrors the JSON returned by the backend) ──────────────
 
 export interface ProductSheetBrief {

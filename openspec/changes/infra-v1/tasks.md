@@ -22,9 +22,11 @@
 
 ## 5. Producción (design.md: ≈ US$10–17/mes)
 
-- [ ] 5.0 Servidor: Hostinger VPS KVM 2 (recomendado, US$8,99 → 14,99). Confirmar qué plan de Hostinger tiene hoy el usuario (compartido no sirve). Cuenta de Coevo.
-- [ ] 5.1 Imagen Docker del backend (FastAPI + FFmpeg + Node/Remotion).
-- [ ] 5.2 Servidor con Docker Compose: API + Postgres + tarea diaria; backups diarios a R2.
-- [ ] 5.3 Frontend en Cloudflare Pages; dominio propio.
-- [ ] 5.4 Verificar la licencia de Remotion para el tamaño del equipo (si es paga: HyperFrames).
+- [x] 5.0 Servidor: **Hostinger VPS KVM 2** (decidido 2026-10-13). El plan actual del usuario es hosting compartido → contratar el VPS aparte. Cuenta de Coevo.
+- [x] 5.1 `Dockerfile` (Python 3.11 + FFmpeg + Node/Remotion + OpenCV): probado en local, graba textos en el contenedor.
+- [~] 5.2 `docker-compose.prod.yml` (api + db + backup diario + túnel de Cloudflare) listo; falta el VPS. Backups a R2: cuando exista Cloudflare.
+- [~] 5.3 Frontend: la dirección del backend ya es configurable (`VITE_API_BASE`, `lib/config.ts`; 23 archivos tenían
+      `127.0.0.1:8000` escrito a mano). Falta Cloudflare Pages + dominio.
+- [x] 5.4 Licencia de Remotion verificada: gratis hasta 3 empleados; si no, US$0,01/render con mínimo US$100/mes →
+      reemplazar el render de textos antes de que el equipo pase de 3.
 - [ ] 5.5 Claude no corre en producción: subir proyectos locales a la marca (puente) en vez de llamar a la API.

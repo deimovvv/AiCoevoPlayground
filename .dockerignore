@@ -1,0 +1,16 @@
+# Nunca a la imagen: secretos, datos de clientes, entornos locales
+**/.env
+**/.env.*
+!**/.env.example
+backend/data
+backend/tmp
+backend/.venv
+**/__pycache__
+**/node_modules
+frontend/dist
+.git
+.claude
+docs
+openspec
+**/*.mp4
+**/*.mov

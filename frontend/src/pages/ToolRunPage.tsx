@@ -91,6 +91,7 @@ import { TOOL_EXAMPLES, TOOL_PREVIEW_MEDIA, type ToolExample } from "../lib/tool
 import { autoSaveStep, setActiveGenId, clearActiveGen } from "../tools/shared/autoSave";
 import { RunBrandContext, useRunBrand } from "../lib/RunBrandContext";
 
+import { API_BASE } from "../lib/config";
 // ── Audio compartido ───────────────────────────────────────
 // Un solo <audio> para toda la página: tocar Play para el que sonaba (no se
 // duplica ni se solapa), y un segundo click sobre el mismo pausa. Reemplaza a
@@ -1059,7 +1060,7 @@ export function ToolRunPage() {
 
   useEffect(() => {
     if (!toolId) return;
-    fetch(`http://127.0.0.1:8000/api/tools/${toolId}`)
+    fetch(`${API_BASE}/api/tools/${toolId}`)
       .then((r) => {
         if (!r.ok) throw new Error("Not found");
         return r.json();
@@ -1234,7 +1235,7 @@ export function ToolRunPage() {
   // Load saved generation pipeline state if ?gen= param present
   useEffect(() => {
     if (!generationId || !tool) return;
-    fetch(`http://127.0.0.1:8000/api/generations/${generationId}`)
+    fetch(`${API_BASE}/api/generations/${generationId}`)
       .then((r) => { if (!r.ok) throw new Error("Not found"); return r.json(); })
       .then((gen) => {
         if (!gen.pipelineState) return;
@@ -6165,7 +6166,7 @@ function ConfigPanel({
               {activeBrand.logo?.imageUrl && config.graphicAssets.length === 0 && (
                 <div className="flex items-center gap-2 bg-surface-2 rounded-[var(--radius-sm)] px-3 py-2">
                   <div className="w-8 h-8 rounded bg-white overflow-hidden flex items-center justify-center p-0.5 shrink-0">
-                    <img src={`http://127.0.0.1:8000${activeBrand.logo.imageUrl}`} alt="Brand logo" className="max-w-full max-h-full object-contain" />
+                    <img src={`${API_BASE}${activeBrand.logo.imageUrl}`} alt="Brand logo" className="max-w-full max-h-full object-contain" />
                   </div>
                   <span className="text-[10px] text-fg-muted">Brand Kit logo will be used automatically</span>
                 </div>
@@ -8436,7 +8437,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
         )}
         {swap.url && (
           <a
-            href={`http://127.0.0.1:8000/api/download?url=${encodeURIComponent(swap.url)}&filename=video_swap.mp4`}
+            href={`${API_BASE}/api/download?url=${encodeURIComponent(swap.url)}&filename=video_swap.mp4`}
             className="inline-flex items-center gap-2 px-4 py-2 text-[12px] font-medium rounded-[var(--radius-sm)] bg-surface-2 hover:bg-surface-3 text-fg cursor-pointer"
           >
             <Download size={13} /> Descargar
@@ -10066,8 +10067,8 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
       subtitleEngine?: string;
       remotionScenes?: Array<{ videoUrl: string; scriptText: string; durationInFrames: number }>;
     };
-    const fullVideoUrl = info.videoUrl ? `http://127.0.0.1:8000${info.videoUrl}` : undefined;
-    const fullVideoUrlNoSubs = info.videoUrlNoSubs ? `http://127.0.0.1:8000${info.videoUrlNoSubs}` : undefined;
+    const fullVideoUrl = info.videoUrl ? `${API_BASE}${info.videoUrl}` : undefined;
+    const fullVideoUrlNoSubs = info.videoUrlNoSubs ? `${API_BASE}${info.videoUrlNoSubs}` : undefined;
 
     return (
       <div className="space-y-4">
@@ -10202,7 +10203,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                     exportedAt: new Date().toISOString(),
                   });
                 }
-                const url = final.startsWith("/") ? `http://127.0.0.1:8000${final}` : final;
+                const url = final.startsWith("/") ? `${API_BASE}${final}` : final;
                 downloadFile(url, edited || withText.length || music?.url ? "fashion_reel_editado.mp4" : "fashion_reel.mp4");
               }}
             />
@@ -11551,7 +11552,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                   setEditLoading(true);
                   try {
                     const product = (activeBrand.products || []).find((p) => p.id === config.selectedProductId);
-                    const res = await fetch("http://127.0.0.1:8000/api/tools/generate-prompt", {
+                    const res = await fetch(`${API_BASE}/api/tools/generate-prompt`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
@@ -13918,7 +13919,7 @@ function InstagramCarouselImporter({ onUseAsTemplate }: { onUseAsTemplate: (slid
     try {
       const slideUrl = post.slides[chosenIdx].url;
       // Backend serves IG images as /static/ig-imports/... → prepend the API host
-      const fullUrl = slideUrl.startsWith("http") ? slideUrl : `http://127.0.0.1:8000${slideUrl}`;
+      const fullUrl = slideUrl.startsWith("http") ? slideUrl : `${API_BASE}${slideUrl}`;
       const res = await fetch(fullUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status} al descargar la imagen`);
       const blob = await res.blob();
@@ -13983,7 +13984,7 @@ function InstagramCarouselImporter({ onUseAsTemplate }: { onUseAsTemplate: (slid
           {/* Slides grid (clickable to choose) */}
           <div className="grid grid-cols-5 gap-1.5">
             {post.slides.map((s, i) => {
-              const thumbUrl = s.url.startsWith("http") ? s.url : `http://127.0.0.1:8000${s.url}`;
+              const thumbUrl = s.url.startsWith("http") ? s.url : `${API_BASE}${s.url}`;
               return (
                 <button
                   key={i}
@@ -14100,7 +14101,7 @@ function TemplateSelector({ selectedId, onSelect }: { selectedId: string; onSele
   const [filterCat, setFilterCat] = useState<string>("all");
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/api/tools/static-ad/templates")
+    fetch(`${API_BASE}/api/tools/static-ad/templates`)
       .then((r) => r.json())
       .then((data) => setTemplates(data.templates || []))
       .catch(() => {});

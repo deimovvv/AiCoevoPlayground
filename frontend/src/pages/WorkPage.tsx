@@ -21,6 +21,7 @@ import { formatUsd } from "../lib/pricing";
 import { PRICE_NOTE } from "../lib/costLedger";
 import { cn } from "../lib/utils";
 
+import { API_BASE } from "../lib/config";
 // Manual Lab es el sandbox: 2.825 de las 3.211 generaciones históricas salieron de ahí.
 // Son pruebas, no entregables — un tablero de trabajo con eso adentro es ruido.
 const SANDBOX_TOOLS = ["manual_lab"];
@@ -474,7 +475,7 @@ export function WorkPage() {
                                             >
                                                 {g.thumbnailUrl && !brokenThumbs[g.id] ? (
                                                     <img
-                                                        src={g.thumbnailUrl.startsWith("http") ? g.thumbnailUrl : `http://127.0.0.1:8000${g.thumbnailUrl}`}
+                                                        src={g.thumbnailUrl.startsWith("http") ? g.thumbnailUrl : `${API_BASE}${g.thumbnailUrl}`}
                                                         alt=""
                                                         loading="lazy"
                                                         onError={() => setBrokenThumbs((p) => ({ ...p, [g.id]: true }))}

@@ -1,4 +1,5 @@
-/**
+
+import { API_BASE } from "./config";/**
  * Single source of truth for downloading generated media.
  * ─────────────────────────────────────────────────────────
  * Why this exists: a plain `<a download>` (or `fetch()` then blob) FAILS for the
@@ -13,7 +14,6 @@
  * blob:/data: URLs are same-origin and download directly — no proxy needed.
  */
 
-const API_BASE = "http://127.0.0.1:8000";
 
 function clickDownload(href: string, filename: string) {
   const a = document.createElement("a");
