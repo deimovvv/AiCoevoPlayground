@@ -80,3 +80,7 @@ backend/data/*.bak
 
 # Backups de la base en producción (scripts/backup-db.sh) — datos de clientes
 backups/
+
+# copias de seguridad del .env (tienen claves): nunca al repo
+.env.bak*
+**/.env.bak*
