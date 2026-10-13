@@ -105,6 +105,27 @@ const NO_TEXT_SUFFIX = " Single continuous frame. NO split screen, NO collage, N
  * "studio_white" y le ganaba al fondo elegido — y además impedía mandar la imagen
  * del fondo como referencia. Con receta, el fondo lo decide sólo el selector Fondo.
  */
+/**
+ * "Desde una foto": el usuario subió UNA imagen y tildó usarla como base. Esa imagen
+ * es el cuadro 1 tal cual (no se genera) y los demás planos salen anclados a ella:
+ * misma persona, misma ropa, mismo lugar; cambian pose y encuadre.
+ * Mismo mecanismo que `ugcBaseFromUpload` en UGC Creator.
+ */
+const uploadedBaseFile = (cfg: Record<string, unknown>): File | null => {
+  if (!cfg.reelBaseFromUpload) return null;
+  const files = ((cfg.referenceImages as File[]) || [])
+    .filter((f) => f && typeof f.type === "string" && f.type.startsWith("image/"));
+  return files[0] || null;
+};
+
+const fileAsDataUrl = (f: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = () => reject(new Error("No se pudo leer la imagen subida"));
+    r.readAsDataURL(f);
+  });
+
 const readCfg = (config: unknown): Record<string, unknown> => {
   const cfg = config as Record<string, unknown>;
   if (!cfg.recipeId) return cfg;
@@ -195,6 +216,37 @@ export const handleScript: StepHandler = async (ctx) => {
         needsApproval: true,
       };
     }
+  }
+
+  // ── DESDE UNA FOTO ────────────────────────────────────────────────────
+  // La ropa, la persona y el lugar ya están en la foto: no hacen falta prendas ni
+  // avatar del Brand Kit. Una escena por plano elegido en "Secuencia de planos".
+  // Pedido del usuario (2026-10-13): "a partir de una imagen, generar los otros shots".
+  if (uploadedBaseFile(readCfg(config)) && selectedClothing.length === 0) {
+    const cfgU = readCfg(config);
+    const rawShots = (cfgU.looksShots as string[]) || DEFAULT_LOOKS_SHOTS;
+    const notes = (cfgU.looksShotNotes as string[]) || [];
+    const picked = rawShots
+      .map((shot, i) => ({ shot, note: (notes[i] || "").trim() }))
+      .filter((x) => VIDEO_SHOT_CATALOG[x.shot]);
+    const shots = picked.length ? picked : DEFAULT_LOOKS_SHOTS.map((shot) => ({ shot, note: "" }));
+    const scenes = shots.map(({ shot, note }, i) => {
+      const meta = VIDEO_SHOT_CATALOG[shot];
+      return {
+        id: `photo_${shot}_${i}`,
+        title: i === 0 ? `${meta.label} · tu foto` : meta.label,
+        script: "",
+        image_prompt:
+          `${meta.framing} The SAME person from the anchor photo, wearing the EXACT same outfit, in the SAME location and light.` +
+          (note ? ` SHOT DIRECTION (mandatory — overrides the default posture/setting of this shot): ${note}.` : "") +
+          " Confident fashion presence.",
+        sceneType: "creative" as const,
+        shot,
+        note: i === 0 ? "Cuadro 1 = tu foto, tal cual" : `${meta.label}${note ? ` · ${note}` : ""}`,
+        shotId: shot,
+      };
+    });
+    return { result: { scenes }, needsApproval: true };
   }
 
   // ── RECETA DE FORMATO ─────────────────────────────────────────────────
@@ -376,6 +428,19 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   const scenes = getScriptScenes();
   const firstScene = scenes[0];
   if (!firstScene) throw new Error("No scenes found.");
+
+  // Desde una foto: el cuadro 1 ES la foto subida, tal cual. Sin generar, sin drift.
+  const upBase = uploadedBaseFile(cfg);
+  if (upBase) {
+    return {
+      result: {
+        url: await fileAsDataUrl(upBase),
+        prompt: "(foto subida por el usuario — usada tal cual como cuadro 1, sin generar)",
+        inputs: { avatar: null, clothing: [], product: null, background: null },
+      },
+      needsApproval: true,
+    };
+  }
 
   const selectedAvatarIds = (cfg.selectedAvatarIds as string[]) || [];
   const selectedProductIds = (cfg.selectedProductIds as string[]) || [];
@@ -684,7 +749,7 @@ export const handleMultishot: StepHandler = async (ctx) => {
 
     const anchorHeader = stateContinuity
       ? `Image 1: PREVIOUS FRAME — this is the immediate prior scene. The model must look IDENTICAL in identity, clothing fit, AND all progressing state. ${statefulList} The new scene only changes pose, action and framing — every stateful element CARRIES FORWARD and may continue to progress as described below.\n`
-      : reelMode === "looks"
+      : reelMode === "looks" && sceneClothing.length > 0
         ? `Image 1: MODEL + SCENE ANCHOR — keep the SAME person (face, hair, body) and the SAME location, lighting and overall styling as this frame. Only the OUTFIT changes, to the garment reference(s) listed below.\n`
         : `Image 1: CONSISTENCY ANCHOR — keep this frame's EXACT model, outfit, hair, styling, location and lighting. ONLY the pose, gesture and camera framing change between scenes — do NOT change the clothing or the person.\n`;
 

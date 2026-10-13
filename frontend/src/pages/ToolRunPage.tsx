@@ -5976,21 +5976,36 @@ function ConfigPanel({
               );
             })()}
 
-            {/* UGC — usar la imagen subida COMO BASE (no generar). Tu foto/frame se usa tal
-                cual como la escena hook y el lipsync la anima con tu voz. */}
-            {tool.id === "ugc_creator" && config.referenceImages.length > 0 && (
-              <label className="mt-2 flex items-start gap-2 px-3 py-2 rounded-[var(--radius-sm)] bg-surface-1 border border-edge cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={!!(config as unknown as { ugcBaseFromUpload?: boolean }).ugcBaseFromUpload}
-                  onChange={(e) => setConfig((p) => ({ ...(p as Record<string, unknown>), ugcBaseFromUpload: e.target.checked } as typeof p))}
-                  className="accent-[var(--color-action)] mt-0.5"
-                />
-                <span className="text-[11px] text-fg-muted leading-snug">
-                  <strong className="text-fg">Usar esta imagen como base</strong> (no generar) — tu foto/frame se usa tal cual como la escena principal y se anima con tu voz. Si está apagado, se usa solo como referencia de pose.
-                </span>
-              </label>
-            )}
+            {/* Usar la imagen subida COMO BASE (no generar).
+                · UGC: tu foto/frame es la escena hook y el lipsync la anima con tu voz.
+                · Fashion Reel: tu foto es el cuadro 1 y los demás planos (general,
+                  detalle, espalda…) salen anclados a ella — misma persona, ropa y lugar.
+                  Pasa a modo Looks porque ahí se elige la secuencia de planos. */}
+            {(tool.id === "ugc_creator" || tool.id === "fashion_reel") && config.referenceImages.length > 0 && (() => {
+              const key = tool.id === "ugc_creator" ? "ugcBaseFromUpload" : "reelBaseFromUpload";
+              const on = !!(config as unknown as Record<string, unknown>)[key];
+              return (
+                <label className="mt-2 flex items-start gap-2 px-3 py-2 rounded-[var(--radius-sm)] bg-surface-1 border border-edge cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={(e) => setConfig((p) => ({
+                      ...(p as Record<string, unknown>),
+                      [key]: e.target.checked,
+                      ...(tool.id === "fashion_reel" && e.target.checked ? { reelMode: "looks" } : {}),
+                    } as typeof p))}
+                    className="accent-[var(--color-action)] mt-0.5"
+                  />
+                  <span className="text-[11px] text-fg-muted leading-snug">
+                    {tool.id === "ugc_creator" ? (
+                      <><strong className="text-fg">Usar esta imagen como base</strong> (no generar) — tu foto/frame se usa tal cual como la escena principal y se anima con tu voz. Si está apagado, se usa solo como referencia de pose.</>
+                    ) : (
+                      <><strong className="text-fg">Usar esta foto como base</strong> (no generar) — es el primer cuadro, tal cual, y los otros planos salen de ella: misma persona, misma ropa, mismo lugar. Elegí los planos en "Secuencia de planos". No hace falta modelo ni prendas. Si está apagado, la foto se usa solo como referencia de pose.</>
+                    )}
+                  </span>
+                </label>
+              );
+            })()}
 
             {/* Loading state while classifying */}
             {classifyingRef && tool.id === "static_ad" && (
