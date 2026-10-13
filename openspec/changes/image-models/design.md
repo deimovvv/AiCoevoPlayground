@@ -52,6 +52,14 @@ el precio vive en un solo lugar (`pricing.ts`) y el tamaño en otro (el backend)
 
 `status: "a prueba"` se muestra en las tools de moda con calce.
 
+## Cómo quedó (2026-10-13)
+
+- `frontend/src/lib/imageModels.ts`: la lista, `imageChoice(config)` y `imageModelOptions()`.
+- `components/workspace/ImageModelPicker.tsx`: modelo + calidad (Borrador / Normal / Final = low / medium / high).
+- `createImageEdit` / `createTextToImage` aceptan el modelo suelto o `{model, quality}`.
+- Las tools pasan `imageChoice(config)` (Ecommerce Pack: `imageChoice(config, "ecomImageModel")`).
+- Selector en 14 tools + Ecommerce Pack; "a prueba" en `FASHION_FIT_TOOLS`.
+
 ## Orden
 
 1. Costo + backend (tamaño, calidad, `meta`). **Lo más urgente: hoy los números están mal.**

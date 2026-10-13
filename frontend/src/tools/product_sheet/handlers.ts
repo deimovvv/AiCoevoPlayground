@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * Product Sheet — Step Handlers
  * ───────────────────────────────
@@ -231,7 +232,7 @@ export const handleGenerate: StepHandler = async (ctx) => {
     const layoutBlock = `Layout: a single image divided into multiple macro CLOSE-UP panels of the SAME product on a pure white (#FFFFFF) seamless background. Panels include: texture / material macro, primary logo / branding close-up, label / tag close-up, stitching or joinery close-up, hardware / fastener / connector close-up. All panels show identical product features — different framings of ONE product, never variants.`;
     const compositePrompt = [layoutBlock, "", productFacts, "", PRODUCT_BASE_PROMPT, directionExtra].join(" ").trim();
     const finalPrompt = `${refBlock}\n\n${PRODUCT_FIDELITY_RULES}\n\n${compositePrompt}`;
-    const job = await createImageEdit(refUrls, finalPrompt, "1:1", "2K");
+    const job = await createImageEdit(refUrls, finalPrompt, "1:1", "2K", imageChoice(config));
     const result = await pollImageGen(job.request_id);
     if (result.status === "failed") throw new Error(result.error || "Image generation failed");
     return {
@@ -341,7 +342,7 @@ export const handleGenerate: StepHandler = async (ctx) => {
   ].join(" ").trim();
   const finalPrompt = `${refBlock}\n\n${PRODUCT_FIDELITY_RULES}\n\n${compositePrompt}`;
 
-  const job = await createImageEdit(refUrls, finalPrompt, canvasAR, "2K");
+  const job = await createImageEdit(refUrls, finalPrompt, canvasAR, "2K", imageChoice(config));
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed" || !result.image_url) {
     throw new Error(result.error || "Image generation failed");

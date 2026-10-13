@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * UGC Creator — Step Handlers
  * ────────────────────────────
@@ -379,7 +380,7 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   // ── No-avatar scene: skip all ref images, use text-to-image ──
   if (firstScene._useAvatar === false) {
     const prompt = `${firstScene.image_prompt} ${baseVisualStyle}${noTextSuffix}`;
-    const job = await createTextToImage(prompt, config.aspectRatio, config.resolution);
+    const job = await createTextToImage(prompt, config.aspectRatio, config.resolution, imageChoice(config));
     const result = await pollImageGen(job.request_id);
     if (result.status === "failed") throw new Error(result.error || "Image generation failed");
     return {
@@ -488,8 +489,8 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   console.log("[ugc] FINAL PROMPT base_image:", prompt.slice(0, 1500));
 
   const job = imageUrls.length === 0
-    ? await createTextToImage(prompt, config.aspectRatio, config.resolution)
-    : await createImageEdit(imageUrls, prompt, config.aspectRatio, config.resolution);
+    ? await createTextToImage(prompt, config.aspectRatio, config.resolution, imageChoice(config))
+    : await createImageEdit(imageUrls, prompt, config.aspectRatio, config.resolution, imageChoice(config));
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
@@ -508,7 +509,7 @@ export const handleBaseImage: StepHandler = async (ctx) => {
       const foohJob = await createTextToImage(
         `${foohPrompt.trim()} ${baseVisualStyle} Single continuous frame. NO split screen, NO collage, NO grid, NO multiple panels, NO text, NO watermarks, NO overlays.`,
         config.aspectRatio,
-        config.resolution,
+        config.resolution, imageChoice(config),
       );
       const foohResult = await pollImageGen(foohJob.request_id);
       if (foohResult.status === "failed") throw new Error(`FOOH hook frame generation failed: ${foohResult.error || "unknown"}`);
@@ -524,7 +525,7 @@ export const handleBaseImage: StepHandler = async (ctx) => {
       if (hookPosePrompt) {
         const hookJob = await createImageEdit(
           [baseImageUrl],
-          `${hookPosePrompt} ${baseVisualStyle} Single continuous frame. NO split screen, NO collage, NO grid, NO multiple panels, NO text, NO watermarks, NO overlays.`
+          `${hookPosePrompt} ${baseVisualStyle} Single continuous frame. NO split screen, NO collage, NO grid, NO multiple panels, NO text, NO watermarks, NO overlays.`, undefined, undefined, imageChoice(config)
         );
         const hookResult = await pollImageGen(hookJob.request_id);
         if (hookResult.status === "failed") throw new Error(`Hook frame generation failed: ${hookResult.error || "unknown"}`);
@@ -825,8 +826,8 @@ export const handleMultishot: StepHandler = async (ctx) => {
           }
 
           const job = noAvatar
-            ? await createTextToImage(prompt, config.aspectRatio, config.resolution)
-            : await createImageEdit(sceneRefs, prompt, config.aspectRatio, config.resolution);
+            ? await createTextToImage(prompt, config.aspectRatio, config.resolution, imageChoice(config))
+            : await createImageEdit(sceneRefs, prompt, config.aspectRatio, config.resolution, imageChoice(config));
           const pollResult = await pollImageGen(job.request_id);
           let label: string;
           if (isProductOnly) {

@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * Scene Reconstruct — Tool Definition
  * ───────────────────────────────────
@@ -51,7 +52,7 @@ const handleGenerate: StepHandler = async (ctx) => {
   // ── Fase 1 — Sketch (composición) ──────────────────────────────────────
   let sketchUrl = "";
   try {
-    const job = await createImageEdit([original], SKETCH_PROMPT, ar, res);
+    const job = await createImageEdit([original], SKETCH_PROMPT, ar, res, imageChoice(config));
     const r = await pollImageGen(job.request_id);
     sketchUrl = r.image_url || "";
     if (sketchUrl) images.push({ id: "sketch", url: sketchUrl, label: "① Sketch · composición", prompt: SKETCH_PROMPT, status: "done" });
@@ -85,7 +86,7 @@ const handleGenerate: StepHandler = async (ctx) => {
 
   let renderUrl = "";
   try {
-    const job = await createImageEdit(renderRefs, renderPrompt, ar, res);
+    const job = await createImageEdit(renderRefs, renderPrompt, ar, res, imageChoice(config));
     const r = await pollImageGen(job.request_id);
     renderUrl = r.image_url || "";
     images.push({ id: "render", url: renderUrl, label: "② Reconstrucción", prompt: renderPrompt, status: renderUrl ? "done" : "failed" });
@@ -102,7 +103,7 @@ const handleGenerate: StepHandler = async (ctx) => {
       `Regrade IMAGE 1 (the render) to match the EXACT color palette, lighting mood, color temperature, contrast and overall atmosphere of IMAGE 2 (the original reference). Apply IMAGE 2's color/light treatment to IMAGE 1 like a film LUT.\n` +
       `KEEP IMAGE 1's content, composition, subject, framing, product and details EXACTLY — change ONLY color, tone, lighting mood and atmosphere to match IMAGE 2. Do NOT copy any object, subject or layout from IMAGE 2; use it ONLY as a color / lighting reference.${NO_TEXT}`;
     try {
-      const job = await createImageEdit([renderUrl, original], gradePrompt, ar, res);
+      const job = await createImageEdit([renderUrl, original], gradePrompt, ar, res, imageChoice(config));
       const r = await pollImageGen(job.request_id);
       if (r.image_url) images.push({ id: "graded", url: r.image_url, label: "③ Con color de la original", prompt: gradePrompt, status: "done" });
     } catch (e) {

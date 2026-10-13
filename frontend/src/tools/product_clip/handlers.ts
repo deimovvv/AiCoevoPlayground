@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * Product Clip — Step Handlers
  * ──────────────────────────────
@@ -86,8 +87,8 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   if (selectedProduct?.imageUrl) imageUrls.push(selectedProduct.imageUrl);
 
   const job = imageUrls.length === 0
-    ? await createTextToImage(scriptData.frames[0].prompt, config.aspectRatio, config.resolution)
-    : await createImageEdit(imageUrls, scriptData.frames[0].prompt, config.aspectRatio, config.resolution);
+    ? await createTextToImage(scriptData.frames[0].prompt, config.aspectRatio, config.resolution, imageChoice(config))
+    : await createImageEdit(imageUrls, scriptData.frames[0].prompt, config.aspectRatio, config.resolution, imageChoice(config));
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
@@ -116,7 +117,7 @@ export const handleImages: StepHandler = async (ctx) => {
   for (const frame of remainingFrames) {
     try {
       const prompt = `Same product, same style, same lighting as image 1. Smooth transition from previous frame. ${frame.prompt}`;
-      const job = await createImageEdit([previousUrl, baseImage.url], prompt, config.aspectRatio, config.resolution);
+      const job = await createImageEdit([previousUrl, baseImage.url], prompt, config.aspectRatio, config.resolution, imageChoice(config));
       const result = await pollImageGen(job.request_id);
       const url = result.image_url || "";
       if (url) previousUrl = url;

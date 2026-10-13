@@ -1,3 +1,4 @@
+import type { ImageModel, ImageQuality } from "../lib/imageModels";
 /**
  * Coevo Studio — Tool System Types
  * ─────────────────────────────────
@@ -72,8 +73,10 @@ export interface ToolConfig {
   voiceStyle: number;               // 0.0–1.0, 0 = natural. Subir para más emoción.
   voiceSpeed: number;               // 0.7–1.2, 1.0 = normal
   voiceSpeakerBoost: boolean;       // true por default
-  // Image model selection — nano-banana-2 (multi-ref composition) vs gpt-image-2 (single-base edit)
-  imageModel: "nano-banana-2" | "gpt-image-2";
+  // Modelo de imagen — opciones en lib/imageModels.ts (única lista)
+  imageModel: ImageModel;
+  /** Calidad para modelos que la tienen (GPT Image 2). Sin valor = medium. */
+  imageQuality?: ImageQuality;
   // How the uploaded Reference Image should be interpreted
   referenceMode: "style" | "composition";
   // Static Ad: include copy/headline overlay or leave clean (editorial mode)

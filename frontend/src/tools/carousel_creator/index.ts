@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * Carousel Creator — Tool Definition
  * ────────────────────────────────────
@@ -137,7 +138,6 @@ const handleGenerateAll: StepHandler = async (ctx) => {
   const productUrl = selectedProduct?.imageUrl || "";
   const avatarUrl = selectedAvatar?.imageUrl || "";
   const moodboardUrl = selectedMoodboard?.imageUrl || "";
-  const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
 
   // Convert uploaded reference images (Files) to data URLs so they can be used as refs
   const refFiles = (config as { referenceImages?: File[] }).referenceImages || [];
@@ -386,8 +386,8 @@ const handleGenerateAll: StepHandler = async (ctx) => {
 
     const runJob = async (prompt: string) => {
       const job = imageUrls.length === 0
-        ? await createTextToImage(prompt, config.aspectRatio || "4:5", config.resolution, imageModel)
-        : await createImageEdit(imageUrls, prompt, config.aspectRatio || "4:5", config.resolution, imageModel);
+        ? await createTextToImage(prompt, config.aspectRatio || "4:5", config.resolution, imageChoice(config))
+        : await createImageEdit(imageUrls, prompt, config.aspectRatio || "4:5", config.resolution, imageChoice(config));
       return pollImageGen(job.request_id);
     };
 

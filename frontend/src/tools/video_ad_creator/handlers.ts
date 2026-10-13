@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * Video Ad Creator — Step Handlers
  * ─────────────────────────────────
@@ -252,7 +253,6 @@ export const handleCharacter: StepHandler = async (ctx) => {
   for (const u of uploadedRefDataUrls) protagonistRefs.push(u);
   if (selectedAvatar?.imageUrl) protagonistRefs.push(selectedAvatar.imageUrl);
 
-  const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
   const adStyle = config.adStyle || "photorealistic";
   const styleDef = AD_STYLES.find((s) => s.id === adStyle);
   const styleLabel = styleDef?.label || adStyle;
@@ -266,8 +266,8 @@ export const handleCharacter: StepHandler = async (ctx) => {
     const prompt = `Master CHARACTER REFERENCE${ch.name ? ` of "${ch.name}"` : ""} in this style: ${stylePrompt}. A clean, full-figure, front-facing portrait of ${desc}. Neutral light-grey seamless studio background, soft even lighting, sharp and clear, the WHOLE character visible and well framed, rendered fully in the ${styleLabel} style. This is the DEFINITIVE reference reused to keep the EXACT SAME character (same design, colors, proportions, features) across every scene.${chRefs.length ? " Base the character on the reference image(s) provided — keep their identity/design." : ""}`;
     try {
       const job = chRefs.length === 0
-        ? await createTextToImage(prompt, config.aspectRatio, config.resolution, imageModel)
-        : await createImageEdit(chRefs, prompt, config.aspectRatio, config.resolution, imageModel);
+        ? await createTextToImage(prompt, config.aspectRatio, config.resolution, imageChoice(config))
+        : await createImageEdit(chRefs, prompt, config.aspectRatio, config.resolution, imageChoice(config));
       const res = await pollImageGen(job.request_id);
       if (res.image_url) generated.push({ name: ch.name, url: res.image_url, description: ch.description });
     } catch { /* si un personaje falla, seguimos con los demás */ }
@@ -344,7 +344,6 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   if (selectedBackground?.imageUrl && !referenceUrls.includes(selectedBackground.imageUrl)) referenceUrls.push(selectedBackground.imageUrl);
   if (selectedMoodboard?.imageUrl) referenceUrls.push(selectedMoodboard.imageUrl);
 
-  const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
 
   // Append brand context + constraints
   const constraints = buildBrandConstraints(activeBrand, config, { tool: "video_ad_creator", mentionsAvatar: !!selectedAvatar });
@@ -355,8 +354,8 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   // Fallback to text-to-image when there are zero references (otherwise the edit
   // endpoint fails with 422 — at least one image URL required).
   const job = referenceUrls.length === 0
-    ? await createTextToImage(finalPrompt, config.aspectRatio, config.resolution, imageModel)
-    : await createImageEdit(referenceUrls, finalPrompt, config.aspectRatio, config.resolution, imageModel);
+    ? await createTextToImage(finalPrompt, config.aspectRatio, config.resolution, imageChoice(config))
+    : await createImageEdit(referenceUrls, finalPrompt, config.aspectRatio, config.resolution, imageChoice(config));
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
@@ -397,7 +396,6 @@ export const handleImages: StepHandler = async (ctx) => {
   const remainingFrames = scriptData.frames.slice(1);
   const generatedImages: Array<{ frame: number; url: string; prompt: string; scene_type: string; script: string; status: string }> = [];
 
-  const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
 
   // Personajes maestros (paso character) — se anclan por frame SOLO los que aparecen en él.
   const charStep = getStepResult("character") as { characters?: Array<{ name: string; url: string }>; url?: string } | undefined;
@@ -419,7 +417,7 @@ export const handleImages: StepHandler = async (ctx) => {
       const plantBg = plantBackgroundUrls(`${frame.prompt} ${(frame as { location?: string }).location || ""}`, activeBrand);
       const refs = Array.from(new Set([baseImage.url, ...chUrls, ...plantBg, previousFrameUrl]));
       const prompt = `The FIRST reference is the approved MASTER scene — match it EXACTLY: same location and environment, same color palette and saturation, same lighting direction and quality, same visual style/medium. This is a NEW shot within that SAME world, not a different place. Keep the SAME character(s) — identical face, hair, body AND the SAME WARDROBE/OUTFIT as the reference: exact same garments, colors, patterns, fit and accessories. Do NOT change, restyle or recolor the clothing between shots. Smooth visual continuity with the previous frame (no hard jumps in framing). New shot: ${frame.prompt}`;
-      const job = await createImageEdit(refs, prompt, config.aspectRatio, config.resolution, imageModel);
+      const job = await createImageEdit(refs, prompt, config.aspectRatio, config.resolution, imageChoice(config));
       const result = await pollImageGen(job.request_id);
       const url = result.image_url || "";
       if (url) previousFrameUrl = url; // next frame uses this as reference

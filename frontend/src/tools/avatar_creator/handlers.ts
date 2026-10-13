@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * Avatar Creator — Step Handlers
  * ────────────────────────────────
@@ -274,8 +275,8 @@ export const handleGenerate: StepHandler = async (ctx) => {
 
   // If we have any refs (poses, uploaded, or moodboard) → image edit. Else text-to-image.
   const job = refUrls.length > 0
-    ? await createImageEdit(refUrls, finalPrompt, "1:1", "2K")
-    : await createTextToImage(finalPrompt, "1:1", "2K");
+    ? await createImageEdit(refUrls, finalPrompt, "1:1", "2K", imageChoice(config))
+    : await createTextToImage(finalPrompt, "1:1", "2K", imageChoice(config));
   const result = await pollImageGen(job.request_id);
 
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");

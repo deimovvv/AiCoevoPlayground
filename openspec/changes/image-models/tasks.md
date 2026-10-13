@@ -11,11 +11,17 @@ Cada tarea cierra con `npm run build` y `npx tsc --noEmit -p tsconfig.app.json` 
 - [x] 1.5 Actualizar `docs/negocio/pricing-credits.md` y `PRICE_NOTE`
 
 ## 2. Lista única y selector
-- [ ] 2.1 `lib/imageModels.ts` (y `ImageModel` deriva de ahí; borrar las copias en `tools/types.ts` y `ToolRunPage.tsx`)
-- [ ] 2.2 Lab y `ToolRunPage` leen las opciones de la lista; selector de calidad para GPT
-- [ ] 2.3 Selector en las tools que hoy no lo tienen (ver la lista en `design.md` de la revisión)
-- [ ] 2.4 Product Spotlight pasa `imageModel`
-- [ ] 2.5 "A prueba" en Fashion Reel, Ecommerce Pack y fichas
+- [x] 2.1 `lib/imageModels.ts` (y `ImageModel` deriva de ahí; borrar las copias en `tools/types.ts` y `ToolRunPage.tsx`)
+- [x] 2.2 Lab y `ToolRunPage` leen las opciones de la lista; selector de calidad para GPT
+- [x] 2.3 Selector en las tools que hoy no lo tienen (ver la lista en `design.md` de la revisión)
+- [x] 2.4 Product Spotlight pasa `imageModel`
+- [x] 2.5 "A prueba" en Fashion Reel, Ecommerce Pack y fichas
+
+## Quedan en Nano Banana (decidido, 2026-10-13)
+- `EntryFramePanel` (ToolRunPage): panel suelto sin config de tool; quitar a la persona de la escena.
+- Campañas (`NewCampaignPage`, `CampaignDetailPage`): no tienen panel de configuración de imagen; va con `campaigns-as-hub`.
+- Motor de nodos (`backend/nodes/primitives.py`, `screen_mockup/graph.json`): sólo Nano Banana.
+- `ImageEditPanel`: elige solo — GPT si hay máscara, Nano si no.
 
 ## 3. Cierre
 - [ ] 3.1 `openspec archive image-models`

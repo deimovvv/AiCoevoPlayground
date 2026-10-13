@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * Fashion Reel — Step Handlers
  * ─────────────────────────────
@@ -520,8 +521,8 @@ export const handleBaseImage: StepHandler = async (ctx) => {
   prompt += `${brandContextBlock} ${stylePrompt}${NO_TEXT_SUFFIX}`;
 
   const job = imageUrls.length > 0
-    ? await createImageEdit(imageUrls, prompt, config.aspectRatio, config.resolution)
-    : await createTextToImage(prompt, config.aspectRatio, config.resolution);
+    ? await createImageEdit(imageUrls, prompt, config.aspectRatio, config.resolution, imageChoice(config))
+    : await createTextToImage(prompt, config.aspectRatio, config.resolution, imageChoice(config));
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
@@ -543,7 +544,7 @@ export const handleBaseImage: StepHandler = async (ctx) => {
           [result.image_url!],
           `Reproduce this EXACT scene — same background, same lighting, same perspective, same props — but COMPLETELY EMPTY: no person, no model, no body parts, no hands. The space is empty, ready for someone to walk in. ${stylePrompt}${NO_TEXT_SUFFIX}`,
           config.aspectRatio,
-          config.resolution,
+          config.resolution, imageChoice(config),
         );
         const emptyResult = await pollImageGen(emptyJob.request_id);
         if (emptyResult.image_url) entryFrameUrl = emptyResult.image_url;
@@ -704,8 +705,8 @@ export const handleMultishot: StepHandler = async (ctx) => {
 
       try {
         const job = refUrls.length > 0
-          ? await createImageEdit(refUrls, prompt, config.aspectRatio, config.resolution)
-          : await createTextToImage(prompt, config.aspectRatio, config.resolution);
+          ? await createImageEdit(refUrls, prompt, config.aspectRatio, config.resolution, imageChoice(config))
+          : await createTextToImage(prompt, config.aspectRatio, config.resolution, imageChoice(config));
         const result = await pollImageGen(job.request_id);
         variations.push({ id: `${scene.id}_v${v + 1}`, url: result.image_url || "", label: varHint.label, prompt: scene.image_prompt });
       } catch {

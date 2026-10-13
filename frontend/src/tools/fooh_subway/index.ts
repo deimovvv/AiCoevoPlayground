@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * FOOH Subway Ads — Tool Definition
  * ──────────────────────────────────
@@ -81,7 +82,7 @@ const handlePoster: StepHandler = async (ctx) => {
   const override = (cfg.stepPrompts as Record<string, string> | undefined)?.poster?.trim();
   const prompt = override || posterPrompt(vibe, product.name || "");
   try {
-    const job = await createImageEdit(refs, prompt, ar, res);
+    const job = await createImageEdit(refs, prompt, ar, res, imageChoice(config));
     const r = await pollImageGen(job.request_id);
     if (!r.image_url) throw new Error("el poster no devolvió imagen");
     return { result: { images: [{ id: "poster_0", url: r.image_url, label: "Poster", prompt, status: "done" }], source: "generated" }, needsApproval: false };
@@ -106,7 +107,7 @@ const handleScene: StepHandler = async (ctx) => {
   const images: Img[] = [];
   for (let i = 0; i < variations; i++) {
     try {
-      const job = await createTextToImage(prompt, ar, res);
+      const job = await createTextToImage(prompt, ar, res, imageChoice(config));
       const r = await pollImageGen(job.request_id);
       images.push({ id: `scene_${i}`, url: r.image_url || "", label: `Estación #${i + 1}`, prompt, status: r.image_url ? "done" : "failed" });
     } catch (e) {
@@ -137,7 +138,7 @@ const handleComposite: StepHandler = async (ctx) => {
   const images: Img[] = [];
   for (let i = 0; i < scenes.length; i++) {
     try {
-      const job = await createImageEdit([scenes[i].url, posterUrl], compPrompt, ar, res);
+      const job = await createImageEdit([scenes[i].url, posterUrl], compPrompt, ar, res, imageChoice(config));
       const r = await pollImageGen(job.request_id);
       images.push({ id: `mockup_${i}`, url: r.image_url || "", label: `FOOH #${i + 1}`, prompt: `${scenes[i].prompt}\n\n— compositing —\n${compPrompt}`, status: r.image_url ? "done" : "failed" });
     } catch (e) {

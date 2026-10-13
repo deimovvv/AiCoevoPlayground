@@ -7,7 +7,9 @@
 
 import { recordImage, recordKling, recordSeedance, claimFor, pendingSummary } from "./costLedger";
 import type { ImageCostMeta } from "./costLedger";
-import type { GptQuality } from "./pricing";
+import { imageModelInfo } from "./imageModels";
+import type { ImageChoice, ImageModel, ImageQuality } from "./imageModels";
+export type { ImageChoice, ImageModel, ImageQuality } from "./imageModels";
 import type { CostSummary } from "./costLedger";
 
 import { API_BASE } from "./config";
@@ -2523,10 +2525,21 @@ export interface ImageGenResult {
 }
 
 /** Sin `meta` del backend (versión vieja): el modelo pedido, con la calidad pedida o medium. */
-function fallbackMeta(model: ImageModel, resolution: string, quality?: GptQuality | null): ImageCostMeta {
+function fallbackMeta(model: ImageModel, resolution: string, quality?: ImageQuality | null): ImageCostMeta {
     return model === "gpt-image-2"
         ? { model, quality: quality || "medium" }
         : { model, resolution };
+}
+
+/** Acepta el modelo suelto (llamadas viejas) o `{model, quality}` (de `imageChoice(config)`).
+ *  La calidad se descarta si el modelo no tiene calidades. */
+function resolveChoice(
+    choice: ImageModel | ImageChoice,
+    quality?: ImageQuality | null,
+): { model: ImageModel; quality: ImageQuality | null } {
+    const c: ImageChoice = typeof choice === "string" ? { model: choice, quality } : choice;
+    const q = c.quality ?? quality ?? null;
+    return { model: c.model, quality: imageModelInfo(c.model).qualities ? q : null };
 }
 
 export interface ImageGenStatus {
@@ -2540,21 +2553,23 @@ export interface ImageGenStatus {
  * Submit an image edit/generation job.
  * imageUrls: array of image URLs (avatar, product, background)
  * prompt: what to generate
+ * Los modelos disponibles están en `lib/imageModels.ts`.
  */
-export type ImageModel = "nano-banana-2" | "gpt-image-2";
 
 export async function createImageEdit(
     imageUrls: string[],
     prompt: string,
     aspectRatio: string = "9:16",
     resolution: string = "1K",
-    model: ImageModel = "nano-banana-2",
+    /** Modelo, o `{model, quality}` — usar `imageChoice(config)` desde las tools. */
+    choice: ImageModel | ImageChoice = "nano-banana-2",
     /** Máscara para edición LOCAL (data URL PNG, zonas editables transparentes).
      *  Sólo la soporta `gpt-image-2` — Nano Banana no acepta máscara. */
     maskDataUrl?: string | null,
     /** Sólo GPT Image 2. Sin valor, el backend usa medium (high ≈ 4× el costo). */
-    quality?: GptQuality | null,
+    qualityArg?: ImageQuality | null,
 ): Promise<ImageGenResult> {
+    const { model, quality } = resolveChoice(choice, qualityArg);
     const formData = new FormData();
     formData.append("prompt", prompt);
     formData.append("image_urls", JSON.stringify(imageUrls));
@@ -2826,10 +2841,12 @@ export async function createTextToImage(
     prompt: string,
     aspectRatio: string = "1:1",
     resolution: string = "2K",
-    model: ImageModel = "nano-banana-2",
+    /** Modelo, o `{model, quality}` — usar `imageChoice(config)` desde las tools. */
+    choice: ImageModel | ImageChoice = "nano-banana-2",
     /** Sólo GPT Image 2. Sin valor, el backend usa medium. */
-    quality?: GptQuality | null,
+    qualityArg?: ImageQuality | null,
 ): Promise<ImageGenResult> {
+    const { model, quality } = resolveChoice(choice, qualityArg);
     const formData = new FormData();
     formData.append("prompt", prompt);
     formData.append("aspect_ratio", aspectRatio);

@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * Ad Creative Lab — Step Handlers
  * ────────────────────────────────
@@ -231,7 +232,6 @@ export const handleGenerateBatch: StepHandler = async (ctx) => {
     throw new Error("Select at least a product or garments as reference.");
   }
 
-  const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
 
   // Generate one image per prompt
   const results = await Promise.all(
@@ -240,7 +240,7 @@ export const handleGenerateBatch: StepHandler = async (ctx) => {
         const moodNote = selectedMoodboard?.imageUrl
           ? ` The LAST reference image is a moodboard — replicate its visual style, color palette, lighting, and mood. Do NOT copy people or objects literally.`
           : "";
-        const job = await createImageEdit(referenceUrls, `${p.prompt}${moodNote}`, config.aspectRatio, config.resolution, imageModel);
+        const job = await createImageEdit(referenceUrls, `${p.prompt}${moodNote}`, config.aspectRatio, config.resolution, imageChoice(config));
         const result = await pollImageGen(job.request_id);
         return {
           id: `creative_${i + 1}`,

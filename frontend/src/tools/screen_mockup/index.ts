@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * Screen Mockup — Tool Definition
  * ────────────────────────────────
@@ -90,7 +91,7 @@ const handleScene: StepHandler = async (ctx) => {
   const images: SceneImg[] = [];
   for (let i = 0; i < variations; i++) {
     try {
-      const job = await createTextToImage(prompt, ar, res);
+      const job = await createTextToImage(prompt, ar, res, imageChoice(config));
       const r = await pollImageGen(job.request_id);
       images.push({ id: `scene_${i}`, url: r.image_url || "", label: `Escena base #${i + 1}`, prompt, status: r.image_url ? "done" : "failed" });
     } catch (e) {
@@ -126,7 +127,7 @@ const handleComposite: StepHandler = async (ctx) => {
   const images: SceneImg[] = [];
   for (let i = 0; i < scenes.length; i++) {
     try {
-      const job = await createImageEdit([scenes[i].url, uiUrl], compPrompt, ar, res);
+      const job = await createImageEdit([scenes[i].url, uiUrl], compPrompt, ar, res, imageChoice(config));
       const r = await pollImageGen(job.request_id);
       images.push({
         id: `mockup_${i}`,

@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * Static Ad — Tool Definition
  * ─────────────────────────────
@@ -288,10 +289,9 @@ const handleGenerateAll: StepHandler = async (ctx) => {
     : finalPrompt;
 
   // Generate base image — route by selected model. Fallback to text-to-image when no refs.
-  const imageModel = (config as unknown as Record<string, unknown>).imageModel as "nano-banana-2" | "gpt-image-2" || "nano-banana-2";
   const baseJob = imageUrls.length === 0
-    ? await createTextToImage(promptWithRefs, config.aspectRatio, config.resolution, imageModel)
-    : await createImageEdit(imageUrls, promptWithRefs, config.aspectRatio, config.resolution, imageModel);
+    ? await createTextToImage(promptWithRefs, config.aspectRatio, config.resolution, imageChoice(config))
+    : await createImageEdit(imageUrls, promptWithRefs, config.aspectRatio, config.resolution, imageChoice(config));
   const baseResult = await pollImageGen(baseJob.request_id);
   if (baseResult.status === "failed") throw new Error(baseResult.error || "Image generation failed");
 
@@ -374,8 +374,8 @@ const handleGenerateAll: StepHandler = async (ctx) => {
           // Compose: template instructions + language directive + brand constraints
           const batchPrompt = `${tPrompt}${languageInstruction}\n\nUse the brand's product, palette, and style.${interactionClause}${constraints}`;
           const job = imageUrls.length === 0
-            ? await createTextToImage(batchPrompt, config.aspectRatio, config.resolution, imageModel)
-            : await createImageEdit(imageUrls, batchPrompt, config.aspectRatio, config.resolution, imageModel);
+            ? await createTextToImage(batchPrompt, config.aspectRatio, config.resolution, imageChoice(config))
+            : await createImageEdit(imageUrls, batchPrompt, config.aspectRatio, config.resolution, imageChoice(config));
           const result = await pollImageGen(job.request_id);
           extras.push({
             id: `batch_${t.id}`,
@@ -399,7 +399,7 @@ const handleGenerateAll: StepHandler = async (ctx) => {
       Array.from({ length: numVariations - 1 }, async (_, i) => {
         try {
           const varPrompt = `Image 1: the BASE AD — keep the same product, style, brand colors, brand identity. Only vary the composition and angle slightly. Do NOT add new elements.\n${refDescriptions.slice(1).map((d, ri) => d.replace(/^Image \d+/, `Image ${ri + 2}`)).join("\n")}\n\n${finalPrompt}`;
-          const job = await createImageEdit([baseUrl, ...imageUrls.slice(refFiles.length > 0 ? 1 : 0)], varPrompt, config.aspectRatio, config.resolution, imageModel);
+          const job = await createImageEdit([baseUrl, ...imageUrls.slice(refFiles.length > 0 ? 1 : 0)], varPrompt, config.aspectRatio, config.resolution, imageChoice(config));
           const result = await pollImageGen(job.request_id);
           return { id: `var_${i + 2}`, url: result.image_url || "", label: `Variation ${i + 2}` };
         } catch {

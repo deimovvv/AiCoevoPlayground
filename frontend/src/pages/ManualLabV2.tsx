@@ -58,6 +58,10 @@ import { SelectorPanel, SelectorTrigger } from "../components/workspace/Selector
 import { EditOverlay } from "../components/workspace/EditOverlay";
 import { imagesUsd, usdToCredits, type Resolution as PriceResolution } from "../lib/pricing";
 import { ModelDropdown } from "../components/ui/ModelDropdown";
+import { ImageModelPicker } from "../components/workspace/ImageModelPicker";
+import {
+    DEFAULT_IMAGE_MODEL, DEFAULT_IMAGE_QUALITY, imageModelInfo, type ImageQuality,
+} from "../lib/imageModels";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -259,7 +263,9 @@ export function ManualLabV2() {
     const [aspectRatio, setAspectRatio] = useState<AspectRatio>("9:16");
     const [resolution, setResolution] = useState<Resolution>("2K");
     // Imágenes siempre por Fal. Nunca Google directo con la key de Monks (eliminado 2026-10-06).
-    const [model, setModel] = useState<ImageModel>("nano-banana-2");
+    const [model, setModel] = useState<ImageModel>(DEFAULT_IMAGE_MODEL);
+    // Calidad para modelos que la tienen (GPT Image 2). Medium por defecto; high ≈ 4× el costo.
+    const [imageQuality, setImageQuality] = useState<ImageQuality>(DEFAULT_IMAGE_QUALITY);
     const [variantCount, setVariantCount] = useState<number>(1);
 
     // Video params — defaults matchean los más usados de v1.
@@ -1044,8 +1050,8 @@ export function ManualLabV2() {
                 const jobs = await Promise.all(
                     Array.from({ length: variantCount }, () =>
                         refUrls.length > 0
-                            ? createImageEdit(refUrls, finalPrompt, aspectRatio, resolution, model)
-                            : createTextToImage(finalPrompt, aspectRatio, resolution, model),
+                            ? createImageEdit(refUrls, finalPrompt, aspectRatio, resolution, { model, quality: imageQuality })
+                            : createTextToImage(finalPrompt, aspectRatio, resolution, { model, quality: imageQuality }),
                     ),
                 );
                 const results = await Promise.all(jobs.map((j) => pollImageGen(j.request_id)));
@@ -1067,7 +1073,10 @@ export function ManualLabV2() {
                     outputUrl: urls[0],
                     outputType: "image",
                     variants: urls.length > 1 ? urls : undefined,
-                    params: { aspectRatio, resolution, model, variantCount: String(variantCount) },
+                    params: {
+                        aspectRatio, resolution, model, variantCount: String(variantCount),
+                        ...(imageModelInfo(model).qualities ? { quality: imageQuality } : {}),
+                    },
                     baseName,
                     createdAt: Date.now(),
                 };
@@ -1370,14 +1379,12 @@ export function ManualLabV2() {
                             de 2 cards grandes — gana ~70px de altura vertical en el sidebar. */}
                         {mode === "image" ? (
                             <div>
-                                <ModelDropdown
+                                <ImageModelPicker
                                     label="Modelo"
-                                    value={model}
-                                    onChange={(next) => setModel(next as ImageModel)}
-                                    options={[
-                                        { id: "nano-banana-2", label: "Nano Banana 2 (Fal)", sub: "Multi-ref · vía Fal" },
-                                        { id: "gpt-image-2", label: "GPT Image 2", sub: "Base + edit · OpenAI" },
-                                    ]}
+                                    model={model}
+                                    quality={imageQuality}
+                                    onModelChange={setModel}
+                                    onQualityChange={setImageQuality}
                                 />
                             </div>
                         ) : (

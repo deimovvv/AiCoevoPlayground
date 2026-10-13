@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * Product Spotlight — Step Handlers
  */
@@ -101,8 +102,8 @@ export const handleGenerate: StepHandler = async (ctx) => {
   }
 
   const job = imageUrls.length === 0
-    ? await createTextToImage(finalPrompt, config.aspectRatio, config.resolution)
-    : await createImageEdit(imageUrls, finalPrompt, config.aspectRatio, config.resolution);
+    ? await createTextToImage(finalPrompt, config.aspectRatio, config.resolution, imageChoice(config))
+    : await createImageEdit(imageUrls, finalPrompt, config.aspectRatio, config.resolution, imageChoice(config));
   const result = await pollImageGen(job.request_id);
   if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
@@ -129,7 +130,7 @@ export const handleVariations: StepHandler = async (ctx) => {
   const variations = await Promise.all(
     Array.from({ length: config.numVariations }, async (_, vi) => {
       const prompt = `Maintain the same subject, style, and quality. Vary the angle, composition, or subtle details. ${genResult.prompt}`;
-      const job = await createImageEdit(referenceUrls, prompt, config.aspectRatio, config.resolution);
+      const job = await createImageEdit(referenceUrls, prompt, config.aspectRatio, config.resolution, imageChoice(config));
       const result = await pollImageGen(job.request_id);
       return { id: `var_${vi + 1}`, url: result.image_url || "", label: `Variation ${vi + 1}` };
     })

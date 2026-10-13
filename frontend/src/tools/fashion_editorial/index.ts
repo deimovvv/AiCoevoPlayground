@@ -1,3 +1,4 @@
+import { imageChoice } from "../../lib/imageModels";
 /**
  * Fashion Editorial — Tool Definition
  * ────────────────────────────────────
@@ -118,7 +119,7 @@ const handleGenerate: StepHandler = async (ctx) => {
   const n = Math.max(1, Math.min(6, config.numVariations || 3));
   const refUrls = refs.map((r) => r.url);
   const runOne = async (): Promise<string> => {
-    const job = await createImageEdit(refUrls, prompt, config.aspectRatio, config.resolution, "nano-banana-2");
+    const job = await createImageEdit(refUrls, prompt, config.aspectRatio, config.resolution, imageChoice(config));
     const res = await pollImageGen(job.request_id);
     if (res.status === "failed" || !res.image_url) throw new Error(res.error || "Image generation failed");
     return res.image_url;

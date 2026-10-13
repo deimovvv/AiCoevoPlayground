@@ -82,6 +82,11 @@ import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "../tools/fashion_reel";
 import { PRODUCT_VIEW_CATALOG, DEFAULT_PRODUCT_VIEWS } from "../tools/product_sheet";
 import { EDITORIAL_FRAMINGS, EDITORIAL_LIGHTING, EDITORIAL_VIBES } from "../tools/fashion_editorial";
 import { ModelDropdown } from "../components/ui/ModelDropdown";
+import { ImageModelPicker } from "../components/workspace/ImageModelPicker";
+import {
+  FASHION_FIT_TOOLS, imageChoice, imageModelLabel, toImageModel,
+  type ImageModel, type ImageQuality,
+} from "../lib/imageModels";
 import { ComposeOverlay } from "../components/ComposeOverlay";
 import { UGCPlayer } from "../remotion/UGCPlayer";
 import { TOOL_DEFINITIONS } from "../tools/registry";
@@ -319,6 +324,14 @@ interface BatchEntry {
 // Si una tool NO está acá, el render del result sigue siendo lineal (1 sola tanda).
 const BATCHABLE_TOOLS = new Set<string>(["ecommerce_pack"]);
 
+/** Tools que generan imágenes y muestran el selector de modelo + calidad (lista de modelos:
+ *  lib/imageModels.ts). Ecommerce Pack tiene su propio selector en su panel. */
+const IMAGE_MODEL_TOOLS: string[] = [
+  "static_ad", "carousel_creator", "ad_creative_lab", "product_spotlight", "video_ad_creator",
+  "ugc_creator", "fashion_reel", "fashion_editorial", "product_clip", "avatar_creator",
+  "product_sheet", "scene_reconstruct", "fooh_subway", "screen_mockup",
+];
+
 // ── Contenido generado (riel lateral) ───────────────────────────────
 // Recolecta TODAS las medias generadas por el tool actual a partir del estado que
 // YA persiste (steps[*].result + batches). No agrega persistencia nueva: los steps
@@ -541,8 +554,9 @@ interface ToolConfig {
   voiceStyle: number;
   voiceSpeed: number;
   voiceSpeakerBoost: boolean;
-  // Image model
-  imageModel: "nano-banana-2" | "gpt-image-2";
+  // Image model — opciones en lib/imageModels.ts (única lista)
+  imageModel: ImageModel;
+  imageQuality?: ImageQuality;
   referenceMode: "style" | "composition";
   // Campos tool-specific que se accedían sin declarar (deuda de tipos 2026-07). Opcionales
   // porque solo aplican a ciertas tools. Tipos inferidos del uso/DEFAULT_CONFIG.
@@ -1379,7 +1393,7 @@ export function ToolRunPage() {
             "voiceSpeed", "voiceSpeakerBoost", "productIsWorn",
             // Reference / Compose / Template behavior — needed for IG replicate flow
             "referenceMode", "composeMode", "overlayTemplate", "templateColorMode",
-            "imageModel", "settingOverride", "includeCopy",
+            "imageModel", "imageQuality", "ecomImageModel", "settingOverride", "includeCopy",
             // Static Ad batch
             "staticAdBatch", "staticAdCategory",
             // Full scene-by-scene script when the agent detected a structured brief —
@@ -2133,7 +2147,7 @@ export function ToolRunPage() {
         }
         if (selectedBackground?.imageUrl) imageUrls.push(selectedBackground.imageUrl);
 
-        const job = await createImageEdit(imageUrls, firstScene.image_prompt, config.aspectRatio, config.resolution);
+        const job = await createImageEdit(imageUrls, firstScene.image_prompt, config.aspectRatio, config.resolution, imageChoice(config));
         const result = await pollImageGen(job.request_id);
 
         if (result.status === "failed") throw new Error(result.error || "Image generation failed");
@@ -2223,7 +2237,7 @@ export function ToolRunPage() {
                   label = moment.label;
                   prompt = `${moment.desc}. Natural lighting, 9:16 vertical, ultra-realistic.`;
                 }
-                const job = await createImageEdit(referenceUrls, prompt, config.aspectRatio, config.resolution);
+                const job = await createImageEdit(referenceUrls, prompt, config.aspectRatio, config.resolution, imageChoice(config));
                 const result = await pollImageGen(job.request_id);
                 return {
                   id: `${scene.id}_v${vi + 1}`,
@@ -2527,7 +2541,7 @@ export function ToolRunPage() {
         if (selectedProduct?.imageUrl) imageUrls.push(selectedProduct.imageUrl);
         if (selectedBackground?.imageUrl) imageUrls.push(selectedBackground.imageUrl);
 
-        const job = await createImageEdit(imageUrls, promptResult.image_prompt, config.aspectRatio, config.resolution);
+        const job = await createImageEdit(imageUrls, promptResult.image_prompt, config.aspectRatio, config.resolution, imageChoice(config));
         const result = await pollImageGen(job.request_id);
         if (result.status === "failed") throw new Error(result.error || "Image generation failed");
 
@@ -2556,7 +2570,7 @@ export function ToolRunPage() {
         const variations = await Promise.all(
           Array.from({ length: config.numVariations }, async (_, vi) => {
             const prompt = `Maintain the same subject, style, and quality. Vary the angle, composition, or subtle details. ${genResult.prompt}`;
-            const job = await createImageEdit(referenceUrls, prompt, config.aspectRatio, config.resolution);
+            const job = await createImageEdit(referenceUrls, prompt, config.aspectRatio, config.resolution, imageChoice(config));
             const result = await pollImageGen(job.request_id);
             return {
               id: `var_${vi + 1}`,
@@ -4567,14 +4581,13 @@ function ConfigPanel({
             ))}
           </div>
 
-          {/* Modelo de imagen. Sólo Fal: Google directo usaba la key de Monks y se eliminó (2026-10-06). */}
-          <ModelDropdown
-            label="Modelo de imagen"
-            value={config.ecomImageModel || "nano-banana-2"}
-            onChange={(next) => setConfig((p) => ({ ...p, ecomImageModel: next }))}
-            options={[
-              { id: "nano-banana-2", label: "Nano Banana 2 (Fal)", sub: "Vía Fal · el de siempre" },
-            ]}
+          {/* Modelo de imagen (lista única: lib/imageModels.ts). GPT "a prueba" en moda con calce. */}
+          <ImageModelPicker
+            model={toImageModel(config.ecomImageModel)}
+            quality={config.imageQuality}
+            onModelChange={(next) => setConfig((p) => ({ ...p, ecomImageModel: next }))}
+            onQualityChange={(next) => setConfig((p) => ({ ...p, imageQuality: next }))}
+            fashionFit
           />
 
           {/* Pose en 1 paso vs 2 pasos — toggle para comparar. 2 pasos (default): viste →
@@ -6666,15 +6679,13 @@ function ConfigPanel({
         {/* Image model selector — solo para tools de generación de imagen.
             ModelDropdown unificado con Lab: una línea fina con popover en vez del
             segmented control + hint. El sub-texto ahora vive DENTRO de la opción. */}
-        {["static_ad", "carousel_creator", "ad_creative_lab", "product_spotlight"].includes(tool.id) && (
-          <ModelDropdown
-            label="Modelo de imagen"
-            value={config.imageModel === "gpt-image-2" ? "gpt-image-2" : "nano-banana-2"}
-            onChange={(next) => setConfig((p) => ({ ...p, imageModel: next as "nano-banana-2" | "gpt-image-2" }))}
-            options={[
-              { id: "nano-banana-2", label: "Nano Banana 2", sub: "Multi-ref · mejor para combinar avatar + producto + fondo" },
-              { id: "gpt-image-2", label: "GPT Image 2", sub: "Base + edit · mejor para editar sobre una imagen base" },
-            ]}
+        {IMAGE_MODEL_TOOLS.includes(tool.id) && (
+          <ImageModelPicker
+            model={toImageModel(config.imageModel)}
+            quality={config.imageQuality}
+            onModelChange={(next) => setConfig((p) => ({ ...p, imageModel: next }))}
+            onQualityChange={(next) => setConfig((p) => ({ ...p, imageQuality: next }))}
+            fashionFit={(FASHION_FIT_TOOLS as readonly string[]).includes(tool.id)}
           />
         )}
 
@@ -7544,7 +7555,7 @@ function RunningStep({
   if (selectedBackground) chips.push({ kind: "Fondo", label: selectedBackground.name, thumb: selectedBackground.imageUrl ? backgroundImageUrl(selectedBackground.imageUrl) : null });
   if (selectedMoodboard) chips.push({ kind: "Moodboard", label: selectedMoodboard.name, thumb: selectedMoodboard.imageUrl ? moodboardImageUrl(selectedMoodboard.imageUrl) : null });
 
-  const imageModelLabel = config.imageModel === "gpt-image-2" ? "GPT Image 2" : "Nano Banana 2";
+  const imageModelName = imageModelLabel(config.imageModel);
 
   return (
     <div className="py-10 space-y-5">
@@ -7553,7 +7564,7 @@ function RunningStep({
         <div className="text-center space-y-1">
           <p className="text-[14px] font-semibold text-fg">Generando {label}…</p>
           <p className="text-[11px] text-fg-faint">
-            Modelo: <span className="text-fg-muted">{imageModelLabel}</span>
+            Modelo: <span className="text-fg-muted">{imageModelName}</span>
             {config.aspectRatio && <> · {config.aspectRatio}</>}
             {config.resolution && <> · {config.resolution}</>}
           </p>
@@ -8162,7 +8173,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
     setAnglePickerFor(null);
     try {
       const prompt = `Image 1 is an APPROVED e-commerce photograph. Produce a NEW SHOT of the EXACT SAME subject, wearing the EXACT SAME outfit, in the EXACT SAME studio — only the camera angle or framing changes.\n\nTHE NEW SHOT: ${preset.instruction}\n\nKEEP IDENTICAL, with no reinterpretation: the person's face, hair, skin tone, age and body proportions; every garment with its exact colour, print, fabric, cut and fit; the footwear and accessories; the background tone and gradient; the lighting direction, softness and colour temperature; the overall grade. This must look like another frame from the SAME photo session, taken moments later. Do NOT restyle, do NOT change the clothes, do NOT swap the model, do NOT alter the studio. Single clean photograph, no text, no watermark, no collage, no split panels.`;
-      const job = await createImageEdit([url], prompt, config?.aspectRatio || "4:5", config?.resolution || "2K");
+      const job = await createImageEdit([url], prompt, config?.aspectRatio || "4:5", config?.resolution || "2K", imageChoice(config));
       const res = await pollImageGen(job.request_id);
       if (res.image_url) {
         onAddBatchImage?.(batchId, {
@@ -8187,7 +8198,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
     const key = `${batchId}__${imageId}`;
     setEnhancingId(key);
     try {
-      const job = await createImageEdit([url], ENHANCE_TEXTURE_PROMPT, config?.aspectRatio || "4:5", "4K");
+      const job = await createImageEdit([url], ENHANCE_TEXTURE_PROMPT, config?.aspectRatio || "4:5", "4K", imageChoice(config));
       const res = await pollImageGen(job.request_id);
       if (res.image_url) {
         onUpdateBatchImage?.(batchId, imageId, res.image_url);
@@ -9077,7 +9088,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
       try {
         // Pass current image + user-selected refs
         const editRefs = [img.url, ...editRefUrls];
-        const job = await createImageEdit(editRefs, editPromptText.trim(), config?.aspectRatio || "9:16", config?.resolution || "1K");
+        const job = await createImageEdit(editRefs, editPromptText.trim(), config?.aspectRatio || "9:16", config?.resolution || "1K", imageChoice(config));
         const editResult = await pollImageGen(job.request_id);
         if (editResult.image_url) {
           (result as { url: string }).url = editResult.image_url;
@@ -11755,7 +11766,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
                         const baseUrl = images[0]?.url;
                         if (!baseUrl) return;
                         const prompt = `Same product, same style, same lighting as image 1. ${img.prompt}`;
-                        const job = await createImageEdit([img.url, baseUrl], prompt, config?.aspectRatio || "9:16", config?.resolution || "1K");
+                        const job = await createImageEdit([img.url, baseUrl], prompt, config?.aspectRatio || "9:16", config?.resolution || "1K", imageChoice(config));
                         const result = await pollImageGen(job.request_id);
                         if (result.image_url) img.url = result.image_url;
                       } catch { /* */ } finally { setActionLoading(null); }
@@ -11885,7 +11896,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
           refs,
           `Keep the EXACT same person, product, and garments from the first image. Only change the mood, lighting, color grading, and atmosphere to match the style of the last reference image. Do NOT change what the person looks like, what they wear, or what they hold. ${creative.prompt}`,
           config?.aspectRatio || "9:16",
-          config?.resolution || "1K",
+          config?.resolution || "1K", imageChoice(config),
         );
         const editResult = await pollImageGen(job.request_id);
         if (editResult.image_url) creative.url = editResult.image_url;
@@ -11900,7 +11911,7 @@ function DoneStep({ stepId, result, config, allSteps = [], onUpdateStepResult, o
       setActionLoading(creative.id);
       try {
         const refs = getBrandRefs();
-        const job = await createImageEdit(refs, creative.prompt, config?.aspectRatio || "9:16", config?.resolution || "1K");
+        const job = await createImageEdit(refs, creative.prompt, config?.aspectRatio || "9:16", config?.resolution || "1K", imageChoice(config));
         const regenResult = await pollImageGen(job.request_id);
         if (regenResult.image_url) creative.url = regenResult.image_url;
       } catch { /* silent */ } finally {
@@ -13212,7 +13223,7 @@ function CurationPanel({
       const enrichedPrompt = editAdHocRefUrl
         ? `${editPrompt.trim()} Use the LAST reference image as a guide for pose, framing, or visual detail — apply that aspect to the subject in image 1.`
         : editPrompt.trim();
-      const job = await createImageEdit(allRefs, enrichedPrompt);
+      const job = await createImageEdit(allRefs, enrichedPrompt, undefined, undefined, imageChoice(config));
       const result = await pollImageGen(job.request_id);
       if (result.image_url) {
         for (const scene of multishotData) {
@@ -13245,7 +13256,7 @@ function CurationPanel({
 
     setRegenLoading(varId);
     try {
-      const job = await createImageEdit([baseUrl], scenePrompt);
+      const job = await createImageEdit([baseUrl], scenePrompt, undefined, undefined, imageChoice(config));
       const result = await pollImageGen(job.request_id);
       if (result.image_url) {
         variation.url = result.image_url;
@@ -14238,7 +14249,7 @@ function CurationFixGrid({ picks, brand, config }: {
         [pick.selectedUrl, ...selectedImageUrls],
         editPrompt,
         config.aspectRatio || "9:16",
-        config.resolution || "1K"
+        config.resolution || "1K", imageChoice(config)
       );
       const result = await pollImageGen(job.request_id);
       if (result.image_url) {
