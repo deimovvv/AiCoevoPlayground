@@ -5486,7 +5486,17 @@ function ConfigPanel({
                   el reel. Se agrega con los botones "+"; se reordena con drag; se quita
                   con la ×. Antes eran contadores → el orden quedaba invisible. */}
               <div className="space-y-1.5">
-                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">{reelFromPhoto ? "Planos a generar desde tu foto" : "Secuencia de planos por outfit"}</span>
+                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">{reelFromPhoto ? "Planos del reel" : "Secuencia de planos por outfit"}</span>
+                {reelFromPhoto && (
+                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius-sm)] border border-edge bg-surface-0">
+                    <span className="w-4 text-center text-[10px] text-fg-faint tabular-nums shrink-0">1</span>
+                    <PhotoThumb file={config.referenceImages[0]} />
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-medium text-fg">Tu foto</div>
+                      <div className="text-[10px] text-fg-faint">Va tal cual, no se genera. Los planos de abajo salen de ella.</div>
+                    </div>
+                  </div>
+                )}
                 {config.looksShots.length === 0 ? (
                   <p className="text-[10px] text-fg-faint italic px-1 py-2">
                     Sin planos → usa los defaults ({DEFAULT_LOOKS_SHOTS.map((s) => VIDEO_SHOT_CATALOG[s]?.label || s).join(" + ")}). Agregá abajo para controlar el orden.
@@ -5513,7 +5523,7 @@ function ConfigPanel({
                           <SortableShotChip
                             key={i}
                             id={String(i)}
-                            index={i}
+                            index={reelFromPhoto ? i + 1 : i}
                             label={VIDEO_SHOT_CATALOG[shotId]?.label || shotId}
                             title={VIDEO_SHOT_CATALOG[shotId]?.framing}
                             note={config.looksShotNotes[i] || ""}
@@ -5548,7 +5558,9 @@ function ConfigPanel({
                   ))}
                 </div>
                 <p className="text-[10px] text-fg-faint">
-                  {config.looksShots.length > 0
+                  {reelFromPhoto
+                    ? `Tu foto + ${config.looksShots.length || DEFAULT_LOOKS_SHOTS.length} plano(s) generados = ${(config.looksShots.length || DEFAULT_LOOKS_SHOTS.length) + 1} clips · arrastrá ☰ para reordenar`
+                    : config.looksShots.length > 0
                     ? `${config.looksShots.length} escena(s) por outfit · arrastrá ☰ para reordenar · el orden es el del reel`
                     : `Vacío usa los defaults (${DEFAULT_LOOKS_SHOTS.join(" + ")})`}
                 </p>
@@ -5605,7 +5617,7 @@ function ConfigPanel({
               en Looks mode sin que el usuario lo viera. Lo subimos acá para que sea
               decisión consciente. Solo aparece en Looks + Kling (Seedance no soporta
               f2f). */}
-          {config.reelMode === "looks" && config.animationEngine === "kling" && (
+          {config.reelMode === "looks" && (config.animationEngine ?? "kling") === "kling" && (
             <div className="space-y-1.5">
               <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Movimiento de cada clip</span>
               <div className="grid grid-cols-2 gap-1.5">
@@ -6883,7 +6895,7 @@ function ConfigPanel({
             {/* Duración por clip — co-locada con el motor. Solo Fashion Reel + Kling.
                 Depende del modelo: V3 Pro 3–10s (podés clips cortos de 3s); V2.x 5/10.
                 Total del reel = Nº de escenas × esta duración. */}
-            {tool.id === "fashion_reel" && config.animationEngine === "kling" && (() => {
+            {tool.id === "fashion_reel" && (config.animationEngine ?? "kling") === "kling" && (() => {
               const durs = klingDurationOptions(((config as { videoModel?: string }).videoModel) || "v3-pro");
               return (
                 <div className="space-y-1.5 pt-1">
@@ -6905,10 +6917,19 @@ function ConfigPanel({
                       </button>
                     ))}
                   </div>
-                  <p className="text-[10px] text-fg-faint">
-                    {durs.length > 2
-                      ? "Kling V3 Pro permite 3–10s por clip. Total del reel = Nº de escenas × esta duración."
-                      : "Este modelo solo permite 5 o 10s. Total = Nº de escenas × esta duración."}
+                  <p className="text-[10px] text-fg-faint tabular-nums">
+                    {(() => {
+                      // Clips del reel: desde una foto = la foto + los planos; Looks = prendas × planos;
+                      // Story = 4 escenas. La duración total sale de acá, no se elige aparte.
+                      const shots = config.looksShots.length || DEFAULT_LOOKS_SHOTS.length;
+                      const clips = reelFromPhoto
+                        ? shots + 1
+                        : config.reelMode === "looks"
+                          ? Math.max(1, config.selectedClothingIds.length) * shots
+                          : 4;
+                      const secs = Number(config.clipDuration) || 5;
+                      return `${clips} clips × ${secs} s = ${clips * secs} s de reel`;
+                    })()}
                   </p>
                 </div>
               );
@@ -6920,7 +6941,7 @@ function ConfigPanel({
 
             {/* Hook de entrada — solo Fashion Reel + Kling. Genera la escena vacía y
                 anima a la modelo entrando (f2f vacío → modelo). */}
-            {tool.id === "fashion_reel" && config.animationEngine === "kling" && (
+            {tool.id === "fashion_reel" && (config.animationEngine ?? "kling") === "kling" && (
               <label className="flex items-start gap-1.5 cursor-pointer pt-0.5">
                 <input
                   type="checkbox"
@@ -6940,7 +6961,8 @@ function ConfigPanel({
 
         {/* Video Duration — compactado: chips chiquitos (h-7, sin sublabel) y
             contador de palabras integrado en el label de arriba. */}
-        {tool.category === "video" && tool.pipeline?.includes("script") && (
+        {/* Fashion Reel no la usa: su largo = clips × duración por clip (Gonzalo + Keila, 2026-10-14). */}
+        {tool.category === "video" && tool.pipeline?.includes("script") && tool.id !== "fashion_reel" && (
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-medium text-fg-faint">Duración del guión</label>
@@ -12440,6 +12462,22 @@ interface AssetItem {
 
 // Chip arrastrable de un plano en la secuencia del Fashion Reel (modo Looks).
 // El orden en la lista = orden en el reel final. Drag por el handle ☰.
+/** Miniatura de un archivo local (la foto subida). Crea y libera su object URL. */
+function PhotoThumb({ file }: { file?: File | null }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file) { setUrl(null); return; }
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+  return url ? (
+    <img src={url} alt="Tu foto" className="w-8 h-10 object-cover rounded-[3px] shrink-0" />
+  ) : (
+    <div className="w-8 h-10 rounded-[3px] bg-surface-2 border border-dashed border-edge shrink-0" aria-hidden />
+  );
+}
+
 function SortableShotChip({ id, index, label, title, note, onNoteChange, onRemove }: {
   id: string;
   index: number;

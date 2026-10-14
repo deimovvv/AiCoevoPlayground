@@ -123,6 +123,13 @@ const FACE_HIDDEN_MOTION =
   " to show the eyes. Never invent a face.";
 const faceHidden = (cfg: Record<string, unknown>): boolean => !!cfg.reelBaseFromUpload && !!cfg.reelFaceHidden;
 
+/** Movimiento del plano "Tu foto": no sabemos su encuadre, así que se pide una ACCIÓN natural
+ *  que continúe la pose. El genérico "subtle sway" daba clips casi quietos (2026-10-14). */
+const PHOTO_SHOT_MOTION =
+  "Natural, alive fashion motion that continues the pose of this exact photo: a relaxed step or weight shift," +
+  " a hand to the hair, the jacket or the bag, a look toward the camera. Hair and fabric move with the body." +
+  " Gentle handheld camera that keeps the same framing.";
+
 const uploadedBaseFile = (cfg: Record<string, unknown>): File | null => {
   if (!cfg.reelBaseFromUpload) return null;
   const files = ((cfg.referenceImages as File[]) || [])
@@ -242,11 +249,24 @@ export const handleScript: StepHandler = async (ctx) => {
       .map((shot, i) => ({ shot, note: (notes[i] || "").trim() }))
       .filter((x) => VIDEO_SHOT_CATALOG[x.shot]);
     const shots = picked.length ? picked : DEFAULT_LOOKS_SHOTS.map((shot) => ({ shot, note: "" }));
-    const scenes = shots.map(({ shot, note }, i) => {
+    // Plano 1 = la foto subida, tal cual (handleBaseImage la devuelve sin generar). Los planos
+    // elegidos en la secuencia se GENERAN todos a partir de ella — antes el primero elegido
+    // "era" la foto y no se entendía (Gonzalo + Keila, 2026-10-14).
+    const photoScene = {
+      id: "photo_base",
+      title: "Tu foto",
+      script: "",
+      image_prompt: "The uploaded photo, exactly as it is.",
+      sceneType: "creative" as const,
+      shot: "photo",
+      note: "",
+      shotId: "photo",
+    };
+    const generated = shots.map(({ shot, note }, i) => {
       const meta = VIDEO_SHOT_CATALOG[shot];
       return {
         id: `photo_${shot}_${i}`,
-        title: i === 0 ? `${meta.label} · tu foto` : meta.label,
+        title: meta.label,
         script: "",
         image_prompt:
           `${meta.framing} The SAME person from the anchor photo, wearing the EXACT same outfit, in the SAME location and light.` +
@@ -255,11 +275,11 @@ export const handleScript: StepHandler = async (ctx) => {
           " Confident fashion presence.",
         sceneType: "creative" as const,
         shot,
-        note: i === 0 ? "Cuadro 1 = tu foto, tal cual" : `${meta.label}${note ? ` · ${note}` : ""}`,
+        note: `${meta.label}${note ? ` · ${note}` : ""}`,
         shotId: shot,
       };
     });
-    return { result: { scenes }, needsApproval: true };
+    return { result: { scenes: [photoScene, ...generated] }, needsApproval: true };
   }
 
   // ── RECETA DE FORMATO ─────────────────────────────────────────────────
@@ -1017,6 +1037,8 @@ export const handleAnimate: StepHandler = async (ctx) => {
         const variants = meta.motionVariants?.length ? meta.motionVariants : [meta.motion];
         // El bias por intensidad evita arrancar siempre por la variante más quieta (index 0).
         shotMotion = variants[(nth + intensityBias) % variants.length];
+      } else if (frame.shotId === "photo") {
+        shotMotion = PHOTO_SHOT_MOTION;
       }
     }
     // USER DIRECTION — la instrucción que el usuario tipeó en curación. Si está,
@@ -1189,6 +1211,8 @@ export async function regenerateSceneClip(o: {
     if (meta) {
       const variants = meta.motionVariants?.length ? meta.motionVariants : [meta.motion];
       shotMotion = variants[intensityBias % variants.length];
+    } else if (o.shotId === "photo") {
+      shotMotion = PHOTO_SHOT_MOTION;
     }
   }
   const userDirection = o.direction.trim() ? ` USER DIRECTION (priority): ${o.direction.trim()}.` : "";

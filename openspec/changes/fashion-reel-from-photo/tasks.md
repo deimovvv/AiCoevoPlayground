@@ -17,6 +17,13 @@
       reciben la orden de mantener la cara fuera de cuadro (si apareciera, la inventa el modelo).
       Regla del usuario: *"si le cortás la cara en la imagen, que no se vea la cara porque va a ser otra persona"*.
 
+- [x] 1.7 (2026-10-14, prueba con Keila: *"no fue para nada intuitivo"*) La foto es su propio plano
+      ("1 · Tu foto", con miniatura, "va tal cual"); los planos elegidos se GENERAN todos desde ella
+      (antes el primero elegido "era" la foto). El plano foto tiene un movimiento natural propio.
+- [x] 1.8 Fuera "Duración del guión" en Fashion Reel (no se usaba): el largo = clips × duración por
+      clip, y se muestra calculado ("3 clips × 5 s = 15 s de reel"). La duración por clip se veía
+      sólo si el motor estaba elegido a mano: ahora aparece con el motor por defecto (Kling).
+
 ## 2. Validar
 
 - [ ] 2.1 Probar generando con una foto real: que los planos 2+ mantengan persona, ropa
