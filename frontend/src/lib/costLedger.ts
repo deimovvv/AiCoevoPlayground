@@ -50,7 +50,9 @@ const EMPTY: CostSummary = {
 };
 
 /** Precios confirmados contra la página de Fal (2026-08-25). El resto es estimado. */
-const VERIFIED_MODELS = new Set(["nano-banana-2", "kling:v3-pro"]);
+const VERIFIED_MODELS = new Set([
+  "nano-banana-2", "kling:v3-pro", "kling:v3-std", "kling:v2-6-pro", "kling:v2-5-turbo",
+]);
 
 let pending: CostOp[] = [];
 const totals = new Map<string, CostOp[]>();
@@ -105,10 +107,10 @@ export function recordKling(duration: string | number, model = "v3-pro") {
   push("video", `kling:${model}`, videoUsd(secs, 1, model), secs);
 }
 
-/** Un clip de Seedance. */
-export function recordSeedance(duration: string | number) {
+/** Un clip de Seedance (kie). Sin resolución, kie usa 720p. */
+export function recordSeedance(duration: string | number, resolution = "720p") {
   const secs = Number(duration) || 0;
-  push("video", "seedance", seedanceUsd(secs, 1), secs);
+  push("video", `seedance:${resolution}`, seedanceUsd(secs, 1, resolution), secs, true);
 }
 
 /** Una síntesis de voz de ElevenLabs. */

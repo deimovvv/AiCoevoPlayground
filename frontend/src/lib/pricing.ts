@@ -28,15 +28,17 @@ const RES_MULTIPLIER: Record<Resolution, number> = {
 export const UNIT_USD = {
   /** Nano Banana 2 — precio base por imagen a 1K. Verificado 2026-08-25. */
   nanoImageBase: 0.08,
-  /** Kling image-to-video, USD por segundo, por modelo. V3 Pro verificado. */
+  /** Kling image-to-video por Fal, USD por segundo SIN audio. Verificado en fal.ai 2026-10-14. */
   klingPerSecond: {
     "v3-pro": 0.112,
-    "v2-6-pro": 0.098,   // estimado
+    "v3-std": 0.084,
+    "v2-6-pro": 0.07,
     "v2-6-std": 0.049,   // estimado
-    "v2-5-turbo": 0.049, // estimado
+    "v2-5-turbo": 0.07,  // $0.35 por 5 s
   } as Record<string, number>,
-  /** Seedance reference-to-video, USD por segundo. Estimado. */
-  seedancePerSecond: 0.06,
+  /** Seedance 2.5 SIEMPRE por kie.ai, USD por segundo según resolución (verificado 2026-10-01;
+   *  ver backend/services/seedance_video.py). Antes figuraba 0.06 "estimado": 5× por debajo. */
+  seedanceKiePerSecond: { "480p": 0.14, "720p": 0.315, "1080p": 0.79 } as Record<string, number>,
   /** ElevenLabs TTS, USD por cada 1.000 caracteres. Estimado. */
   ttsPer1kChars: 0.18,
   /** Gemini (guiones, análisis, descripciones) — despreciable a nuestro volumen. */
@@ -106,9 +108,10 @@ export function videoUsd(seconds: number, clips = 1, model = "v3-pro"): number {
   return rate * Math.max(0, seconds) * Math.max(0, clips);
 }
 
-/** Costo (USD) de N clips de Seedance de `seconds` segundos c/u. */
-export function seedanceUsd(seconds: number, clips = 1): number {
-  return UNIT_USD.seedancePerSecond * Math.max(0, seconds) * Math.max(0, clips);
+/** Costo (USD) de N clips de Seedance (kie) de `seconds` segundos c/u. */
+export function seedanceUsd(seconds: number, clips = 1, resolution = "720p"): number {
+  const rate = UNIT_USD.seedanceKiePerSecond[resolution] ?? UNIT_USD.seedanceKiePerSecond["720p"]!;
+  return rate * Math.max(0, seconds) * Math.max(0, clips);
 }
 
 /** Costo (USD) de sintetizar `chars` caracteres con ElevenLabs. */

@@ -83,6 +83,7 @@ import { PRODUCT_VIEW_CATALOG, DEFAULT_PRODUCT_VIEWS } from "../tools/product_sh
 import { EDITORIAL_FRAMINGS, EDITORIAL_LIGHTING, EDITORIAL_VIBES } from "../tools/fashion_editorial";
 import { ModelDropdown } from "../components/ui/ModelDropdown";
 import { ImageModelPicker } from "../components/workspace/ImageModelPicker";
+import { gptImageUsd, imageUsd, seedanceUsd, videoUsd } from "../lib/pricing";
 import {
   FASHION_FIT_TOOLS, imageChoice, imageModelLabel, toImageModel,
   type ImageModel, type ImageQuality,
@@ -6855,13 +6856,18 @@ function ConfigPanel({
                 onChange={(next) => setConfig((p) => (next === "seedance"
                   ? { ...p, animationEngine: "seedance" }
                   : { ...p, animationEngine: "kling", videoModel: next }) as typeof p)}
-                options={[
-                  { id: "v3-pro", label: "Kling V3 Pro", sub: "Mejor identidad · 1080p · ~$0.67 por 6s" },
-                  { id: "v3-std", label: "Kling V3 Standard", sub: "Misma familia, más barato · ~$0.50 por 6s" },
-                  { id: "v2-6-pro", label: "Kling V2.6 Pro", sub: "Generación anterior · ~$0.42 por 6s" },
-                  { id: "v2-5-turbo", label: "Kling V2.5 Turbo", sub: "El más rápido · ~$0.42 por 6s" },
-                  { id: "seedance", label: "Seedance 2.5 (kie)", sub: "Multi-referencia · 720p · ~$1.89 por 6s" },
-                ]}
+                options={(() => {
+                  // Precio por clip con la duración elegida (pricing.ts, verificado 2026-10-14).
+                  const secs = Number(config.clipDuration) || 5;
+                  const k = (m: string) => `~US$${videoUsd(secs, 1, m).toFixed(2)} por clip de ${secs} s`;
+                  return [
+                    { id: "v3-pro", label: "Kling V3 Pro", sub: `Por defecto · mejor identidad · ${k("v3-pro")}` },
+                    { id: "v3-std", label: "Kling V3 Standard", sub: `Misma familia, más barato · ${k("v3-std")}` },
+                    { id: "v2-6-pro", label: "Kling V2.6 Pro", sub: `Generación anterior · ${k("v2-6-pro")}` },
+                    { id: "v2-5-turbo", label: "Kling V2.5 Turbo", sub: `El más rápido · ${k("v2-5-turbo")}` },
+                    { id: "seedance", label: "Seedance 2.5 (kie)", sub: `Multi-referencia · 720p · ~US$${seedanceUsd(Math.max(4, secs), 1, "720p").toFixed(2)} por clip de ${Math.max(4, secs)} s` },
+                  ];
+                })()}
               />
             ) : (
             <ModelDropdown
@@ -6875,6 +6881,33 @@ function ConfigPanel({
               ]}
             />
             )}
+
+            {/* Cuánto sale ESTE reel, siempre a la vista (pedido de Gonzalo, 2026-10-14). */}
+            {tool.id === "fashion_reel" && (() => {
+              const shots = config.looksShots.length || DEFAULT_LOOKS_SHOTS.length;
+              const clips = reelFromPhoto
+                ? shots + 1
+                : config.reelMode === "looks"
+                  ? Math.max(1, config.selectedClothingIds.length) * shots
+                  : 4;
+              const secs = Number(config.clipDuration) || 5;
+              const seedance = config.animationEngine === "seedance";
+              const vModel = (config as { videoModel?: string }).videoModel || "v3-pro";
+              const video = seedance ? seedanceUsd(Math.max(4, secs), clips, "720p") : videoUsd(secs, clips, vModel);
+              // Imágenes: 2 variantes por plano generado; desde una foto, la foto no se genera.
+              const generated = reelFromPhoto ? shots : clips;
+              const variants = reelFromPhoto ? generated * 2 : 1 + Math.max(0, generated - 1) * 2;
+              const choice = imageChoice(config);
+              const perImage = choice.model === "gpt-image-2"
+                ? gptImageUsd(choice.quality || "medium").usd
+                : imageUsd(config.resolution || "2K");
+              const images = variants * perImage;
+              return (
+                <p className="text-[10px] text-fg-muted tabular-nums">
+                  Este reel: {clips} clips × {seedance ? Math.max(4, secs) : secs} s ≈ US${video.toFixed(2)} de video + US${images.toFixed(2)} de imágenes = <strong className="text-fg">US${(video + images).toFixed(2)}</strong>
+                </p>
+              );
+            })()}
 
             {/* Acento — solo con Veo (genera la voz nativa; le decimos qué tonada). Los
                 modos Seedance de voz se sacaron: Seedance bloquea caras. Kling/OmniHuman
@@ -6917,20 +6950,7 @@ function ConfigPanel({
                       </button>
                     ))}
                   </div>
-                  <p className="text-[10px] text-fg-faint tabular-nums">
-                    {(() => {
-                      // Clips del reel: desde una foto = la foto + los planos; Looks = prendas × planos;
-                      // Story = 4 escenas. La duración total sale de acá, no se elige aparte.
-                      const shots = config.looksShots.length || DEFAULT_LOOKS_SHOTS.length;
-                      const clips = reelFromPhoto
-                        ? shots + 1
-                        : config.reelMode === "looks"
-                          ? Math.max(1, config.selectedClothingIds.length) * shots
-                          : 4;
-                      const secs = Number(config.clipDuration) || 5;
-                      return `${clips} clips × ${secs} s = ${clips * secs} s de reel`;
-                    })()}
-                  </p>
+                  {/* El total (clips × duración y costo) se muestra arriba, bajo el modelo de video. */}
                 </div>
               );
             })()}

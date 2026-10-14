@@ -2190,7 +2190,7 @@ export async function createSeedanceReferenceToVideo(opts: {
         const err = await res.json().catch(() => ({ detail: "Seedance failed" }));
         throw new Error(typeof err.detail === "string" ? err.detail : "Seedance failed");
     }
-    recordSeedance(opts.duration || "5");
+    recordSeedance(opts.duration || "5", opts.resolution || "720p");
     return res.json();
 }
 
