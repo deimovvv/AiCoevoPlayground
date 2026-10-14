@@ -21,7 +21,7 @@ import {
   avatarImageUrl, clothingImageUrl, productImageUrl, backgroundImageUrl,
 } from "../../lib/api";
 import type { KlingModel } from "../../lib/api";
-import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "./shots";
+import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS, PHOTO_MOTIONS, isPhotoMotion } from "./shots";
 import { getRecipe } from "./recipes";
 // La dirección de arte de la marca (casting, luz, locaciones, movimiento) estaba
 // DECLARADA para fashion_reel en TOOL_BRAND_FIELDS pero nunca se leía: en Looks mode el
@@ -122,6 +122,13 @@ const FACE_HIDDEN_MOTION =
   " whole clip — the camera never tilts up or pulls back to reveal it, and the person never turns toward camera" +
   " to show the eyes. Never invent a face.";
 const faceHidden = (cfg: Record<string, unknown>): boolean => !!cfg.reelBaseFromUpload && !!cfg.reelFaceHidden;
+
+/** Desde una foto, los planos generados se quedan en el MISMO lugar que la foto. */
+const PHOTO_LOCATION_LOCK =
+  " LOCATION LOCK (mandatory): the EXACT same background, set, floor, light direction and color grade as" +
+  " Image 1. If Image 1 is a plain studio backdrop, keep that same plain studio backdrop. Do NOT move the" +
+  " person to another place and do NOT add rooms, furniture, windows, plants, walls or props." +
+  " Same clothes in every detail (color, fabric, fit, print, logos); only pose and framing change.";
 
 /** Movimiento del plano "Tu foto": no sabemos su encuadre, así que se pide una ACCIÓN natural
  *  que continúe la pose. El genérico "subtle sway" daba clips casi quietos (2026-10-14). */
@@ -247,7 +254,7 @@ export const handleScript: StepHandler = async (ctx) => {
     const notes = (cfgU.looksShotNotes as string[]) || [];
     const picked = rawShots
       .map((shot, i) => ({ shot, note: (notes[i] || "").trim() }))
-      .filter((x) => VIDEO_SHOT_CATALOG[x.shot]);
+      .filter((x) => VIDEO_SHOT_CATALOG[x.shot] || isPhotoMotion(x.shot));
     const shots = picked.length ? picked : DEFAULT_LOOKS_SHOTS.map((shot) => ({ shot, note: "" }));
     // Plano 1 = la foto subida, tal cual (handleBaseImage la devuelve sin generar). Los planos
     // elegidos en la secuencia se GENERAN todos a partir de ella — antes el primero elegido
@@ -263,7 +270,20 @@ export const handleScript: StepHandler = async (ctx) => {
       shotId: "photo",
     };
     const generated = shots.map(({ shot, note }, i) => {
-      const meta = VIDEO_SHOT_CATALOG[shot];
+      // "Tu foto · otro movimiento": la escena ES la foto; sólo cambia el movimiento.
+      if (isPhotoMotion(shot)) {
+        return {
+          id: `photo_${shot.replace(":", "_")}_${i}`,
+          title: PHOTO_MOTIONS[shot]!.label,
+          script: "",
+          image_prompt: "The uploaded photo, exactly as it is.",
+          sceneType: "creative" as const,
+          shot,
+          note: note ? `${PHOTO_MOTIONS[shot]!.label} · ${note}` : "",
+          shotId: shot,
+        };
+      }
+      const meta = VIDEO_SHOT_CATALOG[shot]!;
       return {
         id: `photo_${shot}_${i}`,
         title: meta.label,
@@ -690,7 +710,11 @@ export const handleMultishot: StepHandler = async (ctx) => {
   // Con receta, el "Estilo visual" (default iPhone handheld) NO se aplica: el selector
   // está oculto y la receta ya define encuadre y escenario. Aplicarlo igual metería un
   // look de celular a escondidas en, por ejemplo, un giro de estudio.
-  const stylePrompt = cfg.recipeId ? "" : getVisualStyle(cfg);
+  // Desde una foto: la foto manda en lugar, luz y color. El estilo visual (oculto en ese modo,
+  // pero con "iphone" por defecto = "filmado en casa") sacaba al modelo del estudio a un
+  // departamento (Garçon, 2026-10-14). Sin estilo, sin look y sin escenario de la marca.
+  const fromPhoto = !!uploadedBaseFile(cfg);
+  const stylePrompt = cfg.recipeId || fromPhoto ? "" : getVisualStyle(cfg);
 
   const REEL_VARIATIONS = [
     { label: "Alt pose", desc: "Same scene, slightly different body position — weight shift, head angle." },
@@ -758,6 +782,16 @@ export const handleMultishot: StepHandler = async (ctx) => {
 
   for (let i = 1; i < scenes.length; i++) {
     const scene = scenes[i];
+    // "Tu foto · otro movimiento": no se genera imagen — el cuadro es la foto subida.
+    if (isPhotoMotion((scene as { shotId?: string }).shotId)) {
+      multishotResults.push({
+        sceneId: scene.id,
+        title: scene.title,
+        sceneType: "creative",
+        variations: [{ id: `${scene.id}_v1`, url: baseImageResult.url, label: "Tu foto", prompt: scene.image_prompt }],
+      });
+      continue;
+    }
     // Looks mode con shots: la escena trae su `garmentId` (set en handleScript).
     // El lookup por id devuelve EL outfit correcto sin importar el orden — una
     // misma prenda puede aparecer en varias escenas (general / detail / back).
@@ -790,8 +824,8 @@ export const handleMultishot: StepHandler = async (ctx) => {
     const restDesc = baseRefDesc.replace(/Image (\d+):/g, (_m, n) => `Image ${parseInt(n, 10) + 1}:`);
 
     const fullRefDesc = (anchorHeader + restDesc).trim();
-    const lookSignature = getLookSignature(cfg);
-    const brandContextBlock = buildBrandContext(activeBrand, "fashion_reel", brandFieldsToSkip(cfg, config));
+    const lookSignature = fromPhoto ? "" : getLookSignature(cfg);
+    const brandContextBlock = fromPhoto ? "" : buildBrandContext(activeBrand, "fashion_reel", brandFieldsToSkip(cfg, config));
     const variations: Array<{ id: string; url: string; label: string; prompt: string }> = [];
 
     for (let v = 0; v < 2; v++) {
@@ -799,6 +833,7 @@ export const handleMultishot: StepHandler = async (ctx) => {
       let prompt = scene.image_prompt;
       if (fullRefDesc) prompt = `REFERENCE IMAGES:\n${fullRefDesc}\n\n${prompt}`;
       if (lookSignature) prompt = `${lookSignature}\n\n${prompt}`;
+      if (fromPhoto) prompt += PHOTO_LOCATION_LOCK;
       prompt += `${brandContextBlock} ${varHint.desc} ${stylePrompt}${NO_TEXT_SUFFIX}`;
 
       try {
@@ -969,7 +1004,8 @@ export const handleAnimate: StepHandler = async (ctx) => {
   const reelMode = cfg.recipeId ? "looks" : ((cfg.reelMode as string) || "story");
   const rawCreativeMode = (cfg.creativeMode as string) || "single-frame";
   // La receta define su propio movimiento: nada de morph entre escenas.
-  const useF2F = !recipe && engine === "kling" && rawCreativeMode === "frame-to-frame";
+  // Desde una foto, cada clip parte de la foto: no hay transición entre planos que hacer.
+  const useF2F = !recipe && !uploadedBaseFile(cfg) && engine === "kling" && rawCreativeMode === "frame-to-frame";
   // De Kling, Fashion Reel usa sólo V3 Pro (Gonzalo, 2026-10-14). Configs viejas con otro
   // modelo guardado también van por V3 Pro.
   const klingModel: KlingModel = "v3-pro";
@@ -1041,6 +1077,8 @@ export const handleAnimate: StepHandler = async (ctx) => {
         shotMotion = variants[(nth + intensityBias) % variants.length];
       } else if (frame.shotId === "photo") {
         shotMotion = PHOTO_SHOT_MOTION;
+      } else if (isPhotoMotion(frame.shotId)) {
+        shotMotion = PHOTO_MOTIONS[frame.shotId]!.motion;
       }
     }
     // USER DIRECTION — la instrucción que el usuario tipeó en curación. Si está,
@@ -1217,6 +1255,8 @@ export async function regenerateSceneClip(o: {
       shotMotion = variants[intensityBias % variants.length];
     } else if (o.shotId === "photo") {
       shotMotion = PHOTO_SHOT_MOTION;
+    } else if (isPhotoMotion(o.shotId)) {
+      shotMotion = PHOTO_MOTIONS[o.shotId!]!.motion;
     }
   }
   const userDirection = o.direction.trim() ? ` USER DIRECTION (priority): ${o.direction.trim()}.` : "";

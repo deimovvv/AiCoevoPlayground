@@ -83,3 +83,30 @@ export const VIDEO_SHOT_CATALOG: Record<string, { label: string; framing: string
 };
 
 export const DEFAULT_LOOKS_SHOTS = ["general", "detail"];
+
+/**
+ * "Desde una foto" — tomas que son LA MISMA FOTO con otro movimiento (no se genera imagen).
+ * Para catálogo: la prenda y el fondo quedan exactos porque el cuadro de partida es la foto real.
+ * Generar planos nuevos cambiaba fondo y prenda (Garçon, 2026-10-14: "me generó en otro fondo").
+ * Pedido de Gonzalo: "tres o cuatro clips, como los que vengo haciendo para Koxis".
+ */
+export const PHOTO_MOTIONS: Record<string, { label: string; motion: string }> = {
+  "photo:mirada": {
+    label: "Tu foto · mira a cámara",
+    motion: "Camera fixed, same framing as the photo. The person lifts the head and looks straight into the lens, shifts the weight from one leg to the other, a small relaxed hand gesture. Clothes and hair move naturally with the body.",
+  },
+  "photo:giro": {
+    label: "Tu foto · gira a tres cuartos",
+    motion: "Camera fixed, same framing. The person slowly turns to a three-quarter angle, showing the side of the garment, holds a beat, and turns back toward the camera. The fabric follows the turn.",
+  },
+  "photo:acerca": {
+    label: "Tu foto · la cámara se acerca",
+    motion: "Slow, smooth camera push-in toward the chest and collar to show the fabric and the details, while the person makes a small natural gesture (touches the collar, the sleeve or the glasses).",
+  },
+  "photo:camina": {
+    label: "Tu foto · camina hacia cámara",
+    motion: "The person takes two relaxed steps toward the camera; the clothes move with each step; the camera eases back slightly to keep the same framing.",
+  },
+};
+
+export const isPhotoMotion = (id: string | null | undefined): boolean => !!id && id in PHOTO_MOTIONS;

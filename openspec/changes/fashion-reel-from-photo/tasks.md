@@ -24,6 +24,14 @@
       clip, y se muestra calculado ("3 clips × 5 s = 15 s de reel"). La duración por clip se veía
       sólo si el motor estaba elegido a mano: ahora aparece con el motor por defecto (Kling).
 
+- [x] 1.9 (2026-10-14, caso Garçon: *"me generó en otro fondo, en otro lugar"*) Desde una foto:
+      (a) sin estilo visual, look ni escenario de marca — el "iPhone" por defecto ("filmado en casa")
+      llevaba al modelo a un departamento; + LOCATION LOCK al fondo de la foto en los planos generados.
+      (b) Tomas **"Tu foto · otro movimiento"** (mira a cámara, gira a tres cuartos, la cámara se
+      acerca, camina): no generan imagen, el cuadro es la foto real → prenda y fondo exactos. Es el
+      default al elegir "Desde una foto" (3 clips, US$1,68). Pedido: *"tres o cuatro clips, como los de Koxis"*.
+      (c) Sin frame-to-frame ni hook de entrada en este modo.
+
 ## 2. Validar
 
 - [ ] 2.1 Probar generando con una foto real: que los planos 2+ mantengan persona, ropa

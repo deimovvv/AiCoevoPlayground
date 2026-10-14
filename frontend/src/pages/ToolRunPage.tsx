@@ -79,6 +79,7 @@ import { ToolHelpButton } from "../components/ToolHelp";
 import { SHOT_CATALOG, STUDIO_STYLES, POSE_PRESETS, ENHANCE_TEXTURE_PROMPT } from "../tools/ecommerce_pack";
 import { AVATAR_VIEWS } from "../tools/avatar_creator";
 import { VIDEO_SHOT_CATALOG, DEFAULT_LOOKS_SHOTS } from "../tools/fashion_reel";
+import { PHOTO_MOTIONS, isPhotoMotion } from "../tools/fashion_reel/shots";
 import { PRODUCT_VIEW_CATALOG, DEFAULT_PRODUCT_VIEWS } from "../tools/product_sheet";
 import { EDITORIAL_FRAMINGS, EDITORIAL_LIGHTING, EDITORIAL_VIBES } from "../tools/fashion_editorial";
 import { ModelDropdown } from "../components/ui/ModelDropdown";
@@ -5335,7 +5336,9 @@ function ConfigPanel({
                     setConfig((p) => ({
                       ...(p as unknown as Record<string, unknown>),
                       reelBaseFromUpload: m.id === "photo",
-                      ...(m.id === "photo" ? { reelMode: "looks", selectedClothingIds: [] } : {}),
+                      ...(m.id === "photo"
+                        ? { reelMode: "looks", selectedClothingIds: [], looksShots: ["photo:giro", "photo:acerca"], looksShotNotes: ["", ""] }
+                        : {}),
                     } as unknown as typeof p));
                   }}
                   className={cn(
@@ -5525,7 +5528,7 @@ function ConfigPanel({
                             key={i}
                             id={String(i)}
                             index={reelFromPhoto ? i + 1 : i}
-                            label={VIDEO_SHOT_CATALOG[shotId]?.label || shotId}
+                            label={PHOTO_MOTIONS[shotId]?.label || VIDEO_SHOT_CATALOG[shotId]?.label || shotId}
                             title={VIDEO_SHOT_CATALOG[shotId]?.framing}
                             note={config.looksShotNotes[i] || ""}
                             onNoteChange={(v) => setConfig((p) => {
@@ -5542,6 +5545,28 @@ function ConfigPanel({
                       </div>
                     </SortableContext>
                   </DndContext>
+                )}
+                {/* Desde una foto: primero las tomas que son TU FOTO con otro movimiento (no se genera
+                    imagen: prenda y fondo exactos — lo que sirve para catálogo). */}
+                {reelFromPhoto && (
+                  <div className="space-y-1 pt-0.5">
+                    <span className="text-[10px] text-fg-muted">Tu foto, otro movimiento <span className="text-fg-faint">· recomendado para catálogo: no se genera imagen</span></span>
+                    <div className="flex flex-wrap gap-1">
+                      {Object.entries(PHOTO_MOTIONS).map(([id, m]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          title={m.motion}
+                          disabled={config.looksShots.length >= 12}
+                          onClick={() => setConfig((p) => ({ ...p, looksShots: [...p.looksShots, id], looksShotNotes: [...p.looksShots.map((_, j) => p.looksShotNotes[j] || ""), ""] }))}
+                          className="flex items-center gap-1 px-2 py-1 rounded-[var(--radius-sm)] border border-edge bg-surface-0 text-[10px] text-fg-muted hover:text-fg hover:border-[var(--color-brand)] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Plus size={10} /> {m.label.replace("Tu foto · ", "")}
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-fg-muted block pt-1">Plano nuevo <span className="text-fg-faint">· se genera una imagen: puede variar la prenda o el fondo</span></span>
+                  </div>
                 )}
                 {/* Agregar plano — appendea al final de la secuencia. */}
                 <div className="flex flex-wrap gap-1 pt-0.5">
@@ -5560,7 +5585,7 @@ function ConfigPanel({
                 </div>
                 <p className="text-[10px] text-fg-faint">
                   {reelFromPhoto
-                    ? `Tu foto + ${config.looksShots.length || DEFAULT_LOOKS_SHOTS.length} plano(s) generados = ${(config.looksShots.length || DEFAULT_LOOKS_SHOTS.length) + 1} clips · arrastrá ☰ para reordenar`
+                    ? `${(config.looksShots.length || DEFAULT_LOOKS_SHOTS.length) + 1} clips · ${config.looksShots.filter(isPhotoMotion).length + 1} desde tu foto, ${(config.looksShots.length ? config.looksShots.filter((x) => !isPhotoMotion(x)).length : DEFAULT_LOOKS_SHOTS.length)} generados · arrastrá ☰ para reordenar`
                     : config.looksShots.length > 0
                     ? `${config.looksShots.length} escena(s) por outfit · arrastrá ☰ para reordenar · el orden es el del reel`
                     : `Vacío usa los defaults (${DEFAULT_LOOKS_SHOTS.join(" + ")})`}
@@ -5618,7 +5643,7 @@ function ConfigPanel({
               en Looks mode sin que el usuario lo viera. Lo subimos acá para que sea
               decisión consciente. Solo aparece en Looks + Kling (Seedance no soporta
               f2f). */}
-          {config.reelMode === "looks" && (config.animationEngine ?? "kling") === "kling" && (
+          {config.reelMode === "looks" && (config.animationEngine ?? "kling") === "kling" && !reelFromPhoto && (
             <div className="space-y-1.5">
               <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Movimiento de cada clip</span>
               <div className="grid grid-cols-2 gap-1.5">
@@ -6890,8 +6915,11 @@ function ConfigPanel({
               const seedance = config.animationEngine === "seedance";
               const vModel = "v3-pro";
               const video = seedance ? seedanceUsd(Math.max(4, secs), clips, "720p") : videoUsd(secs, clips, vModel);
-              // Imágenes: 2 variantes por plano generado; desde una foto, la foto no se genera.
-              const generated = reelFromPhoto ? shots : clips;
+              // Imágenes: 2 variantes por plano generado. Desde una foto, ni la foto ni las tomas
+              // "tu foto · otro movimiento" se generan.
+              const generated = reelFromPhoto
+                ? (config.looksShots.length ? config.looksShots.filter((x) => !isPhotoMotion(x)).length : DEFAULT_LOOKS_SHOTS.length)
+                : clips;
               const variants = reelFromPhoto ? generated * 2 : 1 + Math.max(0, generated - 1) * 2;
               const choice = imageChoice(config);
               const perImage = choice.model === "gpt-image-2"
@@ -6957,7 +6985,7 @@ function ConfigPanel({
 
             {/* Hook de entrada — solo Fashion Reel + Kling. Genera la escena vacía y
                 anima a la modelo entrando (f2f vacío → modelo). */}
-            {tool.id === "fashion_reel" && (config.animationEngine ?? "kling") === "kling" && (
+            {tool.id === "fashion_reel" && (config.animationEngine ?? "kling") === "kling" && !reelFromPhoto && (
               <label className="flex items-start gap-1.5 cursor-pointer pt-0.5">
                 <input
                   type="checkbox"
