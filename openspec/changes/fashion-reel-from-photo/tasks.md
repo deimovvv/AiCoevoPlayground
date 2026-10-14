@@ -8,6 +8,14 @@
 - [x] 1.2 `handleBaseImage`: la foto tal cual.
 - [x] 1.3 `handleMultishot`: ancla de consistencia cuando no hay prendas.
 - [x] 1.4 Casilla "Usar esta foto como base" en Fashion Reel (pasa a Looks).
+      ⚠️ Nunca se veía: estaba dentro del bloque de referencias, que excluye a fashion_reel.
+- [x] 1.5 (2026-10-14) Selector "¿De dónde sale el reel?" arriba del panel: **Desde una foto** /
+      Generar. En modo foto: subir la foto y elegir planos; se ocultan Formato, Model, Prendas,
+      Fondo, Escenario, Accesorios y Estilo visual. Pedido del usuario: *"me hace poner prenda…
+      un todo. No queda claro"*.
+- [x] 1.6 (2026-10-14) Casilla "La foto no muestra la cara": los planos generados y la animación
+      reciben la orden de mantener la cara fuera de cuadro (si apareciera, la inventa el modelo).
+      Regla del usuario: *"si le cortás la cara en la imagen, que no se vea la cara porque va a ser otra persona"*.
 
 ## 2. Validar
 

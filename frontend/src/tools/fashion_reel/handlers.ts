@@ -111,6 +111,18 @@ const NO_TEXT_SUFFIX = " Single continuous frame. NO split screen, NO collage, N
  * misma persona, misma ropa, mismo lugar; cambian pose y encuadre.
  * Mismo mecanismo que `ugcBaseFromUpload` en UGC Creator.
  */
+/** La foto subida corta la cara (la tilda el usuario). Ningún plano ni clip la muestra:
+ *  si aparece, la inventa el modelo y es otra persona. Regla del usuario (2026-10-14):
+ *  "si le cortás la cara en la imagen, que no se vea la cara porque va a ser otra persona". */
+const FACE_HIDDEN_FRAME =
+  " FACE NOT VISIBLE: in the anchor photo the face is out of frame. Keep it out of frame in this shot too —" +
+  " crop at the lips or above the shoulders, or frame from behind / from below. NEVER show the eyes and NEVER invent a face.";
+const FACE_HIDDEN_MOTION =
+  " FACE NOT VISIBLE (mandatory): the face is out of frame in the source image and must stay out of frame for the" +
+  " whole clip — the camera never tilts up or pulls back to reveal it, and the person never turns toward camera" +
+  " to show the eyes. Never invent a face.";
+const faceHidden = (cfg: Record<string, unknown>): boolean => !!cfg.reelBaseFromUpload && !!cfg.reelFaceHidden;
+
 const uploadedBaseFile = (cfg: Record<string, unknown>): File | null => {
   if (!cfg.reelBaseFromUpload) return null;
   const files = ((cfg.referenceImages as File[]) || [])
@@ -239,6 +251,7 @@ export const handleScript: StepHandler = async (ctx) => {
         image_prompt:
           `${meta.framing} The SAME person from the anchor photo, wearing the EXACT same outfit, in the SAME location and light.` +
           (note ? ` SHOT DIRECTION (mandatory — overrides the default posture/setting of this shot): ${note}.` : "") +
+          (faceHidden(cfgU) ? FACE_HIDDEN_FRAME : "") +
           " Confident fashion presence.",
         sceneType: "creative" as const,
         shot,
@@ -837,13 +850,22 @@ const motionClauses = (activeBrand: AnimBrand, cfg: Record<string, unknown>) => 
   const brandMotionClause = brandMotionRules ? ` BRAND MOTION RULES (mandatory): ${brandMotionRules}` : "";
   const motionIntensity = ((cfg.motionIntensity as string) || "medio").toLowerCase();
   const intensityBias = motionIntensity === "sutil" ? 0 : motionIntensity === "medio" ? 1 : 2;
-  const intensityClause =
+  const hideFace = faceHidden(cfg);
+  const intensityClauseRaw =
     motionIntensity === "dinamico"
       ? " Make the motion noticeably DYNAMIC and editorial: a confident camera move (orbit / dolly / reframe), flowing hair and fabric, expressive body motion with a subtle step or turn — energetic, but the face stays clearly in frame the whole time."
       : motionIntensity === "medio"
         ? " Add a clear but graceful camera move and natural body motion — a smooth push-in or gentle orbit, soft hair and fabric movement. Face stays in frame."
         : "";
-  return { brandMotionClause, intensityBias, intensityClause };
+  // Con la cara fuera de cuadro, la intensidad no puede pedir "face stays in frame".
+  const intensityClause = hideFace
+    ? intensityClauseRaw.replace(/,? but the face stays clearly in frame the whole time|\s*Face stays in frame\./g, "")
+    : intensityClauseRaw;
+  return {
+    brandMotionClause: brandMotionClause + (hideFace ? FACE_HIDDEN_MOTION : ""),
+    intensityBias,
+    intensityClause,
+  };
 };
 
 /** El prompt de movimiento de UN clip. Con receta manda la receta; si no, el catálogo de tomas. */

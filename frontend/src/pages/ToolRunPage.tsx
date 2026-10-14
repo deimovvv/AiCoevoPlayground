@@ -3810,6 +3810,10 @@ function ConfigPanel({
   onStart: () => void;
   onMockPreview: () => void;
 }) {
+  // Fashion Reel "desde una foto": la foto ya trae persona, ropa y lugar → se ocultan
+  // Model, Prendas, Fondo, Escenario, Accesorios y Estilo visual (openspec/changes/fashion-reel-from-photo).
+  const cfgRec = config as unknown as Record<string, unknown>;
+  const reelFromPhoto = tool.id === "fashion_reel" && !!cfgRec.reelBaseFromUpload;
   const { activeBrand, refreshBrands } = useBrand();
   const baseSchema = TOOL_DEFINITIONS[tool.id]?.schema ?? TOOL_SCHEMAS[tool.id] ?? DEFAULT_SCHEMA;
   // Runtime schema overrides (e.g. Avatar tool opens the avatar picker in "poses" mode)
@@ -3968,8 +3972,9 @@ function ConfigPanel({
       {/* ── FORMATO DE VIDEO ──────────────────────────────────────────
            Tira horizontal EN LOOP: se entiende sin abrir nada que son videos y
            que son elegibles. "Ver todos" abre la grilla completa al costado.
-           Con 25-40 formatos la tira no crece — docs/producto/fashion-reel-recipes.md §13. */}
-      {USE_RECIPES.has(tool.id) && (
+           Con 25-40 formatos la tira no crece — docs/producto/fashion-reel-recipes.md §13.
+           Desde una foto no aplica: la foto ya decide persona, ropa y lugar. */}
+      {USE_RECIPES.has(tool.id) && !reelFromPhoto && (
         <div className="space-y-2">
           <RecipeStrip
             recipes={MOTION_RECIPES}
@@ -5308,10 +5313,70 @@ function ConfigPanel({
           que yo no debo poder elegir los planos". Ver docs/producto/fashion-reel-recipes.md §11.
           ⚠️ Looks NO desaparece como concepto: pasa a declararlo la receta vía
           `role: one-per-clip`. Lo que se va es el TOGGLE. */}
+      {/* ¿De dónde sale el reel? Desde una foto que ya existe, o generado con modelo + prendas. */}
+      {tool.id === "fashion_reel" && (
+        <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-3">
+          <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">¿De dónde sale el reel?</span>
+          <div className="flex bg-surface-0 rounded-[var(--radius-sm)] p-0.5 border border-edge">
+            {([
+              { id: "photo" as const, label: "Desde una foto", desc: "Subís una foto y salen los otros planos, animados" },
+              { id: "generate" as const, label: "Generar", desc: "Con modelo, prendas y fondo del Brand Kit" },
+            ]).map((m) => {
+              const active = (m.id === "photo") === reelFromPhoto;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  title={m.desc}
+                  aria-pressed={active}
+                  onClick={() => {
+                    if (m.id === "photo") setRecipe(null);
+                    setConfig((p) => ({
+                      ...(p as unknown as Record<string, unknown>),
+                      reelBaseFromUpload: m.id === "photo",
+                      ...(m.id === "photo" ? { reelMode: "looks", selectedClothingIds: [] } : {}),
+                    } as unknown as typeof p));
+                  }}
+                  className={cn(
+                    "flex-1 px-3 py-1 text-[11px] font-semibold rounded-[calc(var(--radius-sm)-1px)] transition-all cursor-pointer",
+                    active ? "bg-fg text-[var(--color-canvas)] shadow-sm" : "text-fg-faint hover:text-fg"
+                  )}
+                >{m.label}</button>
+              );
+            })}
+          </div>
+          {reelFromPhoto && (
+            <>
+              <CompactRefCard
+                title="Tu foto"
+                hint="Es el primer plano, tal cual. Los demás salen de ella: misma persona, ropa y lugar."
+                files={config.referenceImages}
+                onAdd={(f) => setConfig((p) => ({ ...p, referenceImages: [f] }))}
+                onRemove={(i) => setConfig((p) => ({ ...p, referenceImages: p.referenceImages.filter((_, j) => j !== i) }))}
+              />
+              <label className="flex items-start gap-2 px-3 py-2 rounded-[var(--radius-sm)] bg-surface-0 border border-edge cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!cfgRec.reelFaceHidden}
+                  onChange={(e) => setConfig((p) => ({ ...(p as unknown as Record<string, unknown>), reelFaceHidden: e.target.checked } as unknown as typeof p))}
+                  className="accent-[var(--color-action)] mt-0.5"
+                />
+                <span className="text-[11px] text-fg-muted leading-snug">
+                  <strong className="text-fg">La foto no muestra la cara</strong> — ningún plano ni video la va a mostrar. Si apareciera, la inventaría el modelo y sería otra persona.
+                </span>
+              </label>
+              {config.referenceImages.length === 0 && (
+                <p className="text-[10px] text-fg-faint">Subí la foto para empezar. No hace falta modelo, prendas ni fondo.</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {tool.id === "fashion_reel" && !recipe && (
         <div className="bg-surface-1 border border-edge rounded-[var(--radius-md)] p-4 space-y-4">
-          {/* Mode toggle */}
-          <div className="space-y-1.5">
+          {/* Mode toggle (no aplica desde una foto: siempre es una secuencia de planos) */}
+          <div className={cn("space-y-1.5", reelFromPhoto && "hidden")}>
             <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Modo</span>
             <div className="flex bg-surface-0 rounded-[var(--radius-sm)] p-0.5 border border-edge">
               {([
@@ -5346,7 +5411,7 @@ function ConfigPanel({
                   usa el background del Brand Kit + Setting/Locación de Ajustes. El resto
                   fuerza un texto fijo al image_prompt para que Nano Banana NO invente
                   un loft/habitación cuando el usuario pidió estudio blanco. */}
-              <div className="space-y-1.5">
+              <div className={cn("space-y-1.5", reelFromPhoto && "hidden")}>
                 <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Escenario</span>
                 <div className="grid grid-cols-3 gap-1">
                   {[
@@ -5421,7 +5486,7 @@ function ConfigPanel({
                   el reel. Se agrega con los botones "+"; se reordena con drag; se quita
                   con la ×. Antes eran contadores → el orden quedaba invisible. */}
               <div className="space-y-1.5">
-                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Secuencia de planos por outfit</span>
+                <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">{reelFromPhoto ? "Planos a generar desde tu foto" : "Secuencia de planos por outfit"}</span>
                 {config.looksShots.length === 0 ? (
                   <p className="text-[10px] text-fg-faint italic px-1 py-2">
                     Sin planos → usa los defaults ({DEFAULT_LOOKS_SHOTS.map((s) => VIDEO_SHOT_CATALOG[s]?.label || s).join(" + ")}). Agregá abajo para controlar el orden.
@@ -5494,7 +5559,7 @@ function ConfigPanel({
           {/* Accesorios (opcional) — subís cartera/lentes/cinturón ad-hoc y la modelo
               los lleva integrados al look en la imagen base. No hace falta cargarlos en
               el Brand Kit. Aplica a ambos modos (Story y Looks). */}
-          <div className="space-y-1.5">
+          <div className={cn("space-y-1.5", reelFromPhoto && "hidden")}>
             <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">✨ Accesorios (opcional)</span>
             <div className="flex items-center gap-2 flex-wrap">
               <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--radius-sm)] border border-dashed border-edge hover:border-[var(--color-brand)] text-[10px] text-fg-muted hover:text-fg cursor-pointer transition-colors">
@@ -5572,7 +5637,7 @@ function ConfigPanel({
           )}
 
           {/* Visual style */}
-          <div className="space-y-1.5">
+          <div className={cn("space-y-1.5", reelFromPhoto && "hidden")}>
             <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Estilo visual</span>
             <select
               value={config.visualStyle}
@@ -6282,7 +6347,7 @@ function ConfigPanel({
           de los AssetSelectors que vienen abajo. En sidebar 440px este "índice"
           ya no aporta valor y confunde (el usuario veía "Producto base (opcional)"
           dos veces). En el resto de las tools se mantiene por ahora. */}
-      {tool.id !== "product_sheet" && (schema.showAvatar || schema.showProduct || schema.showClothing || schema.showBackground || schema.showVoice || schema.showLanguage) && (
+      {tool.id !== "product_sheet" && !reelFromPhoto && (schema.showAvatar || schema.showProduct || schema.showClothing || schema.showBackground || schema.showVoice || schema.showLanguage) && (
         <div className="bg-surface-0 border border-edge rounded-[var(--radius-sm)] px-4 py-2 flex gap-3 flex-wrap">
           {[
             schema.showAvatar && (schema.avatarLabel || "Avatar"),
@@ -6300,7 +6365,7 @@ function ConfigPanel({
       {/* Asset selection — only render sections that this tool uses.
           En sidebar 440px usamos 1 col siempre (gap chico) para que las cards no
           se encimen. El layout 2-cols del antiguo full-width se descarta. */}
-      {(schema.showAvatar || schema.showProduct || schema.showClothing || schema.showBackground || schema.showMoodboard) && (
+      {!reelFromPhoto && (schema.showAvatar || schema.showProduct || schema.showClothing || schema.showBackground || schema.showMoodboard) && (
         <div className="grid grid-cols-1 gap-2">
           {/* Resumen consolidado — TODO lo seleccionado en un solo lugar. En
               ecommerce_pack lo renderizamos arriba (encima de Accesorios), así que
