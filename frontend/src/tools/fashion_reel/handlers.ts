@@ -970,7 +970,9 @@ export const handleAnimate: StepHandler = async (ctx) => {
   const rawCreativeMode = (cfg.creativeMode as string) || "single-frame";
   // La receta define su propio movimiento: nada de morph entre escenas.
   const useF2F = !recipe && engine === "kling" && rawCreativeMode === "frame-to-frame";
-  const klingModel = ((cfg.videoModel as KlingModel) || "v3-pro") as KlingModel;
+  // De Kling, Fashion Reel usa sólo V3 Pro (Gonzalo, 2026-10-14). Configs viejas con otro
+  // modelo guardado también van por V3 Pro.
+  const klingModel: KlingModel = "v3-pro";
   // Duración por clip — depende del modelo (V3 Pro: 3–10; V2.x: 5/10). Clampeamos al set
   // permitido para no mandarle a Fal un valor que rechaza. Default 5s.
   const allowedDurations = klingDurationOptions(klingModel);
@@ -1197,7 +1199,9 @@ export async function regenerateSceneClip(o: {
   const cfg = readCfg(o.config);
   const recipe = getRecipe(cfg.recipeId as string | null | undefined);
   const engine = (cfg.animationEngine as "kling" | "seedance") || "kling";
-  const klingModel = ((cfg.videoModel as KlingModel) || "v3-pro") as KlingModel;
+  // De Kling, Fashion Reel usa sólo V3 Pro (Gonzalo, 2026-10-14). Configs viejas con otro
+  // modelo guardado también van por V3 Pro.
+  const klingModel: KlingModel = "v3-pro";
   const allowed = klingDurationOptions(klingModel);
   const wanted = String(o.durationSec ?? cfg.clipDuration);
   const duration = engine === "seedance"

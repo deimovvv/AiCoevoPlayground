@@ -6850,9 +6850,7 @@ function ConfigPanel({
                  receta, viene pre-cargado con el que recomienda; el usuario decide. */
               <ModelDropdown
                 label="Modelo de video"
-                value={config.animationEngine === "seedance"
-                  ? "seedance"
-                  : ((config as { videoModel?: string }).videoModel || "v3-pro")}
+                value={config.animationEngine === "seedance" ? "seedance" : "v3-pro"}
                 onChange={(next) => setConfig((p) => (next === "seedance"
                   ? { ...p, animationEngine: "seedance" }
                   : { ...p, animationEngine: "kling", videoModel: next }) as typeof p)}
@@ -6861,10 +6859,8 @@ function ConfigPanel({
                   const secs = Number(config.clipDuration) || 5;
                   const k = (m: string) => `~US$${videoUsd(secs, 1, m).toFixed(2)} por clip de ${secs} s`;
                   return [
+                    // De Kling sólo V3 Pro (Gonzalo, 2026-10-14).
                     { id: "v3-pro", label: "Kling V3 Pro", sub: `Por defecto · mejor identidad · ${k("v3-pro")}` },
-                    { id: "v3-std", label: "Kling V3 Standard", sub: `Misma familia, más barato · ${k("v3-std")}` },
-                    { id: "v2-6-pro", label: "Kling V2.6 Pro", sub: `Generación anterior · ${k("v2-6-pro")}` },
-                    { id: "v2-5-turbo", label: "Kling V2.5 Turbo", sub: `El más rápido · ${k("v2-5-turbo")}` },
                     { id: "seedance", label: "Seedance 2.5 (kie)", sub: `Multi-referencia · 720p · ~US$${seedanceUsd(Math.max(4, secs), 1, "720p").toFixed(2)} por clip de ${Math.max(4, secs)} s` },
                   ];
                 })()}
@@ -6892,7 +6888,7 @@ function ConfigPanel({
                   : 4;
               const secs = Number(config.clipDuration) || 5;
               const seedance = config.animationEngine === "seedance";
-              const vModel = (config as { videoModel?: string }).videoModel || "v3-pro";
+              const vModel = "v3-pro";
               const video = seedance ? seedanceUsd(Math.max(4, secs), clips, "720p") : videoUsd(secs, clips, vModel);
               // Imágenes: 2 variantes por plano generado; desde una foto, la foto no se genera.
               const generated = reelFromPhoto ? shots : clips;
@@ -6929,7 +6925,7 @@ function ConfigPanel({
                 Depende del modelo: V3 Pro 3–10s (podés clips cortos de 3s); V2.x 5/10.
                 Total del reel = Nº de escenas × esta duración. */}
             {tool.id === "fashion_reel" && (config.animationEngine ?? "kling") === "kling" && (() => {
-              const durs = klingDurationOptions(((config as { videoModel?: string }).videoModel) || "v3-pro");
+              const durs = klingDurationOptions("v3-pro");
               return (
                 <div className="space-y-1.5 pt-1">
                   <span className="text-[10px] font-semibold text-fg-faint uppercase tracking-widest">Duración por clip</span>
