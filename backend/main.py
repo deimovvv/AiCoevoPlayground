@@ -4,6 +4,7 @@ UGC Video Generation API
 Thin routing layer — all logic lives in services/.
 """
 
+import base64
 import os
 import io
 import json
@@ -4059,6 +4060,16 @@ async def kling_frame_to_frame(req: KlingFrameToFrameRequest):
 
         for url_attr in ["start", "end"]:
             url = resolved_start if url_attr == "start" else resolved_end
+            # Foto embebida (Fashion Reel "desde una foto"): decodificar y subir a Fal.
+            if url and url.startswith("data:"):
+                header, b64 = url.split(",", 1)
+                mime = header[5:].split(";")[0] or "image/jpeg"
+                fal_url = await kling_video.upload_image(base64.b64decode(b64), f"{url_attr}.jpg", mime)
+                if url_attr == "start":
+                    resolved_start = fal_url
+                else:
+                    resolved_end = fal_url
+                continue
             # Normalize full localhost URLs to /static/ path
             if "localhost" in url or "127.0.0.1" in url:
                 for prefix in static_dirs:
@@ -4181,6 +4192,16 @@ async def kling_create_video(
                         status_code=400,
                         detail=f"Local avatar image not found: {image_url}",
                     )
+            elif image_url.startswith("data:"):
+                # Foto embebida (Fashion Reel "desde una foto" la manda así). Antes caía en
+                # "URL externa", httpx no sabe bajar un data: y el clip fallaba (2026-10-14).
+                try:
+                    header, b64 = image_url.split(",", 1)
+                    content_type = header[5:].split(";")[0] or "image/jpeg"
+                    ext = {"image/png": "png", "image/webp": "webp"}.get(content_type, "jpg")
+                    resolved_url = await kling_video.upload_image(base64.b64decode(b64), f"frame.{ext}", content_type)
+                except Exception as e:
+                    raise HTTPException(status_code=400, detail=f"Imagen embebida inválida: {e}")
             else:
                 # External URL — download and re-upload to ensure Fal can access it
                 print(f"[kling-endpoint] Downloading external URL...")
