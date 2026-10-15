@@ -17,3 +17,32 @@ marca, para usarla con otro material y otra marca.
 - **WHEN** se usa la plantilla "Reel de marca" en Geely
 - **THEN** SHALL aparecer la misma estructura con los huecos vacíos
 - **AND** el look SHALL ser el de Geely, no el de la marca de origen
+
+### Requirement: Tramos generados que se regeneran desde el timeline
+Un tramo generado SHALL guardar cómo se hizo (modelo, prompt, referencias, formato, duración,
+costo) y SHALL poder regenerarse desde el editor cambiando el prompt, con el costo a la vista
+antes de confirmar y la versión anterior guardada.
+
+#### Scenario: Cambiar un plano por prompt
+- **GIVEN** un tramo de Seedance de 4 s en 1080p
+- **WHEN** el operador edita su prompt y elige "Regenerar"
+- **THEN** SHALL ver el costo (US$3,16) antes de confirmar
+- **AND** al terminar SHALL poder comparar la versión nueva con la anterior y quedarse con una
+
+### Requirement: Del brief al plan
+A partir de un brief y sus inputs, el sistema SHALL armar un proyecto con todos los tramos en
+estado pendiente y SHALL generarlos en orden de dependencia (las imágenes antes que los videos
+que las usan como referencia).
+
+#### Scenario: Video catálogo
+- **WHEN** se pide el video catálogo con un avatar sheet y dos prendas
+- **THEN** el proyecto SHALL listar las fotos finales y los planos de video como pendientes
+- **AND** ningún plano de video SHALL generarse antes que las fotos que usa
+
+### Requirement: Un proyecto, dos formatos
+Un proyecto SHALL poder exportarse en 16:9 y 9:16; los tramos generados SHALL generarse nativos
+en cada formato (sin recortar uno del otro) y la voz SHALL poder ir sólo en uno.
+
+#### Scenario: Hero sin voz y pauta con voz
+- **WHEN** se exporta el video catálogo
+- **THEN** SHALL salir un 16:9 sin voz para la web y un 9:16 con voz para pauta

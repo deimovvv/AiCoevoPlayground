@@ -28,11 +28,40 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Campañas | Centro del pedido: imagen adentro, video lanzando la tool | 2026-10-03 · `changes/campaigns-as-hub` |
 | Referencias de Campañas | Un dueño por dominio; el moodboard se lee (texto), el fondo se usa literal | 2026-10-12 · `specs/campaigns` |
 | Keys de Google | Sólo la de Coevo (`GEMINI_API_KEY`) o falla; nunca una de Monks | 2026-10-06 |
+| Timeline | Sección **Videos** por marca; tramos generados que se regeneran por prompt; un proyecto, 16:9 y 9:16 | 2026-10-15 · `changes/video-editor-next` §7 |
+| Fotos de ficha | Poses curadas de Coevo por plano y género; estilo Catálogo / Editorial | 2026-10-15 · `changes/catalog-poses-quality` |
 | Infraestructura | FastAPI + PostgreSQL + SQLAlchemy 2 + Alembic; archivos en R2; migrar de a una | 2026-10-09 · `changes/infra-v1` |
 | Servidor de producción | Hostinger VPS KVM 2 (2 vCPU/8 GB) + Cloudflare (Pages, Access, Tunnel, R2) | 2026-10-13 · `infra-v1`, `docs/guias/produccion.md` |
 | Remotion | Gratis hasta 3 empleados; después US$100/mes mínimo → reemplazarlo antes de crecer | 2026-10-13 · `infra-v1` |
 | Reportes a clientes | Se leen de Postiz (ya resuelve Meta orgánico); una plataforma multi-marca, nunca un dashboard por cliente | 2026-10-09 · `changes/brand-integrations` |
 | Tools / editor / skills | Tool genera · editor monta (uno solo) · skill descubre; lo validado pasa a la app como plantilla o receta | 2026-10-09 |
+
+---
+
+## 2026-10-15 — Catálogo de Morph: poses curadas, GPT Image 2 y el timeline generativo
+
+**Qué pasó:** se rehicieron las fotos y el video de `morphaiagency.com/catalogo` por script
+(`~/cov/reels/catalogo-morph/`). La primera versión, sin pose de referencia, salió dura
+(*"está pésima"*). Con las poses curadas de `~/Documents/POSES-*` y los bloques de prompt del
+Ecommerce Pack salió bien. Se compararon Nano Banana 2 y GPT Image 2 en la misma toma.
+
+**Decisiones:**
+- **Las poses son de Coevo, no de cada marca**, y se eligen por toma (plano + género). Hoy la app
+  sólo tiene la librería por marca. → `changes/catalog-poses-quality`.
+- **Catálogo / Editorial es un estilo de la ficha** (fondo + luz + poses), no otra tool. La campaña
+  con escenario sigue en Campañas.
+- **GPT Image 2 en Final para la ficha del catálogo**, elegido por el usuario (mejor tela y largo de
+  prenda). Nano copia mejor la pose y el fondo: queda como opción; elige el operador.
+- **Video de ficha = tres planos de 4 s** (general, detalle, medio) con Kling V3 Pro (Kling 4 en Fal
+  está en acceso anticipado). US$1,34 por ficha a la primera.
+- **El timeline no es una herramienta nueva:** es el editor que ya existe, que pasa a ser la
+  sección **Videos** de la marca y suma tramos generados (prompt, modelo, referencias, versiones)
+  que se regeneran desde el timeline. Primer caso: el video catálogo de Morph (hero 16:9 sin voz
+  + pauta 9:16 con voz), guion en `morph-site/docs/reference/GUION-VIDEO-CATALOGO.md`.
+  → `changes/video-editor-next` §7.
+
+**Descartado:** una tool "video catálogo" aparte (repetía el editor); recortar el 16:9 para sacar
+el 9:16 (se pierde el fotógrafo o la modelo).
 
 ---
 

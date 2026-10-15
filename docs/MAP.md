@@ -177,8 +177,9 @@ Cada una tiene su change en `openspec/changes/` (proposal · tasks · spec delta
 | 5 | **Gates de Ecommerce Pack** | una toma → mostrar → confirmar → siguiente | [tools-audit.md](producto/tools-audit.md) §3 | ○ |
 | 6 | **Presets de Campañas** | migrar scene_reconstruct, screen_mockup, fooh_subway | [tools-audit.md](producto/tools-audit.md) | ○ |
 | 7 | **Capa de marca por código** | precio, prenda, logo animado sobre el video; el texto generativo se deforma | `openspec/specs/video-editor/` | ◐ textos hechos · bloques animados en `video-editor-next` |
-| 8 | **Video nuevo, proyectos por marca y plantillas** | armar un video con la biblioteca de la marca; guardar un estilo y reusarlo en otra marca | `openspec/changes/video-editor-next` | ○ propuesto |
-| 9 | **Integraciones: Meta y Postiz** | métricas de la marca que se actualizan solas; lo programado y lo publicado, con sus números | `openspec/changes/brand-integrations` | ○ propuesto (hoy son pantallas de muestra) |
+| 8 | **Videos (sección por marca) y timeline generativo** | armar un video con la biblioteca de la marca; plantillas; tramos generados que se regeneran por prompt; un proyecto en 16:9 y 9:16 | `openspec/changes/video-editor-next` (§7) | ○ propuesto · primer caso: video catálogo de Morph |
+| 9 | **Fotos de ficha con poses curadas** | librería de poses de Coevo por plano y género, selector por toma, estilo Catálogo / Editorial | `openspec/changes/catalog-poses-quality` | ○ propuesto |
+| 10 | **Integraciones: Meta y Postiz** | métricas de la marca que se actualizan solas; lo programado y lo publicado, con sus números | `openspec/changes/brand-integrations` | ○ propuesto (hoy son pantallas de muestra) |
 
 **El ciclo que conecta todo:** las recetas proponen, el editor muestra, el
 comentario corrige y queda guardado en la receta. Es el mismo principio en

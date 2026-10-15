@@ -39,6 +39,25 @@ mensaje". Piezas que se arrastran al timeline y se anclan como los textos.
 por decisión del usuario), "Abrir en editor" desde Contenido / Lab / Campañas, frame de
 portada, subtítulos desde la voz, corte automático de talking heads, "animar con IA".
 
+**7. Videos como sección propia, y el timeline generativo** (2026-10-15). Hoy el editor existe
+(`/editor?path=…` y dentro de Fashion Reel) pero no tiene entrada en la barra lateral. Pasa a
+ser la sección **Videos** de cada marca: la lista de proyectos, "Nuevo video" y las plantillas.
+Y cada tramo puede ser **generado**: guarda cómo se hizo (modelo, prompt, referencias, formato,
+duración, costo, versiones) y se regenera desde el timeline cambiando el prompt.
+
+> *"una buena oportunidad para implementar el timeline dentro de Coevo Studio, en la que, a
+> partir de un prompt, nos genera todos los videos y los inputs que yo te pasé, y lo vamos
+> editando de manera generativa"* — usuario, 2026-10-15
+
+- **Del prompt al plan:** el brief + los inputs (avatar sheet, prendas, referencias) → la skill
+  `reel-marca` escribe el `timeline.json` con todos los tramos en "pendiente"; se generan en
+  orden de dependencia (fotos primero, videos que las usan después).
+- **Un proyecto, dos formatos** (16:9 web sin voz · 9:16 pauta con voz): los tramos generados se
+  hacen nativos en cada formato; los bloques se reacomodan; la voz va sólo donde se pide.
+- **Primer caso y primera plantilla generativa:** el video catálogo de Morph
+  (`morph-site/docs/reference/GUION-VIDEO-CATALOGO.md`), con los bloques flash, grilla que
+  explota y proceso en tres columnas.
+
 ## Capabilities
 
 ### Modified Capabilities
