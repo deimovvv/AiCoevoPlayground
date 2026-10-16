@@ -2703,6 +2703,48 @@ def list_system_voices():
     return {"voices": []}
 
 
+@app.get("/api/system/lighting")
+def list_system_lighting():
+    """Presets de iluminación disponibles para TODAS las marcas.
+
+    Mismo patrón que `/api/voices/system`: son assets del sistema, no de una marca.
+    Cada preset trae su `prompt` — el fragmento que describe esa luz y que se inyecta
+    al generar. Sin eso sería solo una miniatura decorativa.
+
+    La convención visual es la esfera de referencia 3D (Unreal/Blender): esfera mate
+    gris, mismo encuadre, y lo único que cambia entre presets es la luz.
+    """
+    f = DATA_DIR / "system" / "lighting.json"
+    if f.exists():
+        import json
+        return {"presets": json.loads(f.read_text())}
+    return {"presets": []}
+
+
+@app.get("/api/system/poses")
+def list_system_poses(gender: Optional[str] = None, plano: Optional[str] = None, shot: Optional[str] = None):
+    """Poses curadas de Coevo, para TODAS las marcas (openspec/changes/catalog-poses-quality).
+
+    Maniquí gris como referencia de pose: se copia la postura y el encuadre, nunca la ropa.
+    Filtros: `gender` (mujer|hombre), `plano` (cuerpo-entero|medio|inferior|detalle) y
+    `shot` (id de toma del Ecommerce Pack, ej. model_medium). La librería de cada marca
+    (`/api/brands/{id}/poses`) suma encima. Las skills leen este mismo índice.
+    """
+    f = DATA_DIR / "system" / "poses.json"
+    if not f.exists():
+        return {"poses": []}
+    import json
+    poses = json.loads(f.read_text())
+    if gender:
+        poses = [p for p in poses if p["gender"] == gender]
+    if plano:
+        poses = [p for p in poses if p["plano"] == plano]
+    if shot:
+        poses = [p for p in poses if shot in p["shots"]]
+    return {"poses": poses}
+
+
+# Va después de las rutas fijas (/lighting, /poses): si no, "{kind}" se las queda y devuelve 404.
 @app.get("/api/system/{kind}")
 def list_system_presets(kind: str):
     """Presets del SISTEMA por eje: framing | vibe (y lighting, abajo).
@@ -2718,24 +2760,6 @@ def list_system_presets(kind: str):
     if kind not in ("framing", "vibe"):
         raise HTTPException(status_code=404, detail=f"Preset '{kind}' no existe")
     f = DATA_DIR / "system" / f"{kind}.json"
-    if f.exists():
-        import json
-        return {"presets": json.loads(f.read_text())}
-    return {"presets": []}
-
-
-@app.get("/api/system/lighting")
-def list_system_lighting():
-    """Presets de iluminación disponibles para TODAS las marcas.
-
-    Mismo patrón que `/api/voices/system`: son assets del sistema, no de una marca.
-    Cada preset trae su `prompt` — el fragmento que describe esa luz y que se inyecta
-    al generar. Sin eso sería solo una miniatura decorativa.
-
-    La convención visual es la esfera de referencia 3D (Unreal/Blender): esfera mate
-    gris, mismo encuadre, y lo único que cambia entre presets es la luz.
-    """
-    f = DATA_DIR / "system" / "lighting.json"
     if f.exists():
         import json
         return {"presets": json.loads(f.read_text())}

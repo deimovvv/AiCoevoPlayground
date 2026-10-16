@@ -1,0 +1,650 @@
+[
+  {
+    "id": "mujer-01-frontal-relajada",
+    "gender": "mujer",
+    "plano": "cuerpo-entero",
+    "name": "Frontal relajada",
+    "imageUrl": "/static/system/poses/mujer/01-frontal-relajada.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "mujer-02-manos-bolsillos",
+    "gender": "mujer",
+    "plano": "cuerpo-entero",
+    "name": "Manos bolsillos",
+    "imageUrl": "/static/system/poses/mujer/02-manos-bolsillos.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "mujer-03-tres-cuartos",
+    "gender": "mujer",
+    "plano": "cuerpo-entero",
+    "name": "Tres cuartos",
+    "imageUrl": "/static/system/poses/mujer/03-tres-cuartos.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "mujer-04-una-mano-cadera",
+    "gender": "mujer",
+    "plano": "cuerpo-entero",
+    "name": "Una mano cadera",
+    "imageUrl": "/static/system/poses/mujer/04-una-mano-cadera.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "mujer-05-caminando",
+    "gender": "mujer",
+    "plano": "cuerpo-entero",
+    "name": "Caminando",
+    "imageUrl": "/static/system/poses/mujer/05-caminando.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "mujer-06-espalda-sobre-hombro",
+    "gender": "mujer",
+    "plano": "cuerpo-entero",
+    "name": "Espalda sobre hombro",
+    "imageUrl": "/static/system/poses/mujer/06-espalda-sobre-hombro.webp",
+    "shots": [
+      "model_back",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "mujer-07-brazos-cruzados",
+    "gender": "mujer",
+    "plano": "cuerpo-entero",
+    "name": "Brazos cruzados",
+    "imageUrl": "/static/system/poses/mujer/07-brazos-cruzados.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "mujer-08-apoyada",
+    "gender": "mujer",
+    "plano": "cuerpo-entero",
+    "name": "Apoyada",
+    "imageUrl": "/static/system/poses/mujer/08-apoyada.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "mujer-09-perfil",
+    "gender": "mujer",
+    "plano": "cuerpo-entero",
+    "name": "Perfil",
+    "imageUrl": "/static/system/poses/mujer/09-perfil.webp",
+    "shots": [
+      "model_side",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "mujer-10-sentada",
+    "gender": "mujer",
+    "plano": "cuerpo-entero",
+    "name": "Sentada",
+    "imageUrl": "/static/system/poses/mujer/10-sentada.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "mujer-11-medio-frontal",
+    "gender": "mujer",
+    "plano": "medio",
+    "name": "Frontal",
+    "imageUrl": "/static/system/poses/mujer/11-medio-frontal.webp",
+    "shots": [
+      "model_medium",
+      "model_american"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-12-medio-manos-bolsillos",
+    "gender": "mujer",
+    "plano": "medio",
+    "name": "Manos bolsillos",
+    "imageUrl": "/static/system/poses/mujer/12-medio-manos-bolsillos.webp",
+    "shots": [
+      "model_medium",
+      "model_american"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-13-medio-tres-cuartos",
+    "gender": "mujer",
+    "plano": "medio",
+    "name": "Tres cuartos",
+    "imageUrl": "/static/system/poses/mujer/13-medio-tres-cuartos.webp",
+    "shots": [
+      "model_medium",
+      "model_american"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-14-medio-brazos-cruzados",
+    "gender": "mujer",
+    "plano": "medio",
+    "name": "Brazos cruzados",
+    "imageUrl": "/static/system/poses/mujer/14-medio-brazos-cruzados.webp",
+    "shots": [
+      "model_medium",
+      "model_american"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-15-medio-mano-cuello",
+    "gender": "mujer",
+    "plano": "medio",
+    "name": "Mano cuello",
+    "imageUrl": "/static/system/poses/mujer/15-medio-mano-cuello.webp",
+    "shots": [
+      "model_medium",
+      "model_american"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-16-medio-espalda",
+    "gender": "mujer",
+    "plano": "medio",
+    "name": "Espalda",
+    "imageUrl": "/static/system/poses/mujer/16-medio-espalda.webp",
+    "shots": [
+      "model_back",
+      "model_medium"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-21-inferior-de-pie",
+    "gender": "mujer",
+    "plano": "inferior",
+    "name": "De pie",
+    "imageUrl": "/static/system/poses/mujer/21-inferior-de-pie.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-22-inferior-piernas-cruzadas",
+    "gender": "mujer",
+    "plano": "inferior",
+    "name": "Piernas cruzadas",
+    "imageUrl": "/static/system/poses/mujer/22-inferior-piernas-cruzadas.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-23-inferior-caminando",
+    "gender": "mujer",
+    "plano": "inferior",
+    "name": "Caminando",
+    "imageUrl": "/static/system/poses/mujer/23-inferior-caminando.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-24-inferior-paso-adelante",
+    "gender": "mujer",
+    "plano": "inferior",
+    "name": "Paso adelante",
+    "imageUrl": "/static/system/poses/mujer/24-inferior-paso-adelante.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-25-inferior-perfil",
+    "gender": "mujer",
+    "plano": "inferior",
+    "name": "Perfil",
+    "imageUrl": "/static/system/poses/mujer/25-inferior-perfil.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-26-inferior-espalda",
+    "gender": "mujer",
+    "plano": "inferior",
+    "name": "Espalda",
+    "imageUrl": "/static/system/poses/mujer/26-inferior-espalda.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-27-inferior-sentado",
+    "gender": "mujer",
+    "plano": "inferior",
+    "name": "Sentado",
+    "imageUrl": "/static/system/poses/mujer/27-inferior-sentado.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-28-inferior-apoyado",
+    "gender": "mujer",
+    "plano": "inferior",
+    "name": "Apoyado",
+    "imageUrl": "/static/system/poses/mujer/28-inferior-apoyado.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-31-detalle-cintura",
+    "gender": "mujer",
+    "plano": "detalle",
+    "name": "Cintura",
+    "imageUrl": "/static/system/poses/mujer/31-detalle-cintura.webp",
+    "shots": [
+      "model_detail"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-32-detalle-mano-bolsillo",
+    "gender": "mujer",
+    "plano": "detalle",
+    "name": "Mano bolsillo",
+    "imageUrl": "/static/system/poses/mujer/32-detalle-mano-bolsillo.webp",
+    "shots": [
+      "model_detail"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-33-detalle-pulgar-cinturon",
+    "gender": "mujer",
+    "plano": "detalle",
+    "name": "Pulgar cinturon",
+    "imageUrl": "/static/system/poses/mujer/33-detalle-pulgar-cinturon.webp",
+    "shots": [
+      "model_detail"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "mujer-34-detalle-cadera-tres-cuartos",
+    "gender": "mujer",
+    "plano": "detalle",
+    "name": "Cadera tres cuartos",
+    "imageUrl": "/static/system/poses/mujer/34-detalle-cadera-tres-cuartos.webp",
+    "shots": [
+      "model_detail"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-01-frontal-relajada",
+    "gender": "hombre",
+    "plano": "cuerpo-entero",
+    "name": "Frontal relajada",
+    "imageUrl": "/static/system/poses/hombre/01-frontal-relajada.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "hombre-02-manos-bolsillos",
+    "gender": "hombre",
+    "plano": "cuerpo-entero",
+    "name": "Manos bolsillos",
+    "imageUrl": "/static/system/poses/hombre/02-manos-bolsillos.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "hombre-03-tres-cuartos",
+    "gender": "hombre",
+    "plano": "cuerpo-entero",
+    "name": "Tres cuartos",
+    "imageUrl": "/static/system/poses/hombre/03-tres-cuartos.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "hombre-04-una-mano-bolsillo",
+    "gender": "hombre",
+    "plano": "cuerpo-entero",
+    "name": "Una mano bolsillo",
+    "imageUrl": "/static/system/poses/hombre/04-una-mano-bolsillo.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "hombre-05-caminando",
+    "gender": "hombre",
+    "plano": "cuerpo-entero",
+    "name": "Caminando",
+    "imageUrl": "/static/system/poses/hombre/05-caminando.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "hombre-06-espalda-sobre-hombro",
+    "gender": "hombre",
+    "plano": "cuerpo-entero",
+    "name": "Espalda sobre hombro",
+    "imageUrl": "/static/system/poses/hombre/06-espalda-sobre-hombro.webp",
+    "shots": [
+      "model_back",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "hombre-07-brazos-cruzados",
+    "gender": "hombre",
+    "plano": "cuerpo-entero",
+    "name": "Brazos cruzados",
+    "imageUrl": "/static/system/poses/hombre/07-brazos-cruzados.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "hombre-08-apoyado",
+    "gender": "hombre",
+    "plano": "cuerpo-entero",
+    "name": "Apoyado",
+    "imageUrl": "/static/system/poses/hombre/08-apoyado.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "hombre-09-perfil",
+    "gender": "hombre",
+    "plano": "cuerpo-entero",
+    "name": "Perfil",
+    "imageUrl": "/static/system/poses/hombre/09-perfil.webp",
+    "shots": [
+      "model_side",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "hombre-10-sentado",
+    "gender": "hombre",
+    "plano": "cuerpo-entero",
+    "name": "Sentado",
+    "imageUrl": "/static/system/poses/hombre/10-sentado.webp",
+    "shots": [
+      "model_front",
+      "model_custom"
+    ],
+    "style": "maniqui"
+  },
+  {
+    "id": "hombre-11-medio-frontal",
+    "gender": "hombre",
+    "plano": "medio",
+    "name": "Frontal",
+    "imageUrl": "/static/system/poses/hombre/11-medio-frontal.webp",
+    "shots": [
+      "model_medium",
+      "model_american"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-12-medio-manos-bolsillos",
+    "gender": "hombre",
+    "plano": "medio",
+    "name": "Manos bolsillos",
+    "imageUrl": "/static/system/poses/hombre/12-medio-manos-bolsillos.webp",
+    "shots": [
+      "model_medium",
+      "model_american"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-13-medio-tres-cuartos",
+    "gender": "hombre",
+    "plano": "medio",
+    "name": "Tres cuartos",
+    "imageUrl": "/static/system/poses/hombre/13-medio-tres-cuartos.webp",
+    "shots": [
+      "model_medium",
+      "model_american"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-14-medio-brazos-cruzados",
+    "gender": "hombre",
+    "plano": "medio",
+    "name": "Brazos cruzados",
+    "imageUrl": "/static/system/poses/hombre/14-medio-brazos-cruzados.webp",
+    "shots": [
+      "model_medium",
+      "model_american"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-15-medio-mano-cuello",
+    "gender": "hombre",
+    "plano": "medio",
+    "name": "Mano cuello",
+    "imageUrl": "/static/system/poses/hombre/15-medio-mano-cuello.webp",
+    "shots": [
+      "model_medium",
+      "model_american"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-16-medio-espalda",
+    "gender": "hombre",
+    "plano": "medio",
+    "name": "Espalda",
+    "imageUrl": "/static/system/poses/hombre/16-medio-espalda.webp",
+    "shots": [
+      "model_back",
+      "model_medium"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-21-inferior-de-pie",
+    "gender": "hombre",
+    "plano": "inferior",
+    "name": "De pie",
+    "imageUrl": "/static/system/poses/hombre/21-inferior-de-pie.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-22-inferior-piernas-cruzadas",
+    "gender": "hombre",
+    "plano": "inferior",
+    "name": "Piernas cruzadas",
+    "imageUrl": "/static/system/poses/hombre/22-inferior-piernas-cruzadas.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-23-inferior-caminando",
+    "gender": "hombre",
+    "plano": "inferior",
+    "name": "Caminando",
+    "imageUrl": "/static/system/poses/hombre/23-inferior-caminando.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-24-inferior-paso-adelante",
+    "gender": "hombre",
+    "plano": "inferior",
+    "name": "Paso adelante",
+    "imageUrl": "/static/system/poses/hombre/24-inferior-paso-adelante.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-25-inferior-perfil",
+    "gender": "hombre",
+    "plano": "inferior",
+    "name": "Perfil",
+    "imageUrl": "/static/system/poses/hombre/25-inferior-perfil.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-26-inferior-espalda",
+    "gender": "hombre",
+    "plano": "inferior",
+    "name": "Espalda",
+    "imageUrl": "/static/system/poses/hombre/26-inferior-espalda.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-27-inferior-sentado",
+    "gender": "hombre",
+    "plano": "inferior",
+    "name": "Sentado",
+    "imageUrl": "/static/system/poses/hombre/27-inferior-sentado.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-28-inferior-apoyado",
+    "gender": "hombre",
+    "plano": "inferior",
+    "name": "Apoyado",
+    "imageUrl": "/static/system/poses/hombre/28-inferior-apoyado.webp",
+    "shots": [
+      "model_detail_lower"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-31-detalle-cintura",
+    "gender": "hombre",
+    "plano": "detalle",
+    "name": "Cintura",
+    "imageUrl": "/static/system/poses/hombre/31-detalle-cintura.webp",
+    "shots": [
+      "model_detail"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-32-detalle-mano-bolsillo",
+    "gender": "hombre",
+    "plano": "detalle",
+    "name": "Mano bolsillo",
+    "imageUrl": "/static/system/poses/hombre/32-detalle-mano-bolsillo.webp",
+    "shots": [
+      "model_detail"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-33-detalle-pulgar-cinturon",
+    "gender": "hombre",
+    "plano": "detalle",
+    "name": "Pulgar cinturon",
+    "imageUrl": "/static/system/poses/hombre/33-detalle-pulgar-cinturon.webp",
+    "shots": [
+      "model_detail"
+    ],
+    "style": "madera"
+  },
+  {
+    "id": "hombre-34-detalle-cadera-tres-cuartos",
+    "gender": "hombre",
+    "plano": "detalle",
+    "name": "Cadera tres cuartos",
+    "imageUrl": "/static/system/poses/hombre/34-detalle-cadera-tres-cuartos.webp",
+    "shots": [
+      "model_detail"
+    ],
+    "style": "madera"
+  }
+]

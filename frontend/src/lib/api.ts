@@ -3606,6 +3606,39 @@ export async function fetchSystemLighting(): Promise<LightingPreset[]> {
     }
 }
 
+export type PoseGender = "mujer" | "hombre";
+export type PosePlano = "cuerpo-entero" | "medio" | "inferior" | "detalle";
+
+/** Pose curada de Coevo (maniquí gris): se copia postura y encuadre, nunca la ropa. */
+export interface SystemPose {
+    id: string;
+    gender: PoseGender;
+    plano: PosePlano;
+    name: string;
+    imageUrl: string;
+    /** Tomas del Ecommerce Pack donde encaja (ej. `model_medium`). */
+    shots: string[];
+    /** "madera" = muñeco articulado, a rehacer como maniquí (catalog-poses-quality 1.1). */
+    style: "maniqui" | "madera";
+}
+
+/** Poses curadas para todas las marcas. Fail-open como la luz: sin poses, no rompe nada. */
+export async function fetchSystemPoses(
+    filter: { gender?: PoseGender; plano?: PosePlano; shot?: string } = {},
+): Promise<SystemPose[]> {
+    try {
+        const q = new URLSearchParams(
+            Object.entries(filter).filter(([, v]) => v) as [string, string][],
+        );
+        const res = await fetch(`${API_BASE}/api/system/poses?${q}`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.poses || [];
+    } catch {
+        return [];
+    }
+}
+
 // ══════════════════════════════════════════════════════════════
 //  TikTok / Apify
 // ══════════════════════════════════════════════════════════════

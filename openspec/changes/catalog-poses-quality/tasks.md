@@ -1,7 +1,7 @@
 ## 1. Poses
 
 - [ ] 1.1 Rehacer las 18 poses de muñeco de madera (medio, inferior, detalle) como maniquí de tienda, mujer y hombre (~US$2–3).
-- [ ] 1.2 Librería global de poses de Coevo (mujer/hombre × plano) servida por el backend; la de cada marca suma encima.
+- [x] 1.2 Librería global de poses de Coevo (mujer/hombre × plano) servida por el backend: `backend/data/system/poses.json` + `poses/{mujer,hombre}/*.webp`, `GET /api/system/poses?gender=&plano=&shot=`, `fetchSystemPoses` en `api.ts` (2026-10-16). Falta sumar la de la marca encima en el selector (1.3).
 - [ ] 1.3 Selector de pose por toma en el Ecommerce Pack, filtrado por plano y género.
 - [ ] 1.4 Set de ~10 poses editoriales por género (sentada en cubo, apoyada, caminando, sobre el hombro).
 
