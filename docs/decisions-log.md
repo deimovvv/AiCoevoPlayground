@@ -30,6 +30,7 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Keys de Google | Sólo la de Coevo (`GEMINI_API_KEY`) o falla; nunca una de Monks | 2026-10-06 |
 | Timeline | Sección **Videos** por marca; tramos generados que se regeneran por prompt; un proyecto, 16:9 y 9:16 | 2026-10-15 · `changes/video-editor-next` §7 |
 | Fotos de ficha | Poses curadas de Coevo por plano y género; estilo Catálogo / Editorial | 2026-10-15 · `changes/catalog-poses-quality` |
+| Estrategia | Un motor (skills + criterio + memoria de marca + circuito), cuatro líneas (Morph, Coevo Studio, sistemas, arte y tecnología); no SaaS | 2026-10-16 · `docs/negocio/estrategia-motor.md` |
 | Infraestructura | FastAPI + PostgreSQL + SQLAlchemy 2 + Alembic; archivos en R2; migrar de a una | 2026-10-09 · `changes/infra-v1` |
 | Servidor de producción | Hostinger VPS KVM 2 (2 vCPU/8 GB) + Cloudflare (Pages, Access, Tunnel, R2) | 2026-10-13 · `infra-v1`, `docs/guias/produccion.md` |
 | Remotion | Gratis hasta 3 empleados; después US$100/mes mínimo → reemplazarlo antes de crecer | 2026-10-13 · `infra-v1` |
