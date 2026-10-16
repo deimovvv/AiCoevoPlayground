@@ -32,7 +32,9 @@ const FEATURED_TOOLS: Array<{ id: string; name: string; tagline: string }> = [
   { id: "ecommerce_pack", name: "Ecommerce Pack", tagline: "Prenda sobre modelo + vistas" },
   { id: "ugc_creator", name: "UGC Creator", tagline: "Avatars hablando a cámara" },
   { id: "video_ad_creator", name: "Video Ad Creator", tagline: "Ads con storyboard IA" },
-  { id: "fashion_editorial", name: "Fashion Editorial", tagline: "Variantes con receta de look" },
+  // Fashion Editorial salió: está oculta desde que pasó a preset de Campañas
+  // (tools-audit 2026-09-25), y la tarjeta llevaba a una tool que no existe.
+  { id: "carousel_creator", name: "Carousel Creator", tagline: "Carruseles con la misma sesión" },
   { id: "product_sheet", name: "Product Sheet", tagline: "Vistas de producto multi-foto" },
 ];
 

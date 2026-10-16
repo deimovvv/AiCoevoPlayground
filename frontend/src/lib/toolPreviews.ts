@@ -53,8 +53,8 @@ export const TOOL_EXAMPLES: Record<string, ToolExample> = {
       { label: "Avatar", text: "un avatar de tu marca hablando a cámara" },
       { label: "Guión", text: "el mensaje / hook a decir" },
     ],
-    outputUrl: "/previews/ugccreator.mp4",
-    outputType: "video",
+    outputUrl: "/hero/tools/ugc-creator.webp",
+    outputType: "image",
   },
   video_ad_creator: {
     inputs: [
@@ -62,16 +62,16 @@ export const TOOL_EXAMPLES: Record<string, ToolExample> = {
       { label: "Personaje", text: "opcional — o una referencia; la IA lo propone" },
       { label: "Estilo", text: "Playmobil, tejido, claymation, foto real…" },
     ],
-    outputUrl: "/previews/videoadcreator.mp4",
-    outputType: "video",
+    outputUrl: "/hero/tools/video-ad-creator.webp",
+    outputType: "image",
   },
   fashion_reel: {
     inputs: [
       { label: "Modelo", text: "el/la modelo del brand kit" },
       { label: "Prendas", text: "los looks a mostrar" },
     ],
-    outputUrl: "/previews/agnatesttt.mp4",
-    outputType: "video",
+    outputUrl: "/hero/tools/fashion-reel.webp",
+    outputType: "image",
   },
   static_ad: {
     inputs: [
@@ -99,10 +99,18 @@ export const TOOL_EXAMPLES: Record<string, ToolExample> = {
 };
 
 export const TOOL_PREVIEW_MEDIA: Record<string, ToolPreview> = {
-  // Videos reales de corridas nuestras.
-  video_ad_creator: { url: "/previews/videoadcreator.mp4", type: "video" },
-  ugc_creator: { url: "/previews/ugccreator.mp4", type: "video" },
-  fashion_reel: { url: "/previews/agnatesttt.mp4", type: "video" },
+  // Set de portadas profesional (2026-10-16). Pedido del usuario sobre las anteriores:
+  // "estos ejemplos son horribles... poné cosas más profesionales". Una sola dirección
+  // de arte para las seis — formato medio, luz natural, paleta sobria, campaña premium —
+  // para que el Inicio se lea como un catálogo y no como seis estilos sueltos. Cada una
+  // muestra lo que PRODUCE su tool. Fuentes en public/hero/tools/.
+  fashion_reel: { url: "/hero/tools/fashion-reel.webp", type: "image" },
+  ecommerce_pack: { url: "/hero/tools/ecommerce-pack.webp", type: "image" },
+  ugc_creator: { url: "/hero/tools/ugc-creator.webp", type: "image" },
+  video_ad_creator: { url: "/hero/tools/video-ad-creator.webp", type: "image" },
+  carousel_creator: { url: "/hero/tools/carousel-creator.webp", type: "image" },
+  product_sheet: { url: "/hero/tools/product-sheet.webp", type: "image" },
+
 
   // Piezas generadas — registro flash directo / 35mm / color saturado (2026-09-20).
   // Antes estos slots tenían CAPTURAS DE LA UI de 40-50 KB ("placeholders branded"),
@@ -111,12 +119,9 @@ export const TOOL_PREVIEW_MEDIA: Record<string, ToolPreview> = {
   fashion_editorial: { url: "/hero/flash-portrait.webp", type: "image" },
   avatar_creator: { url: "/hero/flash-blue-track.webp", type: "image" },
   product_spotlight: { url: "/hero/flash-red-sky.webp", type: "image" },
-  carousel_creator: { url: "/hero/flash-two-wall.webp", type: "image" },
 
   // Piezas del set editorial anterior — sirven donde el sujeto es producto o prenda.
-  ecommerce_pack: { url: "/hero/standing-pair.webp", type: "image" },
   ecommerce_batch: { url: "/hero/coat-front.webp", type: "image" },
-  product_sheet: { url: "/hero/boots-pair.webp", type: "image" },
   product_clip: { url: "/hero/garment-hanger.webp", type: "image" },
   scene_reconstruct: { url: "/hero/seated-chair.webp", type: "image" },
   video_swap: { url: "/hero/back-turn.webp", type: "image" },
