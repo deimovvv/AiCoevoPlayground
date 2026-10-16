@@ -17,8 +17,12 @@
 
 ## 4. Usuarios
 
-- [ ] 4.1 Equipo: Cloudflare Access (login con Google) delante de app y API. Confirmar el límite gratis.
+- [ ] 4.1 **PRIMERO, antes de exponer nada** (hay datos reales de clientes): Cloudflare Access (login con Google)
+      delante de app y API. El túnel no se publica sin esto. Confirmar el límite gratis.
 - [ ] 4.2 Clientes con cuenta propia (portal): Supabase Auth o Clerk — después.
+- [ ] 4.3 **Token de servicio de Cloudflare Access** para Claude Code, scripts y skills: que Claude escriba
+      directo en los proyectos del servidor (`PUT /api/video-projects/{id}` con versión), no sólo "subir".
+      Es lo que cierra "todo nace como skill y vive en la app" (pedido de la otra sesión, 2026-10-16).
 
 ## 5. Producción (design.md: ≈ US$10–17/mes)
 
@@ -30,9 +34,20 @@
       `127.0.0.1:8000` escrito a mano). Falta el dominio.
 - [x] 5.4 Licencia de Remotion verificada: gratis hasta 3 empleados; si no, US$0,01/render con mínimo US$100/mes →
       reemplazar el render de textos antes de que el equipo pase de 3.
-- [ ] 5.5 Claude no corre en producción: subir proyectos locales a la marca (puente) en vez de llamar a la API.
+- [ ] 5.5 Claude no corre en producción (no se paga API de Anthropic): trabaja en la Mac con su suscripción y
+      escribe en el servidor con el token de 4.3. El "subir a la marca" queda sólo para material local suelto.
 - [x] 5.6 Pasos largos como trabajos de fondo (`services/jobs.py`, `POST /api/jobs/{tipo}`): pegar clips, textos,
       música, revisión y export de proyectos. Cloudflare corta los pedidos de más de ~100 s.
       Probado en el contenedor: export completo de un run, sin errores.
 - [x] 5.7 `GET /api/health` (la raíz "/" es del frontend).
+- [x] 5.8 Auditoría de rutas que esperan > 100 s dentro del pedido (2026-10-16). Generación con Kling, Seedance y
+      Fal: ya responde enseguida y el navegador pregunta (sin cambios). Pasadas a trabajos de fondo:
+      `/api/flux3/result` (esperaba hasta 10 min), `/api/analyze/video` y `/api/analyze/motion` (`?async=1`).
+- [ ] 5.9 Antes de publicar: esconder las tools sin uso (`registry.json`) — lo hace la otra sesión.
+- [ ] 5.10 El criterio como datos que sirve el servidor (poses, bloques de prompt, reglas), así skills y app
+      leen lo mismo.
+
+## Después (no bloquea el deploy)
+
+- Mudar los 5 GB de `backend/data/` a R2.
 

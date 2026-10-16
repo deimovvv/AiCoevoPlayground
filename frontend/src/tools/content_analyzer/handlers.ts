@@ -5,7 +5,7 @@
  */
 
 import type { StepHandler } from "../types";
-import { generateToolPrompt, matchDetectedAssets, type DetectedAssets } from "../../lib/api";
+import { generateToolPrompt, matchDetectedAssets, type DetectedAssets, waitBackendJob } from "../../lib/api";
 
 
 import { API_BASE } from "../../lib/config";
@@ -29,7 +29,8 @@ export const handleAnalyze: StepHandler = async (ctx) => {
   }
   formData.append("brand_context", activeBrand.brandContext || "");
 
-  const res = await fetch(`${API_BASE}/api/analyze/video`, {
+  // De fondo (?async=1): el análisis con Gemini puede pasar los ~100 s que corta Cloudflare.
+  const res = await fetch(`${API_BASE}/api/analyze/video?async=1`, {
     method: "POST",
     body: formData,
   });
@@ -39,7 +40,8 @@ export const handleAnalyze: StepHandler = async (ctx) => {
     throw new Error(err.detail || "Video analysis failed");
   }
 
-  const data = await res.json();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await waitBackendJob((await res.json()).job_id, "Video analysis failed", 10);
 
   return {
     result: {

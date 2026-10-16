@@ -60,6 +60,11 @@ async function runBackendJob<T>(kind: string, body: unknown, what: string, maxMi
         throw new Error((typeof err.detail === "string" ? err.detail : "") || `${what} (${res.status})`);
     }
     const { job_id } = await res.json();
+    return waitBackendJob<T>(job_id, what, maxMinutes);
+}
+
+/** Espera un trabajo de fondo ya iniciado (p. ej. un endpoint con `?async=1` que devolvió job_id). */
+export async function waitBackendJob<T>(job_id: string, what: string, maxMinutes = 30): Promise<T> {
     const until = Date.now() + maxMinutes * 60_000;
     while (Date.now() < until) {
         await new Promise((r) => setTimeout(r, 1500));
@@ -2186,9 +2191,8 @@ export async function createFlux3Video(opts: {
 export async function pollFlux3Video(requestId: string): Promise<{
     request_id: string; status: string; video_url: string | null; error: string | null;
 }> {
-    const res = await fetch(`${API_BASE}/api/flux3/result/${requestId}`);
-    if (!res.ok) throw new Error(`FLUX 3 result falló: ${await res.text()}`);
-    return res.json();
+    // De fondo: el backend espera hasta 10 min a Fal, y Cloudflare corta los pedidos a ~100 s.
+    return runBackendJob("flux3-result", { request_id: requestId }, "FLUX 3 result falló", 12);
 }
 
 export async function createSeedanceReferenceToVideo(opts: {
@@ -2839,12 +2843,13 @@ export async function analyzeMotionFromVideo(opts: {
     if (opts.url) formData.append("url", opts.url);
     if (opts.file) formData.append("video", opts.file);
     if (opts.imageContext) formData.append("image_context", opts.imageContext);
-    const res = await fetch(`${API_BASE}/api/analyze/motion`, { method: "POST", body: formData });
+    const res = await fetch(`${API_BASE}/api/analyze/motion?async=1`, { method: "POST", body: formData });
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Unknown error" }));
         throw new Error((typeof err.detail === "string" ? err.detail : "Motion analysis failed"));
     }
-    return res.json();
+    const { job_id } = await res.json();
+    return waitBackendJob(job_id, "Motion analysis failed", 10);
 }
 
 export type ReferenceType = "product" | "person" | "scene" | "abstract" | "mixed";

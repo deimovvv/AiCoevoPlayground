@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Optional, Dict, List
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -3391,13 +3391,33 @@ async def analyze_visual_guide(
 #  Content Analyzer (Video Intelligence)
 # ══════════════════════════════════════════════════════════════
 
+from services import jobs as jobs_service  # noqa: E402 — trabajos de fondo (infra-v1)
+
+
+async def _upload_copy(video: Optional[UploadFile]) -> Optional[UploadFile]:
+    """Copia en memoria un archivo subido: el pedido termina enseguida y el trabajo de fondo
+    lo sigue leyendo después (el original se cierra al terminar el pedido)."""
+    if not video or not video.filename:
+        return None
+    import io
+    from starlette.datastructures import Headers, UploadFile as StarletteUpload
+    data = await video.read()
+    return StarletteUpload(file=io.BytesIO(data), filename=video.filename,
+                           headers=Headers({"content-type": video.content_type or "video/mp4"}))
+
+
 @app.post("/api/analyze/video")
 async def analyze_video(
     url: str = Form(""),
     video: UploadFile = File(None),
     brand_context: str = Form(""),
+    async_job: bool = Query(False, alias="async"),
 ):
-    """Analyze a video with Gemini Vision. Accepts URL or direct upload."""
+    """Analyze a video with Gemini Vision. Accepts URL or direct upload.
+    Con ?async=1 corre de fondo (puede pasar los ~100 s que corta Cloudflare): devuelve job_id."""
+    if async_job:
+        up = await _upload_copy(video)
+        return {"job_id": jobs_service.start("analyze-video", analyze_video(url=url, video=up, brand_context=brand_context, async_job=False))}
     if not image_analysis.is_configured():
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
 
@@ -3491,11 +3511,16 @@ async def analyze_motion(
     url: str = Form(""),
     video: UploadFile = File(None),
     image_context: str = Form(""),
+    async_job: bool = Query(False, alias="async"),
 ):
     """Versión liviana de /api/analyze/video — devuelve solo motion suggestions
     listas para inyectar al prompt de Kling. Usado por el step Animate para
     "inspirar" el motion de un clip desde un video de referencia (URL o upload).
+    Con ?async=1 corre de fondo y devuelve job_id.
     """
+    if async_job:
+        up = await _upload_copy(video)
+        return {"job_id": jobs_service.start("analyze-motion", analyze_motion(url=url, video=up, image_context=image_context, async_job=False))}
     if not image_analysis.is_configured():
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
 
@@ -6567,15 +6592,19 @@ async def download_proxy(url: str, filename: Optional[str] = None):
 #  Los pasos largos corren como trabajo para que Cloudflare (corta a ~100 s) no los corte.
 #  Reusan los MISMOS endpoints de arriba: misma validación, mismo resultado.
 # ══════════════════════════════════════════════════════════════
-from services import jobs as jobs_service  # noqa: E402
-
 _JOB_KINDS = {
     "video-concat": (concat_videos_endpoint, ConcatRequest),
     "text-overlay": (video_text_overlay, TextOverlayRequest),
     "video-music": (video_music, MusicMixRequest),
     "video-qa": (video_qa, ExportQaRequest),
     "editor-export": (editor_export, EditorExport),
+    # FLUX 3 espera hasta 10 min a que Fal termine (el poll vive en el servicio).
+    "flux3-result": (lambda req: flux3_result(req.request_id), None),
 }
+
+
+class _RequestId(BaseModel):
+    request_id: str
 
 
 @app.post("/api/jobs/{kind}")
@@ -6584,7 +6613,7 @@ async def start_job(kind: str, body: dict = Body(...)):
         raise HTTPException(status_code=404, detail=f"Trabajo desconocido: {kind}")
     fn, model = _JOB_KINDS[kind]
     try:
-        req = model(**body)
+        req = (model or _RequestId)(**body)
     except Exception as e:
         raise HTTPException(status_code=422, detail=str(e))
     return {"job_id": jobs_service.start(kind, fn(req))}
