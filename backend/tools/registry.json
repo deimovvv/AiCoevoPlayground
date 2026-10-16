@@ -9,7 +9,8 @@
     "pipeline": [
       "scene",
       "generate_all"
-    ]
+    ],
+    "hidden": true
   },
   {
     "id": "fooh_subway",
@@ -22,7 +23,8 @@
       "poster",
       "scene",
       "generate_all"
-    ]
+    ],
+    "hidden": true
   },
   {
     "id": "avatar_creator",
@@ -35,7 +37,8 @@
       "brief",
       "generate",
       "save"
-    ]
+    ],
+    "hidden": true
   },
   {
     "id": "product_sheet",
@@ -48,7 +51,8 @@
       "brief",
       "generate",
       "save"
-    ]
+    ],
+    "hidden": true
   },
   {
     "id": "ecommerce_batch",
@@ -60,7 +64,8 @@
     "pipeline": [
       "batch"
     ],
-    "route": "/dashboard/ecommerce-batch"
+    "route": "/dashboard/ecommerce-batch",
+    "hidden": true
   },
   {
     "id": "ugc_creator",
@@ -91,7 +96,8 @@
       "images",
       "animate",
       "render"
-    ]
+    ],
+    "hidden": true
   },
   {
     "id": "content_analyzer",
@@ -105,7 +111,8 @@
       "map_assets",
       "adapt",
       "route"
-    ]
+    ],
+    "hidden": true
   },
   {
     "id": "video_ad_creator",
@@ -148,7 +155,8 @@
     "pipeline": [
       "prompt",
       "generate_all"
-    ]
+    ],
+    "hidden": true
   },
   {
     "id": "ad_creative_lab",
@@ -175,7 +183,8 @@
       "prompt",
       "generate",
       "variations"
-    ]
+    ],
+    "hidden": true
   },
   {
     "id": "fashion_reel",
@@ -212,7 +221,8 @@
     "status": "active",
     "pipeline": [
       "generate_all"
-    ]
+    ],
+    "hidden": true
   },
   {
     "id": "fashion_editorial",
@@ -236,7 +246,8 @@
     "status": "active",
     "pipeline": [
       "swap"
-    ]
+    ],
+    "hidden": true
   },
   {
     "id": "bg_remover",
@@ -247,6 +258,7 @@
     "status": "coming_soon",
     "pipeline": [
       "remove"
-    ]
+    ],
+    "hidden": true
   }
 ]

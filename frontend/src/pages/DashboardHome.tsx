@@ -34,8 +34,8 @@ const FEATURED_TOOLS: Array<{ id: string; name: string; tagline: string }> = [
   { id: "video_ad_creator", name: "Video Ad Creator", tagline: "Ads con storyboard IA" },
   // Fashion Editorial salió: está oculta desde que pasó a preset de Campañas
   // (tools-audit 2026-09-25), y la tarjeta llevaba a una tool que no existe.
-  { id: "carousel_creator", name: "Carousel Creator", tagline: "Carruseles con la misma sesión" },
-  { id: "product_sheet", name: "Product Sheet", tagline: "Vistas de producto multi-foto" },
+  // Carousel Creator y Product Sheet salieron: escondidas el 2026-10-16 por falta de uso
+  // (docs/negocio/estrategia-motor.md). Volver a sumarlas si se reactivan en registry.json.
 ];
 
 const STATUS_LABEL: Record<Campaign["status"], { label: string; cls: string }> = {

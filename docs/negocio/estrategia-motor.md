@@ -47,11 +47,14 @@ armamos para tu marca"*. No se vende como SaaS (descartado: compite contra herra
 1. **Ahora — caja:** la clienta nueva de Morph (precios de todo) y el video catálogo.
 2. **En paralelo — medir:** costo, reintentos y minutos por pieza. Son los números que venden sistemas.
 3. **Con 2–3 casos medidos — sistemas:** ofrecer el sistema a una marca actual (Giumati, Koxis o la clienta nueva).
-4. **Ordenar la app:** visibles sólo Ecommerce Pack, Fashion Reel, Campañas, Lab y Videos; el resto escondido.
+4. **Ordenar la app** (hecho 2026-10-16): tools visibles Ecommerce Pack, Fashion Reel, UGC (piloto Giumati) y Video Ad Creator (PROMAN), más Campañas, Lab y el editor. Las otras 12, escondidas (`hidden` en `backend/tools/registry.json`, reversible).
 
 Riesgo: dispersión. Un frente nuevo entra sólo cuando el anterior tiene casos con números.
 
 ## Ángulos de comunicación
+
+> **Borrador — a revisar con Gonzalo:** *"debería ser más cool en general"* (2026-10-16). Lo que
+> sirve es la prueba de cada fila; las frases todavía suenan a explicación, no a marca.
 
 Cada uno sale de algo real que hicimos. Morph respeta su guía (sin hablar de IA:
 `morph-site/docs/reference/COPY-GUIDELINE.md`); Coevo puede hablar de tecnología, porque es su oficio.
