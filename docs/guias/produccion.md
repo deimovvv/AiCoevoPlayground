@@ -46,6 +46,13 @@ Gratis para empresas de **hasta 3 empleados** (LICENSE.md de Remotion). Si no: p
 Alternativa sin costo: grabar los textos con Chromium + FFmpeg directo (el `TextLayer` es React
 común) o HyperFrames (Apache 2.0).
 
+## Estado (2026-10-16)
+
+Servidor `srv2067398.hstgr.cloud` (2.24.88.211), usuario `coevo`, llave `~/.ssh/coevo_vps` en la Mac de Gonzalo.
+App en `~/coevo-studio`. Entrar: `ssh -i ~/.ssh/coevo_vps coevo@2.24.88.211`. Probar sin publicar:
+`ssh -i ~/.ssh/coevo_vps -N -L 8020:127.0.0.1:8000 coevo@2.24.88.211` y abrir http://localhost:8020.
+Falta: Cloudflare (dominio, túnel, Access).
+
 ## Operación
 
 - Actualizar: `git pull && docker compose -f docker-compose.prod.yml up -d --build`.

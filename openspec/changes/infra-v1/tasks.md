@@ -28,7 +28,11 @@
 
 - [x] 5.0 Servidor: **Hostinger VPS KVM 2** (decidido 2026-10-13). El plan actual del usuario es hosting compartido → contratar el VPS aparte. Cuenta de Coevo.
 - [x] 5.1 `Dockerfile` (Python 3.11 + FFmpeg + Node/Remotion + OpenCV): probado en local, graba textos en el contenedor.
-- [~] 5.2 `docker-compose.prod.yml` (api + db + backup diario + túnel de Cloudflare) listo; falta el VPS. Backups a R2: cuando exista Cloudflare.
+- [x] 5.2 **Servidor andando (2026-10-16)**: Hostinger KVM 2 (Ubuntu 26.04, IP 2.24.88.211, usuario `coevo`, plan de
+      1 mes para probar). Sólo SSH con llave (root y contraseña bloqueados), firewall (sólo SSH), fail2ban,
+      actualizaciones automáticas, Docker 29 + 4 GB swap. Repo con deploy key de sólo lectura. api + db + backup
+      diario arriba; 3,5 GB de datos subidos (sin backups viejos). Probado por túnel SSH privado: dashboard, editor
+      de un run real y export con trabajos de fondo. **Nada publicado todavía** (falta 4.1). Backups a R2: con Cloudflare.
 - [x] 5.3 Frontend: lo sirve el backend desde la MISMA dirección (`Dockerfile` lo compila; `main.py` al final),
       un solo login de Cloudflare protege todo. La dirección del backend también es configurable (`VITE_API_BASE`, `lib/config.ts`; 23 archivos tenían
       `127.0.0.1:8000` escrito a mano). Falta el dominio.
