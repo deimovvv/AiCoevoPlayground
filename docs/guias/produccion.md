@@ -3,12 +3,12 @@
 Decisión y números: `openspec/changes/infra-v1/design.md`. Esto es el paso a paso.
 
 ```
- Cloudflare Pages ── frontend (gratis)
  Cloudflare Access ─ login del equipo con Google (gratis, a confirmar hasta 50)
  Cloudflare Tunnel ─ HTTPS sin abrir puertos
         │
  Hostinger VPS KVM 2 (2 vCPU · 8 GB) ─ docker-compose.prod.yml
-   api (FastAPI + FFmpeg + Remotion) · db (Postgres 16) · backup diario
+   api (FastAPI + FFmpeg + Remotion, y el frontend en la misma dirección)
+   db (Postgres 16) · backup diario
         │
  Cloudflare R2 ── videos y backups (a mudar)
 ```
@@ -31,7 +31,7 @@ Decisión y números: `openspec/changes/infra-v1/design.md`. Esto es el paso a p
 5. Cloudflare: crear el túnel, `CLOUDFLARE_TUNNEL_TOKEN` en el `.env`,
    `docker compose -f docker-compose.prod.yml --profile tunnel up -d`.
 6. Cloudflare Access: permitir sólo los mails del equipo, para la app y la API.
-7. Frontend en Cloudflare Pages con `VITE_API_BASE=https://api.<dominio>`.
+7. El frontend no va aparte: viene compilado en la imagen y lo sirve la API (una sola dirección).
 
 ## Verificado en local (2026-10-13)
 

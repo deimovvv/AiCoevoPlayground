@@ -45,6 +45,9 @@ login Clerk o contraseña compartida, Vercel + Render/Railway". Esto lo ajusta c
 
 ## Frontend
 
+**Actualización 2026-10-16:** el frontend lo sirve el mismo backend, en la misma dirección (un solo
+login de Cloudflare Access, sin problemas entre dominios). Pages queda descartado por eso, no por precio.
+
 **Cloudflare Pages**: gratis (500 builds/mes). Vercel Hobby **prohíbe uso comercial** (una
 herramienta interna de agencia lo es) → descartado.
 

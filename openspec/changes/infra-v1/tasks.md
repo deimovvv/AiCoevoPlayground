@@ -25,8 +25,14 @@
 - [x] 5.0 Servidor: **Hostinger VPS KVM 2** (decidido 2026-10-13). El plan actual del usuario es hosting compartido → contratar el VPS aparte. Cuenta de Coevo.
 - [x] 5.1 `Dockerfile` (Python 3.11 + FFmpeg + Node/Remotion + OpenCV): probado en local, graba textos en el contenedor.
 - [~] 5.2 `docker-compose.prod.yml` (api + db + backup diario + túnel de Cloudflare) listo; falta el VPS. Backups a R2: cuando exista Cloudflare.
-- [~] 5.3 Frontend: la dirección del backend ya es configurable (`VITE_API_BASE`, `lib/config.ts`; 23 archivos tenían
-      `127.0.0.1:8000` escrito a mano). Falta Cloudflare Pages + dominio.
+- [x] 5.3 Frontend: lo sirve el backend desde la MISMA dirección (`Dockerfile` lo compila; `main.py` al final),
+      un solo login de Cloudflare protege todo. La dirección del backend también es configurable (`VITE_API_BASE`, `lib/config.ts`; 23 archivos tenían
+      `127.0.0.1:8000` escrito a mano). Falta el dominio.
 - [x] 5.4 Licencia de Remotion verificada: gratis hasta 3 empleados; si no, US$0,01/render con mínimo US$100/mes →
       reemplazar el render de textos antes de que el equipo pase de 3.
 - [ ] 5.5 Claude no corre en producción: subir proyectos locales a la marca (puente) en vez de llamar a la API.
+- [x] 5.6 Pasos largos como trabajos de fondo (`services/jobs.py`, `POST /api/jobs/{tipo}`): pegar clips, textos,
+      música, revisión y export de proyectos. Cloudflare corta los pedidos de más de ~100 s.
+      Probado en el contenedor: export completo de un run, sin errores.
+- [x] 5.7 `GET /api/health` (la raíz "/" es del frontend).
+

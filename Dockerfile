@@ -1,6 +1,18 @@
 # Backend de Coevo Studio para producción (openspec/changes/infra-v1).
 # FastAPI + FFmpeg + Node/Remotion (grabar textos) + OpenCV (revisión del export).
 #   docker build -t coevo-api .
+# ── Etapa 1: compilar el frontend (sólo para el build; no queda en la imagen final) ──
+FROM node:22-bookworm-slim AS web
+WORKDIR /web
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+# Vacío = misma dirección que la API (el backend sirve el frontend): un solo login, sin CORS.
+ARG VITE_API_BASE=""
+ENV VITE_API_BASE=$VITE_API_BASE
+RUN npm run build
+
+# ── Etapa 2: la imagen que corre ──
 FROM python:3.11-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
@@ -28,6 +40,9 @@ COPY frontend/src/components/workspace/TextLayer.tsx frontend/src/components/wor
 
 # Backend
 COPY backend backend
+
+# Frontend compilado: lo sirve el backend en la misma dirección (main.py, al final)
+COPY --from=web /web/dist frontend/dist
 
 WORKDIR /app/backend
 EXPOSE 8000

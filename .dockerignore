@@ -12,5 +12,6 @@ frontend/dist
 .claude
 docs
 openspec
-**/*.mp4
-**/*.mov
+# Videos de trabajo sueltos (los de frontend/public sí van: previews de recetas)
+backend/**/*.mp4
+backend/**/*.mov

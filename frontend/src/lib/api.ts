@@ -47,6 +47,35 @@ export function backendUrl(path: string): string {
     return path.startsWith("/") ? `${API_BASE}${path}` : path;
 }
 
+/**
+ * Corre un paso largo como trabajo de fondo (backend/services/jobs.py) y espera el resultado.
+ * En producción Cloudflare corta los pedidos de más de ~100 s: así cada pedido dura un instante.
+ */
+async function runBackendJob<T>(kind: string, body: unknown, what: string, maxMinutes = 30): Promise<T> {
+    const res = await fetch(`${API_BASE}/api/jobs/${kind}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || `${what} (${res.status})`);
+    }
+    const { job_id } = await res.json();
+    const until = Date.now() + maxMinutes * 60_000;
+    while (Date.now() < until) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const st = await fetch(`${API_BASE}/api/jobs/${job_id}`);
+        if (!st.ok) throw new Error(`${what}: se perdió el trabajo (${st.status})`);
+        const j = await st.json();
+        if (j.status === "done") return j.result as T;
+        if (j.status === "error") {
+            const e = new Error(j.error || what) as Error & { conflict?: boolean };
+            e.conflict = j.code === 409;
+            throw e;
+        }
+    }
+    throw new Error(`${what}: tardó más de ${maxMinutes} minutos`);
+}
+
 // ══════════════════════════════════════════════════════════════
 //  Brand Types & API
 // ══════════════════════════════════════════════════════════════
@@ -3204,10 +3233,9 @@ export async function exportEditorProject(p: {
     fontUrls?: string[];
     music?: unknown;
 }): Promise<{ file: string; duration: number; qa: { checked: number; issues: Array<ExportQaIssue & { thumbFile?: string }> } | null }> {
-    return editorJson(await fetch(`${API_BASE}/api/editor/export`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: p.path, segments: p.segments, texts: p.texts, theme: p.theme, font_families: p.fontFamilies, font_urls: p.fontUrls, music: p.music }),
-    }), "No se pudo exportar");
+    return runBackendJob("editor-export",
+        { path: p.path, segments: p.segments, texts: p.texts, theme: p.theme, font_families: p.fontFamilies, font_urls: p.fontUrls, music: p.music },
+        "No se pudo exportar");
 }
 
 export interface ExportQaIssue {
@@ -3221,13 +3249,7 @@ export interface ExportQaIssue {
 
 /** Revisa el export del editor: textos que tapan la cara, cortados o en la franja de UI. */
 export async function reviewExport(p: { videoUrl: string; baseUrl: string; texts: unknown[] }): Promise<{ checked: number; issues: ExportQaIssue[] }> {
-    const res = await fetch(`${API_BASE}/api/video/qa`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ video_url: p.videoUrl, base_url: p.baseUrl, texts: p.texts }),
-    });
-    if (!res.ok) throw new Error(`No se pudo revisar el export (${res.status})`);
-    return res.json();
+    return runBackendJob("video-qa", { video_url: p.videoUrl, base_url: p.baseUrl, texts: p.texts }, "No se pudo revisar el export");
 }
 
 /** Sube un tema para la pista de música del editor (mp3, wav, m4a, aac, ogg, flac). */
@@ -3255,16 +3277,9 @@ export async function detectMusicBeats(musicUrl: string, start = 0, length?: num
 
 /** Mezcla la música en el video editado: atada al video entero, fade al final, baja bajo la voz. */
 export async function mixVideoMusic(p: { videoUrl: string; musicUrl: string; start: number; volume: number; fadeOut: number }): Promise<{ video_url: string; duration: number }> {
-    const res = await fetch(`${API_BASE}/api/video/music`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ video_url: p.videoUrl, music_url: p.musicUrl, start: p.start, volume: p.volume, fade_out: p.fadeOut }),
-    });
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "" }));
-        throw new Error(err.detail || `No se pudo mezclar la música (${res.status})`);
-    }
-    return res.json();
+    return runBackendJob("video-music",
+        { video_url: p.videoUrl, music_url: p.musicUrl, start: p.start, volume: p.volume, fade_out: p.fadeOut },
+        "No se pudo mezclar la música");
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -3406,23 +3421,14 @@ export async function concatVideos(
     /** Recortes del editor, alineados con videoUrls: {start, end} en segundos del clip, o null. */
     trims?: Array<{ start: number; end: number } | null>,
 ): Promise<ConcatResult> {
-    const res = await fetch(`${API_BASE}/api/video/concat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            video_urls: videoUrls,
-            scripts: scripts || null,
-            add_subtitles: addSubtitles,
-            subtitle_engine: subtitleEngine,
-            background_music_url: backgroundMusicUrl || null,
-            trims: trims || null,
-        }),
-    });
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `Video concat failed (${res.status})`);
-    }
-    return res.json();
+    return runBackendJob("video-concat", {
+        video_urls: videoUrls,
+        scripts: scripts || null,
+        add_subtitles: addSubtitles,
+        subtitle_engine: subtitleEngine,
+        background_music_url: backgroundMusicUrl || null,
+        trims: trims || null,
+    }, "No se pudo armar el video");
 }
 
 /** Graba la capa de texto del editor sobre un video (Remotion, mismo componente que la
@@ -3434,22 +3440,13 @@ export async function renderTextOverlay(params: {
     fontFamilies: string[];
     fontUrls: string[];
 }): Promise<{ video_url: string; duration: number }> {
-    const res = await fetch(`${API_BASE}/api/video/text-overlay`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            video_url: params.videoUrl,
-            blocks: params.blocks,
-            theme: params.theme,
-            font_families: params.fontFamilies,
-            font_urls: params.fontUrls,
-        }),
-    });
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-        throw new Error((typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail)) || `No se pudieron grabar los textos (${res.status})`);
-    }
-    return res.json();
+    return runBackendJob("text-overlay", {
+        video_url: params.videoUrl,
+        blocks: params.blocks,
+        theme: params.theme,
+        font_families: params.fontFamilies,
+        font_urls: params.fontUrls,
+    }, "No se pudieron grabar los textos");
 }
 
 // ══════════════════════════════════════════════════════════════

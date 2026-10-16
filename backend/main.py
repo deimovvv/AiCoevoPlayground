@@ -255,9 +255,10 @@ class SaveGenerationRequest(BaseModel):
 #  Health
 # ══════════════════════════════════════════════════════════════
 
-@app.get("/")
-def read_root():
-    return {"message": "Morph API is running"}
+@app.get("/api/health")
+def health():
+    """Chequeo de vida (el túnel y el monitoreo). La raíz "/" es del frontend en producción."""
+    return {"ok": True, "service": "coevo-studio-api"}
 
 
 @app.get("/health")
@@ -6559,3 +6560,61 @@ async def download_proxy(url: str, filename: Optional[str] = None):
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Download proxy failed: {str(e)[:200]}")
+
+
+# ══════════════════════════════════════════════════════════════
+#  Trabajos de fondo (services/jobs.py · infra-v1)
+#  Los pasos largos corren como trabajo para que Cloudflare (corta a ~100 s) no los corte.
+#  Reusan los MISMOS endpoints de arriba: misma validación, mismo resultado.
+# ══════════════════════════════════════════════════════════════
+from services import jobs as jobs_service  # noqa: E402
+
+_JOB_KINDS = {
+    "video-concat": (concat_videos_endpoint, ConcatRequest),
+    "text-overlay": (video_text_overlay, TextOverlayRequest),
+    "video-music": (video_music, MusicMixRequest),
+    "video-qa": (video_qa, ExportQaRequest),
+    "editor-export": (editor_export, EditorExport),
+}
+
+
+@app.post("/api/jobs/{kind}")
+async def start_job(kind: str, body: dict = Body(...)):
+    if kind not in _JOB_KINDS:
+        raise HTTPException(status_code=404, detail=f"Trabajo desconocido: {kind}")
+    fn, model = _JOB_KINDS[kind]
+    try:
+        req = model(**body)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return {"job_id": jobs_service.start(kind, fn(req))}
+
+
+@app.get("/api/jobs/{job_id}")
+async def job_status(job_id: str):
+    j = jobs_service.get(job_id)
+    if not j:
+        raise HTTPException(status_code=404, detail="El trabajo no existe (¿se reinició el servidor?)")
+    return j
+
+
+# ══════════════════════════════════════════════════════════════
+#  Frontend desde el mismo servidor (producción · infra-v1)
+#  Si existe frontend/dist (lo copia el Dockerfile), se sirve en la MISMA dirección que la API:
+#  un solo login de Cloudflare Access protege todo y no hay problemas entre dominios.
+#  Va al final: todas las rutas /api y /static se registran antes.
+# ══════════════════════════════════════════════════════════════
+_FRONTEND_DIST = Path(os.getenv("FRONTEND_DIST", str(Path(__file__).parent.parent / "frontend" / "dist")))
+if (_FRONTEND_DIST / "index.html").is_file():
+    from fastapi.responses import FileResponse  # noqa: E402
+
+    app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIST / "assets")), name="frontend-assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa(full_path: str):
+        if full_path.startswith(("api/", "static/")):
+            raise HTTPException(status_code=404, detail="No encontrado")
+        f = (_FRONTEND_DIST / full_path).resolve()
+        if full_path and f.is_file() and _FRONTEND_DIST.resolve() in f.parents:
+            return FileResponse(f)                 # favicon, imágenes de public/
+        return FileResponse(_FRONTEND_DIST / "index.html")   # rutas de React Router
