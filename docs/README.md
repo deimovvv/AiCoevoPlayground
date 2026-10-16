@@ -46,7 +46,7 @@ tokens: `frontend/src/index.css`.
 | Doc | Qué es |
 |---|---|
 | [market-positioning.md](negocio/market-positioning.md) | nicho: video × español × calce |
-| [competitive-research.md](negocio/competitive-research.md) | competidores verificados |
+| [competitive-research.md](negocio/competitive-research.md) · [rumbo-2026-2028.md](negocio/rumbo-2026-2028.md) | competidores verificados |
 | [financial-model.md](negocio/financial-model.md) | márgenes, descarte, "turista de IA" |
 | [client_onboarding.md](negocio/client_onboarding.md) | qué pedirle a un cliente nuevo |
 
