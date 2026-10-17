@@ -58,3 +58,19 @@ Falta: Cloudflare (dominio, túnel, Access).
 - Actualizar: `git pull && docker compose -f docker-compose.prod.yml up -d --build`.
 - Backups: `./backups/` (14 días). Restaurar: `gunzip -c archivo | docker compose exec -T db psql -U coevo coevo_studio`.
 - Logs: `docker compose -f docker-compose.prod.yml logs -f api`.
+
+## Traba de login en la app (2026-10-17)
+
+Al abrir el túnel, `app.coevoagency.com` respondió **sin pedir login**: la app de Cloudflare
+Access no estaba aplicada a ese dominio. Quedó pública unos minutos (DNS recién creado, poco
+probable que alguien entrara); se cortó el túnel en cuanto se detectó.
+
+Desde entonces el backend **exige el JWT de Access** (`backend/services/access_guard.py`):
+- `CF_ACCESS_TEAM=dawn-credit-95f3` en `backend/.env` del servidor la activa. En dev no está → no hace nada.
+- `CF_ACCESS_AUD` = "Application Audience (AUD) Tag" de la app de Access (Access → Applications →
+  la app → Overview). Con ella sólo vale un token emitido para esta app.
+- Sin token válido: 403. `/api/health` queda abierto.
+
+Chequeo después de cualquier cambio en Cloudflare, desde afuera y sin login:
+`curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' https://app.coevoagency.com/api/brands`
+→ tiene que dar **302 a `…cloudflareaccess.com`** (o 403). **Nunca 200.**
