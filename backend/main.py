@@ -19,6 +19,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
+from services.access_guard import AccessGuard
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -82,6 +83,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Producción: sin el login de Cloudflare Access no pasa nada (services/access_guard.py).
+app.add_middleware(AccessGuard)
 
 # Serve uploaded avatar images as static files
 app.mount("/static/avatars", StaticFiles(directory=str(brands.get_avatars_dir())), name="avatars")
