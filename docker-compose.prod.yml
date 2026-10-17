@@ -50,7 +50,8 @@ services:
   tunnel:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    command: tunnel --no-autoupdate run
+    # Todo el tráfico de app.<dominio> va a la API (que también sirve el frontend).
+    command: tunnel --no-autoupdate run --url http://api:8000
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
     profiles: ["tunnel"]
