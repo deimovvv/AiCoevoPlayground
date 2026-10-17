@@ -36,6 +36,25 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Remotion | Gratis hasta 3 empleados; después US$100/mes mínimo → reemplazarlo antes de crecer | 2026-10-13 · `infra-v1` |
 | Reportes a clientes | Se leen de Postiz (ya resuelve Meta orgánico); una plataforma multi-marca, nunca un dashboard por cliente | 2026-10-09 · `changes/brand-integrations` |
 | Tools / editor / skills | Tool genera · editor monta (uno solo) · skill descubre; lo validado pasa a la app como plantilla o receta | 2026-10-09 |
+| Dónde se trabaja | En `app.coevoagency.com` (servidor = fuente de verdad); lo local es sólo desarrollo | 2026-10-17 |
+| Login | Equipo: Cloudflare Access (PIN por mail) + el backend verifica el JWT | 2026-10-17 · `docs/guias/produccion.md` |
+
+---
+
+## 2026-10-17 — El servidor es la fuente de verdad
+
+**Contexto:** la app quedó online en `app.coevoagency.com` con los 3,5 GB de datos copiados
+desde la Mac. A partir de ahí hay dos copias que se separan si se trabaja en las dos.
+
+**Decisión:** el trabajo real (marcas, runs, proyectos) se hace **en la app online**. La copia
+local queda para desarrollo; no se vuelve a sincronizar hacia el servidor.
+
+**Login:** el equipo entra por Cloudflare Access (PIN por mail, policy "Equipo Coevo") y el
+backend exige el JWT de Access (`services/access_guard.py`), por si Access queda mal configurado.
+Los clientes **no** entran a Studio: siguen con el portal por token (entrada 2026-08 "Accesos al portal").
+Online eso exige abrir **sólo** las rutas del portal por fuera de Access (pendiente).
+
+**Pendiente que esto vuelve urgente:** backups fuera del VPS (R2).
 
 ---
 
