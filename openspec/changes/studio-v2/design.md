@@ -83,9 +83,28 @@ template (id, brand_id | null = de Coevo, kind: carrusel|reel|story|ficha, name,
   con su design system aplicado o tiene las suyas.
 - Una pieza producida guarda qué plantilla y versión usó → se puede regenerar igual.
 
-## 5. Decisiones abiertas
+## 5. Decisiones (2026-10-17, con Gonzalo)
 
-1. ¿El cliente puede **pedir** desde Studio (no sólo comentar)? Hoy la regla es "deja notas, no encarga".
-2. ¿Los carruseles se editan siempre en claude.ai, o cuando se repitan mucho se hace un editor en Studio?
-   Propuesta: claude.ai hasta que duela.
-3. Reportes: ¿los ve el cliente en vivo o sólo un resumen mensual armado por nosotros?
+1. **El cliente sólo comenta y aprueba.** No encarga trabajo desde Studio (se mantiene la regla de 2026-08).
+2. **No hay canvas en Studio.** El canvas/editor de piezas gráficas es el de Claude (artifact HTML). Studio
+   muestra la pieza terminada, junta comentarios por lámina y guarda la aprobación. El único editor propio
+   que queda es el de video (ya existe).
+3. **Reportes: resumen mensual armado por Coevo** (datos de Postiz + lectura con criterio), entregado como
+   una Entrega más. Números en vivo para el cliente: después, si lo piden.
+
+## 6. Para qué existe Studio (si se produce con Claude en local)
+
+Claude en la Mac es **el taller**. Studio es **la casa de la marca y la vitrina para el cliente**: lo que el
+taller no puede dar.
+
+| Necesidad | Local con Claude | Studio |
+|---|---|---|
+| Producir y editar | ✅ (taller) | no |
+| Memoria de la marca para cualquier persona, máquina o sesión | archivos sueltos | ✅ |
+| Que el cliente vea, comente y apruebe con historial | un link por pieza, sin estado | ✅ |
+| Qué se entregó, qué versión se aprobó, cuánto costó | se pierde | ✅ |
+| Trabajos largos y pagos (video, generación), sin la Mac prendida | no | ✅ |
+| Reportes mensuales por marca | no | ✅ |
+
+Consecuencia: todo lo que en Studio sea "producir" se achica o se vuelve acción dentro de Producción;
+lo que crece es Marca, Entregas y Reportes.
