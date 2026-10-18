@@ -6,11 +6,12 @@ carpeta a `archive/AAAA-MM-DD-<change>/`. Actualizar esta tabla al cambiar un es
 
 | Change | Estado | Qué falta |
 |---|---|---|
-| [infra-v1](infra-v1/) | **activo** | portal abierto para clientes, backups a R2, service token para Claude |
+| [infra-v1](infra-v1/) | **activo** | 4.4 portal abierto para clientes, 4.5 backups a R2, 4.3 token de servicio para Claude |
 | [video-editor-next](video-editor-next/) | **activo** | partirlo: es demasiado grande (25 tareas) |
 | [catalog-poses-quality](catalog-poses-quality/) | **activo** | Morph |
 | [fashion-reel-from-photo](fashion-reel-from-photo/) | esperando prueba paga | 2.1 probar con foto real (con Gonzalo) → archivar |
 | [fashion-reel-format-recipes](fashion-reel-format-recipes/) | esperando prueba paga | A/B de recetas (~US$1,81, con Gonzalo) → archivar |
+| [studio-v2](studio-v2/) | **propuesto — para revisar** | secciones, navegación arriba, roles equipo/cliente, plantillas, Claude escribe en Studio |
 | [brand-integrations](brand-integrations/) | en pausa | Postiz; después de infra-v1 |
 | [campaigns-as-hub](campaigns-as-hub/) | en pausa | — |
 | [casting](casting/) | en pausa | — |

@@ -17,9 +17,11 @@
 
 ## 4. Usuarios
 
-- [ ] 4.1 **PRIMERO, antes de exponer nada** (hay datos reales de clientes): Cloudflare Access (login con Google)
+- [x] 4.1 **(hecho 2026-10-17: Access con PIN por mail + el backend verifica el JWT, `services/access_guard.py`)** **PRIMERO, antes de exponer nada** (hay datos reales de clientes): Cloudflare Access (login con Google)
       delante de app y API. El túnel no se publica sin esto. Confirmar el límite gratis.
-- [ ] 4.2 Clientes con cuenta propia (portal): Supabase Auth o Clerk — después.
+- [ ] 4.2 ~~Clientes con cuenta propia: Supabase Auth o Clerk~~ → reemplazado por roles sobre Access (`changes/studio-v2`).
+- [ ] 4.4 Abrir sólo `/portal/*` y `/api/portal/*` por fuera de Access (el token del link es la llave) mientras existan links de portal.
+- [ ] 4.5 Backups de la base y de `backend/data/` a R2 (hoy quedan en el mismo VPS).
 - [ ] 4.3 **Token de servicio de Cloudflare Access** para Claude Code, scripts y skills: que Claude escriba
       directo en los proyectos del servidor (`PUT /api/video-projects/{id}` con versión), no sólo "subir".
       Es lo que cierra "todo nace como skill y vive en la app" (pedido de la otra sesión, 2026-10-16).
