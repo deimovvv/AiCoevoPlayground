@@ -119,9 +119,14 @@ Relevado el 2026-10-18:
 | `coevo-skills/identidades/` | avatares (Larisa, avatar-c…) con sus referencias | duplica a los avatares de Studio |
 | cada repo de proyecto (`DESIGN.md`, `docs/clients/`) | identidad gráfica (logo, tipografías, colores, componentes), briefs, propuestas | no está en Studio; `reel-marca` pide "cargarlo del Brand Kit" y no puede |
 
-**Confusión de nombres:** en Studio, `designSystem` es la **dirección de foto** (estilo, luz, composición,
-casting, dos/don'ts). En las skills, "design system" es la **identidad gráfica** (`DESIGN.md`: logo,
-fuentes, colores, componentes). Son dos cosas distintas y hacen falta las dos.
+**Qué hay de identidad gráfica en Studio (corregido 2026-10-18, revisando el código):** la tarjeta
+"Design System" de BrandSettings guarda `brand.designSystem`, que el prompt de extracción define como
+"sólo lo visual/fotográfico para guiar la generación de imágenes y video" (estilo, composición, color,
+luz, casting, locaciones, dos/don'ts, motion). Lo gráfico está en otros campos: **colores** en
+`dna.colors`, **tipografías** en `fonts` (nombres de Google Fonts, sin archivo ni licencia), **logos** en
+Assets (casi vacío). Falta lo que las skills llaman design system (`DESIGN.md`: logo en archivo,
+fuentes con licencia, tokens, componentes, reglas de layout). La propuesta junta todo lo gráfico en
+**Identidad gráfica** y deja lo fotográfico en **Dirección de foto y video**.
 
 Uso real del Brand Kit (marcas con dato / 13): contexto 9 · avatares 7 · fuentes 7 · DNA 7 ·
 dirección de foto 7 · prendas 6 · negocio 6 · moodboards 5 · fondos 4 · voces 3 · productos 2 ·
