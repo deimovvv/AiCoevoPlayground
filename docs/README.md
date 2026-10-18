@@ -61,7 +61,7 @@ tokens: `frontend/src/index.css`.
 | Dónde | Qué |
 |---|---|
 | `openspec/specs/` | lo que el sistema hace hoy: workspace-layout, tool-catalog, video-generation, design-system |
-| `openspec/changes/` | lo propuesto: campaigns-as-hub, casting, shared-video-editor, fashion-reel-format-recipes, ecommerce-pack-gates |
+| `openspec/changes/` | lo que se está construyendo; estado de cada uno en [changes/README.md](../openspec/changes/README.md) (máx. 3 activos) |
 
 ## Archivo — histórico, no usar como fuente
 [archive/](archive): `planning`, `campaigns` (spec original), `architecture`,

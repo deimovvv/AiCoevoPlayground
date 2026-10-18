@@ -24,4 +24,4 @@ Cada tarea cierra con `npm run build` y `npx tsc --noEmit -p tsconfig.app.json` 
 - `ImageEditPanel`: elige solo — GPT si hay máscara, Nano si no.
 
 ## 3. Cierre
-- [ ] 3.1 `openspec archive image-models`
+- [x] 3.1 `openspec archive image-models` (2026-10-17, a mano)

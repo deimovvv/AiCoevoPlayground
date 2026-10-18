@@ -1,7 +1,6 @@
 import { Component } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { Routes, Route, Navigate} from "react-router";
-import { Home } from "./pages/Home";
 import { AppLayout } from "./components/layout/AppLayout";
 import { Dashboard } from "./pages/Dashboard";
 import { GenerationPipeline } from "./pages/GenerationPipeline";
@@ -54,7 +53,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
       {/* Public client review + portal — no BrandProvider / no app nav (token in URL) */}
       <Route path="/review/:token" element={<ReviewPage />} />
       <Route path="/portal/:token" element={<PortalPage />} />
