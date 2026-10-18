@@ -108,3 +108,56 @@ taller no puede dar.
 
 Consecuencia: todo lo que en Studio sea "producir" se achica o se vuelve acción dentro de Producción;
 lo que crece es Marca, Entregas y Reportes.
+
+## 7. La memoria de la marca: hoy está en tres lugares
+
+Relevado el 2026-10-18:
+
+| Dónde | Qué guarda | Problema |
+|---|---|---|
+| Studio (`brands.json`, 13 marcas) | contexto, DNA, "design system" fotográfico, avatares, prendas, productos, fondos, moodboards, voces | Claude no lo puede leer; 13 categorías con "+ Add" sueltos; cada una usada por 2–9 marcas |
+| `coevo-skills/identidades/` | avatares (Larisa, avatar-c…) con sus referencias | duplica a los avatares de Studio |
+| cada repo de proyecto (`DESIGN.md`, `docs/clients/`) | identidad gráfica (logo, tipografías, colores, componentes), briefs, propuestas | no está en Studio; `reel-marca` pide "cargarlo del Brand Kit" y no puede |
+
+**Confusión de nombres:** en Studio, `designSystem` es la **dirección de foto** (estilo, luz, composición,
+casting, dos/don'ts). En las skills, "design system" es la **identidad gráfica** (`DESIGN.md`: logo,
+fuentes, colores, componentes). Son dos cosas distintas y hacen falta las dos.
+
+Uso real del Brand Kit (marcas con dato / 13): contexto 9 · avatares 7 · fuentes 7 · DNA 7 ·
+dirección de foto 7 · prendas 6 · negocio 6 · moodboards 5 · fondos 4 · voces 3 · productos 2 ·
+fuentes de marca 1. Poses, logos y look & feel casi vacíos.
+
+### Propuesta: seis bloques, un solo lugar
+
+| Bloque | Qué entra | Reemplaza |
+|---|---|---|
+| **Quién es** | contexto, negocio, DNA, voz/tono | Brand DNA, Material |
+| **Identidad gráfica** | logo, tipografías (archivo + licencia), colores, `DESIGN.md` | Logos, fuentes (nuevo: `DESIGN.md`) |
+| **Dirección de foto y video** | estilo, luz, composición, casting, dos/don'ts, moodboards, fondos | "designSystem", Moodboard, Fondos, Look & Feel, Poses |
+| **Caras** | avatares/modelos con sus referencias y voces | Avatars, Voces, `coevo-skills/identidades` |
+| **Catálogo** | productos y prendas | Productos, Prendas, Accesorios |
+| **Plantillas** | carrusel, reel, story… con su versión | (nuevo) |
+
+### Onboarding: uno, no trece
+
+En vez de 13 "+ Add": **"Cargar marca"** = pegar web/Instagram + soltar una carpeta (logo, fuentes,
+fotos, PDF de marca). Claude (skill `onboarding-marca`) propone los seis bloques; una persona revisa y
+aprueba bloque por bloque. Lo que falte queda marcado como faltante, no escondido.
+
+## 8. Relación con `coevo-skills`
+
+- **Skill = cómo** (método, criterio, pasos). **Studio = qué** (memoria de cada marca + circuito con el cliente).
+- Regla: **una skill no guarda datos de una marca en su carpeta.** Los lee de Studio y devuelve lo que produce a Studio.
+- El puente es el **MCP `coevo-studio`** (corre en la Mac, habla con la API con el token de servicio):
+  `ver_marca`, `ver_plantilla`, `ver_comentarios`, `subir_entrega`, `marcar_resuelto`.
+- `design-system` → guarda el `DESIGN.md` en Identidad gráfica. `reel-marca` / carruseles → leen Identidad
+  gráfica + Plantillas. `generar-imagenes` → lee Dirección de foto + Caras (ya lee las poses de Studio).
+- `identidades/` se muda a Caras de la marca correspondiente (Morph para Larisa/Keila).
+
+## 9. Vista de carrusel (Entregas) y piloto
+
+- Entregas muestra un carrusel como en el canvas de claude.ai: láminas en fila, zoom, comentario anclado
+  a una lámina (y a un punto), aprobar. **Sólo ver y comentar**; editar sigue en Claude.
+- Se guarda la fuente (HTML) junto a los PNG, así Claude corrige sobre la misma pieza.
+- **Piloto:** los carruseles de Coevo × Morph hechos en `coevo-web` (Carrusel V1). Recorrido completo:
+  Claude lee la marca por MCP → produce → `subir_entrega` → comentario en Studio → Claude lo lee y corrige.
