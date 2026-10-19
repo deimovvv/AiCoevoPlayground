@@ -28,10 +28,10 @@
 
 ## 1. Roles (base de todo lo demás)
 
-- [ ] 1.1 Tablas `users` y `memberships` + migración Alembic.
-- [ ] 1.2 `current_user` en el backend a partir del mail del JWT de Access; mail desconocido → 403 "pedí acceso".
-- [ ] 1.3 Filtro por marca en todo endpoint con `brand_id` (lista de marcas incluida).
-- [ ] 1.4 Ajustes → Equipo y clientes: alta, rol, marcas, baja (admin).
+- [x] 1.1 Tablas `users` y `memberships` (migración `9d2e4b7a1c08`).
+- [x] 1.2 `services/roles.py` (RoleGuard): rol desde el mail de Access; `ADMIN_EMAILS` crea admins; desconocido → "pedí acceso"; cliente con lista cerrada de rutas.
+- [~] 1.3 Filtro por marca: marcas, entregas y comentarios. Los /static no se filtran por marca (nombres al azar; revisar al mudar a R2).
+- [x] 1.4 `/dashboard/accesos` (admin): alta, rol, marcas, quién aprueba, baja (2026-10-19).
 - [ ] 1.5 Policy de Access "Clientes" separada de "Equipo Coevo"; guía en `docs/guias/produccion.md`.
 
 ## 2. Navegación

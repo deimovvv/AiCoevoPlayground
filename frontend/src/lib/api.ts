@@ -3813,3 +3813,30 @@ export async function fetchToolPreviews(brandId?: string): Promise<Record<string
     if (!res.ok) return {};
     return (await res.json()).previews ?? {};
 }
+
+// ── Accesos (backend/routers/users.py · studio-v2 §3) ────────────────────────
+
+export type Role = "admin" | "equipo" | "cliente";
+export interface Me {
+    email: string | null; name?: string | null; role: Role | null;
+    /** null = todas (equipo/admin). */
+    brands: Array<{ id: string; name: string; canApprove: boolean }> | null;
+}
+export interface StudioUser {
+    id: string; email: string; name: string | null; role: Role; disabled: boolean; fromEnv: boolean;
+    brands: Array<{ id: string; canApprove: boolean }>;
+}
+export interface StudioUserIn { email: string; name?: string | null; role: Role; brands: Array<{ id: string; canApprove: boolean }>; disabled?: boolean }
+
+export async function fetchMe(): Promise<Me> {
+    return editorJson(await fetch(`${API_BASE}/api/me`), "No se pudo leer tu usuario");
+}
+export async function listUsers(): Promise<StudioUser[]> {
+    return editorJson(await fetch(`${API_BASE}/api/users`), "No se pudieron cargar los accesos");
+}
+export async function createUser(u: StudioUserIn): Promise<StudioUser> {
+    return editorJson(await fetch(`${API_BASE}/api/users`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(u) }), "No se pudo dar el acceso");
+}
+export async function updateUser(id: string, u: StudioUserIn): Promise<StudioUser> {
+    return editorJson(await fetch(`${API_BASE}/api/users/${encodeURIComponent(id)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(u) }), "No se pudo guardar");
+}

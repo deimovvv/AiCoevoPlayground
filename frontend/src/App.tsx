@@ -25,6 +25,8 @@ import { ChatPage } from "./pages/ChatPage";
 import { ManualLabV2 } from "./pages/ManualLabV2";
 import { DeliveriesPage } from "./pages/DeliveriesPage";
 import { ClientLayout } from "./components/layout/ClientLayout";
+import { MeProvider, TeamOnly } from "./lib/MeContext";
+import { AccesosPage } from "./pages/AccesosPage";
 import { MarcaPage } from "./pages/MarcaPage";
 import { ProduccionPage } from "./pages/ProduccionPage";
 import { EditorProjectPage } from "./pages/EditorProjectPage";
@@ -61,22 +63,27 @@ function App() {
       <Route path="/review/:token" element={<ReviewPage />} />
       <Route path="/portal/:token" element={<PortalPage />} />
       {/* Lo que ve el cliente (studio-v2 §11). Hoy: vista previa para el equipo con la marca activa. */}
-      <Route path="/cliente" element={<BrandProvider><ClientLayout /></BrandProvider>}>
+      <Route path="/cliente" element={<MeProvider><BrandProvider><ClientLayout /></BrandProvider></MeProvider>}>
         <Route index element={<ErrorBoundary><DeliveriesPage mode="cliente" /></ErrorBoundary>} />
         <Route path="marca" element={<div className="h-full overflow-y-auto"><div className="max-w-[1400px] mx-auto px-6 py-8 md:px-12 md:py-10"><MarcaPage readOnly /></div></div>} />
       </Route>
       <Route
         path="/dashboard"
         element={
-          <BrandProvider>
-            <AppLayout />
-          </BrandProvider>
+          <MeProvider>
+            <TeamOnly>
+              <BrandProvider>
+                <AppLayout />
+              </BrandProvider>
+            </TeamOnly>
+          </MeProvider>
         }
       >
         {/* studio-v2: la entrada es Marca; el "¿Qué hacemos hoy?" (DashboardHome) se reemplazó por Producción. */}
         <Route index element={<Navigate to="/dashboard/marca" replace />} />
         <Route path="marca" element={<MarcaPage />} />
         <Route path="produccion" element={<ProduccionPage />} />
+        <Route path="accesos" element={<AccesosPage />} />
         <Route path="chat" element={<ChatPage />} />
         {/* Campañas: el tablero por estado. "trabajo" queda como redirect —
             era la ruta vieja y hay links guardados apuntando ahí. */}

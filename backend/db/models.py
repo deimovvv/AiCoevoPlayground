@@ -81,3 +81,28 @@ class DeliveryComment(Base):
     round: Mapped[int] = mapped_column(Integer, default=1)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class User(Base):
+    """Quién puede entrar y con qué rol (openspec/changes/studio-v2 §3). La identidad es el mail que
+    firma Cloudflare Access; acá no hay contraseñas.
+    admin: todo + gestiona accesos · equipo: todas las marcas · cliente: sólo sus marcas (memberships)."""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: _id("us"))
+    email: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    role: Mapped[str] = mapped_column(String(10), default="cliente")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    disabled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Membership(Base):
+    """Qué marcas ve un cliente, y si puede aprobar (si no, sólo comenta)."""
+
+    __tablename__ = "memberships"
+
+    user_id: Mapped[str] = mapped_column(String(40), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    brand_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    can_approve: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")

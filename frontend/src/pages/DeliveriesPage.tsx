@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { ArrowRight, Check, ChevronLeft, ChevronRight, CornerDownLeft, Eye, ExternalLink, Loader2, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
+import { useMe } from "../lib/useMe";
 import {
     backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment,
     toggleDeliveryComment, deleteDelivery, sendDelivery,
@@ -41,9 +42,12 @@ interface Draft { itemId: string; x: number; y: number }
 
 export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const client = mode === "cliente";
+    const me = useMe();
     const vista = client ? "cliente" as const : undefined;
     const { activeBrand, setActiveBrandId } = useBrand();
     const brandId = activeBrand?.id;
+    // Un cliente sin permiso de aprobar sólo comenta (el servidor también lo frena).
+    const mayApprove = !client || !me.brands || me.brands.some((b) => b.id === brandId && b.canApprove);
     const [params, setParams] = useSearchParams();
     const selectedId = params.get("id");
     const [list, setList] = useState<DeliverySummary[]>([]);
@@ -255,7 +259,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                             <RotateCcw size={12} /> Pedir cambios
                                         </button>
                                     )}
-                                    {current.status !== "aprobada" && (
+                                    {current.status !== "aprobada" && mayApprove && (
                                         <button disabled={busy} onClick={() => run(async () => { await setDeliveryStatus(current.id, "aprobada"); await reload(current.id); })}
                                             className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[12px] font-medium cursor-pointer disabled:opacity-50">
                                             <Check size={12} /> Aprobar

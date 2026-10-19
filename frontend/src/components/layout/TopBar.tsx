@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "../../lib/theme";
+import { useMe } from "../../lib/useMe";
 import { BrandPicker } from "./BrandPicker";
 import { cn } from "../../lib/utils";
 
@@ -30,6 +31,7 @@ const SECTIONS: Section[] = [
 export function TopBar() {
     const { pathname } = useLocation();
     const { theme, toggle } = useTheme();
+    const me = useMe();
     const active = SECTIONS.find((s) => s.match.some((m) => pathname === m || pathname.startsWith(m + "/")));
 
     return (
@@ -49,7 +51,10 @@ export function TopBar() {
                 ))}
             </nav>
             <span className="flex-1" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-fg-faint">Equipo</span>
+            {me.role === "admin"
+                ? <Link to="/dashboard/accesos" className={cn("text-[12px] no-underline", pathname === "/dashboard/accesos" ? "text-fg" : "text-fg-faint hover:text-fg")}>Accesos</Link>
+                : <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-fg-faint">Equipo</span>}
+            <span className="text-[12px] text-fg-faint max-w-[200px] truncate" title={me.email ?? ""}>{me.email === "local" ? "local" : me.email?.split("@")[0]}</span>
             <button onClick={toggle} aria-label={theme === "light" ? "Pasar a modo oscuro" : "Pasar a modo claro"}
                 className="w-8 h-8 flex items-center justify-center rounded-full text-fg-faint hover:text-fg hover:bg-[var(--color-surface-2)] cursor-pointer">
                 {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}

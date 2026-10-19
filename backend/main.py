@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
 from services.access_guard import AccessGuard
+from services.roles import RoleGuard, can_see_brand
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -37,6 +38,7 @@ from services import export_qa
 from services import editor_project
 from routers import video_projects as video_projects_router
 from routers import deliveries as deliveries_router
+from routers import users as users_router
 from fastapi import Request
 from urllib.parse import quote
 from services import llm_router
@@ -84,6 +86,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Roles (services/roles.py): va adentro de AccessGuard (se agrega antes = queda más adentro).
+app.add_middleware(RoleGuard)
 # Producción: sin el login de Cloudflare Access no pasa nada (services/access_guard.py).
 app.add_middleware(AccessGuard)
 
@@ -897,8 +901,9 @@ def delete_campaign(campaign_id: str):
 
 
 @app.get("/api/brands")
-def list_brands():
-    return {"brands": brands.load_brands()}
+def list_brands(request: Request):
+    # Un cliente sólo ve sus marcas (services/roles.py).
+    return {"brands": [b for b in brands.load_brands() if can_see_brand(request, b["id"])]}
 
 
 @app.post("/api/brands")
@@ -918,7 +923,9 @@ def create_brand(req: CreateBrandRequest):
 
 
 @app.get("/api/brands/{brand_id}")
-def get_brand(brand_id: str):
+def get_brand(brand_id: str, request: Request):
+    if not can_see_brand(request, brand_id):
+        raise HTTPException(status_code=404, detail="Brand not found")
     all_brands = brands.load_brands()
     brand = brands.find_brand(all_brands, brand_id)
     if not brand:
@@ -4996,6 +5003,8 @@ async def music_beats(req: BeatsRequest):
 app.include_router(video_projects_router.router)
 # Entregas a la marca: láminas, comentarios, aprobación (routers/deliveries.py · studio-v2 P.3).
 app.include_router(deliveries_router.router)
+# Accesos: /api/me y gestión de usuarios (routers/users.py · studio-v2 §3).
+app.include_router(users_router.router)
 
 
 # ── Proyectos del editor (timeline.json en una carpeta) ─────────────────────

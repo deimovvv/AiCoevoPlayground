@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db import get_session
 from db.models import Delivery, DeliveryComment
 from services import brands
+from services.roles import can_approve, can_see_brand, is_client
 
 router = APIRouter(tags=["deliveries"])
 FILES_DIR = Path(__file__).parent.parent / "data" / "deliveries"
@@ -133,10 +134,10 @@ async def _full(s: AsyncSession, d: Delivery, client: bool = False) -> dict:
 # ── Entregas ──────────────────────────────────────────────────────────────
 
 @router.get("/api/brands/{brand_id}/deliveries")
-async def list_deliveries(brand_id: str, vista: Optional[str] = None, s: AsyncSession = Depends(get_session)):
-    """`vista=cliente`: sólo lo mandado al cliente, contando sólo sus comentarios."""
+async def list_deliveries(brand_id: str, request: Request, vista: Optional[str] = None, s: AsyncSession = Depends(get_session)):
+    """`vista=cliente`: sólo lo mandado al cliente, contando sólo sus comentarios. Un cliente siempre la tiene."""
     _require_brand(brand_id)
-    client = vista == "cliente"
+    client = vista == "cliente" or is_client(request)
     q = select(Delivery).where(Delivery.brand_id == brand_id)
     if client:
         q = q.where(Delivery.visibility == "cliente")
@@ -184,11 +185,12 @@ async def create_delivery(
 
 
 @router.get("/api/deliveries/{delivery_id}")
-async def get_delivery(delivery_id: str, vista: Optional[str] = None, s: AsyncSession = Depends(get_session)):
+async def get_delivery(delivery_id: str, request: Request, vista: Optional[str] = None, s: AsyncSession = Depends(get_session)):
     d = await _get(s, delivery_id)
-    if vista == "cliente" and d.visibility != "cliente":
+    client = vista == "cliente" or is_client(request)
+    if client and (d.visibility != "cliente" or not can_see_brand(request, d.brand_id)):
         raise HTTPException(status_code=404, detail="No existe esa entrega")
-    return await _full(s, d, client=vista == "cliente")
+    return await _full(s, d, client=client)
 
 
 @router.post("/api/deliveries/{delivery_id}/send")
@@ -236,6 +238,11 @@ async def set_status(delivery_id: str, req: StatusIn, request: Request, s: Async
     if req.status not in STATUSES:
         raise HTTPException(status_code=400, detail=f"status debe ser uno de {sorted(STATUSES)}")
     d = await _get(s, delivery_id)
+    if is_client(request):
+        if d.visibility != "cliente" or not can_see_brand(request, d.brand_id) or req.status == "en_revision":
+            raise HTTPException(status_code=404, detail="No existe esa entrega")
+        if req.status == "aprobada" and not can_approve(request, d.brand_id):
+            raise HTTPException(status_code=403, detail="Podés comentar, pero aprobar lo hace otra persona de tu marca.")
     d.status = req.status
     if req.status == "aprobada":
         d.approved_by, d.approved_at = _who(request), datetime.now(timezone.utc)
@@ -269,6 +276,10 @@ class CommentIn(BaseModel):
 @router.post("/api/deliveries/{delivery_id}/comments")
 async def add_comment(delivery_id: str, req: CommentIn, request: Request, s: AsyncSession = Depends(get_session)):
     d = await _get(s, delivery_id)
+    if is_client(request):
+        if not can_see_brand(request, d.brand_id):
+            raise HTTPException(status_code=404, detail="No existe esa entrega")
+        req.asClient = True   # lo que escribe un cliente nunca es interno
     text = req.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="El comentario está vacío")
