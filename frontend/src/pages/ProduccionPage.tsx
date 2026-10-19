@@ -62,6 +62,49 @@ function ToolCard({ a, preview, brandName }: { a: typeof ACTIONS[number]; previe
     );
 }
 
+/** «Montar un video»: un timeline en miniatura (cuadro arriba, pistas abajo, cabezal rojo),
+ *  armado con las portadas de Coevo. Dibujo, sin generar nada: se entiende qué es de un vistazo. */
+const WAVE = [6, 12, 9, 16, 11, 7, 14, 18, 10, 6, 13, 17, 9, 12, 7, 15, 10, 8, 14, 11, 6, 12, 16, 9];
+function EditorCard() {
+    const clips = ["fashion_reel", "ugc_creator", "ecommerce_pack", "video_ad_creator"].map((k) => COEVO_COVER[k]);
+    return (
+        <Link to="/dashboard/editor" className="group flex flex-col gap-2.5 no-underline w-[62vw] max-w-[260px] md:w-auto md:max-w-none shrink-0 snap-start md:min-h-0">
+            <div className="relative aspect-[4/5] md:aspect-auto md:flex-1 md:min-h-0 rounded-[3px] bg-[#141414] overflow-hidden flex flex-col p-3 gap-2.5">
+                {/* el cuadro */}
+                <div className="relative flex-1 min-h-0 rounded-[2px] overflow-hidden bg-black">
+                    <img src={clips[1]} alt="" className="absolute inset-0 w-full h-full object-cover opacity-90 transition-transform duration-700 group-hover:scale-[1.03]" />
+                    <span className="absolute left-2 right-2 bottom-2 text-center text-white text-[11px] font-medium tracking-[-0.01em] drop-shadow">Nos quedamos con una.</span>
+                    <span className="absolute top-1.5 right-2 font-mono text-[9px] text-white/70">00:06</span>
+                </div>
+                {/* las pistas */}
+                <div className="relative shrink-0 flex flex-col gap-1">
+                    <div className="flex gap-[2px] h-7">
+                        {clips.map((c, i) => (
+                            <img key={i} src={c} alt="" className="h-full object-cover rounded-[1px]" style={{ flex: [1.4, 1, 0.8, 1.2][i] }} />
+                        ))}
+                    </div>
+                    <div className="flex gap-1 h-2.5">
+                        <span className="rounded-[1px] bg-[#c8402a]/80" style={{ flex: 1.2 }} />
+                        <span style={{ flex: 0.6 }} />
+                        <span className="rounded-[1px] bg-white/35" style={{ flex: 1.6 }} />
+                        <span style={{ flex: 1 }} />
+                    </div>
+                    <div className="flex items-center gap-[2px] h-4">
+                        {WAVE.map((h, i) => <span key={i} className="flex-1 rounded-full bg-white/30" style={{ height: h }} />)}
+                    </div>
+                    {/* cabezal */}
+                    <span className="absolute -top-1 bottom-0 left-[38%] w-px bg-[#e5483a] transition-[left] duration-[1500ms] ease-out group-hover:left-[72%]" />
+                    <span className="absolute -top-1.5 left-[38%] -translate-x-1/2 w-1.5 h-1.5 rotate-45 bg-[#e5483a] transition-[left] duration-[1500ms] ease-out group-hover:left-[72%]" />
+                </div>
+            </div>
+            <span className="flex flex-col gap-0.5">
+                <span className="text-[14px] text-fg group-hover:underline underline-offset-4 decoration-1">Montar un video</span>
+                <span className="text-[12px] text-fg-faint">Editor · clips, textos y música</span>
+            </span>
+        </Link>
+    );
+}
+
 const RECENT_DAYS = 30;
 
 const ago = (iso: string) => {
@@ -112,16 +155,7 @@ export function ProduccionPage() {
                 <p className={`${mono} text-fg-faint`}>Hacer algo nuevo para {activeBrand.name}</p>
                 <div className="flex md:grid gap-4 md:grid-cols-6 overflow-x-auto md:overflow-visible snap-x -mx-4 px-4 md:mx-0 md:px-0 md:flex-1 md:min-h-0">
                     {ACTIONS.map((a) => <ToolCard key={a.id} a={a} preview={previews[a.id]} brandName={activeBrand.name} />)}
-                    <Link to="/dashboard/editor" className="group flex flex-col gap-2.5 no-underline w-[62vw] max-w-[260px] md:w-auto md:max-w-none shrink-0 snap-start md:min-h-0">
-                        <div className="aspect-[4/5] md:aspect-auto md:flex-1 md:min-h-0 rounded-[3px] bg-[var(--color-action)] p-4 flex flex-col justify-end">
-                            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--color-action-fg)] opacity-60">Editor</span>
-                            <span className="mt-1 text-[18px] leading-tight text-[var(--color-action-fg)]">Montar con lo que ya hay</span>
-                        </div>
-                        <span className="flex flex-col gap-0.5">
-                            <span className="text-[14px] text-fg group-hover:underline underline-offset-4 decoration-1">Montar un video</span>
-                            <span className="text-[12px] text-fg-faint">Timeline · textos · música</span>
-                        </span>
-                    </Link>
+                    <EditorCard />
                 </div>
                 <p className="text-[12px] text-fg-muted">
                     Carruseles y piezas gráficas se hacen con Claude (skills) y llegan a <Link to="/dashboard/entregas" className="text-fg">Entregas</Link>.
