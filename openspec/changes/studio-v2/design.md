@@ -174,3 +174,22 @@ Voz, Montaje). **Decisión: la crew es una forma de contar, no una pantalla que 
 construye. Para el cliente alcanza "en producción / para revisar"; para nosotros, lo que hace falta es
 la lista de **aprobaciones pendientes**. En contenido de Coevo puede aparecer como gráfico del video,
 nunca como supuesta captura de Studio (`coevo-web/openspec/changes/video-hecho-con-studio`).
+
+## 11. Qué ve el cliente (decidido 2026-10-19, con Gonzalo)
+
+Todavía no se usa con clientes; esto define cómo va a ser cuando se use.
+
+**Ve:** una barra mínima (su marca + su usuario) y
+1. **Para revisar**: las entregas que esperan su respuesta (entra directo ahí).
+2. **La pieza y sus láminas**: las dos vistas de Entregas, con Comentar · Pedir cambios · Aprobar.
+3. **Aprobadas**: historial, con descarga.
+4. **Mandar material**: sube fotos, logo, briefs; le llega al equipo (no edita el Brand Kit).
+5. **Su Brand Kit en modo lectura**: para chequear que tenemos bien logo, colores, tipografías.
+6. Después: **Reportes** (el resumen mensual llega como una entrega con PDF).
+
+**No ve:** el menú de Studio ni las tools, costos, descartes, rondas ni comentarios internos, otras marcas.
+
+**Dos pasos por entrega:** `interna` (el equipo revisa y comenta; Claude corrige) → **"Mandar al cliente"**
+→ recién ahí la ve, sin los comentarios internos. Cada comentario guarda si es interno o del cliente.
+
+**Quién aprueba:** se elige por persona (`memberships.can_approve`); el resto de la marca sólo comenta.

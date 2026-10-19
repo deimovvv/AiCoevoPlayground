@@ -40,5 +40,8 @@
 
 ## 4. Entregas
 
+- [ ] 4.0 Dos pasos: `deliveries.visibility` (interna · cliente) + botón "Mandar al cliente"; `delivery_comments.internal`. El cliente no ve internas ni comentarios internos (design.md §11).
+- [ ] 4.0b Vista cliente: Para revisar · Aprobadas (descarga) · Mandar material · Brand Kit en lectura.
+
 - [ ] 4.1 Entregas por marca: estado, comentarios, aprobación (reusa notas del portal).
 - [ ] 4.2 Migrar clientes del portal por link a cuentas; apagar el portal.
