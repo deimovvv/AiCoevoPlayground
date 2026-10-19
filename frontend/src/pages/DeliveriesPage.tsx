@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
-import { Check, CornerDownLeft, ExternalLink, Loader2, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, CornerDownLeft, ExternalLink, Loader2, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
     backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment,
@@ -11,8 +11,8 @@ import {
 /**
  * Entregas: lo que Coevo le entrega a la marca para revisar (openspec/changes/studio-v2 P.3–P.4).
  *
- * Las láminas en fila, como en el canvas donde se armó la pieza. Clic sobre una lámina = comentario
- * anclado a ese punto. Se pide cambios o se aprueba. Claude sube y corrige por el MCP `coevo-studio`
+ * Dos vistas: la pieza entera (todas las láminas en una fila, como en el canvas donde se armó) y una
+ * lámina grande, donde se comenta (clic = comentario anclado a ese punto; ← → para pasar). Se pide cambios o se aprueba. Claude sube y corrige por el MCP `coevo-studio`
  * (subir_entrega · ver_entrega · nueva_ronda); acá sólo se mira y se comenta, no se edita.
  */
 
@@ -40,6 +40,7 @@ export function DeliveriesPage() {
     const [draft, setDraft] = useState<Draft | null>(null);
     const [draftText, setDraftText] = useState("");
     const [focus, setFocus] = useState<string | null>(null);
+    const [slide, setSlide] = useState<number | null>(null);   // null = la pieza entera; n = una lámina grande
     const [uploadTitle, setUploadTitle] = useState("");
     const fileRef = useRef<HTMLInputElement>(null);
     const brandRef = useRef(brandId);
@@ -51,7 +52,7 @@ export function DeliveriesPage() {
     useEffect(() => { setList([]); refreshList(); }, [refreshList]);
 
     const open = useCallback((id: string | null) => {
-        setDraft(null); setDraftText("");
+        setDraft(null); setDraftText(""); setSlide(null);
         setParams(id ? { id } : {}, { replace: true });
     }, [setParams]);
 
@@ -63,6 +64,9 @@ export function DeliveriesPage() {
             if (!alive) return;
             if (d.brandId !== brandRef.current) { brandRef.current = d.brandId; setActiveBrandId(d.brandId); }
             setCurrent(d);
+            // ?lamina=3 abre esa lámina (links a un comentario puntual).
+            const n = Number(new URLSearchParams(window.location.search).get("lamina"));
+            if (n >= 1 && n <= d.items.length) setSlide(n - 1);
         }).catch((e) => alive && setError(e.message));
         return () => { alive = false; };
     }, [selectedId, setActiveBrandId]);
@@ -87,7 +91,21 @@ export function DeliveriesPage() {
             Number(!!a.resolvedAt) - Number(!!b.resolvedAt) || b.round - a.round
             || (order[a.itemId ?? ""] ?? -1) - (order[b.itemId ?? ""] ?? -1));
     }, [current]);
-    const labelOf = useMemo(() => Object.fromEntries((current?.items ?? []).map((it) => [it.id, it.label])), [current]);
+    const numberOf = useMemo(() => Object.fromEntries(comments.map((c, i) => [c.id, i + 1])), [comments]);
+    const total = current?.items.length ?? 0;
+
+    // Lámina abierta: ← → para pasar, Esc para volver a la pieza (salvo escribiendo un comentario).
+    useEffect(() => {
+        if (slide === null) return;
+        const onKey = (e: KeyboardEvent) => {
+            if ((e.target as HTMLElement)?.tagName === "TEXTAREA" || (e.target as HTMLElement)?.tagName === "INPUT") return;
+            if (e.key === "Escape") { setSlide(null); setDraft(null); }
+            if (e.key === "ArrowRight") { setSlide((n) => (n === null ? n : Math.min(total - 1, n + 1))); setDraft(null); }
+            if (e.key === "ArrowLeft") { setSlide((n) => (n === null ? n : Math.max(0, n - 1))); setDraft(null); }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [slide, total]);
 
     if (!activeBrand) {
         return <div className="h-full flex items-center justify-center text-[13px] text-fg-muted">Elegí una marca para ver sus entregas.</div>;
@@ -98,11 +116,11 @@ export function DeliveriesPage() {
         setDraft({ itemId, x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height });
         setDraftText("");
     };
-    const saveDraft = () => {
+    const saveDraft = (itemId: string) => {
         if (!current || !draftText.trim()) return;
-        const d = draft;
+        const d = draft?.itemId === itemId ? draft : null;
         run(async () => {
-            await addDeliveryComment(current.id, { text: draftText, itemId: d?.itemId ?? null, x: d?.x ?? null, y: d?.y ?? null });
+            await addDeliveryComment(current.id, { text: draftText, itemId, x: d?.x ?? null, y: d?.y ?? null });
             setDraft(null); setDraftText("");
             await reload(current.id);
         });
@@ -179,117 +197,163 @@ export function DeliveriesPage() {
                     </div>
                 ) : (
                     <>
-                        <header className="px-6 pt-6 pb-4 flex flex-wrap items-end gap-x-6 gap-y-3">
+                        <header className="px-6 py-4 flex items-center gap-4 border-b border-edge">
                             <div className="min-w-0">
-                                <h2 className="text-[18px] text-fg truncate">{current.title}</h2>
-                                <p className={`${mono} text-fg-faint mt-1.5 flex items-center gap-2`}>
+                                <h2 className="text-[15px] font-medium text-fg truncate">{current.title}</h2>
+                                <p className="text-[11px] text-fg-faint mt-0.5 flex items-center gap-1.5">
                                     <span className={`w-1.5 h-1.5 rounded-full ${STATUS[current.status].dot}`} />
-                                    {STATUS[current.status].label} · ronda {current.round} · {current.items.length} láminas · {who(current.createdBy)} · {when(current.updatedAt)}
+                                    {STATUS[current.status].label}
+                                    {current.round > 1 && <> · versión {current.round}</>}
+                                    {" "}· subida por {who(current.createdBy)} el {when(current.createdAt)}
                                     {current.approvedBy && <> · aprobó {who(current.approvedBy)}</>}
                                 </p>
-                                {current.note && <p className="text-[12px] text-fg-muted mt-2 max-w-[640px]">{current.note}</p>}
                             </div>
                             <span className="flex-1" />
-                            <div className="flex items-center gap-2">
-                                {current.source && (
-                                    <a href={backendUrl(current.source.url)} target="_blank" rel="noreferrer" title="La fuente editable (la corrige Claude)"
-                                        className="h-8 px-3 flex items-center gap-1.5 text-[12px] text-fg-muted hover:text-fg">
-                                        Fuente <ExternalLink size={11} />
-                                    </a>
-                                )}
-                                {current.status !== "cambios" && (
-                                    <button disabled={busy} onClick={() => run(async () => { setCurrent(await setDeliveryStatus(current.id, "cambios")); await refreshList(); })}
-                                        className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
-                                        <RotateCcw size={12} /> Pedir cambios
-                                    </button>
-                                )}
-                                {current.status !== "aprobada" && (
-                                    <button disabled={busy} onClick={() => run(async () => { setCurrent(await setDeliveryStatus(current.id, "aprobada")); await refreshList(); })}
-                                        className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[12px] font-medium cursor-pointer disabled:opacity-50">
-                                        <Check size={12} /> Aprobar
-                                    </button>
-                                )}
-                                <button disabled={busy} title="Borrar la entrega"
-                                    onClick={() => { if (window.confirm(`¿Borrar "${current.title}" y sus comentarios?`)) run(async () => { await deleteDelivery(current.id); open(null); await refreshList(); }); }}
-                                    className="w-8 h-8 flex items-center justify-center text-fg-faint hover:text-[var(--color-error)] cursor-pointer">
-                                    <Trash2 size={13} />
+                            {current.source && (
+                                <a href={backendUrl(current.source.url)} target="_blank" rel="noreferrer" title="El archivo editable de la pieza"
+                                    className="flex items-center gap-1 text-[12px] text-fg-faint hover:text-fg">Fuente <ExternalLink size={11} /></a>
+                            )}
+                            {current.status !== "cambios" && (
+                                <button disabled={busy} onClick={() => run(async () => { setCurrent(await setDeliveryStatus(current.id, "cambios")); await refreshList(); })}
+                                    className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
+                                    <RotateCcw size={12} /> Pedir cambios
                                 </button>
-                            </div>
+                            )}
+                            {current.status !== "aprobada" && (
+                                <button disabled={busy} onClick={() => run(async () => { setCurrent(await setDeliveryStatus(current.id, "aprobada")); await refreshList(); })}
+                                    className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[12px] font-medium cursor-pointer disabled:opacity-50">
+                                    <Check size={12} /> Aprobar
+                                </button>
+                            )}
+                            <button disabled={busy} title="Borrar la entrega"
+                                onClick={() => { if (window.confirm(`¿Borrar "${current.title}" y sus comentarios?`)) run(async () => { await deleteDelivery(current.id); open(null); await refreshList(); }); }}
+                                className="w-8 h-8 flex items-center justify-center text-fg-faint hover:text-[var(--color-error)] cursor-pointer">
+                                <Trash2 size={13} />
+                            </button>
                         </header>
 
-                        <div className="flex-1 min-h-0 flex">
-                            {/* Láminas en fila */}
-                            <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden">
-                                <div className="h-full flex items-center gap-3 px-6 pb-6">
-                                    {current.items.map((it) => {
-                                        const pins = comments.filter((c) => c.itemId === it.id && c.round === current.round && c.x != null);
-                                        return (
-                                            <figure key={it.id} className="shrink-0 flex flex-col">
-                                                <div className="relative h-[min(46vh,460px)] cursor-crosshair select-none" onClick={(e) => onPick(e, it.id)}>
+                        {slide === null ? (
+                            /* ── Vista 1: la pieza entera, como en el canvas ── */
+                            <div className="flex-1 min-h-0 overflow-auto bg-[var(--color-canvas)] flex flex-col">
+                                <div className="flex-1 flex items-center justify-center p-10">
+                                    <div className="w-full grid gap-4 items-center"
+                                        style={{ gridTemplateColumns: `repeat(${Math.min(total, 6)}, minmax(0, 1fr))`, maxWidth: Math.min(total, 6) * 300 }}>
+                                        {current.items.map((it, i) => {
+                                            const pins = comments.filter((c) => c.itemId === it.id && c.round === current.round && c.x != null && !c.resolvedAt);
+                                            return (
+                                                <button key={it.id} onClick={() => { setSlide(i); setDraft(null); }} title="Abrir para comentar"
+                                                    className="group text-left cursor-zoom-in">
+                                                    <div className="relative">
+                                                        {it.kind === "video"
+                                                            ? <video src={backendUrl(it.url)} muted className="w-full h-auto max-h-[64vh] object-contain rounded-[var(--radius-xs)] bg-surface-1 transition-transform group-hover:-translate-y-0.5" />
+                                                            : <img src={backendUrl(it.url)} alt={it.label} draggable={false} className="w-full h-auto max-h-[64vh] object-contain rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5" />}
+                                                        {pins.map((c) => (
+                                                            <span key={c.id} style={{ left: `${c.x! * 100}%`, top: `${c.y! * 100}%` }}
+                                                                className="absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] ring-2 ring-black/30">
+                                                                {numberOf[c.id]}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                    <p className="text-[11px] text-fg-faint mt-2 flex items-center gap-1.5">
+                                                        <span className="tabular-nums">{String(i + 1).padStart(2, "0")}</span> {it.label !== String(i + 1).padStart(2, "0") && it.label}
+                                                        {pins.length > 0 && <span className="text-[var(--color-brand)]">· {pins.length}</span>}
+                                                    </p>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                <footer className="px-6 py-3 border-t border-edge bg-surface-0 flex items-center gap-4">
+                                    <p className="text-[12px] text-fg-faint shrink-0">
+                                        {comments.filter((c) => !c.resolvedAt).length
+                                            ? `${comments.filter((c) => !c.resolvedAt).length} comentarios abiertos · clic en una lámina para verla y comentar`
+                                            : "Clic en una lámina para verla grande y comentar sobre ella."}
+                                    </p>
+                                    {current.note && <p className="text-[12px] text-fg-muted truncate" title={current.note}>{current.note}</p>}
+                                </footer>
+                            </div>
+                        ) : (
+                            /* ── Vista 2: una lámina grande + sus comentarios ── */
+                            (() => {
+                                const it = current.items[slide];
+                                const here = comments.filter((c) => c.itemId === it.id);
+                                const general = comments.filter((c) => !c.itemId);
+                                return (
+                                    <div className="flex-1 min-h-0 flex">
+                                        <div className="flex-1 min-w-0 flex flex-col bg-[var(--color-canvas)]">
+                                            <div className="px-6 py-3 flex items-center gap-3 text-[12px]">
+                                                <button onClick={() => { setSlide(null); setDraft(null); }} className="text-fg-muted hover:text-fg cursor-pointer">← Toda la pieza</button>
+                                                <span className="flex-1" />
+                                                <button disabled={slide === 0} onClick={() => { setSlide(slide - 1); setDraft(null); }}
+                                                    className="w-7 h-7 flex items-center justify-center rounded-full text-fg-muted hover:text-fg hover:bg-surface-2 disabled:opacity-30 cursor-pointer"><ChevronLeft size={15} /></button>
+                                                <span className="text-fg-faint tabular-nums">{slide + 1} / {total}</span>
+                                                <button disabled={slide === total - 1} onClick={() => { setSlide(slide + 1); setDraft(null); }}
+                                                    className="w-7 h-7 flex items-center justify-center rounded-full text-fg-muted hover:text-fg hover:bg-surface-2 disabled:opacity-30 cursor-pointer"><ChevronRight size={15} /></button>
+                                            </div>
+                                            <div className="flex-1 min-h-0 flex items-center justify-center px-6 pb-6">
+                                                <div className="relative h-full max-h-full cursor-crosshair select-none" onClick={(e) => onPick(e, it.id)}>
                                                     {it.kind === "video"
-                                                        ? <video src={backendUrl(it.url)} controls className="h-full w-auto rounded-[var(--radius-xs)] bg-surface-1" />
-                                                        : <img src={backendUrl(it.url)} alt={it.label} draggable={false} className="h-full w-auto rounded-[var(--radius-xs)] bg-surface-1" />}
-                                                    {pins.map((c) => (
-                                                        <span key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus(null)}
-                                                            onClick={(e) => e.stopPropagation()}
+                                                        ? <video src={backendUrl(it.url)} controls className="h-full w-auto max-w-full object-contain rounded-[var(--radius-xs)]" />
+                                                        : <img src={backendUrl(it.url)} alt={it.label} draggable={false} className="h-full w-auto max-w-full object-contain rounded-[var(--radius-xs)] shadow-[0_8px_30px_rgba(0,0,0,0.35)]" />}
+                                                    {here.filter((c) => c.round === current.round && c.x != null).map((c) => (
+                                                        <span key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus(null)} onClick={(e) => e.stopPropagation()}
                                                             style={{ left: `${c.x! * 100}%`, top: `${c.y! * 100}%` }}
-                                                            className={`absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium ring-2 ring-black/30 transition-transform
+                                                            className={`absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-medium ring-2 ring-black/30 transition-transform
                                                                 ${c.resolvedAt ? "bg-surface-3 text-fg-faint" : "bg-[var(--color-brand)] text-[var(--color-brand-fg)]"} ${focus === c.id ? "scale-125" : ""}`}>
-                                                            {comments.indexOf(c) + 1}
+                                                            {numberOf[c.id]}
                                                         </span>
                                                     ))}
                                                     {draft?.itemId === it.id && (
                                                         <span style={{ left: `${draft.x * 100}%`, top: `${draft.y * 100}%` }}
-                                                            className="absolute -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-[var(--color-brand)] bg-black/40 animate-pulse" />
+                                                            className="absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 border-[var(--color-brand)] bg-black/40 animate-pulse" />
                                                     )}
                                                 </div>
-                                                <figcaption className={`${mono} text-fg-faint mt-2`}>{it.label}</figcaption>
-                                            </figure>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* Comentarios */}
-                            <aside className="w-[300px] shrink-0 border-l border-edge flex flex-col min-h-0">
-                                <div className="p-4 border-b border-edge">
-                                    <p className={`${mono} text-fg-faint mb-2`}>
-                                        {draft ? `Comentario en ${labelOf[draft.itemId]}` : "Clic en una lámina para anclar · o sobre toda la entrega"}
-                                    </p>
-                                    <textarea value={draftText} onChange={(e) => setDraftText(e.target.value)} rows={3}
-                                        onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveDraft(); }}
-                                        placeholder="Qué cambiarías…"
-                                        className="w-full bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-fg/40 resize-none" />
-                                    <div className="flex items-center justify-end gap-2 mt-2">
-                                        {draft && <button onClick={() => setDraft(null)} className="text-[11px] text-fg-faint hover:text-fg cursor-pointer">Soltar punto</button>}
-                                        <button disabled={busy || !draftText.trim()} onClick={saveDraft}
-                                            className="h-7 px-2.5 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[11px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-40">
-                                            Comentar <CornerDownLeft size={11} />
-                                        </button>
-                                    </div>
-                                </div>
-                                <ol className="flex-1 overflow-y-auto p-2">
-                                    {comments.length === 0 && <li className="px-2 py-4 text-[12px] text-fg-faint">Sin comentarios.</li>}
-                                    {comments.map((c, i) => (
-                                        <li key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus(null)}
-                                            className={`group p-2.5 rounded-[var(--radius-md)] ${focus === c.id ? "bg-surface-1" : ""} ${c.resolvedAt || c.round < current.round ? "opacity-50" : ""}`}>
-                                            <div className={`${mono} text-fg-faint flex items-center gap-1.5`}>
-                                                <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${c.resolvedAt ? "bg-surface-3" : "bg-[var(--color-brand)] text-[var(--color-brand-fg)]"}`}>{i + 1}</span>
-                                                {c.itemId ? labelOf[c.itemId] ?? `ronda ${c.round}` : "toda"} · {who(c.author)}
-                                                {c.round < current.round && <> · r{c.round}</>}
-                                                <span className="flex-1" />
-                                                <button onClick={() => run(async () => { await toggleDeliveryComment(current.id, c.id); await reload(current.id); })}
-                                                    title={c.resolvedAt ? "Reabrir" : "Marcar resuelto"}
-                                                    className="opacity-0 group-hover:opacity-100 text-fg-faint hover:text-fg cursor-pointer">
-                                                    {c.resolvedAt ? <RotateCcw size={11} /> : <Check size={12} />}
-                                                </button>
                                             </div>
-                                            <p className={`text-[12px] text-fg mt-1.5 leading-relaxed ${c.resolvedAt ? "line-through decoration-fg/30" : ""}`}>{c.text}</p>
-                                        </li>
-                                    ))}
-                                </ol>
-                            </aside>
-                        </div>
+                                        </div>
+
+                                        <aside className="w-[320px] shrink-0 border-l border-edge flex flex-col min-h-0">
+                                            <div className="p-4">
+                                                <p className="text-[13px] text-fg">{it.label}</p>
+                                                <p className="text-[11px] text-fg-faint mt-0.5">
+                                                    {draft ? "Escribí el comentario para el punto marcado." : "Hacé clic sobre la lámina para marcar un punto, o comentá la lámina entera."}
+                                                </p>
+                                                <textarea value={draftText} onChange={(e) => setDraftText(e.target.value)} rows={3} autoFocus={!!draft}
+                                                    key={draft ? `${draft.x}-${draft.y}` : "libre"}
+                                                    onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveDraft(it.id); }}
+                                                    placeholder="Qué cambiarías…"
+                                                    className="w-full mt-3 bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-fg/40 resize-none" />
+                                                <div className="flex items-center justify-end gap-3 mt-2">
+                                                    {draft && <button onClick={() => setDraft(null)} className="text-[11px] text-fg-faint hover:text-fg cursor-pointer">Quitar punto</button>}
+                                                    <button disabled={busy || !draftText.trim()} onClick={() => saveDraft(it.id)}
+                                                        className="h-7 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[11px] font-medium cursor-pointer disabled:opacity-30">
+                                                        Comentar <CornerDownLeft size={11} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <ol className="flex-1 overflow-y-auto px-2 pb-4 border-t border-edge pt-2">
+                                                {here.length === 0 && <li className="px-2 py-3 text-[12px] text-fg-faint">Sin comentarios en esta lámina.</li>}
+                                                {[...here, ...general].map((c) => (
+                                                    <li key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus(null)}
+                                                        className={`group p-2.5 rounded-[var(--radius-md)] ${focus === c.id ? "bg-surface-1" : ""} ${c.resolvedAt || c.round < current.round ? "opacity-50" : ""}`}>
+                                                        <div className="text-[11px] text-fg-faint flex items-center gap-1.5">
+                                                            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${c.resolvedAt ? "bg-surface-3" : "bg-[var(--color-brand)] text-[var(--color-brand-fg)]"}`}>{numberOf[c.id]}</span>
+                                                            {who(c.author)}{!c.itemId && " · sobre toda la pieza"}{c.round < current.round && ` · versión ${c.round}`}{c.resolvedAt && " · resuelto"}
+                                                            <span className="flex-1" />
+                                                            <button onClick={() => run(async () => { await toggleDeliveryComment(current.id, c.id); await reload(current.id); })}
+                                                                title={c.resolvedAt ? "Reabrir" : "Marcar resuelto"}
+                                                                className="opacity-0 group-hover:opacity-100 text-fg-faint hover:text-fg cursor-pointer">
+                                                                {c.resolvedAt ? <RotateCcw size={11} /> : <Check size={12} />}
+                                                            </button>
+                                                        </div>
+                                                        <p className={`text-[12px] text-fg mt-1.5 leading-relaxed ${c.resolvedAt ? "line-through decoration-fg/30" : ""}`}>{c.text}</p>
+                                                    </li>
+                                                ))}
+                                            </ol>
+                                        </aside>
+                                    </div>
+                                );
+                            })()
+                        )}
                     </>
                 )}
             </main>
