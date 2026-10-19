@@ -5160,6 +5160,63 @@ def check_ffmpeg():
 #  Generations CRUD
 # ══════════════════════════════════════════════════════════════
 
+# Último resultado de cada tool, para las tarjetas de Producción (studio-v2). El índice de
+# corridas pesa decenas de MB: se recalcula sólo cuando cambia el archivo.
+_TOOL_PREVIEW_CACHE: dict = {"mtime": None, "rows": []}
+_PREVIEW_TOOLS = ("fashion_reel", "ecommerce_pack", "ugc_creator", "video_ad_creator", "manual_lab")
+
+
+@app.get("/api/tool-previews")  # no /api/tools/previews: lo toma /api/tools/{tool_id}
+def tool_previews(brandId: Optional[str] = None):
+    """Por tool: la última pieza terminada de esta marca; si no tiene, la última de cualquiera.
+    Video si hay (para la tarjeta), si no imagen. `own` dice si es de la marca pedida."""
+    f = generations_service.GENERATIONS_FILE
+    mtime = f.stat().st_mtime if f.exists() else None
+    if _TOOL_PREVIEW_CACHE["mtime"] != mtime:
+        rows = []
+        for g in _load_generations():
+            tool = g.get("toolId")
+            url = g.get("outputUrl") or ""
+            if tool not in _PREVIEW_TOOLS or g.get("status") != "completed":
+                continue
+            if url.endswith((".mp4", ".mov", ".webm")):
+                kind = "video"
+            else:
+                url = g.get("thumbnailUrl") or (url if url.endswith((".png", ".jpg", ".jpeg", ".webp")) else "")
+                kind = "image"
+            # Videos de las tools: /static (no vencen). Fotos de Ecommerce y Lab: Fal (si una vence,
+            # la tarjeta cae a la portada fija del frontend).
+            if not url or not (url.startswith("/static/") or ".fal.media/" in url):
+                continue
+            rows.append({"toolId": tool, "brandId": g.get("brandId"), "url": url, "kind": kind,
+                         "title": g.get("title"), "createdAt": g.get("createdAt") or ""})
+        rows.sort(key=lambda r: (r["kind"] == "video", r["createdAt"]), reverse=True)
+        _TOOL_PREVIEW_CACHE.update(mtime=mtime, rows=rows)
+    out = {}
+    for tool in _PREVIEW_TOOLS:
+        mine = [r for r in _TOOL_PREVIEW_CACHE["rows"] if r["toolId"] == tool]
+        pick = next((r for r in mine if brandId and r["brandId"] == brandId), None) or (mine[0] if mine else None)
+        if pick:
+            out[tool] = {**pick, "own": bool(brandId) and pick["brandId"] == brandId,
+                         "poster": _video_poster(pick["url"]) if pick["kind"] == "video" else None}
+    return {"previews": out}
+
+
+def _video_poster(url: str) -> Optional[str]:
+    """Un cuadro del video como portada (FFmpeg, una sola vez por video). Sin portada la tarjeta
+    queda gris: el servidor de archivos no sirve rangos y el navegador no puede saltar a un cuadro."""
+    if not url.startswith("/static/renders/"):
+        return None
+    src = DATA_DIR / "renders" / url[len("/static/renders/"):]
+    out = DATA_DIR / "renders" / "posters" / (src.stem + ".jpg")
+    if not out.exists() and src.is_file():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        import subprocess
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "0.6", "-i", str(src), "-frames:v", "1",
+                        "-vf", "scale=540:-2", "-q:v", "4", str(out)], timeout=30, check=False)
+    return f"/static/renders/posters/{out.name}" if out.exists() else None
+
+
 @app.get("/api/generations")
 def list_generations(brandId: Optional[str] = None):
     """List all generations, optionally filtered by brand.

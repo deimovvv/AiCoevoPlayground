@@ -22,18 +22,20 @@ const clip = (t: string | undefined, max: number) => {
     return cut.slice(0, cut.lastIndexOf(" ")).replace(/[,;:.\s]+$/, "") + "…";
 };
 
-function Row({ n, title, missing, children, editTo }: {
-    n: string; title: string; missing?: string | null; children: ReactNode; editTo: string;
+function Card({ n, title, missing, children, editTo }: {
+    n: string; title: string; missing?: string | true | null; children: ReactNode; editTo: string;
 }) {
     return (
-        <section className="group grid grid-cols-[48px_200px_minmax(0,1fr)_120px] gap-x-6 py-7 border-t border-edge">
-            <span className={`${mono} text-fg-faint pt-1`}>{n}</span>
-            <h2 className="text-[15px] tracking-[-0.01em] text-fg pt-0.5">{title}</h2>
-            <div className="min-w-0">{children}</div>
-            <div className="flex flex-col items-end gap-2 pt-1">
-                <span className={`${mono} ${missing ? "text-[var(--color-brand)]" : "text-fg-faint"}`}>{missing ? "Falta" : "Listo"}</span>
-                <Link to={editTo} className="text-[12px] text-fg-faint no-underline opacity-0 group-hover:opacity-100 hover:text-fg transition-opacity">Editar</Link>
+        <section className="group relative flex flex-col gap-4 p-6 rounded-[4px] border border-edge bg-[var(--color-surface-1)] min-w-0">
+            <div className="flex items-baseline gap-3">
+                <span className={`${mono} text-fg-faint`}>{n}</span>
+                <h2 className="text-[15px] tracking-[-0.01em] text-fg">{title}</h2>
+                <span className="flex-1" />
+                {missing
+                    ? <span className={`${mono} text-[var(--color-brand)]`}>{missing === true ? "Falta" : `Falta ${missing}`}</span>
+                    : <Link to={editTo} className="text-[12px] text-fg-faint no-underline opacity-0 group-hover:opacity-100 hover:text-fg transition-opacity">Editar</Link>}
             </div>
+            <div className="min-w-0">{children}</div>
         </section>
     );
 }
@@ -44,10 +46,10 @@ const Empty = ({ children }: { children: ReactNode }) => <p className="text-[14p
 
 function Imgs({ urls, round }: { urls: string[]; round?: boolean }) {
     return (
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 overflow-hidden">
             {urls.map((u, i) => (
                 <img key={i} src={backendUrl(u)} alt="" loading="lazy"
-                    className={round ? "w-14 h-14 rounded-full object-cover" : "h-[112px] w-auto max-w-[180px] object-cover rounded-[2px]"} />
+                    className={round ? "w-14 h-14 rounded-full object-cover" : "h-[96px] w-auto max-w-[150px] object-cover rounded-[2px]"} />
             ))}
         </div>
     );
@@ -87,19 +89,20 @@ export function MarcaPage() {
     const edit = `/dashboard/brands/${b.id}`;
     const brandFont = b.fonts?.headline ? `"${b.fonts.headline}", ui-serif, serif` : undefined;
 
-    const missing = [
+    // Texto = qué falta adentro del bloque; true = falta el bloque entero.
+    const missing: (string | true | null)[] = [
         !b.brandContext ? "contexto" : null,
         !logo ? "logo" : !colors.length ? "colores" : null,
         !ds.photoStyle ? "reglas de foto" : !looks.length ? "referencias" : null,
-        !faces.length ? "caras" : null,
-        !catalog.length ? "catálogo" : null,
-        "plantillas",
+        !faces.length ? true : null,
+        !catalog.length ? true : null,
+        true,
     ];
     const done = missing.filter((m) => !m).length;
 
     return (
-        <div className="max-w-[1180px] mx-auto pt-4 pb-16">
-            <header className="flex items-end gap-8 pb-10">
+        <div className="pb-16">
+            <header className="flex items-end gap-8 pb-8">
                 <div className="min-w-0">
                     <p className={`${mono} text-fg-faint`}>Memoria de la marca · {done} de 6</p>
                     <h1 className="mt-3 text-[52px] leading-[0.95] tracking-[-0.04em] text-fg">{b.name}</h1>
@@ -113,9 +116,10 @@ export function MarcaPage() {
                 </Link>
             </header>
 
-            <Row n="01" title="Quién es" missing={missing[0]} editTo={edit}>
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+            <Card n="01" title="Quién es" missing={missing[0]} editTo={edit}>
                 {b.brandContext || b.business?.value_prop
-                    ? <p className="text-[17px] leading-[1.45] tracking-[-0.01em] text-fg max-w-[640px]">{clip(b.business?.value_prop || b.brandContext, 200)}</p>
+                    ? <p className="text-[16px] leading-[1.5] tracking-[-0.01em] text-fg">{clip(b.business?.value_prop || b.brandContext, 180)}</p>
                     : <Empty>Todavía no sabemos quién es la marca.</Empty>}
                 {(dna.tone?.length || dna.forbidden_words?.length) ? (
                     <Note>
@@ -123,17 +127,17 @@ export function MarcaPage() {
                         {dna.forbidden_words?.length ? <> Nunca dice {dna.forbidden_words.slice(0, 3).map((w) => `«${w.toLowerCase()}»`).join(", ")}.</> : null}
                     </Note>
                 ) : null}
-            </Row>
+            </Card>
 
-            <Row n="02" title="Identidad gráfica" missing={missing[1]} editTo={edit}>
-                <div className="flex items-center gap-10 flex-wrap">
+            <Card n="02" title="Identidad gráfica" missing={missing[1]} editTo={edit}>
+                <div className="flex flex-col gap-4">
                     {logo
                         ? <img src={backendUrl(logo)} alt={`Logo de ${b.name}`} className="h-12 w-auto max-w-[200px] object-contain" />
-                        : <span className="text-[34px] leading-none text-fg" style={{ fontFamily: brandFont }}>{b.name}</span>}
+                        : <span className="text-[30px] leading-[1.05] text-fg" style={{ fontFamily: brandFont }}>{b.name}</span>}
                     {colors.length > 0 && (
-                        <div className="flex">
+                        <div className="flex max-w-[280px]">
                             {colors.slice(0, 6).map((c) => (
-                                <span key={c.hex + c.name} title={`${c.name} · ${c.hex}`} style={{ background: c.hex }} className="w-7 h-12 first:rounded-l-[2px] last:rounded-r-[2px]" />
+                                <span key={c.hex + c.name} title={`${c.name} · ${c.hex}`} style={{ background: c.hex }} className="flex-1 h-8 first:rounded-l-[2px] last:rounded-r-[2px]" />
                             ))}
                         </div>
                     )}
@@ -141,37 +145,36 @@ export function MarcaPage() {
                 <Note>
                     {fontNames.length ? fontNames.join(" / ") : "Sin tipografías"}
                     {colors.length ? <span className="font-mono text-[11px] text-fg-faint"> · {colors.slice(0, 4).map((c) => c.hex.toLowerCase()).join(" ")}</span> : null}
-                    {!logo && <span className="text-[var(--color-brand)]"> · falta el logo</span>}
                 </Note>
-            </Row>
+            </Card>
 
-            <Row n="03" title="Dirección de foto y video" missing={missing[2]} editTo={edit}>
+            <Card n="03" title="Dirección de foto y video" missing={missing[2]} editTo={edit}>
                 {looks.length > 0 && <Imgs urls={looks.slice(0, 4)} />}
-                {ds.photoStyle ? <Note>{clip(ds.photoStyle, 220)}</Note> : <Empty>Sin reglas de foto: Claude no sabe cómo se ve la marca.</Empty>}
-            </Row>
+                {ds.photoStyle ? <Note>{clip(ds.photoStyle, 140)}</Note> : <Empty>Sin reglas de foto: Claude no sabe cómo se ve la marca.</Empty>}
+            </Card>
 
-            <Row n="04" title="Caras" missing={missing[3]} editTo={edit}>
+            <Card n="04" title="Caras" missing={missing[3]} editTo={edit}>
                 {faces.length > 0 ? (
                     <>
                         <Imgs urls={faces.slice(0, 6).map((a) => a.imageUrl!)} round />
                         <Note>{faces.slice(0, 6).map((a) => a.name.split(" ")[0]).join(", ")}{b.voicePresets?.length ? ` · ${b.voicePresets.length} voz` : ""}</Note>
                     </>
                 ) : <Empty>Sin avatares ni modelos.</Empty>}
-            </Row>
+            </Card>
 
-            <Row n="05" title="Catálogo" missing={missing[4]} editTo={edit}>
+            <Card n="05" title="Catálogo" missing={missing[4]} editTo={edit}>
                 {catalog.length > 0 ? (
                     <>
                         <Imgs urls={catalog.slice(0, 5)} />
                         <Note>{[count(b.products?.length, "producto", "productos"), count(b.clothing?.length, "prenda", "prendas")].filter(Boolean).join(" · ")}</Note>
                     </>
                 ) : <Empty>Sin productos ni prendas: no se pueden hacer fichas ni prenda sobre modelo.</Empty>}
-            </Row>
+            </Card>
 
-            <Row n="06" title="Plantillas" missing={missing[5]} editTo={edit}>
+            <Card n="06" title="Plantillas" missing={missing[5]} editTo={edit}>
                 <Empty>Se guardan cuando una pieza se aprueba, para repetir el formato.</Empty>
-            </Row>
-            <div className="border-t border-edge" />
+            </Card>
+            </div>
         </div>
     );
 }

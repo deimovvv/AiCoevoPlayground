@@ -3791,3 +3791,14 @@ export async function toggleDeliveryComment(id: string, commentId: string): Prom
 export async function deleteDelivery(id: string): Promise<void> {
     await editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}`, { method: "DELETE" }), "No se pudo borrar la entrega");
 }
+
+// ── Previews de tools (Producción, studio-v2) ────────────────────────────────
+
+export interface ToolPreview { toolId: string; brandId: string | null; url: string; kind: "video" | "image"; title: string | null; own: boolean; poster: string | null }
+
+/** La última pieza de cada tool: de esta marca si tiene, si no de otra. */
+export async function fetchToolPreviews(brandId?: string): Promise<Record<string, ToolPreview>> {
+    const res = await fetch(`${API_BASE}/api/tool-previews${brandId ? `?brandId=${encodeURIComponent(brandId)}` : ""}`);
+    if (!res.ok) return {};
+    return (await res.json()).previews ?? {};
+}

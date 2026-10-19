@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useBrand } from "../lib/BrandContext";
-import { backendUrl, fetchGenerations, listDeliveries, type DeliverySummary, type Generation } from "../lib/api";
+import { backendUrl, fetchGenerations, fetchToolPreviews, listDeliveries, type DeliverySummary, type Generation, type ToolPreview } from "../lib/api";
+import { TOOL_PREVIEW_MEDIA } from "../lib/toolPreviews";
 
 /**
  * Producción (openspec/changes/studio-v2 §1): hacer algo nuevo para la marca y ver qué espera
@@ -12,12 +13,45 @@ import { backendUrl, fetchGenerations, listDeliveries, type DeliverySummary, typ
 const mono = "font-mono text-[10px] uppercase tracking-[0.08em]";
 
 const ACTIONS = [
-    { title: "Reel de un look", tool: "Fashion Reel", to: "/dashboard/generate/fashion_reel" },
-    { title: "Fichas de catálogo", tool: "Ecommerce Pack", to: "/dashboard/generate/ecommerce_pack" },
-    { title: "Persona a cámara", tool: "UGC", to: "/dashboard/generate/ugc_creator" },
-    { title: "Aviso con guion", tool: "Video Ad Creator", to: "/dashboard/generate/video_ad_creator" },
+    { id: "fashion_reel", title: "Reel de un look", tool: "Fashion Reel", to: "/dashboard/generate/fashion_reel" },
+    { id: "ecommerce_pack", title: "Fichas de catálogo", tool: "Ecommerce Pack", to: "/dashboard/generate/ecommerce_pack" },
+    { id: "ugc_creator", title: "Persona a cámara", tool: "UGC", to: "/dashboard/generate/ugc_creator" },
+    { id: "video_ad_creator", title: "Aviso con guion", tool: "Video Ad Creator", to: "/dashboard/generate/video_ad_creator" },
+    { id: "manual_lab", title: "Probar suelto", tool: "Lab · sin marca", to: "/dashboard/lab" },
 ];
-const TOOL_NAME: Record<string, string> = Object.fromEntries(ACTIONS.map((a) => [a.to.split("/").pop()!, a.tool]));
+const TOOL_NAME: Record<string, string> = Object.fromEntries(ACTIONS.map((a) => [a.id, a.tool]));
+
+/** Tarjeta de una tool con su última pieza real: quieta hasta pasar el mouse, ahí se reproduce. */
+function ToolCard({ a, preview, brandName }: { a: typeof ACTIONS[number]; preview?: ToolPreview; brandName: string }) {
+    const [hover, setHover] = useState(false);
+    const [broken, setBroken] = useState(false);
+    const fallback = TOOL_PREVIEW_MEDIA[a.id]?.url;
+    const ok = !!preview && !broken;
+    // Quieta: la portada (un cuadro del video, o la foto). Al pasar el mouse se carga y reproduce el video.
+    const still = ok ? backendUrl(preview!.kind === "video" ? (preview!.poster ?? "") : preview!.url) : fallback;
+    const playing = ok && hover && preview!.kind === "video";
+    return (
+        <Link to={a.to} className="group flex flex-col gap-2.5 no-underline"
+            onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[3px] bg-[var(--color-surface-2)]">
+                {still
+                    ? <img src={still} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 w-full h-full object-cover" />
+                    // Video sin portada (los del Lab, en Fal): Fal sí deja saltar, así que el cuadro sale del video.
+                    : ok && <video src={`${backendUrl(preview!.url)}#t=0.5`} muted playsInline preload="metadata" onError={() => setBroken(true)} className="absolute inset-0 w-full h-full object-cover" />}
+                {playing && <video src={backendUrl(preview!.url)} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover" />}
+                {ok && (
+                    <span className="absolute left-2 bottom-2 px-1.5 py-0.5 rounded-[2px] bg-black/55 text-white font-mono text-[9px] uppercase tracking-[0.08em]">
+                        {preview!.own ? `Último de ${brandName}` : "Ejemplo · otra marca"}{preview!.kind === "video" && " · ▶"}
+                    </span>
+                )}
+            </div>
+            <span className="flex flex-col gap-0.5">
+                <span className="text-[14px] text-fg group-hover:underline underline-offset-4 decoration-1">{a.title}</span>
+                <span className="text-[12px] text-fg-faint">{a.tool}</span>
+            </span>
+        </Link>
+    );
+}
 const RECENT_DAYS = 30;
 
 const ago = (iso: string) => {
@@ -45,12 +79,14 @@ export function ProduccionPage() {
     const brandId = activeBrand?.id;
     const [summary, setSummary] = useState<Summary | null>(null);
     const [deliveries, setDeliveries] = useState<DeliverySummary[]>([]);
+    const [previews, setPreviews] = useState<Record<string, ToolPreview>>({});
 
     useEffect(() => {
         if (!brandId) return;
         let alive = true;
         fetchGenerations(brandId).then((g) => alive && setSummary(summarize(g))).catch(() => alive && setSummary(summarize([])));
         listDeliveries(brandId).then((d) => alive && setDeliveries(d)).catch(() => alive && setDeliveries([]));
+        fetchToolPreviews(brandId).then((p) => alive && setPreviews(p));
         return () => { alive = false; };
     }, [brandId]);
 
@@ -63,18 +99,17 @@ export function ProduccionPage() {
         <div className="flex flex-col gap-10">
             <section className="flex flex-col gap-3.5">
                 <p className={`${mono} text-fg-faint`}>Hacer algo nuevo para {activeBrand.name}</p>
-                <div className="grid gap-2.5 grid-cols-2 lg:grid-cols-5">
-                    {ACTIONS.map((a) => (
-                        <Link key={a.to} to={a.to}
-                            className="h-[76px] px-4 flex flex-col justify-center gap-1 rounded-[var(--radius-md)] border border-edge bg-[var(--color-surface-1)] hover:border-[var(--color-edge-strong)] no-underline">
-                            <span className="text-[15px] font-medium text-fg">{a.title}</span>
-                            <span className="text-[12px] text-fg-faint">{a.tool}</span>
-                        </Link>
-                    ))}
-                    <Link to="/dashboard/editor"
-                        className="h-[76px] px-4 flex flex-col justify-center gap-1 rounded-[var(--radius-md)] bg-[var(--color-action)] no-underline">
-                        <span className="text-[15px] font-medium text-[var(--color-action-fg)]">Montar un video</span>
-                        <span className="text-[12px] text-[var(--color-action-fg)] opacity-60">Editor · con lo que ya hay</span>
+                <div className="grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+                    {ACTIONS.map((a) => <ToolCard key={a.id} a={a} preview={previews[a.id]} brandName={activeBrand.name} />)}
+                    <Link to="/dashboard/editor" className="group flex flex-col gap-2.5 no-underline">
+                        <div className="aspect-[4/5] rounded-[3px] bg-[var(--color-action)] p-4 flex flex-col justify-end">
+                            <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--color-action-fg)] opacity-60">Editor</span>
+                            <span className="mt-1 text-[18px] leading-tight text-[var(--color-action-fg)]">Montar con lo que ya hay</span>
+                        </div>
+                        <span className="flex flex-col gap-0.5">
+                            <span className="text-[14px] text-fg group-hover:underline underline-offset-4 decoration-1">Montar un video</span>
+                            <span className="text-[12px] text-fg-faint">Timeline · textos · música</span>
+                        </span>
                     </Link>
                 </div>
                 <p className="text-[12px] text-fg-muted">
@@ -135,7 +170,6 @@ export function ProduccionPage() {
                 <Link to="/dashboard/campanas" className="text-fg-muted hover:text-fg">Campañas</Link>
                 <Link to="/dashboard/content" className="text-fg-muted hover:text-fg">Todo lo producido</Link>
                 <Link to="/dashboard/generate" className="text-fg-muted hover:text-fg">Todas las tools</Link>
-                <Link to="/dashboard/lab" className="text-fg-muted hover:text-fg">Lab (sin marca)</Link>
             </p>
         </div>
     );
