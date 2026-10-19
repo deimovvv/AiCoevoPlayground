@@ -31,9 +31,9 @@ function ToolCard({ a, preview, brandName }: { a: typeof ACTIONS[number]; previe
     const still = ok ? backendUrl(preview!.kind === "video" ? (preview!.poster ?? "") : preview!.url) : fallback;
     const playing = ok && hover && preview!.kind === "video";
     return (
-        <Link to={a.to} className="group flex flex-col gap-2.5 no-underline"
+        <Link to={a.to} className="group flex flex-col gap-2.5 no-underline w-[62vw] max-w-[260px] md:w-auto md:max-w-none shrink-0 snap-start md:min-h-0"
             onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-            <div className="relative aspect-[4/5] overflow-hidden rounded-[3px] bg-[var(--color-surface-2)]">
+            <div className="relative aspect-[4/5] md:aspect-auto md:flex-1 md:min-h-0 overflow-hidden rounded-[3px] bg-[var(--color-surface-2)]">
                 {still
                     ? <img src={still} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 w-full h-full object-cover" />
                     // Video sin portada (los del Lab, en Fal): Fal sí deja saltar, así que el cuadro sale del video.
@@ -93,16 +93,17 @@ export function ProduccionPage() {
     const { open = [], monthCost = 0, monthCount = 0 } = summary ?? {};
     const waiting = deliveries.filter((d) => d.status !== "aprobada");
 
-    if (!activeBrand) return <p className="text-[14px] text-fg-muted">Elegí una marca arriba.</p>;
+    if (!activeBrand) return <p className="p-8 text-[14px] text-fg-muted">Elegí una marca arriba.</p>;
 
     return (
-        <div className="flex flex-col gap-10">
-            <section className="flex flex-col gap-3.5">
+        // Pantalla entera: las tools llenan la parte de arriba (≈60 %), las listas abajo.
+        <div className="md:h-full flex flex-col gap-8 px-4 py-6 md:px-10 md:py-8 md:min-h-0">
+            <section className="flex flex-col gap-3.5 md:flex-[1.5] md:min-h-0">
                 <p className={`${mono} text-fg-faint`}>Hacer algo nuevo para {activeBrand.name}</p>
-                <div className="grid gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+                <div className="flex md:grid gap-4 md:grid-cols-6 overflow-x-auto md:overflow-visible snap-x -mx-4 px-4 md:mx-0 md:px-0 md:flex-1 md:min-h-0">
                     {ACTIONS.map((a) => <ToolCard key={a.id} a={a} preview={previews[a.id]} brandName={activeBrand.name} />)}
-                    <Link to="/dashboard/editor" className="group flex flex-col gap-2.5 no-underline">
-                        <div className="aspect-[4/5] rounded-[3px] bg-[var(--color-action)] p-4 flex flex-col justify-end">
+                    <Link to="/dashboard/editor" className="group flex flex-col gap-2.5 no-underline w-[62vw] max-w-[260px] md:w-auto md:max-w-none shrink-0 snap-start md:min-h-0">
+                        <div className="aspect-[4/5] md:aspect-auto md:flex-1 md:min-h-0 rounded-[3px] bg-[var(--color-action)] p-4 flex flex-col justify-end">
                             <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--color-action-fg)] opacity-60">Editor</span>
                             <span className="mt-1 text-[18px] leading-tight text-[var(--color-action-fg)]">Montar con lo que ya hay</span>
                         </div>
@@ -117,8 +118,8 @@ export function ProduccionPage() {
                 </p>
             </section>
 
-            <div className="grid gap-10 grid-cols-1 lg:grid-cols-2">
-                <section className="flex flex-col">
+            <div className="grid gap-10 grid-cols-1 lg:grid-cols-2 md:flex-1 md:min-h-0">
+                <section className="flex flex-col md:min-h-0 md:overflow-y-auto">
                     <div className="flex items-baseline gap-2.5 pb-2.5 border-b border-edge">
                         <h2 className="text-[20px] text-fg">Espera una respuesta</h2>
                         <span className="font-mono text-[11px] text-[var(--color-brand)]">{waiting.length || ""}</span>
@@ -142,8 +143,8 @@ export function ProduccionPage() {
                     ))}
                 </section>
 
-                <section className="flex flex-col">
-                    <div className="flex items-baseline gap-2.5 pb-2.5 border-b border-edge">
+                <section className="flex flex-col md:min-h-0 md:overflow-y-auto">
+                    <div className="flex flex-wrap items-baseline gap-2.5 pb-2.5 border-b border-edge">
                         <h2 className="text-[20px] text-fg">Sin terminar</h2>
                         <span className="font-mono text-[11px] text-fg-faint">{open.length || ""}</span>
                         <span className="flex-1" />
@@ -165,7 +166,7 @@ export function ProduccionPage() {
                 </section>
             </div>
 
-            <p className="text-[12px] text-fg-muted flex flex-wrap gap-x-4 gap-y-1">
+            <p className="shrink-0 text-[12px] text-fg-muted flex flex-wrap gap-x-4 gap-y-1">
                 <span className="text-fg-faint">También:</span>
                 <Link to="/dashboard/campanas" className="text-fg-muted hover:text-fg">Campañas</Link>
                 <Link to="/dashboard/content" className="text-fg-muted hover:text-fg">Todo lo producido</Link>

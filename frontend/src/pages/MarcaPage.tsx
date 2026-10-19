@@ -7,10 +7,11 @@ import { loadBrandFonts } from "../tools/shared/fontLoader";
 /**
  * Marca — la entrada de Studio (openspec/changes/studio-v2 §1 y §7).
  *
- * La memoria de la marca como un registro: seis filas separadas por una línea fina, número en
- * mono, lo que hay y lo que falta. Es lo que Claude lee antes de producir (MCP `ver_marca`).
- * Diseño: la lámina "Criterio" de los carruseles de Coevo — filas, aire, color sólo donde importa.
- * Se edita en la pantalla de la marca de siempre (BrandSettings) hasta que cada bloque tenga la suya.
+ * Compuesta para la pantalla entera: a la izquierda la marca como portada (su nombre en su
+ * tipografía, sus colores, cuánto está completo); a la derecha la memoria en cinco bloques que
+ * llenan el alto, con las imágenes grandes. En celular, todo en una columna.
+ * Es lo que Claude lee antes de producir (MCP `ver_marca`).
+ * `readOnly`: «Mi marca» del cliente (sin editar ni cargar, sin plantillas).
  */
 
 const mono = "font-mono text-[10px] uppercase tracking-[0.09em]";
@@ -21,13 +22,14 @@ const clip = (t: string | undefined, max: number) => {
     const cut = s.slice(0, max);
     return cut.slice(0, cut.lastIndexOf(" ")).replace(/[,;:.\s]+$/, "") + "…";
 };
+const count = (n: number | undefined, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : "");
 
-function Card({ n, title, missing, children, editTo }: {
-    n: string; title: string; missing?: string | true | null; children: ReactNode; editTo?: string;
+function Card({ n, title, missing, children, editTo, className = "" }: {
+    n: string; title: string; missing?: string | true | null; children: ReactNode; editTo?: string; className?: string;
 }) {
     return (
-        <section className="group relative flex flex-col gap-4 p-6 rounded-[4px] border border-edge bg-[var(--color-surface-1)] min-w-0">
-            <div className="flex items-baseline gap-3">
+        <section className={`group flex flex-col gap-4 p-5 rounded-[4px] border border-edge bg-[var(--color-surface-1)] min-w-0 min-h-0 overflow-hidden ${className}`}>
+            <div className="flex items-baseline gap-3 shrink-0">
                 <span className={`${mono} text-fg-faint`}>{n}</span>
                 <h2 className="text-[15px] tracking-[-0.01em] text-fg">{title}</h2>
                 <span className="flex-1" />
@@ -35,21 +37,21 @@ function Card({ n, title, missing, children, editTo }: {
                     ? <span className={`${mono} text-[var(--color-brand)]`}>{missing === true ? "Falta" : `Falta ${missing}`}</span>
                     : editTo && <Link to={editTo} className="text-[12px] text-fg-faint no-underline opacity-0 group-hover:opacity-100 hover:text-fg transition-opacity">Editar</Link>}
             </div>
-            <div className="min-w-0">{children}</div>
+            {children}
         </section>
     );
 }
 
-const count = (n: number | undefined, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : "");
-const Note = ({ children }: { children: ReactNode }) => <p className="mt-2.5 text-[12px] leading-relaxed text-fg-muted max-w-[620px]">{children}</p>;
-const Empty = ({ children }: { children: ReactNode }) => <p className="text-[14px] text-fg-faint">{children}</p>;
+const Note = ({ children }: { children: ReactNode }) => <p className="shrink-0 text-[12px] leading-relaxed text-fg-muted">{children}</p>;
+const Empty = ({ children }: { children: ReactNode }) => <p className="text-[14px] leading-relaxed text-fg-faint">{children}</p>;
 
-function Imgs({ urls, round }: { urls: string[]; round?: boolean }) {
+/** Imágenes que llenan el espacio del bloque (en celular, un alto fijo). */
+function Fill({ urls, faces }: { urls: string[]; faces?: boolean }) {
     return (
-        <div className="flex gap-1.5 overflow-hidden">
+        <div className="flex-1 min-h-[200px] md:min-h-0 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${urls.length}, minmax(0, 1fr))` }}>
             {urls.map((u, i) => (
                 <img key={i} src={backendUrl(u)} alt="" loading="lazy"
-                    className={round ? "w-14 h-14 rounded-full object-cover" : "h-[96px] w-auto max-w-[150px] object-cover rounded-[2px]"} />
+                    className={`w-full h-full object-cover rounded-[2px] ${faces ? "object-top" : ""}`} />
             ))}
         </div>
     );
@@ -69,7 +71,6 @@ function data(b: Brand) {
     };
 }
 
-/** `readOnly`: la vista del cliente («Mi marca»): sin editar ni cargar, sin plantillas. */
 export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
     const { activeBrand, setActiveBrandId } = useBrand();
     const [params, setParams] = useSearchParams();
@@ -84,7 +85,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
     // Las tipografías de la marca se cargan para mostrar su nombre escrito con ellas.
     useEffect(() => { if (fonts?.headline || fonts?.body) loadBrandFonts(fonts); }, [fonts]);
 
-    if (!activeBrand) return <p className="text-[14px] text-fg-muted">Elegí una marca arriba para ver su memoria.</p>;
+    if (!activeBrand) return <p className="p-8 text-[14px] text-fg-muted">Elegí una marca arriba para ver su memoria.</p>;
     const b = activeBrand;
     const { dna, ds, logo, colors, fonts: fontNames, looks, faces, catalog } = data(b);
     const edit = readOnly ? undefined : `/dashboard/brands/${b.id}`;
@@ -92,9 +93,9 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
 
     // Texto = qué falta adentro del bloque; true = falta el bloque entero.
     const missing: (string | true | null)[] = [
-        !b.brandContext ? "contexto" : null,
+        !b.brandContext ? true : null,
         !logo ? "logo" : !colors.length ? "colores" : null,
-        !ds.photoStyle ? "reglas de foto" : !looks.length ? "referencias" : null,
+        !ds.photoStyle ? "reglas" : !looks.length ? "referencias" : null,
         !faces.length ? true : null,
         !catalog.length ? true : null,
         true,
@@ -102,79 +103,94 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
     const done = missing.filter((m) => !m).length;
 
     return (
-        <div className="pb-16">
-            <header className="flex items-end gap-8 pb-8">
-                <div className="min-w-0">
-                    <p className={`${mono} text-fg-faint`}>{readOnly ? "Así entendemos tu marca" : `Memoria de la marca · ${done} de 6`}</p>
-                    <h1 className="mt-3 text-[52px] leading-[0.95] tracking-[-0.04em] text-fg">{b.name}</h1>
-                </div>
-                <span className="flex-1" />
-                <p className="max-w-[300px] text-[13px] leading-relaxed text-fg-muted hidden lg:block">
-                    {readOnly ? "Es lo que usamos para producir cada pieza. Si algo no está bien, avisanos." : "Lo que Claude lee antes de producir cualquier pieza para la marca."}
-                </p>
-                {edit && <Link to={edit} className="shrink-0 h-10 px-4 flex items-center rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] no-underline">
-                    Cargar material
-                </Link>}
-            </header>
-
-            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-            <Card n="01" title="Quién es" missing={missing[0]} editTo={edit}>
-                {b.brandContext || b.business?.value_prop
-                    ? <p className="text-[16px] leading-[1.5] tracking-[-0.01em] text-fg">{clip(b.business?.value_prop || b.brandContext, 180)}</p>
-                    : <Empty>Todavía no sabemos quién es la marca.</Empty>}
-                {(dna.tone?.length || dna.forbidden_words?.length) ? (
-                    <Note>
-                        {dna.tone?.length ? <>Tono {dna.tone.slice(0, 3).join(", ").toLowerCase()}.</> : null}
-                        {dna.forbidden_words?.length ? <> Nunca dice {dna.forbidden_words.slice(0, 3).map((w) => `«${w.toLowerCase()}»`).join(", ")}.</> : null}
-                    </Note>
-                ) : null}
-            </Card>
-
-            <Card n="02" title="Identidad gráfica" missing={missing[1]} editTo={edit}>
-                <div className="flex flex-col gap-4">
-                    {logo
-                        ? <img src={backendUrl(logo)} alt={`Logo de ${b.name}`} className="h-12 w-auto max-w-[200px] object-contain" />
-                        : <span className="text-[30px] leading-[1.05] text-fg" style={{ fontFamily: brandFont }}>{b.name}</span>}
-                    {colors.length > 0 && (
-                        <div className="flex max-w-[280px]">
-                            {colors.slice(0, 6).map((c) => (
-                                <span key={c.hex + c.name} title={`${c.name} · ${c.hex}`} style={{ background: c.hex }} className="flex-1 h-8 first:rounded-l-[2px] last:rounded-r-[2px]" />
-                            ))}
+        <div className="md:h-full md:grid md:grid-cols-[minmax(320px,30%)_minmax(0,1fr)]">
+            {/* ── La marca como portada ── */}
+            <aside className="flex flex-col gap-8 p-6 md:p-10 border-b md:border-b-0 md:border-r border-edge md:min-h-0 md:overflow-y-auto">
+                <div className="flex flex-col gap-3">
+                    <p className={`${mono} text-fg-faint`}>{readOnly ? "Así entendemos tu marca" : "Memoria de la marca"}</p>
+                    {!readOnly && (
+                        <div className="flex items-center gap-3">
+                            <div className="flex gap-1" aria-label={`${done} de 6 completos`}>
+                                {missing.map((m, i) => <span key={i} className={`w-5 h-[3px] rounded-full ${m ? "bg-[var(--color-edge-strong)]" : "bg-fg"}`} />)}
+                            </div>
+                            <span className="font-mono text-[11px] text-fg-muted">{done} de 6</span>
                         </div>
                     )}
                 </div>
-                <Note>
-                    {fontNames.length ? fontNames.join(" / ") : "Sin tipografías"}
-                    {colors.length ? <span className="font-mono text-[11px] text-fg-faint"> · {colors.slice(0, 4).map((c) => c.hex.toLowerCase()).join(" ")}</span> : null}
-                </Note>
-            </Card>
 
-            <Card n="03" title="Dirección de foto y video" missing={missing[2]} editTo={edit}>
-                {looks.length > 0 && <Imgs urls={looks.slice(0, 4)} />}
-                {ds.photoStyle ? <Note>{clip(ds.photoStyle, 140)}</Note> : <Empty>Sin reglas de foto: Claude no sabe cómo se ve la marca.</Empty>}
-            </Card>
+                <div className="flex flex-col gap-6 md:flex-1 md:justify-center">
+                    {logo && <img src={backendUrl(logo)} alt={`Logo de ${b.name}`} className="h-16 w-auto max-w-[240px] object-contain self-start" />}
+                    <h1 className="text-[44px] md:text-[clamp(40px,4.2vw,64px)] leading-[0.98] tracking-[-0.03em] text-fg" style={{ fontFamily: brandFont }}>
+                        {b.name}
+                    </h1>
+                    {colors.length > 0 && (
+                        <div>
+                            <div className="flex h-12 rounded-[3px] overflow-hidden">
+                                {colors.slice(0, 6).map((c) => <span key={c.hex + c.name} title={c.name} style={{ background: c.hex }} className="flex-1" />)}
+                            </div>
+                            <div className="flex mt-2">
+                                {colors.slice(0, 6).map((c) => <span key={c.hex + c.name} className="flex-1 font-mono text-[10px] text-fg-faint truncate">{c.hex.toLowerCase()}</span>)}
+                            </div>
+                        </div>
+                    )}
+                    <dl className="grid grid-cols-[84px_1fr] gap-y-1.5 text-[13px]">
+                        <dt className="text-fg-faint">Tipografía</dt>
+                        <dd className="text-fg">{fontNames.length ? fontNames.join(" / ") : <span className="text-fg-faint">sin cargar</span>}</dd>
+                        <dt className="text-fg-faint">Logo</dt>
+                        <dd className={logo ? "text-fg" : "text-[var(--color-brand)]"}>{logo ? "cargado" : "falta"}</dd>
+                        {dna.tone?.length ? <><dt className="text-fg-faint">Tono</dt><dd className="text-fg">{dna.tone.slice(0, 3).join(", ").toLowerCase()}</dd></> : null}
+                    </dl>
+                </div>
 
-            <Card n="04" title="Caras" missing={missing[3]} editTo={edit}>
-                {faces.length > 0 ? (
-                    <>
-                        <Imgs urls={faces.slice(0, 6).map((a) => a.imageUrl!)} round />
-                        <Note>{faces.slice(0, 6).map((a) => a.name.split(" ")[0]).join(", ")}{b.voicePresets?.length ? ` · ${b.voicePresets.length} voz` : ""}</Note>
-                    </>
-                ) : <Empty>Sin avatares ni modelos.</Empty>}
-            </Card>
+                <div className="flex flex-col gap-4">
+                    <p className="text-[13px] leading-relaxed text-fg-muted">
+                        {readOnly ? "Es lo que usamos para producir cada pieza. Si algo no está bien, avisanos." : "Es lo que Claude lee antes de producir cualquier pieza para la marca."}
+                    </p>
+                    {edit && (
+                        <Link to={edit} className="self-start h-10 px-4 flex items-center rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] no-underline">
+                            Cargar material
+                        </Link>
+                    )}
+                </div>
+            </aside>
 
-            <Card n="05" title="Catálogo" missing={missing[4]} editTo={edit}>
-                {catalog.length > 0 ? (
-                    <>
-                        <Imgs urls={catalog.slice(0, 5)} />
-                        <Note>{[count(b.products?.length, "producto", "productos"), count(b.clothing?.length, "prenda", "prendas")].filter(Boolean).join(" · ")}</Note>
-                    </>
-                ) : <Empty>Sin productos ni prendas: no se pueden hacer fichas ni prenda sobre modelo.</Empty>}
-            </Card>
+            {/* ── La memoria, llenando el alto ── */}
+            <div className="p-3 md:p-4 grid gap-3 grid-cols-1 md:grid-cols-2 md:grid-rows-3 md:h-full md:min-h-0">
+                <Card n="01" title="Dirección de foto y video" missing={missing[2]} editTo={edit} className="md:row-span-2">
+                    {looks.length > 0 ? <Fill urls={looks.slice(0, 3)} /> : <div className="flex-1" />}
+                    {ds.photoStyle ? <Note>{clip(ds.photoStyle, 200)}</Note> : <Empty>Sin reglas de foto: Claude no sabe cómo se ve la marca.</Empty>}
+                </Card>
 
-            {!readOnly && <Card n="06" title="Plantillas" missing={missing[5]} editTo={edit}>
-                <Empty>Se guardan cuando una pieza se aprueba, para repetir el formato.</Empty>
-            </Card>}
+                <Card n="02" title="Quién es" missing={missing[0]} editTo={edit}>
+                    {b.brandContext || b.business?.value_prop
+                        ? <p className="text-[15px] leading-[1.5] tracking-[-0.005em] text-fg">{clip(b.business?.value_prop || b.brandContext, 170)}</p>
+                        : <Empty>Todavía no sabemos quién es la marca.</Empty>}
+                    {dna.forbidden_words?.length ? <Note>Nunca dice {dna.forbidden_words.slice(0, 3).map((w) => `«${w.toLowerCase()}»`).join(", ")}.</Note> : null}
+                </Card>
+
+                <Card n="03" title="Caras" missing={missing[3]} editTo={edit}>
+                    {faces.length > 0 ? (
+                        <>
+                            <Fill urls={faces.slice(0, 4).map((a) => a.imageUrl!)} faces />
+                            <Note>{faces.slice(0, 4).map((a) => a.name.split(" ")[0]).join(" · ")}{b.voicePresets?.length ? ` · ${count(b.voicePresets.length, "voz", "voces")}` : ""}</Note>
+                        </>
+                    ) : <Empty>Sin avatares ni modelos. Sin caras, no hay video con personas.</Empty>}
+                </Card>
+
+                <Card n="04" title="Catálogo" missing={missing[4]} editTo={edit}>
+                    {catalog.length > 0 ? (
+                        <>
+                            <Fill urls={catalog.slice(0, 4)} />
+                            <Note>{[count(b.products?.length, "producto", "productos"), count(b.clothing?.length, "prenda", "prendas")].filter(Boolean).join(" · ")}</Note>
+                        </>
+                    ) : <Empty>Sin productos ni prendas: no se pueden hacer fichas ni prenda sobre modelo.</Empty>}
+                </Card>
+
+                {!readOnly ? (
+                    <Card n="05" title="Plantillas" missing={missing[5]} editTo={edit}>
+                        <Empty>Se guardan cuando una pieza se aprueba, para repetir el formato.</Empty>
+                    </Card>
+                ) : <div className="hidden md:block" />}
             </div>
         </div>
     );

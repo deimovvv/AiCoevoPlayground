@@ -161,7 +161,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     return (
         <div className="h-full flex min-h-0">
             {/* ── Lista ── */}
-            <aside className="w-[280px] shrink-0 border-r border-edge flex flex-col min-h-0">
+            {/* Celular: o la lista o la entrega abierta. Escritorio: las dos. */}
+            <aside className={`${selectedId ? "hidden md:flex" : "flex"} w-full md:w-[280px] shrink-0 md:border-r border-edge flex-col min-h-0`}>
                 <div className="px-5 pt-6 pb-4 space-y-3">
                     <div className="flex items-baseline gap-2">
                         <h1 className="text-[15px] font-medium text-fg">{client ? (tab === "revisar" ? "Para revisar" : "Aprobadas") : "Entregas"}</h1>
@@ -221,7 +222,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
             </aside>
 
             {/* ── Entrega ── */}
-            <main className="flex-1 min-w-0 flex flex-col min-h-0">
+            <main className={`${selectedId ? "flex" : "hidden md:flex"} flex-1 min-w-0 flex-col min-h-0`}>
                 {error && (
                     <p className="mx-6 mt-4 text-[12px] text-[var(--color-error)] flex items-center gap-2">
                         {error} <button onClick={() => setError(null)} className="cursor-pointer"><X size={12} /></button>
@@ -233,8 +234,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                     </div>
                 ) : (
                     <>
-                        <header className="px-6 py-4 flex items-center gap-4 border-b border-edge">
-                            <div className="min-w-0">
+                        <header className="px-4 md:px-6 py-3 md:py-4 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-edge">
+                            <button onClick={() => open(null)} className="md:hidden text-[13px] text-fg-muted cursor-pointer">← Entregas</button>
+                            <div className="min-w-0 w-full md:w-auto order-first md:order-none">
                                 <h2 className="text-[15px] font-medium text-fg truncate">{current.title}</h2>
                                 <p className="text-[11px] text-fg-faint mt-0.5 flex items-center gap-1.5">
                                     <span className={`w-1.5 h-1.5 rounded-full ${current.visibility === "interna" && !client ? "bg-[var(--color-edge-strong)]" : DOT[current.status]}`} />
@@ -246,7 +248,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     {current.approvedBy && <> · aprobó {who(current.approvedBy)}</>}
                                 </p>
                             </div>
-                            <span className="flex-1" />
+                            <span className="hidden md:block flex-1" />
+                            <div className="w-full md:w-auto flex items-center gap-2 [&>button]:flex-1 md:[&>button]:flex-none">
                             {!client && current.source && (
                                 <a href={backendUrl(current.source.url)} target="_blank" rel="noreferrer" title="El archivo editable de la pieza"
                                     className="flex items-center gap-1 text-[12px] text-fg-faint hover:text-fg">Fuente <ExternalLink size={11} /></a>
@@ -300,20 +303,22 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     <Trash2 size={13} />
                                 </button>
                             )}
+                            </div>
                         </header>
 
                         {slide === null ? (
                             /* ── Vista 1: la pieza entera, como en el canvas, + lo que pidieron ── */
-                            <div className="flex-1 min-h-0 flex">
-                            <div className="flex-1 min-w-0 overflow-auto bg-[var(--color-canvas)] flex flex-col">
-                                <div className="flex-1 flex items-center justify-center p-10">
-                                    <div className="w-full grid gap-4 items-center"
-                                        style={{ gridTemplateColumns: `repeat(${Math.min(total, 6)}, minmax(0, 1fr))`, maxWidth: Math.min(total, 6) * 300 }}>
+                            <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
+                            <div className="md:flex-1 min-w-0 md:overflow-auto bg-[var(--color-canvas)] flex flex-col">
+                                <div className="md:flex-1 flex items-center justify-center py-5 md:p-10">
+                                    {/* Celular: láminas que se deslizan. Escritorio: todas en una fila. */}
+                                    <div style={{ ["--cols" as string]: Math.min(total, 6) }}
+                                        className="w-full flex md:grid gap-3 md:gap-4 items-center overflow-x-auto md:overflow-visible snap-x px-4 md:px-0 md:[grid-template-columns:repeat(var(--cols),minmax(0,1fr))] md:max-w-[calc(var(--cols)*300px)]">
                                         {current.items.map((it, i) => {
                                             const pins = comments.filter((c) => c.itemId === it.id && c.round === current.round && c.x != null && !c.resolvedAt);
                                             return (
                                                 <button key={it.id} onClick={() => { setSlide(i); setDraft(null); }} title="Abrir para comentar"
-                                                    className="group text-left cursor-zoom-in">
+                                                    className="group text-left cursor-zoom-in w-[78vw] max-w-[360px] md:w-auto md:max-w-none shrink-0 snap-center">
                                                     <div className="relative">
                                                         {it.kind === "video"
                                                             ? <video src={backendUrl(it.url)} muted className="w-full h-auto max-h-[64vh] object-contain rounded-[var(--radius-xs)] bg-surface-1 transition-transform group-hover:-translate-y-0.5" />
@@ -337,7 +342,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 <footer className="px-6 py-3 border-t border-edge bg-surface-0 flex items-center gap-4">
                                     <p className="text-[12px] text-fg-faint shrink-0">
                                         {comments.filter((c) => !c.resolvedAt).length
-                                            ? `${comments.filter((c) => !c.resolvedAt).length} comentarios abiertos · clic en una lámina para verla y comentar`
+                                            ? `${comments.filter((c) => !c.resolvedAt).length === 1 ? "1 comentario abierto" : `${comments.filter((c) => !c.resolvedAt).length} comentarios abiertos`} · tocá una lámina para verla y comentar`
                                             : "Clic en una lámina para verla grande y comentar sobre ella."}
                                     </p>
                                     {current.note && <p className="text-[12px] text-fg-muted truncate" title={current.note}>{current.note}</p>}
@@ -350,7 +355,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 if (!pending.length) return null;
                                 const idx = Object.fromEntries(current.items.map((it, i) => [it.id, i]));
                                 return (
-                                    <aside className="w-[320px] shrink-0 border-l border-edge flex flex-col min-h-0">
+                                    <aside className="w-full md:w-[320px] shrink-0 border-t md:border-t-0 md:border-l border-edge flex flex-col md:min-h-0">
                                         <p className={`${mono} text-fg-faint px-5 pt-5 pb-3`}>
                                             {client ? "Tus comentarios" : "Lo que pidieron"} · {pending.length}
                                         </p>
@@ -385,8 +390,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 const here = comments.filter((c) => c.itemId === it.id);
                                 const general = comments.filter((c) => !c.itemId);
                                 return (
-                                    <div className="flex-1 min-h-0 flex">
-                                        <div className="flex-1 min-w-0 flex flex-col bg-[var(--color-canvas)]">
+                                    <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
+                                        <div className="md:flex-1 min-w-0 flex flex-col bg-[var(--color-canvas)]">
                                             <div className="px-6 py-3 flex items-center gap-3 text-[12px]">
                                                 <button onClick={() => { setSlide(null); setDraft(null); }} className="text-fg-muted hover:text-fg cursor-pointer">← Toda la pieza</button>
                                                 <span className="flex-1" />
@@ -396,7 +401,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                 <button disabled={slide === total - 1} onClick={() => { setSlide(slide + 1); setDraft(null); }}
                                                     className="w-7 h-7 flex items-center justify-center rounded-full text-fg-muted hover:text-fg hover:bg-surface-2 disabled:opacity-30 cursor-pointer"><ChevronRight size={15} /></button>
                                             </div>
-                                            <div className="flex-1 min-h-0 flex items-center justify-center px-6 pb-6">
+                                            <div className="h-[62vh] md:h-auto md:flex-1 min-h-0 flex items-center justify-center px-4 md:px-6 pb-4 md:pb-6">
                                                 <div className="relative h-full max-h-full cursor-crosshair select-none" onClick={(e) => onPick(e, it.id)}>
                                                     {it.kind === "video"
                                                         ? <video src={backendUrl(it.url)} controls className="h-full w-auto max-w-full object-contain rounded-[var(--radius-xs)]" />
@@ -417,7 +422,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                             </div>
                                         </div>
 
-                                        <aside className="w-[320px] shrink-0 border-l border-edge flex flex-col min-h-0">
+                                        <aside className="w-full md:w-[320px] shrink-0 border-t md:border-t-0 md:border-l border-edge flex flex-col md:min-h-0">
                                             <div className="p-4">
                                                 <p className="text-[13px] text-fg">{it.label}</p>
                                                 <p className="text-[11px] text-fg-faint mt-0.5">

@@ -14,6 +14,8 @@ const FULL_BLEED_ROUTES: string[] = [
     "/dashboard/lab",
     "/dashboard/lab-v2",
     "/dashboard/entregas",       // láminas en fila + comentarios: usa toda la altura
+    "/dashboard/marca",          // studio-v2: compuesta para la pantalla entera
+    "/dashboard/produccion",
 ];
 
 /** Prefijos full-bleed — para rutas dinámicas donde no podemos pre-listar cada subruta.
@@ -34,7 +36,7 @@ export function AppLayout() {
         <div className="flex flex-col h-screen w-full overflow-hidden">
             <TopBar />
             {isFullBleed ? (
-                <main className="flex-1 min-h-0 overflow-hidden">
+                <main className="flex-1 min-h-0 overflow-y-auto md:overflow-hidden">
                     <Outlet />
                 </main>
             ) : (

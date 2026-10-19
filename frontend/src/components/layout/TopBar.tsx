@@ -35,30 +35,34 @@ export function TopBar() {
     const active = SECTIONS.find((s) => s.match.some((m) => pathname === m || pathname.startsWith(m + "/")));
 
     return (
-        <header className="h-14 shrink-0 flex items-center gap-6 px-6 border-b border-edge bg-[var(--color-canvas)]">
-            <Link to="/dashboard/marca" className="text-[19px] font-semibold tracking-[-0.045em] text-fg no-underline">coevo</Link>
-            <BrandPicker top />
-            <nav className="flex items-center gap-1 h-full" aria-label="Secciones">
+        // Escritorio: una fila. Celular: marca arriba y las secciones abajo, con desplazamiento lateral.
+        <header className="shrink-0 border-b border-edge bg-[var(--color-canvas)] flex flex-wrap items-center gap-x-6 px-4 md:px-6 md:h-14 md:flex-nowrap">
+            <div className="h-14 flex items-center gap-4 md:gap-6 flex-1 md:flex-none min-w-0">
+                <Link to="/dashboard/marca" className="text-[19px] font-semibold tracking-[-0.045em] text-fg no-underline">coevo</Link>
+                <BrandPicker top />
+            </div>
+            <div className="h-14 flex items-center gap-4 md:order-last md:ml-auto">
+                {me.role === "admin"
+                    ? <Link to="/dashboard/accesos" className={cn("text-[12px] no-underline", pathname === "/dashboard/accesos" ? "text-fg" : "text-fg-faint hover:text-fg")}>Accesos</Link>
+                    : <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-fg-faint">Equipo</span>}
+                <span className="hidden lg:inline text-[12px] text-fg-faint max-w-[200px] truncate" title={me.email ?? ""}>{me.email === "local" ? "local" : me.email?.split("@")[0]}</span>
+                <button onClick={toggle} aria-label={theme === "light" ? "Pasar a modo oscuro" : "Pasar a modo claro"}
+                    className="w-8 h-8 flex items-center justify-center rounded-full text-fg-faint hover:text-fg hover:bg-[var(--color-surface-2)] cursor-pointer">
+                    {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
+                </button>
+            </div>
+            <nav className="w-full md:w-auto h-11 md:h-14 flex items-center gap-1 overflow-x-auto -mx-1 md:mx-0 border-t border-edge md:border-0" aria-label="Secciones">
                 {SECTIONS.map((s) => (
                     <Link key={s.label} to={s.href}
                         aria-current={active === s ? "page" : undefined}
                         className={cn(
-                            "h-full flex items-center px-3 text-[13px] no-underline border-b-[1.5px] transition-colors",
+                            "h-full shrink-0 flex items-center px-3 text-[13px] no-underline border-b-[1.5px] transition-colors",
                             active === s ? "text-fg border-fg" : "text-fg-faint border-transparent hover:text-fg"
                         )}>
                         {s.label}
                     </Link>
                 ))}
             </nav>
-            <span className="flex-1" />
-            {me.role === "admin"
-                ? <Link to="/dashboard/accesos" className={cn("text-[12px] no-underline", pathname === "/dashboard/accesos" ? "text-fg" : "text-fg-faint hover:text-fg")}>Accesos</Link>
-                : <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-fg-faint">Equipo</span>}
-            <span className="text-[12px] text-fg-faint max-w-[200px] truncate" title={me.email ?? ""}>{me.email === "local" ? "local" : me.email?.split("@")[0]}</span>
-            <button onClick={toggle} aria-label={theme === "light" ? "Pasar a modo oscuro" : "Pasar a modo claro"}
-                className="w-8 h-8 flex items-center justify-center rounded-full text-fg-faint hover:text-fg hover:bg-[var(--color-surface-2)] cursor-pointer">
-                {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
-            </button>
         </header>
     );
 }

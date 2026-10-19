@@ -65,7 +65,7 @@ function App() {
       {/* Lo que ve el cliente (studio-v2 §11). Hoy: vista previa para el equipo con la marca activa. */}
       <Route path="/cliente" element={<MeProvider><BrandProvider><ClientLayout /></BrandProvider></MeProvider>}>
         <Route index element={<ErrorBoundary><DeliveriesPage mode="cliente" /></ErrorBoundary>} />
-        <Route path="marca" element={<div className="h-full overflow-y-auto"><div className="max-w-[1400px] mx-auto px-6 py-8 md:px-12 md:py-10"><MarcaPage readOnly /></div></div>} />
+        <Route path="marca" element={<div className="h-full overflow-y-auto md:overflow-hidden"><MarcaPage readOnly /></div>} />
       </Route>
       <Route
         path="/dashboard"
