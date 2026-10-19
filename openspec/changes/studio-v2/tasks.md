@@ -18,6 +18,14 @@
 - [ ] M.3 Skill `onboarding-marca` + botón "Cargar marca".
 - [ ] M.4 Mudar `coevo-skills/identidades` a Caras; las skills leen por MCP (§8).
 
+## O. Operación mensual (design.md §14)
+
+- [ ] O.1 Plan del mes por marca como dato (piezas por tipo + cupo), visible para el cliente.
+- [ ] O.2 Material semanal con formulario por rubro (moda primero; concesionaria al firmar la primera).
+- [ ] O.3 Aprobación en lote (las piezas de la semana).
+- [ ] O.4 Tiempo por pieza, junto al costo de IA → margen por pack.
+- [ ] O.5 Material masivo: agrupar, archivo de la marca, tope del bloque activo (design.md §13).
+
 ## 1. Roles (base de todo lo demás)
 
 - [ ] 1.1 Tablas `users` y `memberships` + migración Alembic.

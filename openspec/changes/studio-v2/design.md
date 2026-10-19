@@ -208,3 +208,49 @@ Prototipo: https://claude.ai/artifact/GKyzyZTpzo4fCZWWaErPYJ (pantallas "Cliente
 
 Nunca entra directo al Brand Kit: la memoria de la marca es lo que lee Claude, y curarla es parte del
 servicio. Lo de una pieza puntual va como adjunto de un comentario en Entregas, no por acá.
+
+## 13. Mucho material de golpe (2026-10-19)
+
+No hay tope a lo que el cliente **manda**; sí a lo que **entra al Brand Kit**.
+- Guardarlo es barato (800 fotos ≈ 1,5 GB ≈ centavos por mes en R2). Límites sólo técnicos por envío:
+  ~100 archivos o ~500 MB; lo de más de 25 MB, por link. Cada imagen se guarda original + liviana.
+- Claude agrupa antes de mostrar: saca repetidas y de baja calidad y arma grupos por estilo
+  ("noche con flash 310 · estudio blanco 290 · exterior cálido 140 · 60 descartadas").
+- El equipo decide **por grupo**; de cada grupo elegido Claude propone 8–12 representativas → bloque activo.
+- El resto va al **archivo de la marca**: guardado y buscable, Claude no lo lee salvo que se le pida.
+- Tope en el bloque activo (ej. ~20 referencias en Dirección de foto): para sumar una, sale otra.
+- Al cliente: "Mandaste 800 imágenes · sumamos 24 a tu marca · el resto queda guardado".
+
+## 14. Operación por rubro: un motor, una receta por rubro (2026-10-19)
+
+Fuentes: `coevo-web/docs/rubros/concesionarias.md` (planes del 16/10) y `morph-site/src/constants/mensual.ts`
+(packs de redes). **La oferta de Morph todavía no está cerrada**, y concesionarias no tiene clientes: por eso
+Studio no escribe packs en el código; el plan de cada marca es un dato editable.
+
+Ciclo común a los dos rubros (abono mensual con cupo de piezas):
+
+| Cuándo | Qué pasa | En Studio |
+|---|---|---|
+| Una vez | Brand Kit + catálogo | Marca (6 bloques) |
+| Cada mes | Plan del mes (piezas y ángulos), el cliente lo aprueba | **Plan con cupo** (nuevo) |
+| Cada semana | El cliente manda material; producimos; aprueba en lote | **Material semanal por rubro** + **aprobación en lote** (nuevos) |
+| Todos los días | Publicar, responder consultas | Postiz (`brand-integrations`) |
+| Fin de mes | Reporte → plan siguiente | Reportes |
+
+Lo que cambia por rubro (la "receta"):
+
+| | Concesionaria | Marca de ropa (Morph) |
+|---|---|---|
+| Ítem del catálogo | Unidad: fotos del lote, modelo, año, km, precio, cuota | Prenda/producto: fotos, talles, link de compra |
+| Material de cada semana | "Entró una unidad" · "bajó de precio" · preguntas de WhatsApp | "Llegó un producto/drop" · fotos de tienda · referencias |
+| Piezas | Ficha en video, carrusel, presentador, historias | Video para pauta, video creativo, imágenes |
+
+Nuevo para studio-v2:
+1. **Plan del mes con cupo** como dato por marca: "Octubre: 6/10 unidades · 2/4 carruseles". Lo ve el cliente.
+2. **Material semanal con formulario del rubro** (4 campos + fotos), que crea el ítem del catálogo y el pedido.
+3. **Aprobación en lote**: las piezas de la semana una tras otra (la reunión semanal de una hora).
+4. **Vista cliente pensada primero para celular** (el dueño manda la unidad desde el lote). Más adelante:
+   recibir por WhatsApp.
+5. **Costo y tiempo por pieza** para ver el margen de cada pack (ya hay costo de IA; falta el tiempo).
+
+Orden: piloto con moda (hay material real); la receta de concesionarias se agrega cuando firme la primera.
