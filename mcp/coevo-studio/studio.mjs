@@ -98,7 +98,10 @@ export function brandBlocks(b) {
         direccion_foto_video: {
             reglas: b.designSystem || null,
             moodboards: files(b.moodboards),
-            fondos: files(b.backgrounds),
+            luz: files(b.lookAndFeel),
+            locaciones: files(b.backgrounds),
+            poses: files(b.poses),
+            planos: files(b.shotRefs),
         },
         caras: {
             avatares: files(b.avatars),

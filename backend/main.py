@@ -2254,6 +2254,50 @@ def delete_pose(brand_id: str, item_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
+#  Referencias de planos / cámara (studio-v2 §7): encuadre, lente, movimiento.
+#  Mismo patrón que las poses. Las usa Claude al planificar los planos de un video.
+# ══════════════════════════════════════════════════════════════
+
+app.mount("/static/shotrefs", StaticFiles(directory=str(brands.get_shotrefs_dir())), name="shotrefs")
+
+
+@app.post("/api/brands/{brand_id}/shotrefs")
+async def upload_shotref(brand_id: str, name: str = Form(...), image: UploadFile = File(...)):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not is_image_upload(image.content_type, image.filename):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    image_data, ext = normalize_image_bytes(await image.read(), image.filename, image.content_type)
+    item_id = str(uuid.uuid4())[:8]
+    filename = f"{brand_id}_shot_{item_id}{ext}"
+    with open(brands.get_shotrefs_dir() / filename, "wb") as f:
+        f.write(image_data)
+    item = {"id": item_id, "name": name, "filename": filename, "imageUrl": f"/static/shotrefs/{filename}"}
+    brand.setdefault("shotRefs", []).append(item)
+    brands.save_brands(all_brands)
+    return item
+
+
+@app.delete("/api/brands/{brand_id}/shotrefs/{item_id}")
+def delete_shotref(brand_id: str, item_id: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((b for b in brand.get("shotRefs", []) if b["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="No existe esa referencia")
+    path = brands.get_shotrefs_dir() / item.get("filename", "")
+    if item.get("filename") and path.is_file():
+        path.unlink()
+    brand["shotRefs"] = [b for b in brand["shotRefs"] if b["id"] != item_id]
+    brands.save_brands(all_brands)
+    return {"ok": True}
+
+
+# ══════════════════════════════════════════════════════════════
 #  Brand Moodboard API
 # ══════════════════════════════════════════════════════════════
 
@@ -2286,8 +2330,9 @@ async def upload_moodboard(
     if not is_image_upload(image.content_type, image.filename):
         raise HTTPException(status_code=400, detail="File must be an image")
     existing = brand.get("moodboards", [])
-    if len(existing) >= 5:
-        raise HTTPException(status_code=400, detail="Maximum 5 moodboards per brand")
+    # Tope del bloque activo (studio-v2 §13): curado, no un archivo. Antes era 5 (un tablero real tiene más).
+    if len(existing) >= 24:
+        raise HTTPException(status_code=400, detail="La marca ya tiene 24 imágenes de moodboard: sacá alguna antes de sumar otra.")
 
     image_data = await image.read()
     image_data, ext = normalize_image_bytes(image_data, image.filename, image.content_type)

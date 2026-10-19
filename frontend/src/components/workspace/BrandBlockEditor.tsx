@@ -4,7 +4,7 @@ import { Loader2, Trash2, Upload, X } from "lucide-react";
 import {
     backendUrl, updateBrand, uploadAvatar, deleteAvatar, uploadProduct, deleteProduct, uploadClothing, deleteClothing,
     uploadBackground, deleteBackground, uploadMoodboard, deleteMoodboard, uploadLookAndFeel, deleteLookAndFeel,
-    uploadBrandLogo, deleteBrandLogo, type Brand,
+    uploadBrandLogo, deleteBrandLogo, uploadPose, deletePose, uploadShotRef, deleteShotRef, type Brand,
 } from "../../lib/api";
 
 /**
@@ -21,9 +21,9 @@ const TITLES: Record<BlockKey, string> = {
 };
 
 /** Adónde puede ir una imagen, y con qué se sube. */
-type Dest = "moodboard" | "luz" | "fondo" | "cara" | "prenda" | "producto" | "logo";
+type Dest = "moodboard" | "luz" | "fondo" | "pose" | "plano" | "cara" | "prenda" | "producto" | "logo";
 const DEST_LABEL: Record<Dest, string> = {
-    moodboard: "Moodboard", luz: "Luz / look", fondo: "Locación / fondo", cara: "Cara (modelo)",
+    moodboard: "Moodboard", luz: "Luz / look", fondo: "Locación / fondo", pose: "Pose", plano: "Plano / cámara", cara: "Cara (modelo)",
     prenda: "Prenda", producto: "Producto", logo: "Logo",
 };
 const nameOf = (f: File) => f.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").slice(0, 60);
@@ -33,6 +33,8 @@ async function uploadTo(dest: Dest, brandId: string, f: File) {
     if (dest === "moodboard") return uploadMoodboard(brandId, n, f);
     if (dest === "luz") return uploadLookAndFeel(brandId, n, f);
     if (dest === "fondo") return uploadBackground(brandId, n, f);
+    if (dest === "pose") return uploadPose(brandId, n, f);
+    if (dest === "plano") return uploadShotRef(brandId, n, f);
     if (dest === "cara") return uploadAvatar(brandId, n, f, false);
     if (dest === "prenda") return uploadClothing(brandId, n, f);
     if (dest === "producto") return uploadProduct(brandId, n, f);
@@ -46,13 +48,15 @@ function destItems(b: Brand, d: Dest): Array<{ id: string; url: string; label?: 
     if (d === "moodboard") return map(b.moodboards);
     if (d === "luz") return map(b.lookAndFeel);
     if (d === "fondo") return map(b.backgrounds);
+    if (d === "pose") return map(b.poses);
+    if (d === "plano") return map(b.shotRefs);
     if (d === "cara") return map(b.avatars);
     if (d === "prenda") return map(b.clothing);
     if (d === "producto") return map(b.products);
     return map(b.logos);
 }
 const DEST_DELETE: Record<Dest, (brandId: string, itemId: string) => Promise<unknown>> = {
-    moodboard: deleteMoodboard, luz: deleteLookAndFeel, fondo: deleteBackground, cara: deleteAvatar,
+    moodboard: deleteMoodboard, luz: deleteLookAndFeel, fondo: deleteBackground, pose: deletePose, plano: deleteShotRef, cara: deleteAvatar,
     prenda: deleteClothing, producto: deleteProduct, logo: deleteBrandLogo,
 };
 
@@ -188,7 +192,7 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                         <>
                             <Section title="Subir imágenes">
                                 <p className="text-[13px] leading-relaxed text-fg-muted">Elegí adónde van y soltalas. Aparecen acá abajo y en su bloque de Marca, y Claude las usa al producir.</p>
-                                <Drop dests={["moodboard", "luz", "fondo", "cara", "prenda", "producto", "logo"]} brandId={id} onDone={onChanged} dest={matDest} onDest={setMatDest} />
+                                <Drop dests={["moodboard", "luz", "fondo", "pose", "plano", "cara", "prenda", "producto", "logo"]} brandId={id} onDone={onChanged} dest={matDest} onDest={setMatDest} />
                             </Section>
                             <Section title={`${DEST_LABEL[matDest]} · ${destItems(brand, matDest).length} en la marca`}>
                                 {destItems(brand, matDest).length
@@ -249,12 +253,15 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                                     ...(brand.moodboards || []).map((m) => ({ id: "m:" + m.id, url: m.imageUrl, label: "moodboard" })),
                                     ...(brand.lookAndFeel || []).map((m) => ({ id: "l:" + m.id, url: m.imageUrl, label: "luz" })),
                                     ...(brand.backgrounds || []).map((m) => ({ id: "b:" + m.id, url: m.imageUrl, label: "locación" })),
+                                    ...(brand.poses || []).map((m) => ({ id: "p:" + m.id, url: m.imageUrl, label: "pose" })),
+                                    ...(brand.shotRefs || []).map((m) => ({ id: "s:" + m.id, url: m.imageUrl, label: "plano" })),
                                 ]} onDelete={async (key) => {
                                     const [k, itemId] = [key.slice(0, 1), key.slice(2)];
-                                    await (k === "m" ? deleteMoodboard : k === "l" ? deleteLookAndFeel : deleteBackground)(id, itemId);
+                                    const fn = { m: deleteMoodboard, l: deleteLookAndFeel, b: deleteBackground, p: deletePose, s: deleteShotRef }[k]!;
+                                    await fn(id, itemId);
                                     await onChanged();
                                 }} />
-                                <Drop dests={["moodboard", "luz", "fondo"]} brandId={id} onDone={onChanged} />
+                                <Drop dests={["moodboard", "luz", "fondo", "pose", "plano"]} brandId={id} onDone={onChanged} />
                             </Section>
                             <Section title="Cómo se ve la marca">
                                 <textarea value={style} onChange={(e) => setStyle(e.target.value)} rows={5} className={input + " resize-y leading-relaxed"}

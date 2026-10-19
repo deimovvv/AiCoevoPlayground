@@ -24,6 +24,7 @@ PRODUCTS_DIR = DATA_DIR / "products"
 CLOTHING_DIR = DATA_DIR / "clothing"
 BACKGROUNDS_DIR = DATA_DIR / "backgrounds"
 POSES_DIR = DATA_DIR / "poses"   # librería de poses de referencia por marca (Ecommerce Pack)
+SHOTREFS_DIR = DATA_DIR / "shotrefs"   # referencias de planos / cámara de la marca (studio-v2 §7)
 LOGOS_DIR = DATA_DIR / "logos"
 MOODBOARDS_DIR = DATA_DIR / "moodboards"
 LOOKANDFEEL_DIR = DATA_DIR / "lookandfeel"
@@ -36,6 +37,7 @@ PRODUCTS_DIR.mkdir(exist_ok=True)
 CLOTHING_DIR.mkdir(exist_ok=True)
 BACKGROUNDS_DIR.mkdir(exist_ok=True)
 POSES_DIR.mkdir(exist_ok=True)
+SHOTREFS_DIR.mkdir(exist_ok=True)
 LOGOS_DIR.mkdir(exist_ok=True)
 MOODBOARDS_DIR.mkdir(exist_ok=True)
 LOOKANDFEEL_DIR.mkdir(exist_ok=True)
@@ -156,6 +158,10 @@ def get_backgrounds_dir() -> Path:
 
 def get_poses_dir() -> Path:
     return POSES_DIR
+
+
+def get_shotrefs_dir() -> Path:
+    return SHOTREFS_DIR
 
 
 def get_logos_dir() -> Path:

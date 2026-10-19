@@ -69,12 +69,14 @@ function data(b: Brand) {
         logo: b.logo?.imageUrl || b.logos?.[0]?.imageUrl,
         colors: dna.colors || [],
         fonts: [...new Set([b.fonts?.headline, b.fonts?.body].filter(Boolean) as string[])],
-        looks: [...(b.moodboards || []), ...(b.lookAndFeel || []), ...(b.backgrounds || [])].map((x) => x.imageUrl),
+        looks: [...(b.moodboards || []), ...(b.lookAndFeel || []), ...(b.backgrounds || []), ...(b.poses || []), ...(b.shotRefs || [])].map((x) => x.imageUrl),
         // Separado como en un tablero de dirección: moodboard · luz · locación.
         lookGroups: [
             { label: "Moodboard", urls: (b.moodboards || []).map((x) => x.imageUrl) },
             { label: "Luz / look", urls: (b.lookAndFeel || []).map((x) => x.imageUrl) },
             { label: "Locación", urls: (b.backgrounds || []).map((x) => x.imageUrl) },
+            { label: "Poses", urls: (b.poses || []).map((x) => x.imageUrl) },
+            { label: "Planos", urls: (b.shotRefs || []).map((x) => x.imageUrl) },
         ].filter((g) => g.urls.length),
         faces: (b.avatars || []).filter((a) => a.imageUrl),
         catalog: [...(b.products || []), ...(b.clothing || [])].map((x) => x.imageUrl),

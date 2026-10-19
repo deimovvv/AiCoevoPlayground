@@ -233,6 +233,8 @@ export interface Brand {
     clothing?: ClothingItem[];
     backgrounds?: BackgroundItem[];
     poses?: PoseItem[];
+    /** Referencias de planos / cámara (studio-v2 §7). */
+    shotRefs?: PoseItem[];
     moodboards?: MoodboardItem[];
     lookAndFeel?: LookFeelItem[];
     /** Legacy single-logo (kept for backwards compat). New uploads go to `logos`. */
@@ -1382,6 +1384,24 @@ export async function uploadPose(brandId: string, name: string, imageFile: File)
 export async function deletePose(brandId: string, itemId: string): Promise<void> {
     const res = await fetch(`${API_BASE}/api/brands/${brandId}/poses/${itemId}`, { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete pose");
+}
+
+/** Referencias de planos / cámara: encuadre, lente, movimiento (backend: /api/brands/:id/shotrefs). */
+export async function uploadShotRef(brandId: string, name: string, imageFile: File): Promise<PoseItem> {
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("image", imageFile);
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/shotrefs`, { method: "POST", body: formData });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "" }));
+        throw new Error((typeof err.detail === "string" ? err.detail : "") || `No se pudo subir el plano (${res.status})`);
+    }
+    return res.json();
+}
+
+export async function deleteShotRef(brandId: string, itemId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/shotrefs/${itemId}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("No se pudo borrar el plano");
 }
 
 export function poseImageUrl(relativeUrl: string): string {
