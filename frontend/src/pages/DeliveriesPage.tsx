@@ -299,8 +299,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                         </header>
 
                         {slide === null ? (
-                            /* ── Vista 1: la pieza entera, como en el canvas ── */
-                            <div className="flex-1 min-h-0 overflow-auto bg-[var(--color-canvas)] flex flex-col">
+                            /* ── Vista 1: la pieza entera, como en el canvas, + lo que pidieron ── */
+                            <div className="flex-1 min-h-0 flex">
+                            <div className="flex-1 min-w-0 overflow-auto bg-[var(--color-canvas)] flex flex-col">
                                 <div className="flex-1 flex items-center justify-center p-10">
                                     <div className="w-full grid gap-4 items-center"
                                         style={{ gridTemplateColumns: `repeat(${Math.min(total, 6)}, minmax(0, 1fr))`, maxWidth: Math.min(total, 6) * 300 }}>
@@ -337,6 +338,41 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     </p>
                                     {current.note && <p className="text-[12px] text-fg-muted truncate" title={current.note}>{current.note}</p>}
                                 </footer>
+                            </div>
+                            {(() => {
+                                // Lo que pidieron, sin entrar a cada lámina: abiertos, primero los del cliente.
+                                const pending = comments.filter((c) => !c.resolvedAt)
+                                    .sort((a, b) => Number(a.internal) - Number(b.internal));
+                                if (!pending.length) return null;
+                                const idx = Object.fromEntries(current.items.map((it, i) => [it.id, i]));
+                                return (
+                                    <aside className="w-[320px] shrink-0 border-l border-edge flex flex-col min-h-0">
+                                        <p className={`${mono} text-fg-faint px-5 pt-5 pb-3`}>
+                                            {client ? "Tus comentarios" : "Lo que pidieron"} · {pending.length}
+                                        </p>
+                                        <ol className="flex-1 overflow-y-auto px-2 pb-4">
+                                            {pending.map((c) => {
+                                                const i = c.itemId ? idx[c.itemId] : undefined;
+                                                return (
+                                                    <li key={c.id}>
+                                                        <button onClick={() => { if (i !== undefined) { setSlide(i); setDraft(null); } }}
+                                                            disabled={i === undefined}
+                                                            className="w-full text-left p-3 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-1)] cursor-pointer disabled:cursor-default">
+                                                            <span className="text-[11px] text-fg-faint flex items-center gap-1.5">
+                                                                <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] bg-[var(--color-brand)] text-[var(--color-brand-fg)]">{numberOf[c.id]}</span>
+                                                                {i !== undefined ? `Lámina ${String(i + 1).padStart(2, "0")}` : "Toda la pieza"}
+                                                                {" · "}{client ? (c.internal ? "Coevo" : "Vos") : <span className={c.internal ? "" : "text-[var(--color-brand)]"}>{c.internal ? `${who(c.author)} · interno` : "cliente"}</span>}
+                                                                {c.round < current.round && ` · versión ${c.round}`}
+                                                            </span>
+                                                            <span className="block text-[13px] leading-relaxed text-fg mt-1.5">{c.text}</span>
+                                                        </button>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ol>
+                                    </aside>
+                                );
+                            })()}
                             </div>
                         ) : (
                             /* ── Vista 2: una lámina grande + sus comentarios ── */
