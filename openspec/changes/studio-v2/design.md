@@ -193,3 +193,18 @@ Todavía no se usa con clientes; esto define cómo va a ser cuando se use.
 → recién ahí la ve, sin los comentarios internos. Cada comentario guarda si es interno o del cliente.
 
 **Quién aprueba:** se elige por persona (`memberships.can_approve`); el resto de la marca sólo comenta.
+
+## 12. Material del cliente → Brand Kit (2026-10-19)
+
+Prototipo: https://claude.ai/artifact/GKyzyZTpzo4fCZWWaErPYJ (pantallas "Cliente · Mandar material" y
+"Equipo · Material que llegó").
+
+1. **El cliente manda** (Mandar material): archivos o links (Pinterest, Drive, Instagram), con qué es
+   (referencias/moodboard · productos · logo/tipografías · brief · otro) y una nota.
+2. **Llega al equipo** en "Espera tu decisión". Claude propone a qué bloque va cada cosa y qué descartar
+   (repetidas, baja resolución) y escribe "qué dice esto de la marca" (texto que lee al producir).
+3. **Alguien del equipo confirma** → entra al bloque del Brand Kit, o queda "sólo para una pieza".
+4. **El cliente lo ve** en Mi marca como «incorporado».
+
+Nunca entra directo al Brand Kit: la memoria de la marca es lo que lee Claude, y curarla es parte del
+servicio. Lo de una pieza puntual va como adjunto de un comentario en Entregas, no por acá.
