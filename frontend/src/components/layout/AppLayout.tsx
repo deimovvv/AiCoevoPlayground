@@ -1,14 +1,5 @@
 import { Outlet, useLocation } from "react-router";
-import { Sidebar } from "./Sidebar";
-import { Coachmarks, type CoachStep } from "../Coachmarks";
-
-// Tour de bienvenida first-run — resalta los hitos del sidebar uno por uno.
-const DASHBOARD_TOUR: CoachStep[] = [
-    { target: '[data-tour="nav-inicio"]', title: "Este es tu Inicio", body: "Tools destacadas y tus campañas recientes, en un vistazo. Tu punto de partida." },
-    { target: '[data-tour="nav-campanas"]', title: "Campañas", body: "El corazón del flujo: elegís assets de la marca, generás piezas y las revisás — todo agrupado por campaña." },
-    { target: '[data-tour="nav-generar"]', title: "Generar", body: "Todas las tools sueltas: UGC, Ecommerce Pack, Fashion Reel, Ads, Content Analyzer y más." },
-    { target: '[data-tour="brand-chip"]', title: "Tu marca activa", body: "Elegí sobre qué marca trabajás. Todas las tools heredan su brand kit (avatares, productos, moodboards…)." },
-];
+import { TopBar } from "./TopBar";
 
 // Rutas full-bleed: ocupan toda la altura del viewport sin padding ni max-width.
 // Necesario para páginas con layout split sidebar+main (Lab, Ecommerce Batch, etc.)
@@ -38,19 +29,17 @@ export function AppLayout() {
         || FULL_BLEED_PREFIXES.some((p) => location.pathname.startsWith(p));
 
     return (
-        // Layout horizontal: rail vertical 60px + main. Reemplaza al TopNav horizontal
-        // (que sigue en disco como TopNav.tsx por si querés revertir). El rail es h-screen
-        // independiente del scroll del main para que siempre esté visible.
-        <div className="flex h-screen w-full bg-primary-bg overflow-hidden text-text-primary">
-            <Sidebar />
-            <Coachmarks steps={DASHBOARD_TOUR} storageKey="coevo-tour-dashboard-v1" />
+        // studio-v2: barra arriba + página a todo el ancho (antes: rail vertical a la izquierda,
+        // que sigue en disco como Sidebar.tsx). El tour de bienvenida apuntaba al sidebar: se fue con él.
+        <div className="flex flex-col h-screen w-full overflow-hidden">
+            <TopBar />
             {isFullBleed ? (
-                <main className="flex-1 overflow-hidden h-full">
+                <main className="flex-1 min-h-0 overflow-hidden">
                     <Outlet />
                 </main>
             ) : (
-                <main className="flex-1 overflow-y-auto">
-                    <div className="max-w-[1400px] mx-auto p-4 md:p-8 space-y-8">
+                <main className="flex-1 min-h-0 overflow-y-auto">
+                    <div className="max-w-[1400px] mx-auto px-6 py-8 md:px-12 md:py-10 space-y-8">
                         <Outlet />
                     </div>
                 </main>

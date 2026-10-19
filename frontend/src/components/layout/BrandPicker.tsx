@@ -49,7 +49,8 @@ function Avatar({ brand, size = 26 }: { brand: Brand | null; size?: number }) {
   );
 }
 
-export function BrandPicker({ collapsed = false }: { collapsed?: boolean }) {
+/** `top`: versión para la barra de arriba (studio-v2): chip compacto que abre hacia abajo. */
+export function BrandPicker({ collapsed = false, top = false }: { collapsed?: boolean; top?: boolean }) {
   const { brands, activeBrand, setActiveBrandId, loading } = useBrand();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -125,13 +126,20 @@ export function BrandPicker({ collapsed = false }: { collapsed?: boolean }) {
         aria-haspopup="listbox"
         title={activeBrand ? `Marca activa: ${activeBrand.name}` : "Elegir marca"}
         className={cn(
-          "w-full flex items-center rounded-[var(--radius-sm)] transition-colors cursor-pointer",
-          "hover:bg-[var(--color-surface-1)]",
-          collapsed ? "justify-center p-1" : "gap-2.5 px-1.5 py-1.5"
+          "flex items-center rounded-[var(--radius-sm)] transition-colors cursor-pointer",
+          top ? "h-8 gap-2 pl-1.5 pr-2.5 border border-edge bg-[var(--color-surface-1)] hover:border-[var(--color-edge-strong)]"
+            : "w-full hover:bg-[var(--color-surface-1)]",
+          !top && (collapsed ? "justify-center p-1" : "gap-2.5 px-1.5 py-1.5")
         )}
       >
-        <Avatar brand={activeBrand} />
-        {!collapsed && (
+        <Avatar brand={activeBrand} size={top ? 20 : 26} />
+        {top && (
+          <>
+            <span className="text-[13px] text-fg max-w-[180px] truncate">{activeBrand?.name ?? "Elegí una marca"}</span>
+            <ChevronsUpDown size={12} className="text-fg-faint shrink-0" />
+          </>
+        )}
+        {!top && !collapsed && (
           <>
             <div className="flex-1 min-w-0 text-left">
               <div className="text-[12.5px] font-semibold text-fg truncate leading-tight">
@@ -150,7 +158,7 @@ export function BrandPicker({ collapsed = false }: { collapsed?: boolean }) {
           className={cn(
             "absolute z-50 w-[248px] rounded-[var(--radius-md)] border border-edge",
             "bg-[var(--color-surface-1)] shadow-xl overflow-hidden",
-            collapsed ? "left-full ml-2 bottom-0" : "left-0 right-0 bottom-full mb-2 w-auto min-w-[248px]"
+            top ? "left-0 top-full mt-2" : collapsed ? "left-full ml-2 bottom-0" : "left-0 right-0 bottom-full mb-2 w-auto min-w-[248px]"
           )}
         >
           {brands.length > 6 && (

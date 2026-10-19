@@ -44,8 +44,9 @@ las herramientas los heredan.
 - **Seedance va siempre por kie.ai** (`KIE_API_KEY`), nunca por Fal: `services/seedance_video.py`.
 - **Patrón de pantalla compartido:** `components/workspace/` (`SelectorPanel`, `SelectorTrigger`,
   `RecipeGrid`). Los selectores abren al costado, nunca hacia abajo.
-- **Color:** la fuente de verdad es `frontend/src/index.css`. Acento `--color-brand` (rosa,
-  señal funcional, no relleno de CTA).
+- **Color y tipo:** la fuente de verdad es `frontend/src/index.css`. Tema por defecto **claro (papel)**,
+  Geist + Geist Mono; `--color-brand` es la señal (rojo en claro, rosa en oscuro), nunca relleno de CTA.
+- **Navegación (studio-v2):** barra arriba (`TopBar.tsx`): marca · Marca · Producción · Entregas · Reportes.
 
 ## Reglas duras
 

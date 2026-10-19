@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 
 export type Theme = "dark" | "light";
-const STORAGE_KEY = "coevo-theme";
-const DEFAULT: Theme = "dark";
+// v2: studio-v2 cambia el tema por defecto a claro (papel). La clave nueva hace que todos
+// arranquen en claro una vez; después cada uno elige.
+const STORAGE_KEY = "coevo-theme-v2";
+const DEFAULT: Theme = "light";
 
 function readStored(): Theme {
   try {

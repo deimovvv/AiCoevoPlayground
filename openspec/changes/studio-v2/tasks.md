@@ -36,7 +36,7 @@
 
 ## 2. Navegación
 
-- [ ] 2.1 Barra superior con selector de marca y 5 secciones; sacar el sidebar.
+- [x] 2.1 Barra superior (`TopBar.tsx`) con selector de marca y 4 secciones; sidebar fuera; tema papel + Geist por defecto; `/dashboard` → Marca (6 bloques, `MarcaPage.tsx`); Producción (`ProduccionPage.tsx`) (2026-10-19).
 - [ ] 2.2 Redirects de las rutas viejas.
 - [ ] 2.3 Vista cliente: sólo Marca (lectura + subir), Entregas, Reportes.
 

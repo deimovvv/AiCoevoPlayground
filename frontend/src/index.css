@@ -107,14 +107,18 @@
   --bg-hotspot-3: rgba(188, 252, 17, 0.02);
 
   /* Typography */
-  --font-sans: "Inter", "Neue Haas Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", "Consolas", ui-monospace, monospace;
+  /* studio-v2 (2026-10-19): Geist + Geist Mono, la línea de los carruseles de Coevo
+     (grotesk fina + rótulos en mono). Prototipo: openspec/changes/studio-v2 §12. */
+  --font-sans: "Geist", "Neue Haas Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", "SF Mono", "Consolas", ui-monospace, monospace;
   /* Display serif — para titulares (Home, Campañas, headers). Look editorial de revista
      de moda: trazo fino, alto contraste, sin el peso soft-serif de Fraunces (que leía
      a titular de blog). Se usa con la utility `font-display`. UI/body siguen en Inter.
      Instrument Serif viene en un solo peso (400) por diseño — no le pongas font-bold,
      el carácter está en el tamaño y el tracking negativo, no en el grosor. */
-  --font-display: "Instrument Serif", "Times New Roman", Georgia, ui-serif, serif;
+  /* La serif de titulares (Instrument Serif) se retiró en studio-v2: los titulares van en
+     Geist, livianos y con tracking negativo. La utility `font-display` sigue existiendo. */
+  --font-display: "Geist", ui-sans-serif, system-ui, sans-serif;
 
   /* Radius — bajados (2026-09-20) para unificar con la landing, que usa 14px.
      A 22px las cards leían blandas y "de app de consumo"; el registro que
@@ -153,82 +157,76 @@
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 [data-theme="light"] {
-  /* Gris cálido, no crema. La versión anterior (#f0ede7 / #f6f4ef) tenía tanto
-     amarillo que la pantalla entera se leía sucia — el mismo problema que el
-     negro azulado en dark, al revés. Se baja el amarillo manteniendo el calor:
-     R-B de +9 pasa a +5. */
-  --color-canvas: #eceae7;
-  --color-surface-0: #f4f3f1;
-  --color-surface-1: #fbfaf9;
-  --color-surface-2: #eae8e5;
-  --color-surface-3: #ddd9d5;
+  /* PAPEL — studio-v2 (2026-10-19). La paleta de los carruseles de Coevo: gris cálido de
+     papel, tinta casi negra, rótulos en mono y UN acento rojo como señal (lo que pide
+     atención, lo nuevo, el foco). Es el tema por defecto; el oscuro sigue disponible.
+     Contrastes sobre el fondo: fg 16:1 · muted 5,9:1 · faint 4,7:1. */
+  --color-canvas: #ecebe8;
+  --color-surface-0: #f2f1ee;
+  --color-surface-1: #f6f5f2;
+  --color-surface-2: #e4e3df;
+  --color-surface-3: #d8d6d1;
 
-  /* Contraste subido para legibilidad sobre warm white. Los grises anteriores
-     eran muy claros para `#fafaf7` y la jerarquía de textos perdía contraste
-     (especialmente labels uppercase, captions e hints). Mantenemos jerarquía
-     visual pero todos un escalón más oscuros. */
-  --color-fg: #0a0a0a;
-  --color-fg-secondary: #2a2a2a;
-  --color-fg-muted: #4a4a4a;
-  --color-fg-faint: #6b6b6b;
+  --color-fg: #151515;
+  --color-fg-secondary: #2c2c2a;
+  --color-fg-muted: #5e5e5a;
+  --color-fg-faint: #6a6965;
 
-  /* Bordes visibles. Con 0.025 de opacidad las cards no se separaban de nada y
-     la lista se leía como un bloque plano. */
-  --color-edge: rgba(10, 10, 10, 0.11);
-  --color-edge-subtle: rgba(10, 10, 10, 0.06);
-  --color-edge-strong: rgba(10, 10, 10, 0.20);
-  /* Focus ring en la señal rosa, igual que dark (2026-09-20). */
-  --color-edge-focus: rgba(255, 95, 143, 0.45);
+  --color-edge: #d5d3ce;
+  --color-edge-subtle: #e0ded9;
+  --color-edge-strong: #b9b7b1;
+  --color-edge-focus: rgba(200, 64, 42, 0.45);
 
-  --color-accent: #0a0a0a;
-  --color-accent-muted: rgba(10, 10, 10, 0.06);
+  --color-accent: #151515;
+  --color-accent-muted: rgba(21, 21, 21, 0.06);
 
-  /* Warm accent — the dark-mode pale pink (#FACDEA) is invisible on light surfaces,
-     both as text and as a washed-out button bg. In light mode we use a saturated rose
-     that reads as PINK but has enough contrast on white, with white button text. */
   --color-warm: #C8458C;
   --color-warm-strong: #A82E72;
   --color-warm-fg: #ffffff;
   --color-warm-muted: rgba(200, 69, 140, 0.12);
   --color-warm-subtle: rgba(200, 69, 140, 0.07);
 
-  /* Light mode — invertimos: el acento es negro sobre fondo blanco.
-     Mantiene el mismo efecto premium pero con polaridad opuesta. */
-  --color-action: #1a1a1a;
+  /* Botón principal: tinta sobre papel. */
+  --color-action: #151515;
   --color-action-strong: #000000;
-  --color-action-muted: rgba(10, 10, 10, 0.10);
-  --color-action-subtle: rgba(10, 10, 10, 0.05);
-  --color-action-fg: #FFFFFF;
+  --color-action-muted: rgba(21, 21, 21, 0.08);
+  --color-action-subtle: rgba(21, 21, 21, 0.04);
+  --color-action-fg: #f6f5f2;
 
   --color-calm-muted: rgba(212, 252, 241, 0.40);
   --color-calm-subtle: rgba(212, 252, 241, 0.20);
 
-  --color-success: #0F8558;
-  --color-success-muted: rgba(15, 133, 88, 0.10);
-  --color-warning: #B8820E;
-  --color-warning-muted: rgba(184, 130, 14, 0.10);
-  --color-error: #CC2E2E;
-  --color-error-muted: rgba(204, 46, 46, 0.08);
+  /* Señal: rojo de los carruseles ("Sos vos.", "Si dudamos, no sale."). En oscuro sigue el rosa. */
+  --color-brand: #c8402a;
+  --color-brand-strong: #a8331f;
+  --color-brand-muted: rgba(200, 64, 42, 0.12);
+  --color-brand-subtle: rgba(200, 64, 42, 0.06);
+  --color-brand-fg: #ffffff;
 
-  --color-control-bg: #ffffff;
-  --color-control-border: rgba(10, 10, 10, 0.12);
+  --color-success: #2e7d4f;
+  --color-success-muted: rgba(46, 125, 79, 0.10);
+  --color-warning: #9a6a12;
+  --color-warning-muted: rgba(176, 122, 30, 0.12);
+  --color-error: #b3261e;
+  --color-error-muted: rgba(179, 38, 30, 0.08);
 
-  --glass-bg: rgba(255, 255, 255, 0.55);
-  --glass-bg-hover: rgba(255, 255, 255, 0.75);
-  --glass-border: rgba(10, 10, 10, 0.06);
-  --glass-border-hover: rgba(10, 10, 10, 0.12);
-  --glass-sheen: rgba(255, 255, 255, 0.55);
+  --color-control-bg: #f6f5f2;
+  --color-control-border: #c9c7c1;
 
-  --bg-hotspot-1: rgba(250, 205, 234, 0.45);
-  --bg-hotspot-2: rgba(212, 252, 241, 0.40);
-  --bg-hotspot-3: rgba(188, 252, 17, 0.08);
+  --glass-bg: rgba(246, 245, 242, 0.7);
+  --glass-bg-hover: rgba(246, 245, 242, 0.9);
+  --glass-border: rgba(21, 21, 21, 0.08);
+  --glass-border-hover: rgba(21, 21, 21, 0.14);
+  --glass-sheen: rgba(255, 255, 255, 0.4);
 
-  /* Shadows con tinte cálido sutil (no negro puro) para alinear con el warm
-     white background — los grays con verdadero negro chocan contra el beige.
-     Mantenemos casi imperceptible: lift, no peso. */
-  --shadow-card: 0 1px 3px rgba(60, 40, 20, 0.06), 0 1px 2px rgba(60, 40, 20, 0.03);
-  --shadow-modal: 0 20px 60px rgba(60, 40, 20, 0.12), 0 4px 12px rgba(60, 40, 20, 0.06);
-  --shadow-dropdown: 0 8px 24px rgba(60, 40, 20, 0.10);
+  /* Sin manchas de color en el fondo: papel liso. */
+  --bg-hotspot-1: transparent;
+  --bg-hotspot-2: transparent;
+  --bg-hotspot-3: transparent;
+
+  --shadow-card: 0 1px 2px rgba(21, 21, 21, 0.05);
+  --shadow-modal: 0 20px 60px rgba(21, 21, 21, 0.14), 0 4px 12px rgba(21, 21, 21, 0.06);
+  --shadow-dropdown: 0 8px 24px rgba(21, 21, 21, 0.12);
 }
 
 /* ============================================================
@@ -276,8 +274,9 @@ option {
 
 /* Premium typography tightening for headings */
 h1, h2, h3 {
-  letter-spacing: -0.02em;
-  font-weight: 700;
+  letter-spacing: -0.025em;
+  /* studio-v2: titulares livianos; el peso lo da el tamaño, no el grosor. */
+  font-weight: 500;
 }
 
 /* Coevo logo — white PNG, inverts for light theme */

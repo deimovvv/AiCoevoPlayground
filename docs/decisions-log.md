@@ -19,7 +19,7 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Modelo de negocio | Vender output primero; el SaaS es una etapa posterior | 2026-09 "Output primero" |
 | Qué es una tool | Pipeline con pasos que el operador aprueba; lo demás es preset de Campañas | 2026-09-25 · `specs/tool-catalog` |
 | Pantalla | Controles · selector al costado · canvas que no desaparece | 2026-09 "Workspace de 3 columnas" · `specs/workspace-layout` |
-| Visual | Grises fríos, rosa `#ff5f8f` como señal, Instrument Serif | 2026-09 · `specs/design-system` |
+| Visual | **Papel claro por defecto** (gris cálido, tinta, rótulos en mono, rojo `#c8402a` como señal), Geist; menú arriba. El oscuro (rosa) sigue disponible | 2026-10-19 · `changes/studio-v2` (antes: grises fríos + Instrument Serif, 2026-09) |
 | Seedance | Siempre por kie.ai | 2026-10-01 · `specs/video-generation` |
 | Lab | v2 es el único; v1 borrado | 2026-06 "Lab v2 reemplaza a Lab v1" |
 | Portal | Por token, sin cuentas; el cliente no encarga trabajo | 2026-08 "Accesos al portal" |

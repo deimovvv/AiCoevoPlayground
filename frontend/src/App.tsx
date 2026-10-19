@@ -8,7 +8,6 @@ import ToolsPage from "./pages/ToolsPage";
 import PipelineConfigPage from "./pages/PipelineConfigPage";
 import { GeneratePage } from "./pages/GeneratePage";
 import { ToolRunPage } from "./pages/ToolRunPage";
-import { DashboardHome } from "./pages/DashboardHome";
 import { NewCampaignPage } from "./pages/NewCampaignPage";
 import { CampaignDetailPage } from "./pages/CampaignDetailPage";
 import { ReviewPage } from "./pages/ReviewPage";
@@ -25,6 +24,8 @@ import { ChatPage } from "./pages/ChatPage";
 // como fallback. Si alguien lo necesita: importar y agregar de vuelta la ruta.
 import { ManualLabV2 } from "./pages/ManualLabV2";
 import { DeliveriesPage } from "./pages/DeliveriesPage";
+import { MarcaPage } from "./pages/MarcaPage";
+import { ProduccionPage } from "./pages/ProduccionPage";
 import { EditorProjectPage } from "./pages/EditorProjectPage";
 import { VoiceLab } from "./pages/VoiceLab";
 import { EcommerceBatch } from "./pages/EcommerceBatch";
@@ -66,7 +67,10 @@ function App() {
           </BrandProvider>
         }
       >
-        <Route index element={<DashboardHome />} />
+        {/* studio-v2: la entrada es Marca; el "¿Qué hacemos hoy?" (DashboardHome) se reemplazó por Producción. */}
+        <Route index element={<Navigate to="/dashboard/marca" replace />} />
+        <Route path="marca" element={<MarcaPage />} />
+        <Route path="produccion" element={<ProduccionPage />} />
         <Route path="chat" element={<ChatPage />} />
         {/* Campañas: el tablero por estado. "trabajo" queda como redirect —
             era la ruta vieja y hay links guardados apuntando ahí. */}
