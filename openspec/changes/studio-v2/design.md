@@ -166,3 +166,11 @@ aprueba bloque por bloque. Lo que falte queda marcado como faltante, no escondid
 - Se guarda la fuente (HTML) junto a los PNG, así Claude corrige sobre la misma pieza.
 - **Piloto:** los carruseles de Coevo × Morph hechos en `coevo-web` (Carrusel V1). Recorrido completo:
   Claude lee la marca por MCP → produce → `subir_entrega` → comentario en Studio → Claude lo lee y corrige.
+
+## 10. "Agentes por rol" / la crew (2026-10-18)
+
+Se evaluó cambiar la entrada de Studio por una "crew" (Productor, Casting, Vestuario, Foto, Cámara,
+Voz, Montaje). **Decisión: la crew es una forma de contar, no una pantalla que haga falta.** No se
+construye. Para el cliente alcanza "en producción / para revisar"; para nosotros, lo que hace falta es
+la lista de **aprobaciones pendientes**. En contenido de Coevo puede aparecer como gráfico del video,
+nunca como supuesta captura de Studio (`coevo-web/openspec/changes/video-hecho-con-studio`).

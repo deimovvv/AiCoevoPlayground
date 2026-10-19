@@ -38,6 +38,7 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Tools / editor / skills | Tool genera · editor monta (uno solo) · skill descubre; lo validado pasa a la app como plantilla o receta | 2026-10-09 |
 | Dónde se trabaja | En `app.coevoagency.com` (servidor = fuente de verdad); lo local es sólo desarrollo | 2026-10-17 |
 | Login | Equipo: Cloudflare Access (PIN por mail) + el backend verifica el JWT | 2026-10-17 · `docs/guias/produccion.md` |
+| Rol de Studio | Casa de la marca + vitrina del cliente; se produce en el taller (Claude). Sin canvas propio (salvo video); la crew es relato, no pantalla | 2026-10-18 · `changes/studio-v2` |
 
 ---
 

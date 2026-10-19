@@ -5,7 +5,7 @@
 
 ## P. Piloto: el circuito con los carruseles de Coevo (primero)
 
-- [ ] P.1 Token de servicio de Access (`infra-v1` 4.3) + usuario técnico para Claude.
+- [x] P.1 Token de servicio de Access (`infra-v1` 4.3) — anda (2026-10-18). Falta: usuario técnico cuando existan roles (1.x).
 - [ ] P.2 MCP `coevo-studio` (local): `ver_marca`, `ver_plantilla`, `ver_comentarios`, `subir_entrega`, `marcar_resuelto`.
 - [ ] P.3 Tabla `deliveries` (pieza, láminas PNG, fuente HTML, estado, plantilla+versión) y `delivery_comments` (lámina, x/y, texto, estado).
 - [ ] P.4 Entregas: vista de carrusel (fila, zoom, comentario anclado, aprobar).
