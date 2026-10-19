@@ -13,7 +13,7 @@
 
 ## M. Memoria de la marca (design.md §7)
 
-- [ ] M.1 Brand Kit en seis bloques (sin perder datos: migración con backup).
+- [~] M.1 Marca en bloques con edición en panel lateral (`BrandBlockEditor.tsx`, 2026-10-19): quién es, identidad (logo, colores, fuentes), dirección de foto (imágenes + reglas), caras, catálogo, y «Cargar material» con destino. Sobre los datos de siempre, sin migrar. Falta: plantillas, archivos de fuentes, DESIGN.md.
 - [ ] M.2 Identidad gráfica: logo, fuentes con licencia, colores, `DESIGN.md`.
 - [ ] M.3 Skill `onboarding-marca` + botón "Cargar marca".
 - [ ] M.4 Mudar `coevo-skills/identidades` a Caras; las skills leen por MCP (§8).

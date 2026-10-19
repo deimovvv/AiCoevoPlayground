@@ -1,8 +1,9 @@
-import { useEffect, type ReactNode } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useEffect, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router";
 import { useBrand } from "../lib/BrandContext";
 import { backendUrl, type Brand } from "../lib/api";
 import { loadBrandFonts } from "../tools/shared/fontLoader";
+import { BrandBlockEditor, type BlockKey } from "../components/workspace/BrandBlockEditor";
 
 /**
  * Marca — la entrada de Studio (openspec/changes/studio-v2 §1 y §7).
@@ -24,18 +25,20 @@ const clip = (t: string | undefined, max: number) => {
 };
 const count = (n: number | undefined, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : "");
 
-function Card({ n, title, missing, children, editTo, className = "" }: {
-    n: string; title: string; missing?: string | true | null; children: ReactNode; editTo?: string; className?: string;
+function Card({ n, title, missing, children, onEdit, className = "" }: {
+    n: string; title: string; missing?: string | true | null; children: ReactNode; onEdit?: () => void; className?: string;
 }) {
     return (
-        <section className={`group flex flex-col gap-4 p-5 rounded-[4px] border border-edge bg-[var(--color-surface-1)] min-w-0 min-h-0 overflow-hidden ${className}`}>
+        <section className={`group relative flex flex-col gap-4 p-5 rounded-[4px] border border-edge bg-[var(--color-surface-1)] min-w-0 min-h-0 overflow-hidden ${onEdit ? "hover:border-[var(--color-edge-strong)]" : ""} ${className}`}>
+            {/* Todo el bloque abre su edición (panel al costado). */}
+            {onEdit && <button onClick={onEdit} aria-label={`Editar ${title}`} className="absolute inset-0 z-10 cursor-pointer" />}
             <div className="flex items-baseline gap-3 shrink-0">
                 <span className={`${mono} text-fg-faint`}>{n}</span>
                 <h2 className="text-[15px] tracking-[-0.01em] text-fg">{title}</h2>
                 <span className="flex-1" />
                 {missing
                     ? <span className={`${mono} text-[var(--color-brand)]`}>{missing === true ? "Falta" : `Falta ${missing}`}</span>
-                    : editTo && <Link to={editTo} className="text-[12px] text-fg-faint no-underline opacity-0 group-hover:opacity-100 hover:text-fg transition-opacity">Editar</Link>}
+                    : onEdit && <span className="text-[12px] text-fg-faint opacity-0 group-hover:opacity-100 transition-opacity">Editar</span>}
             </div>
             {children}
         </section>
@@ -72,7 +75,8 @@ function data(b: Brand) {
 }
 
 export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
-    const { activeBrand, setActiveBrandId } = useBrand();
+    const { activeBrand, setActiveBrandId, refreshBrands } = useBrand();
+    const [editing, setEditing] = useState<BlockKey | null>(null);
     const [params, setParams] = useSearchParams();
     // ?marca=<id> abre esa marca (links directos a la memoria de una marca).
     const wanted = params.get("marca");
@@ -88,7 +92,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
     if (!activeBrand) return <p className="p-8 text-[14px] text-fg-muted">Elegí una marca arriba para ver su memoria.</p>;
     const b = activeBrand;
     const { dna, ds, logo, colors, fonts: fontNames, looks, faces, catalog } = data(b);
-    const edit = readOnly ? undefined : `/dashboard/brands/${b.id}`;
+    const edit = (k: BlockKey) => (readOnly ? undefined : () => setEditing(k));
     const brandFont = b.fonts?.headline ? `"${b.fonts.headline}", ui-serif, serif` : undefined;
 
     // Texto = qué falta adentro del bloque; true = falta el bloque entero.
@@ -146,29 +150,32 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                     <p className="text-[13px] leading-relaxed text-fg-muted">
                         {readOnly ? "Es lo que usamos para producir cada pieza. Si algo no está bien, avisanos." : "Es lo que Claude lee antes de producir cualquier pieza para la marca."}
                     </p>
-                    {edit && (
-                        <Link to={edit} className="self-start h-10 px-4 flex items-center rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] no-underline">
-                            Cargar material
-                        </Link>
+                    {!readOnly && (
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => setEditing("material")} className="h-10 px-4 flex items-center rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] cursor-pointer">
+                                Cargar material
+                            </button>
+                            <button onClick={() => setEditing("identidad")} className="text-[13px] text-fg-muted hover:text-fg cursor-pointer">Editar identidad</button>
+                        </div>
                     )}
                 </div>
             </aside>
 
             {/* ── La memoria, llenando el alto ── */}
             <div className="p-3 md:p-4 grid gap-3 grid-cols-1 md:grid-cols-2 md:grid-rows-3 md:h-full md:min-h-0">
-                <Card n="01" title="Dirección de foto y video" missing={missing[2]} editTo={edit} className="md:row-span-2">
+                <Card n="01" title="Dirección de foto y video" missing={missing[2]} onEdit={edit("foto")} className="md:row-span-2">
                     {looks.length > 0 ? <Fill urls={looks.slice(0, 3)} /> : <div className="flex-1" />}
                     {ds.photoStyle ? <Note>{clip(ds.photoStyle, 200)}</Note> : <Empty>Sin reglas de foto: Claude no sabe cómo se ve la marca.</Empty>}
                 </Card>
 
-                <Card n="02" title="Quién es" missing={missing[0]} editTo={edit}>
+                <Card n="02" title="Quién es" missing={missing[0]} onEdit={edit("quien")}>
                     {b.brandContext || b.business?.value_prop
                         ? <p className="text-[15px] leading-[1.5] tracking-[-0.005em] text-fg">{clip(b.business?.value_prop || b.brandContext, 170)}</p>
                         : <Empty>Todavía no sabemos quién es la marca.</Empty>}
                     {dna.forbidden_words?.length ? <Note>Nunca dice {dna.forbidden_words.slice(0, 3).map((w) => `«${w.toLowerCase()}»`).join(", ")}.</Note> : null}
                 </Card>
 
-                <Card n="03" title="Caras" missing={missing[3]} editTo={edit}>
+                <Card n="03" title="Caras" missing={missing[3]} onEdit={edit("caras")}>
                     {faces.length > 0 ? (
                         <>
                             <Fill urls={faces.slice(0, 4).map((a) => a.imageUrl!)} faces />
@@ -177,7 +184,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                     ) : <Empty>Sin avatares ni modelos. Sin caras, no hay video con personas.</Empty>}
                 </Card>
 
-                <Card n="04" title="Catálogo" missing={missing[4]} editTo={edit}>
+                <Card n="04" title="Catálogo" missing={missing[4]} onEdit={edit("catalogo")}>
                     {catalog.length > 0 ? (
                         <>
                             <Fill urls={catalog.slice(0, 4)} />
@@ -187,11 +194,12 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                 </Card>
 
                 {!readOnly ? (
-                    <Card n="05" title="Plantillas" missing={missing[5]} editTo={edit}>
+                    <Card n="05" title="Plantillas" missing={missing[5]}>
                         <Empty>Se guardan cuando una pieza se aprueba, para repetir el formato.</Empty>
                     </Card>
                 ) : <div className="hidden md:block" />}
             </div>
+            {editing && <BrandBlockEditor brand={b} block={editing} onClose={() => setEditing(null)} onChanged={refreshBrands} />}
         </div>
     );
 }
