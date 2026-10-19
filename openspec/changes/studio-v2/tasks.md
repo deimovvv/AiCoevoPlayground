@@ -6,7 +6,7 @@
 ## P. Piloto: el circuito con los carruseles de Coevo (primero)
 
 - [x] P.1 Token de servicio de Access (`infra-v1` 4.3) — anda (2026-10-18). Falta: usuario técnico cuando existan roles (1.x).
-- [ ] P.2 MCP `coevo-studio` (local): `ver_marca`, `ver_plantilla`, `ver_comentarios`, `subir_entrega`, `marcar_resuelto`.
+- [x] P.2 MCP `coevo-studio` (`mcp/coevo-studio/`, 2026-10-18): 10 herramientas de lectura + notas + proyectos de video, registrado en Claude Code (user). Faltan `ver_plantilla` (con M/3.1) y `subir_entrega` (con P.3).
 - [ ] P.3 Tabla `deliveries` (pieza, láminas PNG, fuente HTML, estado, plantilla+versión) y `delivery_comments` (lámina, x/y, texto, estado).
 - [ ] P.4 Entregas: vista de carrusel (fila, zoom, comentario anclado, aprobar).
 - [ ] P.5 Recorrido completo con Carrusel V1 de `coevo-web`; anotar qué sobra y qué falta.

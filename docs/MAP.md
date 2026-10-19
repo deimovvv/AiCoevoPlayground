@@ -30,6 +30,7 @@ artistas de IA y marcas es una etapa posterior, no el plan actual.
 | **Tool** | **genera** material nuevo, con pasos que el operador aprueba | la app (`tools/`) |
 | **Editor** | **monta** un video con material que ya existe. Uno solo, para todo | la app (`components/workspace/VideoTimeline`) |
 | **Skill** | Claude produciendo en la terminal y **descubriendo** qué funciona | `coevo-skills` |
+| **MCP `coevo-studio`** | el puente: las skills **leen** la memoria de la marca y **escriben** en Studio (token de servicio de Access) | `mcp/coevo-studio/` |
 
 A veces se genera material nuevo (tool → editor) y a veces se parte de material que ya
 existe (directo al editor). Lo que una skill valida pasa a la app como **plantilla del
