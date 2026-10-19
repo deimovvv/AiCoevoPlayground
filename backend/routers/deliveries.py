@@ -8,6 +8,11 @@ se pide cambios o se aprueba. Claude sube y corrige desde el MCP `coevo-studio`.
 Archivos: backend/data/deliveries/<id>/ (R2 cuando esté, infra-v1 3.1), servidos en
 /static/deliveries/<id>/<archivo>, detrás del mismo login que todo lo demás.
 Autor: el mail que firmó Cloudflare Access (o `servicio:<token>` para Claude); en dev, "local".
+
+Dos pasos (studio-v2 §11): toda entrega nace `interna` (la ve el equipo; Claude sube acá).
+"Mandar al cliente" la pasa a `cliente`. La vista del cliente (`?vista=cliente`) sólo ve lo
+mandado y los comentarios no internos. Una ronda nueva vuelve a `interna`: el equipo la revisa
+antes de volver a mandarla. Hasta que haya roles (studio-v2 §3), la vista la elige la pantalla.
 """
 import re
 import shutil
@@ -89,7 +94,7 @@ async def _store_items(delivery_id: str, round_: int, files: List[UploadFile], l
 
 def _comment(c: DeliveryComment) -> dict:
     return {
-        "id": c.id, "itemId": c.item_id, "x": c.x, "y": c.y, "text": c.text, "author": c.author,
+        "id": c.id, "itemId": c.item_id, "x": c.x, "y": c.y, "text": c.text, "author": c.author, "internal": c.internal,
         "round": c.round, "resolvedAt": _iso(c.resolved_at), "createdAt": _iso(c.created_at),
     }
 
@@ -97,6 +102,7 @@ def _comment(c: DeliveryComment) -> dict:
 def _summary(d: Delivery, open_comments: int = 0) -> dict:
     return {
         "id": d.id, "brandId": d.brand_id, "title": d.title, "kind": d.kind, "status": d.status,
+        "visibility": d.visibility, "sentAt": _iso(d.sent_at),
         "round": d.round, "items": len(d.items or []), "cover": (d.items or [{}])[0].get("url"),
         "openComments": open_comments, "createdBy": d.created_by,
         "approvedBy": d.approved_by, "approvedAt": _iso(d.approved_at),
@@ -111,10 +117,12 @@ async def _get(s: AsyncSession, delivery_id: str) -> Delivery:
     return d
 
 
-async def _full(s: AsyncSession, d: Delivery) -> dict:
+async def _full(s: AsyncSession, d: Delivery, client: bool = False) -> dict:
     rows = (await s.execute(
         select(DeliveryComment).where(DeliveryComment.delivery_id == d.id).order_by(DeliveryComment.created_at)
     )).scalars().all()
+    if client:
+        rows = [c for c in rows if not c.internal]
     return {
         **_summary(d, sum(1 for c in rows if not c.resolved_at)),
         "items": d.items or [], "source": d.source, "note": d.note, "template": d.template,
@@ -125,15 +133,21 @@ async def _full(s: AsyncSession, d: Delivery) -> dict:
 # ── Entregas ──────────────────────────────────────────────────────────────
 
 @router.get("/api/brands/{brand_id}/deliveries")
-async def list_deliveries(brand_id: str, s: AsyncSession = Depends(get_session)):
+async def list_deliveries(brand_id: str, vista: Optional[str] = None, s: AsyncSession = Depends(get_session)):
+    """`vista=cliente`: sólo lo mandado al cliente, contando sólo sus comentarios."""
     _require_brand(brand_id)
-    rows = (await s.execute(
-        select(Delivery).where(Delivery.brand_id == brand_id).order_by(Delivery.updated_at.desc())
-    )).scalars().all()
+    client = vista == "cliente"
+    q = select(Delivery).where(Delivery.brand_id == brand_id)
+    if client:
+        q = q.where(Delivery.visibility == "cliente")
+    rows = (await s.execute(q.order_by(Delivery.updated_at.desc()))).scalars().all()
     open_by = {}
     if rows:
-        for c in (await s.execute(select(DeliveryComment).where(
-                DeliveryComment.delivery_id.in_([d.id for d in rows]), DeliveryComment.resolved_at.is_(None)))).scalars():
+        cq = select(DeliveryComment).where(
+            DeliveryComment.delivery_id.in_([d.id for d in rows]), DeliveryComment.resolved_at.is_(None))
+        if client:
+            cq = cq.where(DeliveryComment.internal.is_(False))
+        for c in (await s.execute(cq)).scalars():
             open_by[c.delivery_id] = open_by.get(c.delivery_id, 0) + 1
     return [_summary(d, open_by.get(d.id, 0)) for d in rows]
 
@@ -170,8 +184,22 @@ async def create_delivery(
 
 
 @router.get("/api/deliveries/{delivery_id}")
-async def get_delivery(delivery_id: str, s: AsyncSession = Depends(get_session)):
-    return await _full(s, await _get(s, delivery_id))
+async def get_delivery(delivery_id: str, vista: Optional[str] = None, s: AsyncSession = Depends(get_session)):
+    d = await _get(s, delivery_id)
+    if vista == "cliente" and d.visibility != "cliente":
+        raise HTTPException(status_code=404, detail="No existe esa entrega")
+    return await _full(s, d, client=vista == "cliente")
+
+
+@router.post("/api/deliveries/{delivery_id}/send")
+async def send_to_client(delivery_id: str, s: AsyncSession = Depends(get_session)):
+    """Mandar al cliente: desde acá la ve, en revisión, sin los comentarios internos."""
+    d = await _get(s, delivery_id)
+    d.visibility, d.status, d.sent_at = "cliente", "en_revision", datetime.now(timezone.utc)
+    d.approved_by = d.approved_at = None
+    await s.commit()
+    await s.refresh(d)
+    return await _full(s, d)
 
 
 @router.post("/api/deliveries/{delivery_id}/round")
@@ -190,6 +218,7 @@ async def new_round(
         st = await _store(d.id, nxt, source, SOURCE_EXT)
         d.source = {"url": st["url"], "name": st["name"]}
     d.items, d.round, d.status = items, nxt, "en_revision"
+    d.visibility = "interna"   # el equipo la revisa antes de volver a mandarla
     d.approved_by = d.approved_at = None
     if note:
         d.note = note
@@ -230,6 +259,8 @@ async def delete_delivery(delivery_id: str, s: AsyncSession = Depends(get_sessio
 
 class CommentIn(BaseModel):
     text: str
+    # Desde la vista del cliente: no es interno. Con roles lo va a decidir el usuario, no la pantalla.
+    asClient: bool = False
     itemId: Optional[str] = None
     x: Optional[float] = None
     y: Optional[float] = None
@@ -241,11 +272,13 @@ async def add_comment(delivery_id: str, req: CommentIn, request: Request, s: Asy
     text = req.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="El comentario está vacío")
+    if req.asClient and d.visibility != "cliente":
+        raise HTTPException(status_code=404, detail="No existe esa entrega")
     if req.itemId and req.itemId not in {i["id"] for i in d.items or []}:
         raise HTTPException(status_code=400, detail="Esa lámina no es de la ronda actual")
     clamp = lambda v: None if v is None else min(1.0, max(0.0, float(v)))
     c = DeliveryComment(delivery_id=d.id, item_id=req.itemId, x=clamp(req.x), y=clamp(req.y),
-                        text=text[:4000], author=_who(request), round=d.round)
+                        text=text[:4000], author=_who(request), round=d.round, internal=not req.asClient)
     c.id = f"dc_{uuid.uuid4().hex[:12]}"
     s.add(c)
     if d.status == "aprobada":

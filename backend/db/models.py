@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -49,6 +49,9 @@ class Delivery(Base):
     kind: Mapped[str] = mapped_column(String(20), default="carrusel")      # carrusel · video · imagenes
     # en_revision → cambios (alguien pidió cambios) → en_revision (nueva ronda) → aprobada
     status: Mapped[str] = mapped_column(String(20), default="en_revision")
+    # interna: sólo la ve el equipo (Claude sube acá) · cliente: se la mandamos (studio-v2 §11)
+    visibility: Mapped[str] = mapped_column(String(10), default="interna", server_default="interna")
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     items: Mapped[list] = mapped_column(JSONB, default=list)
     source: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     note: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
@@ -73,6 +76,8 @@ class DeliveryComment(Base):
     y: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     text: Mapped[str] = mapped_column(String(4000))
     author: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    # Interno = del equipo; el cliente no lo ve.
+    internal: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     round: Mapped[int] = mapped_column(Integer, default=1)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

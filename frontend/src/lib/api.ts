@@ -3743,10 +3743,12 @@ export type DeliveryStatus = "en_revision" | "cambios" | "aprobada";
 export interface DeliveryItem { id: string; url: string; kind: "image" | "video"; label: string }
 export interface DeliveryComment {
     id: string; itemId: string | null; x: number | null; y: number | null; text: string;
-    author: string | null; round: number; resolvedAt: string | null; createdAt: string | null;
+    author: string | null; internal: boolean; round: number; resolvedAt: string | null; createdAt: string | null;
 }
 export interface DeliverySummary {
     id: string; brandId: string; title: string; kind: string; status: DeliveryStatus; round: number;
+    /** interna: sólo el equipo · cliente: ya se le mandó (studio-v2 §11). */
+    visibility: "interna" | "cliente"; sentAt: string | null;
     items: number; cover: string | null; openComments: number; createdBy: string | null;
     approvedBy: string | null; approvedAt: string | null; createdAt: string | null; updatedAt: string | null;
 }
@@ -3755,12 +3757,21 @@ export interface Delivery extends Omit<DeliverySummary, "items"> {
     template: string | null; comments: DeliveryComment[];
 }
 
-export async function listDeliveries(brandId: string): Promise<DeliverySummary[]> {
-    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/deliveries`), "No se pudieron cargar las entregas");
+/** `vista: "cliente"` = sólo lo mandado al cliente y sin comentarios internos. */
+export type DeliveryView = "cliente" | undefined;
+const vistaQ = (v: DeliveryView) => (v ? `?vista=${v}` : "");
+
+export async function listDeliveries(brandId: string, vista?: DeliveryView): Promise<DeliverySummary[]> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/deliveries${vistaQ(vista)}`), "No se pudieron cargar las entregas");
 }
 
-export async function getDelivery(id: string): Promise<Delivery> {
-    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}`), "No se pudo abrir la entrega");
+export async function getDelivery(id: string, vista?: DeliveryView): Promise<Delivery> {
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}${vistaQ(vista)}`), "No se pudo abrir la entrega");
+}
+
+/** Mandar al cliente: desde ahí la ve (sin los comentarios internos). */
+export async function sendDelivery(id: string): Promise<Delivery> {
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/send`, { method: "POST" }), "No se pudo mandar");
 }
 
 export async function createDelivery(brandId: string, title: string, files: File[], source?: File | null): Promise<Delivery> {
@@ -3778,7 +3789,7 @@ export async function setDeliveryStatus(id: string, status: DeliveryStatus): Pro
     }), "No se pudo cambiar el estado");
 }
 
-export async function addDeliveryComment(id: string, c: { text: string; itemId?: string | null; x?: number | null; y?: number | null }): Promise<DeliveryComment> {
+export async function addDeliveryComment(id: string, c: { text: string; itemId?: string | null; x?: number | null; y?: number | null; asClient?: boolean }): Promise<DeliveryComment> {
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/comments`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c),
     }), "No se pudo guardar el comentario");

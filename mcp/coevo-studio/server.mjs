@@ -125,6 +125,7 @@ tool("guardar_proyecto_video",
 
 const entregaCorta = (d) => ({
     id: d.id, titulo: d.title, tipo: d.kind, estado: d.status, ronda: d.round, laminas: d.items?.length ?? d.items,
+    visible_para: d.visibility === "cliente" ? "cliente" : "sólo el equipo",
     comentarios_abiertos: d.openComments, aprobada_por: d.approvedBy, actualizada: d.updatedAt,
 });
 
@@ -146,6 +147,7 @@ tool("ver_entrega",
             comentarios: d.comments.map((c) => ({
                 id: c.id, lamina: c.itemId ? `${label[c.itemId] ?? "(ronda anterior)"} [${c.itemId}]` : "toda la entrega",
                 punto: c.x != null ? { x: c.x, y: c.y } : null, texto: c.text, autor: c.author, ronda: c.round,
+                de: c.internal ? "equipo" : "cliente",
                 resuelto: !!c.resolvedAt,
             })),
         };
@@ -154,7 +156,7 @@ tool("ver_entrega",
 tool("subir_entrega",
     "Sube una pieza terminada a Entregas de la marca para que la vean y comenten. `archivos` son las láminas EN ORDEN " +
     "(png/jpg/webp/mp4, rutas locales); `fuente` es el archivo editable (ej. el HTML del carrusel) para poder corregir después. " +
-    "Subir sólo con el OK de la persona.",
+    "Queda INTERNA: la ve sólo el equipo; mandarla al cliente lo decide una persona desde Studio. Subir sólo con el OK de la persona.",
     {
         marca: z.string(),
         titulo: z.string(),
@@ -173,7 +175,7 @@ tool("subir_entrega",
     });
 
 tool("nueva_ronda",
-    "Sube la versión corregida de una entrega (todas las láminas otra vez, en orden). Vuelve a 'en revisión'; los comentarios viejos quedan con su ronda. " +
+    "Sube la versión corregida de una entrega (todas las láminas otra vez, en orden). Vuelve a 'en revisión' e INTERNA (el equipo la revisa antes de volver a mandarla); los comentarios viejos quedan con su ronda. " +
     "Después, marcar como resueltos los comentarios aplicados con resolver_comentario.",
     {
         id: z.string(),

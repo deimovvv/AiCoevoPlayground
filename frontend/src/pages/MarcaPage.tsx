@@ -23,7 +23,7 @@ const clip = (t: string | undefined, max: number) => {
 };
 
 function Card({ n, title, missing, children, editTo }: {
-    n: string; title: string; missing?: string | true | null; children: ReactNode; editTo: string;
+    n: string; title: string; missing?: string | true | null; children: ReactNode; editTo?: string;
 }) {
     return (
         <section className="group relative flex flex-col gap-4 p-6 rounded-[4px] border border-edge bg-[var(--color-surface-1)] min-w-0">
@@ -33,7 +33,7 @@ function Card({ n, title, missing, children, editTo }: {
                 <span className="flex-1" />
                 {missing
                     ? <span className={`${mono} text-[var(--color-brand)]`}>{missing === true ? "Falta" : `Falta ${missing}`}</span>
-                    : <Link to={editTo} className="text-[12px] text-fg-faint no-underline opacity-0 group-hover:opacity-100 hover:text-fg transition-opacity">Editar</Link>}
+                    : editTo && <Link to={editTo} className="text-[12px] text-fg-faint no-underline opacity-0 group-hover:opacity-100 hover:text-fg transition-opacity">Editar</Link>}
             </div>
             <div className="min-w-0">{children}</div>
         </section>
@@ -69,7 +69,8 @@ function data(b: Brand) {
     };
 }
 
-export function MarcaPage() {
+/** `readOnly`: la vista del cliente («Mi marca»): sin editar ni cargar, sin plantillas. */
+export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
     const { activeBrand, setActiveBrandId } = useBrand();
     const [params, setParams] = useSearchParams();
     // ?marca=<id> abre esa marca (links directos a la memoria de una marca).
@@ -86,7 +87,7 @@ export function MarcaPage() {
     if (!activeBrand) return <p className="text-[14px] text-fg-muted">Elegí una marca arriba para ver su memoria.</p>;
     const b = activeBrand;
     const { dna, ds, logo, colors, fonts: fontNames, looks, faces, catalog } = data(b);
-    const edit = `/dashboard/brands/${b.id}`;
+    const edit = readOnly ? undefined : `/dashboard/brands/${b.id}`;
     const brandFont = b.fonts?.headline ? `"${b.fonts.headline}", ui-serif, serif` : undefined;
 
     // Texto = qué falta adentro del bloque; true = falta el bloque entero.
@@ -104,16 +105,16 @@ export function MarcaPage() {
         <div className="pb-16">
             <header className="flex items-end gap-8 pb-8">
                 <div className="min-w-0">
-                    <p className={`${mono} text-fg-faint`}>Memoria de la marca · {done} de 6</p>
+                    <p className={`${mono} text-fg-faint`}>{readOnly ? "Así entendemos tu marca" : `Memoria de la marca · ${done} de 6`}</p>
                     <h1 className="mt-3 text-[52px] leading-[0.95] tracking-[-0.04em] text-fg">{b.name}</h1>
                 </div>
                 <span className="flex-1" />
                 <p className="max-w-[300px] text-[13px] leading-relaxed text-fg-muted hidden lg:block">
-                    Lo que Claude lee antes de producir cualquier pieza para la marca.
+                    {readOnly ? "Es lo que usamos para producir cada pieza. Si algo no está bien, avisanos." : "Lo que Claude lee antes de producir cualquier pieza para la marca."}
                 </p>
-                <Link to={edit} className="shrink-0 h-10 px-4 flex items-center rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] no-underline">
+                {edit && <Link to={edit} className="shrink-0 h-10 px-4 flex items-center rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] no-underline">
                     Cargar material
-                </Link>
+                </Link>}
             </header>
 
             <div className="grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
@@ -171,9 +172,9 @@ export function MarcaPage() {
                 ) : <Empty>Sin productos ni prendas: no se pueden hacer fichas ni prenda sobre modelo.</Empty>}
             </Card>
 
-            <Card n="06" title="Plantillas" missing={missing[5]} editTo={edit}>
+            {!readOnly && <Card n="06" title="Plantillas" missing={missing[5]} editTo={edit}>
                 <Empty>Se guardan cuando una pieza se aprueba, para repetir el formato.</Empty>
-            </Card>
+            </Card>}
             </div>
         </div>
     );

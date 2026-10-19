@@ -24,6 +24,7 @@ import { ChatPage } from "./pages/ChatPage";
 // como fallback. Si alguien lo necesita: importar y agregar de vuelta la ruta.
 import { ManualLabV2 } from "./pages/ManualLabV2";
 import { DeliveriesPage } from "./pages/DeliveriesPage";
+import { ClientLayout } from "./components/layout/ClientLayout";
 import { MarcaPage } from "./pages/MarcaPage";
 import { ProduccionPage } from "./pages/ProduccionPage";
 import { EditorProjectPage } from "./pages/EditorProjectPage";
@@ -59,6 +60,11 @@ function App() {
       {/* Public client review + portal — no BrandProvider / no app nav (token in URL) */}
       <Route path="/review/:token" element={<ReviewPage />} />
       <Route path="/portal/:token" element={<PortalPage />} />
+      {/* Lo que ve el cliente (studio-v2 §11). Hoy: vista previa para el equipo con la marca activa. */}
+      <Route path="/cliente" element={<BrandProvider><ClientLayout /></BrandProvider>}>
+        <Route index element={<ErrorBoundary><DeliveriesPage mode="cliente" /></ErrorBoundary>} />
+        <Route path="marca" element={<div className="h-full overflow-y-auto"><div className="max-w-[1400px] mx-auto px-6 py-8 md:px-12 md:py-10"><MarcaPage readOnly /></div></div>} />
+      </Route>
       <Route
         path="/dashboard"
         element={
