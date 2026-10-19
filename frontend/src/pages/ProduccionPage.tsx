@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useBrand } from "../lib/BrandContext";
 import { backendUrl, fetchGenerations, fetchToolPreviews, listDeliveries, type DeliverySummary, type Generation, type ToolPreview } from "../lib/api";
-import { TOOL_PREVIEW_MEDIA } from "../lib/toolPreviews";
 
 /**
  * Producción (openspec/changes/studio-v2 §1): hacer algo nuevo para la marca y ver qué espera
@@ -22,26 +21,36 @@ const ACTIONS = [
 const TOOL_NAME: Record<string, string> = Object.fromEntries(ACTIONS.map((a) => [a.id, a.tool]));
 
 /** Tarjeta de una tool con su última pieza real: quieta hasta pasar el mouse, ahí se reproduce. */
+/** Portadas propias en la estética de Coevo (flash, oficina de noche, 35 mm), una por tool.
+ *  Se ven cuando la marca todavía no hizo nada con esa tool: nunca el trabajo de otra marca. */
+const COEVO_COVER: Record<string, string> = {
+    fashion_reel: "/hero/tools/coevo/fashion-reel.webp",
+    ecommerce_pack: "/hero/tools/coevo/ecommerce-pack.webp",
+    ugc_creator: "/hero/tools/coevo/ugc-creator.webp",
+    video_ad_creator: "/hero/tools/coevo/video-ad-creator.webp",
+    manual_lab: "/hero/tools/coevo/manual-lab.webp",
+};
+
+/** Tarjeta de una tool: la última pieza de ESTA marca (el video al pasar el mouse) o la portada de Coevo. */
 function ToolCard({ a, preview, brandName }: { a: typeof ACTIONS[number]; preview?: ToolPreview; brandName: string }) {
     const [hover, setHover] = useState(false);
     const [broken, setBroken] = useState(false);
-    const fallback = TOOL_PREVIEW_MEDIA[a.id]?.url;
-    const ok = !!preview && !broken;
-    // Quieta: la portada (un cuadro del video, o la foto). Al pasar el mouse se carga y reproduce el video.
-    const still = ok ? backendUrl(preview!.kind === "video" ? (preview!.poster ?? "") : preview!.url) : fallback;
-    const playing = ok && hover && preview!.kind === "video";
+    const own = !!preview?.own && !broken;
+    const cover = COEVO_COVER[a.id];
+    const still = own ? backendUrl(preview!.kind === "video" ? (preview!.poster ?? "") : preview!.url) : cover;
+    const playing = own && hover && preview!.kind === "video";
     return (
         <Link to={a.to} className="group flex flex-col gap-2.5 no-underline w-[62vw] max-w-[260px] md:w-auto md:max-w-none shrink-0 snap-start md:min-h-0"
             onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
             <div className="relative aspect-[4/5] md:aspect-auto md:flex-1 md:min-h-0 overflow-hidden rounded-[3px] bg-[var(--color-surface-2)]">
                 {still
-                    ? <img src={still} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 w-full h-full object-cover" />
-                    // Video sin portada (los del Lab, en Fal): Fal sí deja saltar, así que el cuadro sale del video.
-                    : ok && <video src={`${backendUrl(preview!.url)}#t=0.5`} muted playsInline preload="metadata" onError={() => setBroken(true)} className="absolute inset-0 w-full h-full object-cover" />}
+                    ? <img src={still} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" />
+                    // Video propio sin portada (los del Lab, en Fal): el cuadro sale del video.
+                    : own && <video src={`${backendUrl(preview!.url)}#t=0.5`} muted playsInline preload="metadata" onError={() => setBroken(true)} className="absolute inset-0 w-full h-full object-cover" />}
                 {playing && <video src={backendUrl(preview!.url)} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover" />}
-                {ok && (
+                {own && (
                     <span className="absolute left-2 bottom-2 px-1.5 py-0.5 rounded-[2px] bg-black/55 text-white font-mono text-[9px] uppercase tracking-[0.08em]">
-                        {preview!.own ? `Último de ${brandName}` : "Ejemplo · otra marca"}{preview!.kind === "video" && " · ▶"}
+                        Último de {brandName}{preview!.kind === "video" && " · ▶"}
                     </span>
                 )}
             </div>
@@ -52,6 +61,7 @@ function ToolCard({ a, preview, brandName }: { a: typeof ACTIONS[number]; previe
         </Link>
     );
 }
+
 const RECENT_DAYS = 30;
 
 const ago = (iso: string) => {
