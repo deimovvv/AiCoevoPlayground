@@ -7,8 +7,8 @@
 
 - [x] P.1 Token de servicio de Access (`infra-v1` 4.3) — anda (2026-10-18). Falta: usuario técnico cuando existan roles (1.x).
 - [x] P.2 MCP `coevo-studio` (`mcp/coevo-studio/`, 2026-10-18): 10 herramientas de lectura + notas + proyectos de video, registrado en Claude Code (user). Faltan `ver_plantilla` (con M/3.1) y `subir_entrega` (con P.3).
-- [ ] P.3 Tabla `deliveries` (pieza, láminas PNG, fuente HTML, estado, plantilla+versión) y `delivery_comments` (lámina, x/y, texto, estado).
-- [ ] P.4 Entregas: vista de carrusel (fila, zoom, comentario anclado, aprobar).
+- [x] P.3 Tablas `deliveries` + `delivery_comments` (migración `5b1e7c2d9a40`), `routers/deliveries.py`, archivos en `data/deliveries/<id>/r<ronda>/`; MCP: `ver_entregas`, `ver_entrega`, `subir_entrega`, `nueva_ronda`, `resolver_comentario` (2026-10-18).
+- [x] P.4 `/dashboard/entregas`: láminas en fila, comentario anclado a un punto, rondas, pedir cambios / aprobar, subir desde la UI (2026-10-18). Falta: zoom de una lámina; videos sin salto (StaticFiles sin rangos).
 - [ ] P.5 Recorrido completo con Carrusel V1 de `coevo-web`; anotar qué sobra y qué falta.
 
 ## M. Memoria de la marca (design.md §7)

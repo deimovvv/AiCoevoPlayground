@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "react-router";
 import {
     LayoutGrid, Wand2, FolderOpen, Settings,
-    FlaskConical, Moon, Sun, PanelLeft, Home, Compass, ListTodo } from "lucide-react";
+    FlaskConical, Moon, Sun, PanelLeft, Home, Compass, ListTodo, PackageCheck } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
 import { fetchInboxCount } from "../../lib/api";
 import { useTheme } from "../../lib/theme";
@@ -48,6 +48,7 @@ interface NavItem {
 const OPERAR_NAV: NavItem[] = [
     { label: "Inicio", href: "/dashboard", exact: true, icon: <Home size={18} />, title: "Inicio — pedí algo nuevo y mirá qué está pendiente", tour: "nav-inicio" },
     { label: "Campañas", href: "/dashboard/campanas", exact: true, icon: <ListTodo size={18} />, title: "Campañas — qué está en curso, qué espera aprobación y qué costó", tour: "nav-campanas" },
+    { label: "Entregas", href: "/dashboard/entregas", exact: true, icon: <PackageCheck size={18} />, title: "Entregas — lo que se le entrega a la marca: comentarios y aprobación" },
     { label: "Marcas", href: "/dashboard/brands", exact: true, icon: <LayoutGrid size={18} />, title: "Marcas — gestioná tus marcas y su brand kit" },
 ];
 

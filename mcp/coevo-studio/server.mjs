@@ -4,15 +4,15 @@
  * openspec/changes/studio-v2 (design.md §8, tarea P.2).
  *
  * Lee: marcas en seis bloques, archivos, poses curadas, notas del cliente, generaciones,
- * proyectos de video. Escribe: notas resueltas y proyectos de video (con versión: no pisa).
- * `subir_entrega` llega con la tabla de entregas (tarea P.3).
+ * proyectos de video, entregas con sus comentarios. Escribe: entregas (subir y nueva ronda),
+ * comentarios resueltos, notas resueltas y proyectos de video (con versión: no pisa).
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { BASE, api, download, findBrand, brandBlocks, brandSummary } from "./studio.mjs";
+import { BASE, api, download, findBrand, brandBlocks, brandSummary, filesForm } from "./studio.mjs";
 
 const server = new McpServer({ name: "coevo-studio", version: "0.1.0" });
 
@@ -120,5 +120,77 @@ tool("guardar_proyecto_video",
             throw e;
         }
     });
+
+// ── Entregas (studio-v2 P.3) ───────────────────────────────────────────────
+
+const entregaCorta = (d) => ({
+    id: d.id, titulo: d.title, tipo: d.kind, estado: d.status, ronda: d.round, laminas: d.items?.length ?? d.items,
+    comentarios_abiertos: d.openComments, aprobada_por: d.approvedBy, actualizada: d.updatedAt,
+});
+
+tool("ver_entregas",
+    "Las entregas de una marca (carruseles, videos, imágenes) con su estado: en_revision, cambios o aprobada, y cuántos comentarios abiertos tiene cada una.",
+    { marca: z.string() },
+    async ({ marca }) => (await api(`/api/brands/${encodeURIComponent((await findBrand(marca)).id)}/deliveries`)).map(entregaCorta));
+
+tool("ver_entrega",
+    "Una entrega completa: sus láminas (URL de Studio), la fuente editable y los comentarios — cada uno con la lámina, el punto (x, y de 0 a 1, desde arriba a la izquierda) y la ronda. " +
+    "Usar antes de corregir: aplicar sólo lo comentado y dejar todo lo demás igual.",
+    { id: z.string() },
+    async ({ id }) => {
+        const d = await api(`/api/deliveries/${encodeURIComponent(id)}`);
+        const label = Object.fromEntries((d.items || []).map((i) => [i.id, i.label]));
+        return {
+            ...entregaCorta(d), nota: d.note, plantilla: d.template, fuente: d.source,
+            laminas: d.items.map((i) => ({ id: i.id, etiqueta: i.label, tipo: i.kind, url: i.url })),
+            comentarios: d.comments.map((c) => ({
+                id: c.id, lamina: c.itemId ? `${label[c.itemId] ?? "(ronda anterior)"} [${c.itemId}]` : "toda la entrega",
+                punto: c.x != null ? { x: c.x, y: c.y } : null, texto: c.text, autor: c.author, ronda: c.round,
+                resuelto: !!c.resolvedAt,
+            })),
+        };
+    });
+
+tool("subir_entrega",
+    "Sube una pieza terminada a Entregas de la marca para que la vean y comenten. `archivos` son las láminas EN ORDEN " +
+    "(png/jpg/webp/mp4, rutas locales); `fuente` es el archivo editable (ej. el HTML del carrusel) para poder corregir después. " +
+    "Subir sólo con el OK de la persona.",
+    {
+        marca: z.string(),
+        titulo: z.string(),
+        archivos: z.array(z.string()).min(1).describe("rutas locales, en el orden en que se ven"),
+        tipo: z.enum(["carrusel", "video", "imagenes"]).optional(),
+        etiquetas: z.array(z.string()).optional().describe("nombre de cada lámina, mismo orden (ej. Portada)"),
+        fuente: z.string().optional().describe("ruta local de la fuente editable"),
+        nota: z.string().optional().describe("qué es y qué hay que mirar"),
+        plantilla: z.string().optional().describe("plantilla y versión usadas, ej. 'carrusel-v1'"),
+    },
+    async ({ marca, titulo, archivos, tipo = "carrusel", etiquetas, fuente, nota, plantilla }) => {
+        const b = await findBrand(marca);
+        const form = filesForm({ title: titulo, kind: tipo, note: nota, template: plantilla, labels: etiquetas?.join("|") }, archivos, fuente);
+        const d = await api(`/api/brands/${encodeURIComponent(b.id)}/deliveries`, { method: "POST", form });
+        return { ...entregaCorta(d), ver_en: `${BASE}/dashboard/entregas?id=${d.id}` };
+    });
+
+tool("nueva_ronda",
+    "Sube la versión corregida de una entrega (todas las láminas otra vez, en orden). Vuelve a 'en revisión'; los comentarios viejos quedan con su ronda. " +
+    "Después, marcar como resueltos los comentarios aplicados con resolver_comentario.",
+    {
+        id: z.string(),
+        archivos: z.array(z.string()).min(1),
+        etiquetas: z.array(z.string()).optional(),
+        fuente: z.string().optional(),
+        nota: z.string().optional().describe("qué cambió en esta ronda"),
+    },
+    async ({ id, archivos, etiquetas, fuente, nota }) => {
+        const form = filesForm({ note: nota, labels: etiquetas?.join("|") }, archivos, fuente);
+        return entregaCorta(await api(`/api/deliveries/${encodeURIComponent(id)}/round`, { method: "POST", form }));
+    });
+
+tool("resolver_comentario",
+    "Marca un comentario de una entrega como resuelto (o lo reabre si ya estaba resuelto).",
+    { entrega_id: z.string(), comentario_id: z.string() },
+    async ({ entrega_id, comentario_id }) => api(
+        `/api/deliveries/${encodeURIComponent(entrega_id)}/comments/${encodeURIComponent(comentario_id)}/resolve`, { method: "POST", body: {} }));
 
 await server.connect(new StdioServerTransport());

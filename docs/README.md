@@ -22,6 +22,7 @@ El estado de cada doc (vigente, desactualizado, a archivar) está en
 | [setup.md](guias/setup.md) | correrlo en local, variables de entorno, debugging |
 | [onboarding.md](guias/onboarding.md) | guía para alguien que entra al proyecto |
 | [produccion.md](guias/produccion.md) | llevarlo a producción: Hostinger VPS + Cloudflare, paso a paso, quién hace qué |
+| [como-funciona-studio-online.md](guias/como-funciona-studio-online.md) | **para aprender**: servidor, túnel, Access, el sello (JWT), la base, el MCP y el circuito de una entrega, sin tecnicismos |
 | [postiz-y-pauta.md](guias/postiz-y-pauta.md) | publicar vs pautar, Postiz en una frase, quién paga qué, cómo se conecta un cliente |
 | [docs-audit.md](archive/docs-audit.md) | estado de cada doc + código muerto + mapeo a OpenSpec |
 

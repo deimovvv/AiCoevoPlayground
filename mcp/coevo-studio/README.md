@@ -15,8 +15,10 @@ Por qué existe: `openspec/changes/studio-v2/design.md` §8.
 | `ver_notas_cliente` / `marcar_nota_resuelta` | lo que pidió el cliente en el portal |
 | `ver_generaciones` | últimas corridas de tools de la marca, con costo |
 | `proyectos_video` / `ver_proyecto_video` / `guardar_proyecto_video` | timelines guardados en Studio (con versión: 409 si cambió) |
+| `ver_entregas` / `ver_entrega` | entregas de la marca y sus comentarios (lámina + punto + ronda) |
+| `subir_entrega` / `nueva_ronda` / `resolver_comentario` | subir una pieza a Entregas, subir la versión corregida, cerrar comentarios |
 
-Próxima: `subir_entrega` (tarea P.3 de studio-v2).
+El circuito completo, explicado: [docs/guias/como-funciona-studio-online.md](../../docs/guias/como-funciona-studio-online.md).
 
 ## Instalación (una vez por máquina)
 

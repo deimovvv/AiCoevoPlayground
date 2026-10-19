@@ -22,6 +22,7 @@ const FULL_BLEED_ROUTES: string[] = [
     "/dashboard/ecommerce-batch",
     "/dashboard/lab",
     "/dashboard/lab-v2",
+    "/dashboard/entregas",       // láminas en fila + comentarios: usa toda la altura
 ];
 
 /** Prefijos full-bleed — para rutas dinámicas donde no podemos pre-listar cada subruta.

@@ -24,6 +24,7 @@ import { ChatPage } from "./pages/ChatPage";
 // v1 (ManualLab) está desconectada del flujo pero el archivo se mantiene en disco
 // como fallback. Si alguien lo necesita: importar y agregar de vuelta la ruta.
 import { ManualLabV2 } from "./pages/ManualLabV2";
+import { DeliveriesPage } from "./pages/DeliveriesPage";
 import { EditorProjectPage } from "./pages/EditorProjectPage";
 import { VoiceLab } from "./pages/VoiceLab";
 import { EcommerceBatch } from "./pages/EcommerceBatch";
@@ -72,6 +73,8 @@ function App() {
         <Route path="campanas" element={<WorkPage />} />
         <Route path="trabajo" element={<Navigate to="/dashboard/campanas" replace />} />
         <Route path="content" element={<ContentPage />} />
+        {/* Entregas a la marca: láminas, comentarios, aprobación (studio-v2 P.4) */}
+        <Route path="entregas" element={<ErrorBoundary><DeliveriesPage /></ErrorBoundary>} />
         <Route path="brand" element={<BrandSettings />} />
         <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="automations" element={<AutomationsPage />} />

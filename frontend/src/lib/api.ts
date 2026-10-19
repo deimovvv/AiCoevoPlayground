@@ -3736,3 +3736,58 @@ export async function getTikTokTopVideos(profileUrl: string, limit = 10): Promis
     const data = await res.json();
     return data.videos as TikTokVideo[];
 }
+
+// ── Entregas (backend/routers/deliveries.py · studio-v2 P.3) ────────────────
+
+export type DeliveryStatus = "en_revision" | "cambios" | "aprobada";
+export interface DeliveryItem { id: string; url: string; kind: "image" | "video"; label: string }
+export interface DeliveryComment {
+    id: string; itemId: string | null; x: number | null; y: number | null; text: string;
+    author: string | null; round: number; resolvedAt: string | null; createdAt: string | null;
+}
+export interface DeliverySummary {
+    id: string; brandId: string; title: string; kind: string; status: DeliveryStatus; round: number;
+    items: number; cover: string | null; openComments: number; createdBy: string | null;
+    approvedBy: string | null; approvedAt: string | null; createdAt: string | null; updatedAt: string | null;
+}
+export interface Delivery extends Omit<DeliverySummary, "items"> {
+    items: DeliveryItem[]; source: { url: string; name: string } | null; note: string | null;
+    template: string | null; comments: DeliveryComment[];
+}
+
+export async function listDeliveries(brandId: string): Promise<DeliverySummary[]> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/deliveries`), "No se pudieron cargar las entregas");
+}
+
+export async function getDelivery(id: string): Promise<Delivery> {
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}`), "No se pudo abrir la entrega");
+}
+
+export async function createDelivery(brandId: string, title: string, files: File[], source?: File | null): Promise<Delivery> {
+    const form = new FormData();
+    form.append("title", title);
+    form.append("kind", files.some((f) => f.type.startsWith("video/")) && files.length === 1 ? "video" : "carrusel");
+    files.forEach((f) => form.append("files", f));
+    if (source) form.append("source", source);
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/deliveries`, { method: "POST", body: form }), "No se pudo subir la entrega");
+}
+
+export async function setDeliveryStatus(id: string, status: DeliveryStatus): Promise<Delivery> {
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/status`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+    }), "No se pudo cambiar el estado");
+}
+
+export async function addDeliveryComment(id: string, c: { text: string; itemId?: string | null; x?: number | null; y?: number | null }): Promise<DeliveryComment> {
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/comments`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c),
+    }), "No se pudo guardar el comentario");
+}
+
+export async function toggleDeliveryComment(id: string, commentId: string): Promise<DeliveryComment> {
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}/resolve`, { method: "POST" }), "No se pudo actualizar el comentario");
+}
+
+export async function deleteDelivery(id: string): Promise<void> {
+    await editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}`, { method: "DELETE" }), "No se pudo borrar la entrega");
+}

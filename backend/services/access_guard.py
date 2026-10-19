@@ -49,13 +49,18 @@ class AccessGuard:
             return await self.app(scope, receive, send)
         req = Request(scope)
         token: Optional[str] = req.headers.get("cf-access-jwt-assertion") or req.cookies.get("CF_Authorization")
+        claims = None
         if token:
             try:
                 claims = await run_in_threadpool(self._verify, token)
-                scope.setdefault("state", {})["access_email"] = claims.get("email")
-                return await self.app(scope, receive, send)
             except Exception as e:  # firma, vencimiento, emisor o audiencia
                 log.warning("Access: token rechazado en %s: %s", scope["path"], e)
+        if claims is not None:
+            # Persona: su mail. Token de servicio (Claude, scripts): no trae mail, trae common_name.
+            who = claims.get("email") or (f"servicio:{claims['common_name']}" if claims.get("common_name") else None)
+            scope.setdefault("state", {})["access_email"] = who
+            # Fuera del try: un error de la app no es un token rechazado.
+            return await self.app(scope, receive, send)
         if scope["type"] == "websocket":
             return await send({"type": "websocket.close", "code": 1008})
         return await PlainTextResponse("Acceso restringido.", status_code=403)(scope, receive, send)

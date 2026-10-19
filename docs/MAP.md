@@ -46,6 +46,7 @@ Contrato: `openspec/specs/video-editor/` (con la referencia de `timeline.json` y
 |---|---|---|
 | **Inicio** | `/dashboard` | home |
 | **Campañas** | `/dashboard/campanas` | el pedido de un cliente: brief → plan de tomas → piezas. Contenedor de entregables, imagen y video |
+| **Entregas** | `/dashboard/entregas` | lo que se le entrega a la marca: láminas en fila, comentarios anclados, rondas, aprobación. Claude sube y corrige por el MCP |
 | **Marcas** | `/dashboard/brands` | Brand Kit: assets, DNA, voces, logos, looks |
 | **Generar** | `/dashboard/generate` | catálogo de tools con pipeline |
 | **Contenido** | `/dashboard/content` | biblioteca de todo lo generado |

@@ -5,7 +5,7 @@
  * - Llave: token de servicio de Cloudflare Access en ~/.coevo-studio-token
  *   (CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET). Nunca se imprime.
  */
-import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync, mkdirSync, writeFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, basename } from "node:path";
 
@@ -24,11 +24,11 @@ function accessHeaders() {
     return { "CF-Access-Client-Id": env.CF_ACCESS_CLIENT_ID, "CF-Access-Client-Secret": env.CF_ACCESS_CLIENT_SECRET };
 }
 
-export async function api(path, { method = "GET", body } = {}) {
+export async function api(path, { method = "GET", body, form } = {}) {
     const res = await fetch(BASE + path, {
         method,
         headers: { ...accessHeaders(), ...(body ? { "Content-Type": "application/json" } : {}) },
-        body: body ? JSON.stringify(body) : undefined,
+        body: form ?? (body ? JSON.stringify(body) : undefined),
         redirect: "manual",
     });
     if (res.status >= 300 && res.status < 400) throw new Error("Studio pidió login: la llave no pasó por Cloudflare Access.");
@@ -118,4 +118,17 @@ export function brandSummary(b) {
             moodboards: n("moodboards"), fondos: n("backgrounds"), voces: n("voicePresets"),
         },
     };
+}
+
+/** Arma un multipart con archivos locales (láminas en orden + fuente opcional). */
+export function filesForm(fields, files, source) {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(fields)) if (v != null && v !== "") form.append(k, String(v));
+    const add = (field, path) => {
+        statSync(path);  // falla claro si no existe
+        form.append(field, new Blob([readFileSync(path)]), basename(path));
+    };
+    files.forEach((p) => add("files", p));
+    if (source) add("source", source);
+    return form;
 }

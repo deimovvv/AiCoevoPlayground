@@ -36,6 +36,7 @@ from services import audio_mix
 from services import export_qa
 from services import editor_project
 from routers import video_projects as video_projects_router
+from routers import deliveries as deliveries_router
 from fastapi import Request
 from urllib.parse import quote
 from services import llm_router
@@ -92,6 +93,9 @@ app.mount("/static/ig-imports", StaticFiles(directory=str(instagram_scraper.get_
 
 # Serve uploaded product images as static files
 app.mount("/static/products", StaticFiles(directory=str(brands.get_products_dir())), name="products")
+# Láminas y fuentes de las entregas (routers/deliveries.py).
+from routers.deliveries import FILES_DIR as DELIVERIES_DIR
+app.mount("/static/deliveries", StaticFiles(directory=str(DELIVERIES_DIR)), name="deliveries")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -4990,6 +4994,8 @@ async def music_beats(req: BeatsRequest):
 
 # Proyectos de video por marca, en la base (routers/video_projects.py · infra-v1).
 app.include_router(video_projects_router.router)
+# Entregas a la marca: láminas, comentarios, aprobación (routers/deliveries.py · studio-v2 P.3).
+app.include_router(deliveries_router.router)
 
 
 # ── Proyectos del editor (timeline.json en una carpeta) ─────────────────────
