@@ -39,6 +39,23 @@ async function uploadTo(dest: Dest, brandId: string, f: File) {
     return uploadBrandLogo(brandId, n, f);
 }
 
+/** Lo que la marca ya tiene en cada destino, y cómo se borra. */
+function destItems(b: Brand, d: Dest): Array<{ id: string; url: string; label?: string }> {
+    const map = (xs: Array<{ id: string; imageUrl?: string; name?: string }> | undefined) =>
+        (xs || []).filter((x) => x.imageUrl).map((x) => ({ id: x.id, url: x.imageUrl!, label: x.name }));
+    if (d === "moodboard") return map(b.moodboards);
+    if (d === "luz") return map(b.lookAndFeel);
+    if (d === "fondo") return map(b.backgrounds);
+    if (d === "cara") return map(b.avatars);
+    if (d === "prenda") return map(b.clothing);
+    if (d === "producto") return map(b.products);
+    return map(b.logos);
+}
+const DEST_DELETE: Record<Dest, (brandId: string, itemId: string) => Promise<unknown>> = {
+    moodboard: deleteMoodboard, luz: deleteLookAndFeel, fondo: deleteBackground, cara: deleteAvatar,
+    prenda: deleteClothing, producto: deleteProduct, logo: deleteBrandLogo,
+};
+
 const mono = "font-mono text-[10px] uppercase tracking-[0.09em]";
 const input = "w-full px-3 py-2 rounded-[4px] border border-edge bg-[var(--color-surface-1)] text-[13px] text-fg outline-none focus:border-fg/40";
 
@@ -51,8 +68,12 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
     );
 }
 
-function Drop({ dests, brandId, onDone, hint }: { dests: Dest[]; brandId: string; onDone: () => Promise<void>; hint?: string }) {
-    const [dest, setDest] = useState<Dest>(dests[0]);
+function Drop({ dests, brandId, onDone, hint, dest: destIn, onDest }: {
+    dests: Dest[]; brandId: string; onDone: () => Promise<void>; hint?: string; dest?: Dest; onDest?: (d: Dest) => void;
+}) {
+    const [destOwn, setDestOwn] = useState<Dest>(dests[0]);
+    const dest = destIn ?? destOwn;
+    const setDest = (d: Dest) => { setDestOwn(d); onDest?.(d); };
     const [busy, setBusy] = useState<string | null>(null);
     const [err, setErr] = useState<string | null>(null);
     const [over, setOver] = useState(false);
@@ -132,6 +153,7 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
     const [style, setStyle] = useState(ds.photoStyle || "");
     const [dos, setDos] = useState(lines(ds.visualDos));
     const [donts, setDonts] = useState(lines(ds.visualDonts));
+    const [matDest, setMatDest] = useState<Dest>("moodboard");
     const [saving, setSaving] = useState(false);
     const [err, setErr] = useState<string | null>(null);
 
@@ -163,10 +185,17 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
 
                 <div className="flex-1 overflow-y-auto px-6 py-5">
                     {block === "material" && (
-                        <Section title="Subir imágenes">
-                            <p className="text-[13px] leading-relaxed text-fg-muted">Elegí adónde van y soltalas. Después las ves en su bloque, y Claude las usa al producir.</p>
-                            <Drop dests={["moodboard", "luz", "fondo", "cara", "prenda", "producto", "logo"]} brandId={id} onDone={onChanged} />
-                        </Section>
+                        <>
+                            <Section title="Subir imágenes">
+                                <p className="text-[13px] leading-relaxed text-fg-muted">Elegí adónde van y soltalas. Aparecen acá abajo y en su bloque de Marca, y Claude las usa al producir.</p>
+                                <Drop dests={["moodboard", "luz", "fondo", "cara", "prenda", "producto", "logo"]} brandId={id} onDone={onChanged} dest={matDest} onDest={setMatDest} />
+                            </Section>
+                            <Section title={`${DEST_LABEL[matDest]} · ${destItems(brand, matDest).length} en la marca`}>
+                                {destItems(brand, matDest).length
+                                    ? <Grid items={destItems(brand, matDest)} onDelete={async (itemId) => { await DEST_DELETE[matDest](id, itemId); await onChanged(); }} />
+                                    : <p className="text-[13px] text-fg-faint">Todavía no hay nada acá.</p>}
+                            </Section>
+                        </>
                     )}
 
                     {block === "quien" && (

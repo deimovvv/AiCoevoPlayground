@@ -49,9 +49,10 @@ const Note = ({ children }: { children: ReactNode }) => <p className="shrink-0 t
 const Empty = ({ children }: { children: ReactNode }) => <p className="text-[14px] leading-relaxed text-fg-faint">{children}</p>;
 
 /** Imágenes que llenan el espacio del bloque (en celular, un alto fijo). */
-function Fill({ urls, faces }: { urls: string[]; faces?: boolean }) {
+function Fill({ urls, faces, small }: { urls: string[]; faces?: boolean; small?: boolean }) {
     return (
-        <div className="flex-1 min-h-[200px] md:min-h-0 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${urls.length}, minmax(0, 1fr))` }}>
+        <div className={`flex-1 ${small ? "min-h-[110px]" : "min-h-[200px]"} md:min-h-0 grid gap-1.5 overflow-hidden`}
+            style={{ gridTemplateColumns: `repeat(${urls.length}, minmax(0, 1fr))`, gridTemplateRows: "minmax(0, 1fr)" }}>
             {urls.map((u, i) => (
                 <img key={i} src={backendUrl(u)} alt="" loading="lazy"
                     className={`w-full h-full object-cover rounded-[2px] ${faces ? "object-top" : ""}`} />
@@ -69,6 +70,12 @@ function data(b: Brand) {
         colors: dna.colors || [],
         fonts: [...new Set([b.fonts?.headline, b.fonts?.body].filter(Boolean) as string[])],
         looks: [...(b.moodboards || []), ...(b.lookAndFeel || []), ...(b.backgrounds || [])].map((x) => x.imageUrl),
+        // Separado como en un tablero de dirección: moodboard · luz · locación.
+        lookGroups: [
+            { label: "Moodboard", urls: (b.moodboards || []).map((x) => x.imageUrl) },
+            { label: "Luz / look", urls: (b.lookAndFeel || []).map((x) => x.imageUrl) },
+            { label: "Locación", urls: (b.backgrounds || []).map((x) => x.imageUrl) },
+        ].filter((g) => g.urls.length),
         faces: (b.avatars || []).filter((a) => a.imageUrl),
         catalog: [...(b.products || []), ...(b.clothing || [])].map((x) => x.imageUrl),
     };
@@ -91,7 +98,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
 
     if (!activeBrand) return <p className="p-8 text-[14px] text-fg-muted">Elegí una marca arriba para ver su memoria.</p>;
     const b = activeBrand;
-    const { dna, ds, logo, colors, fonts: fontNames, looks, faces, catalog } = data(b);
+    const { dna, ds, logo, colors, fonts: fontNames, looks, lookGroups, faces, catalog } = data(b);
     const edit = (k: BlockKey) => (readOnly ? undefined : () => setEditing(k));
     const brandFont = b.fonts?.headline ? `"${b.fonts.headline}", ui-serif, serif` : undefined;
 
@@ -164,7 +171,16 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
             {/* ── La memoria, llenando el alto ── */}
             <div className="p-3 md:p-4 grid gap-3 grid-cols-1 md:grid-cols-2 md:grid-rows-3 md:h-full md:min-h-0">
                 <Card n="01" title="Dirección de foto y video" missing={missing[2]} onEdit={edit("foto")} className="md:row-span-2">
-                    {looks.length > 0 ? <Fill urls={looks.slice(0, 3)} /> : <div className="flex-1" />}
+                    {lookGroups.length > 0 ? (
+                        <div className="flex-1 min-h-0 flex flex-col gap-3">
+                            {lookGroups.map((g) => (
+                                <div key={g.label} className="flex-1 min-h-[140px] md:min-h-0 flex flex-col gap-1.5 overflow-hidden">
+                                    <p className="font-mono text-[10px] uppercase tracking-[0.09em] text-fg-faint shrink-0">{g.label} · {g.urls.length}</p>
+                                    <Fill urls={g.urls.slice(0, 4)} small />
+                                </div>
+                            ))}
+                        </div>
+                    ) : <div className="flex-1" />}
                     {ds.photoStyle ? <Note>{clip(ds.photoStyle, 200)}</Note> : <Empty>Sin reglas de foto: Claude no sabe cómo se ve la marca.</Empty>}
                 </Card>
 
