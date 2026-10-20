@@ -74,3 +74,17 @@ Desde entonces el backend **exige el JWT de Access** (`backend/services/access_g
 Chequeo después de cualquier cambio en Cloudflare, desde afuera y sin login:
 `curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' https://app.coevoagency.com/api/brands`
 → tiene que dar **302 a `…cloudflareaccess.com`** (o 403). **Nunca 200.**
+
+## La puerta pública (2026-10-19)
+
+`app.coevoagency.com/` muestra una portada de Coevo (`frontend/public/puerta/`), pública y sin datos;
+con sesión válida redirige a Studio. Para que Cloudflare no pida login en la portada, la app de Access
+"Coevo Studio" protege **rutas**, no el dominio entero:
+
+- `app.coevoagency.com/dashboard` · `/cliente` → piden el login (Google o PIN).
+- `app.coevoagency.com/api` · `/static` → necesarios para el token de servicio de Claude (MCP).
+
+Lo demás (`/assets`, imágenes de la app) no hace falta listarlo: el navegador ya manda la cookie de
+sesión y el backend (`access_guard.py`) rechaza con 403 cualquier pedido sin JWT válido, salvo `/`,
+`/puerta/` y `/api/health`. **Chequeo después de tocar Access:** sin login, `/` → 200 (la portada) y
+`/api/brands` → 302 al login o 403. Nunca 200.
