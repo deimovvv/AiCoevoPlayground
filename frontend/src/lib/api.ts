@@ -469,7 +469,7 @@ export interface CampaignPiece {
 export interface CampaignInput {
     id: string;
     url: string;
-    type: "clothing" | "avatar" | "product" | "background" | "pose" | "moodboard" | "lookfeel" | "reference";
+    type: "clothing" | "avatar" | "product" | "background" | "pose" | "moodboard" | "lookfeel" | "reference" | "plano";
     name: string;
     filename: string;
     uploadedAt: string;

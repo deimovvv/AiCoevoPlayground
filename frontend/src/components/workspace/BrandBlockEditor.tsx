@@ -1,10 +1,11 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Loader2, Trash2, Upload, X } from "lucide-react";
 import {
     backendUrl, updateBrand, uploadAvatar, deleteAvatar, uploadProduct, deleteProduct, uploadClothing, deleteClothing,
     uploadBackground, deleteBackground, uploadMoodboard, deleteMoodboard, uploadLookAndFeel, deleteLookAndFeel,
     uploadBrandLogo, deleteBrandLogo, uploadPose, deletePose, uploadShotRef, deleteShotRef, type Brand,
+    listCampaigns, uploadCampaignInputs, deleteCampaignInput, type Campaign, type CampaignInput,
 } from "../../lib/api";
 
 /**
@@ -72,8 +73,16 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
     );
 }
 
-function Drop({ dests, brandId, onDone, hint, dest: destIn, onDest }: {
+/** En una campaña, cada destino es un tipo de input de la campaña (el logo no aplica). */
+const CAMPAIGN_TYPE: Partial<Record<Dest, CampaignInput["type"]>> = {
+    moodboard: "moodboard", luz: "lookfeel", fondo: "background", pose: "pose", plano: "plano",
+    cara: "avatar", prenda: "clothing", producto: "product",
+};
+
+function Drop({ dests, brandId, onDone, hint, dest: destIn, onDest, campaignId }: {
     dests: Dest[]; brandId: string; onDone: () => Promise<void>; hint?: string; dest?: Dest; onDest?: (d: Dest) => void;
+    /** Si viene, se sube a la campaña en vez de a la marca. */
+    campaignId?: string | null;
 }) {
     const [destOwn, setDestOwn] = useState<Dest>(dests[0]);
     const dest = destIn ?? destOwn;
@@ -89,7 +98,8 @@ function Drop({ dests, brandId, onDone, hint, dest: destIn, onDest }: {
         try {
             for (let i = 0; i < list.length; i++) {
                 setBusy(`Subiendo ${i + 1} de ${list.length}…`);
-                await uploadTo(dest, brandId, list[i]);
+                if (campaignId) await uploadCampaignInputs(campaignId, [list[i]], CAMPAIGN_TYPE[dest] ?? "reference");
+                else await uploadTo(dest, brandId, list[i]);
             }
             await onDone();
         } catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
@@ -158,6 +168,15 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
     const [dos, setDos] = useState(lines(ds.visualDos));
     const [donts, setDonts] = useState(lines(ds.visualDonts));
     const [matDest, setMatDest] = useState<Dest>("moodboard");
+    const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [target, setTarget] = useState("");   // "" = la marca; si no, id de campaña
+    const reloadCampaigns = async () => setCampaigns(await listCampaigns(id).catch(() => []));
+    useEffect(() => {
+        if (block !== "material") return;
+        let alive = true;
+        listCampaigns(id).then((c) => alive && setCampaigns(c)).catch(() => {});
+        return () => { alive = false; };
+    }, [block, id]);
     const [saving, setSaving] = useState(false);
     const [err, setErr] = useState<string | null>(null);
 
@@ -188,19 +207,37 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                 </header>
 
                 <div className="flex-1 overflow-y-auto px-6 py-5">
-                    {block === "material" && (
-                        <>
-                            <Section title="Subir imágenes">
-                                <p className="text-[13px] leading-relaxed text-fg-muted">Elegí adónde van y soltalas. Aparecen acá abajo y en su bloque de Marca, y Claude las usa al producir.</p>
-                                <Drop dests={["moodboard", "luz", "fondo", "pose", "plano", "cara", "prenda", "producto", "logo"]} brandId={id} onDone={onChanged} dest={matDest} onDest={setMatDest} />
-                            </Section>
-                            <Section title={`${DEST_LABEL[matDest]} · ${destItems(brand, matDest).length} en la marca`}>
-                                {destItems(brand, matDest).length
-                                    ? <Grid items={destItems(brand, matDest)} onDelete={async (itemId) => { await DEST_DELETE[matDest](id, itemId); await onChanged(); }} />
-                                    : <p className="text-[13px] text-fg-faint">Todavía no hay nada acá.</p>}
-                            </Section>
-                        </>
-                    )}
+                    {block === "material" && (() => {
+                        const camp = campaigns.find((c) => c.id === target) || null;
+                        const items = camp
+                            ? (camp.inputs || []).filter((i) => i.type === CAMPAIGN_TYPE[matDest]).map((i) => ({ id: i.id, url: i.url, label: i.name }))
+                            : destItems(brand, matDest);
+                        const dests: Dest[] = camp
+                            ? ["moodboard", "luz", "fondo", "plano", "pose", "cara", "prenda", "producto"]
+                            : ["moodboard", "luz", "fondo", "pose", "plano", "cara", "prenda", "producto", "logo"];
+                        return (
+                            <>
+                                <Section title="¿Para qué es?">
+                                    <select value={target} onChange={(e) => setTarget(e.target.value)} className={input + " h-10 cursor-pointer"}>
+                                        <option value="">La marca en general (vale para todo)</option>
+                                        {campaigns.map((c) => <option key={c.id} value={c.id}>Campaña · {c.name}</option>)}
+                                    </select>
+                                    <p className="text-[12px] text-fg-faint">{camp ? "Va al tablero de esa campaña: gana en lo suyo cuando se produce la campaña." : "Va a la memoria de la marca: lo que vale en cualquier campaña."}</p>
+                                </Section>
+                                <Section title="Subir imágenes">
+                                    <Drop dests={dests} brandId={id} onDone={async () => { await onChanged(); await reloadCampaigns(); }} dest={matDest} onDest={setMatDest} campaignId={camp?.id ?? null} />
+                                </Section>
+                                <Section title={`${DEST_LABEL[matDest]} · ${items.length} ${camp ? "en la campaña" : "en la marca"}`}>
+                                    {items.length
+                                        ? <Grid items={items} onDelete={async (itemId) => {
+                                            if (camp) { await deleteCampaignInput(camp.id, itemId); await reloadCampaigns(); }
+                                            else { await DEST_DELETE[matDest](id, itemId); await onChanged(); }
+                                        }} />
+                                        : <p className="text-[13px] text-fg-faint">Todavía no hay nada acá.</p>}
+                                </Section>
+                            </>
+                        );
+                    })()}
 
                     {block === "quien" && (
                         <>

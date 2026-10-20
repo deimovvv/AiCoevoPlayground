@@ -254,3 +254,16 @@ Nuevo para studio-v2:
 5. **Costo y tiempo por pieza** para ver el margen de cada pack (ya hay costo de IA; falta el tiempo).
 
 Orden: piloto con moda (hay material real); la receta de concesionarias se agrega cuando firme la primera.
+
+## 15. Dos niveles de dirección: marca y campaña (2026-10-19)
+
+Un moodboard casi siempre es de una campaña, no de la marca.
+- **Marca** (estable, años): reglas siempre / nunca, paleta, tipografías, caras, catálogo y pocas
+  referencias de estilo (6–8).
+- **Campaña** (semanas): la idea y su **tablero** — moodboard, luz, locación, planos, poses, casting,
+  prendas (`/dashboard/tablero/:id`, sobre `campaign.inputs`; tipo nuevo `plano`).
+- **Regla para Claude:** lo de la campaña gana en su dominio; la marca pone los límites (MCP:
+  `ver_campana` + `ver_marca`).
+- **Un solo lugar para subir:** «Cargar material» pregunta «¿para qué es?» (la marca o una campaña).
+- **Cliente:** «Mandar material» con la misma pregunta, simplificada; llega a revisión y el agente lo
+  ordena. Objetivo: la menor fricción posible para el cliente (manda lo que tenga, como lo tenga).

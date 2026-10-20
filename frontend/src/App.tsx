@@ -27,6 +27,7 @@ import { DeliveriesPage } from "./pages/DeliveriesPage";
 import { ClientLayout } from "./components/layout/ClientLayout";
 import { MeProvider, TeamOnly } from "./lib/MeContext";
 import { AccesosPage } from "./pages/AccesosPage";
+import { TableroPage } from "./pages/TableroPage";
 import { MarcaPage } from "./pages/MarcaPage";
 import { ProduccionPage } from "./pages/ProduccionPage";
 import { EditorProjectPage } from "./pages/EditorProjectPage";
@@ -84,6 +85,7 @@ function App() {
         <Route path="marca" element={<MarcaPage />} />
         <Route path="produccion" element={<ProduccionPage />} />
         <Route path="accesos" element={<AccesosPage />} />
+        <Route path="tablero/:id" element={<TableroPage />} />
         <Route path="chat" element={<ChatPage />} />
         {/* Campañas: el tablero por estado. "trabajo" queda como redirect —
             era la ruta vieja y hay links guardados apuntando ahí. */}

@@ -195,4 +195,28 @@ tool("resolver_comentario",
     async ({ entrega_id, comentario_id }) => api(
         `/api/deliveries/${encodeURIComponent(entrega_id)}/comments/${encodeURIComponent(comentario_id)}/resolve`, { method: "POST", body: {} }));
 
+// ── Campañas (studio-v2 §15): la dirección de ESTA pieza; gana en lo suyo sobre la marca ────
+
+const TIPO = { moodboard: "moodboard", lookfeel: "luz", background: "locacion", plano: "planos", pose: "poses",
+    avatar: "casting", clothing: "prendas", product: "productos", reference: "otras" };
+
+tool("ver_campanas",
+    "Las campañas de una marca (cada una con su idea y su tablero de referencias).",
+    { marca: z.string() },
+    async ({ marca }) => {
+        const { campaigns } = await api(`/api/campaigns?brandId=${encodeURIComponent((await findBrand(marca)).id)}`);
+        return campaigns.map((c) => ({ id: c.id, nombre: c.name, idea: c.brief, referencias: (c.inputs || []).length, creada: c.createdAt }));
+    });
+
+tool("ver_campana",
+    "El tablero de una campaña: la idea y las referencias agrupadas (moodboard, luz, locación, planos, poses, casting, prendas). " +
+    "Al producir para una campaña: lo del tablero GANA en su dominio (luz, locación, clima); la marca (ver_marca) pone los límites (siempre/nunca, paleta, caras).",
+    { id: z.string() },
+    async ({ id }) => {
+        const c = await api(`/api/campaigns/${encodeURIComponent(id)}`);
+        const tablero = {};
+        for (const i of c.inputs || []) (tablero[TIPO[i.type] || "otras"] ||= []).push({ nombre: i.name, url: i.url });
+        return { id: c.id, nombre: c.name, marca: c.brandId, idea: c.brief, tablero };
+    });
+
 await server.connect(new StdioServerTransport());

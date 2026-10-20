@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { useBrand } from "../lib/BrandContext";
-import { backendUrl, fetchGenerations, fetchToolPreviews, listDeliveries, type DeliverySummary, type Generation, type ToolPreview } from "../lib/api";
+import { backendUrl, createCampaign, fetchGenerations, fetchToolPreviews, listCampaigns, listDeliveries, type Campaign, type DeliverySummary, type Generation, type ToolPreview } from "../lib/api";
 
 /**
  * Producción (openspec/changes/studio-v2 §1): hacer algo nuevo para la marca y ver qué espera
@@ -133,6 +133,8 @@ export function ProduccionPage() {
     const [summary, setSummary] = useState<Summary | null>(null);
     const [deliveries, setDeliveries] = useState<DeliverySummary[]>([]);
     const [previews, setPreviews] = useState<Record<string, ToolPreview>>({});
+    const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const navigate = useNavigate();
 
     useEffect(() => {
         if (!brandId) return;
@@ -140,6 +142,7 @@ export function ProduccionPage() {
         fetchGenerations(brandId).then((g) => alive && setSummary(summarize(g))).catch(() => alive && setSummary(summarize([])));
         listDeliveries(brandId).then((d) => alive && setDeliveries(d)).catch(() => alive && setDeliveries([]));
         fetchToolPreviews(brandId).then((p) => alive && setPreviews(p));
+        listCampaigns(brandId).then((c) => alive && setCampaigns(c)).catch(() => alive && setCampaigns([]));
         return () => { alive = false; };
     }, [brandId]);
 
@@ -162,7 +165,36 @@ export function ProduccionPage() {
                 </p>
             </section>
 
-            <div className="grid gap-10 grid-cols-1 lg:grid-cols-2 md:flex-1 md:min-h-0">
+            <div className="grid gap-10 grid-cols-1 lg:grid-cols-3 md:flex-1 md:min-h-0">
+                <section className="flex flex-col md:min-h-0 md:overflow-y-auto">
+                    <div className="flex items-baseline gap-2.5 pb-2.5 border-b border-edge">
+                        <h2 className="text-[20px] text-fg">Campañas</h2>
+                        <span className="font-mono text-[11px] text-fg-faint">{campaigns.length || ""}</span>
+                        <span className="flex-1" />
+                        <button onClick={async () => {
+                            const name = window.prompt("Nombre de la campaña", "");
+                            if (!name?.trim()) return;
+                            const c = await createCampaign({ brandId: activeBrand.id, name: name.trim(), brief: "" });
+                            navigate(`/dashboard/tablero/${c.id}`);
+                        }} className="text-[12px] text-fg hover:underline cursor-pointer">+ Nueva</button>
+                    </div>
+                    {campaigns.length === 0 && <p className="py-4 text-[13px] text-fg-faint">Una campaña junta la idea y su tablero: moodboard, luz, locación, planos.</p>}
+                    {campaigns.slice(0, 8).map((c) => {
+                        const cover = (c.inputs || []).find((i) => i.type === "moodboard" || i.type === "lookfeel")?.url || (c.inputs || [])[0]?.url;
+                        return (
+                            <Link key={c.id} to={`/dashboard/tablero/${c.id}`} className="flex items-center gap-4 py-3 border-b border-[var(--color-edge-subtle)] no-underline">
+                                <span className="w-12 h-[60px] shrink-0 rounded-[var(--radius-xs)] bg-[var(--color-surface-2)] overflow-hidden">
+                                    {cover && <img src={backendUrl(cover)} alt="" className="w-full h-full object-cover" />}
+                                </span>
+                                <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+                                    <span className="text-[14px] text-fg truncate">{c.name}</span>
+                                    <span className="text-[12px] text-fg-faint">{(c.inputs || []).length} referencias · {c.createdAt ? ago(c.createdAt) : ""}</span>
+                                </span>
+                                <span className="text-[12px] text-fg">Abrir →</span>
+                            </Link>
+                        );
+                    })}
+                </section>
                 <section className="flex flex-col md:min-h-0 md:overflow-y-auto">
                     <div className="flex items-baseline gap-2.5 pb-2.5 border-b border-edge">
                         <h2 className="text-[20px] text-fg">Espera una respuesta</h2>
@@ -212,7 +244,7 @@ export function ProduccionPage() {
 
             <p className="shrink-0 text-[12px] text-fg-muted flex flex-wrap gap-x-4 gap-y-1">
                 <span className="text-fg-faint">También:</span>
-                <Link to="/dashboard/campanas" className="text-fg-muted hover:text-fg">Campañas</Link>
+                <Link to="/dashboard/campanas" className="text-fg-muted hover:text-fg">Campañas (vista completa)</Link>
                 <Link to="/dashboard/content" className="text-fg-muted hover:text-fg">Todo lo producido</Link>
                 <Link to="/dashboard/generate" className="text-fg-muted hover:text-fg">Todas las tools</Link>
             </p>
