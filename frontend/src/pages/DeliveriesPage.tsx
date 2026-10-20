@@ -335,22 +335,22 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             /* ── Vista 1: la pieza entera, como en el canvas, + lo que pidieron ── */
                             <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
                             <div className="md:flex-1 min-w-0 md:overflow-auto bg-[var(--color-canvas)] flex flex-col">
-                                <div className="md:flex-1 flex items-center justify-center py-5 md:p-10">
+                                <div className="md:flex-1 flex items-center justify-center py-5 md:px-6 md:py-8">
                                     {/* Celular: láminas que se deslizan. Escritorio: todas en una fila. */}
-                                    <div style={{ ["--cols" as string]: Math.min(total, 6) }}
-                                        className="w-full flex md:grid gap-3 md:gap-4 items-center overflow-x-auto md:overflow-visible snap-x px-4 md:px-0 md:[grid-template-columns:repeat(var(--cols),minmax(0,1fr))] md:max-w-[calc(var(--cols)*300px)]">
+                                    {/* Cada pieza usa el lugar que hay: alto hasta ~2/3 de la pantalla, ancho repartido. */}
+                                    <div className={`w-full flex gap-3 ${total > 3 ? "md:gap-2.5" : "md:gap-5"} items-center md:justify-center overflow-x-auto md:overflow-visible snap-x px-4 md:px-0`}>
                                         {current.items.map((it, i) => {
                                             const pins = comments.filter((c) => c.itemId === it.id && c.round === current.round && c.x != null && !c.resolvedAt);
                                             return (
                                                 <button key={it.id} onClick={() => { setSlide(i); setDraft(null); }} title="Abrir para comentar"
-                                                    className="group text-left cursor-zoom-in w-[78vw] max-w-[360px] md:w-auto md:max-w-none shrink-0 snap-center">
-                                                    <div className="relative">
+                                                    className="group text-left cursor-zoom-in w-[78vw] max-w-[360px] shrink-0 snap-center md:w-auto md:max-w-fit md:shrink md:flex-[1_1_0] md:min-w-0">
+                                                    <div className="relative md:inline-block md:max-w-full">
                                                         {it.kind === "video"
                                                             ? <span className="relative block">
-                                                                <video src={backendUrl(it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted preload="none" className="w-full h-auto max-h-[64vh] object-contain rounded-[var(--radius-xs)] bg-surface-1 transition-transform group-hover:-translate-y-0.5" />
+                                                                <video src={backendUrl(it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted preload="none" className="block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5" />
                                                                 <span className="absolute left-2 bottom-2 px-1.5 py-0.5 rounded-[2px] bg-black/60 text-white font-mono text-[9px] uppercase tracking-[0.08em]">Video ▶</span>
                                                             </span>
-                                                            : <img src={backendUrl(it.url)} alt={it.label} draggable={false} className="w-full h-auto max-h-[64vh] object-contain rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5" />}
+                                                            : <img src={backendUrl(it.url)} alt={it.label} draggable={false} className="block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5" />}
                                                         {pins.map((c) => (
                                                             <span key={c.id} style={{ left: `${c.x! * 100}%`, top: `${c.y! * 100}%` }}
                                                                 className="absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] ring-2 ring-black/30">
