@@ -48,6 +48,13 @@ backend/data/logos/
 backend/data/moodboards/
 backend/data/lookandfeel/
 backend/data/voice_lab/
+# studio-v2: entregas, videos online, material del cliente, planos, música subida.
+backend/data/deliveries/
+backend/data/projects/
+backend/data/inbox/
+backend/data/shotrefs/
+backend/data/music/
+backend/data/campaign_uploads/
 backend/data/brands.json
 backend/data/renders/*
 backend/data/generations.json
