@@ -167,7 +167,7 @@ export function EditorProjectPage() {
                 {error && <p className="text-[12px] text-[var(--color-error)]">{error}</p>}
                 {loading && !data && <p className="flex items-center gap-2 text-[12px] text-fg-muted"><Loader2 size={13} className="animate-spin" /> Abriendo…</p>}
                 {/* Sin proyecto abierto: los videos de la marca en el servidor y «Nuevo video». */}
-                {!path && <VideosOnline onOpen={(p) => { setDraftPath(""); setParams({ path: p }); }} />}
+                {!data && !loading && <VideosOnline onOpen={(p) => { setDraftPath(""); setError(null); setParams({ path: p }); }} />}
 
                 {data && project && clips.length > 0 && (
                     <>
