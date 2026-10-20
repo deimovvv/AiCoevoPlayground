@@ -84,7 +84,7 @@ def _html(title: str, lines: Iterable[str], cta: Optional[str], url: Optional[st
 async def _post(to: str, subject: str, html_body: str, text: str) -> None:
     key = os.getenv("RESEND_API_KEY")
     if not key:
-        log.info("[mail sin RESEND_API_KEY] a %s · %s", to, subject)
+        log.warning("[mail sin RESEND_API_KEY] a %s · %s", to, subject)   # warning: el info no llega al log del contenedor
         return
     try:
         async with httpx.AsyncClient(timeout=20) as c:
