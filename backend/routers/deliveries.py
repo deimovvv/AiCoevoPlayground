@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_session
 from db.models import Delivery, DeliveryComment
-from services import brands, campaigns as campaigns_service
+from services import brands, campaigns as campaigns_service, mailer
 from services.roles import can_approve, can_see_brand, is_client
 
 router = APIRouter(tags=["deliveries"])
@@ -226,12 +226,18 @@ async def get_delivery(delivery_id: str, request: Request, vista: Optional[str] 
 
 @router.post("/api/deliveries/{delivery_id}/send")
 async def send_to_client(delivery_id: str, s: AsyncSession = Depends(get_session)):
-    """Mandar al cliente: desde acá la ve, en revisión, sin los comentarios internos."""
+    """Mandar al cliente: desde acá la ve, en revisión, sin los comentarios internos. Le llega un mail."""
     d = await _get(s, delivery_id)
     d.visibility, d.status, d.sent_at = "cliente", "en_revision", datetime.now(timezone.utc)
     d.approved_by = d.approved_at = None
     await s.commit()
     await s.refresh(d)
+    again = d.round > 1
+    mailer.send(await mailer.client_emails(s, d.brand_id),
+                f"{'Versión corregida' if again else 'Para revisar'}: {d.title}",
+                f"Tenés {'la versión corregida de ' if again else ''}«{d.title}» para revisar.",
+                [f"Es de {mailer.brand_name(d.brand_id)}. Podés aprobarla o pedirnos cambios, lámina por lámina."],
+                "Revisar", mailer.app_url(f"/cliente/entregas?id={d.id}"))
     return await _full(s, d)
 
 
@@ -329,6 +335,8 @@ async def set_status(delivery_id: str, req: StatusIn, request: Request, s: Async
         d.approved_by = d.approved_at = None
     await s.commit()
     await s.refresh(d)
+    if is_client(request) and req.status in ("aprobada", "cambios"):
+        mailer.client_decision(d.id, req.status, d.brand_id, d.title, _who(request), await mailer.team_emails(s))
     return await _full(s, d)
 
 
@@ -374,6 +382,8 @@ async def add_comment(delivery_id: str, req: CommentIn, request: Request, s: Asy
     if d.status == "aprobada":
         d.status, d.approved_by, d.approved_at = "cambios", None, None
     await s.commit()
+    if is_client(request):
+        mailer.client_comment(d.id, d.brand_id, d.title, c.author, c.text, await mailer.team_emails(s))
     return _comment(c)
 
 

@@ -88,3 +88,23 @@ Lo demás (`/assets`, imágenes de la app) no hace falta listarlo: el navegador 
 sesión y el backend (`access_guard.py`) rechaza con 403 cualquier pedido sin JWT válido, salvo `/`,
 `/puerta/` y `/api/health`. **Chequeo después de tocar Access:** sin login, `/` → 200 (la portada) y
 `/api/brands` → 302 al login o 403. Nunca 200.
+
+## Avisos por mail (2026-10-20)
+
+`backend/services/mailer.py` manda por **Resend**. Cuándo sale cada mail:
+
+| Pasa esto | Le llega a | Asunto |
+|---|---|---|
+| Alta en Accesos | la persona | «Tu acceso a Coevo Studio» |
+| «Mandar al cliente» | los clientes de esa marca | «Para revisar: …» / «Versión corregida: …» |
+| El cliente aprueba o pide cambios | admins y equipo | «<marca> aprobó / pidió cambios en …» (con sus comentarios) |
+| El cliente comenta | admins y equipo | uno solo por entrega, a los 2 minutos, con todos los comentarios |
+| El cliente manda material | admins y equipo | «<marca> mandó material» |
+| El equipo lo incorpora | quien lo mandó | «Sumamos tu material» |
+
+Lo que hace el equipo o Claude no le avisa al equipo. Sin `RESEND_API_KEY` no se manda nada: queda en el log
+(`docker compose logs api | grep mail`).
+
+Para prenderlo (usuario): cuenta en resend.com → Domains → `coevoagency.com` → cargar en Cloudflare DNS los
+registros que da (SPF, DKIM) → Verify → API Keys → crear una con permiso «Sending». Claude la pone en el `.env`
+del servidor (`RESEND_API_KEY`, y `MAIL_FROM` si no es `studio@coevoagency.com`) y reinicia la api.

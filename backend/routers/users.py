@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_session
 from db.models import Membership, User
-from services import brands as brands_service
+from services import brands as brands_service, mailer
 from services.roles import ROLES, admin_emails, invalidate, user_of
 
 router = APIRouter(tags=["users"])
@@ -99,6 +99,14 @@ async def create_user(req: UserIn, request: Request, s: AsyncSession = Depends(g
     s.add(u)
     await s.flush()
     await _save(s, u, req)
+    if not req.disabled:
+        client = req.role == "cliente"
+        names = [mailer.brand_name(b.id) for b in req.brands]
+        mailer.send([email], "Tu acceso a Coevo Studio", "Ya tenés acceso a Coevo Studio.", [
+            f"Ahí vas a ver lo que hacemos para {', '.join(names)}: aprobarlo o pedirnos cambios, y mandarnos material."
+            if client else "Es donde trabajamos las marcas de Coevo.",
+            f"Entrá con este mail ({email}): con Google, o con el código que te llega al mail.",
+        ], "Entrar", mailer.app_url("/cliente" if client else "/dashboard"))
     return await _out(s, u)
 
 

@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_session
 from db.models import InboxItem
-from services import brands, campaigns as campaigns_service
+from services import brands, campaigns as campaigns_service, mailer
 from services.roles import can_see_brand, is_client
 
 router = APIRouter(tags=["inbox"])
@@ -106,6 +106,13 @@ async def send_material(
     except Exception:
         shutil.rmtree(folder, ignore_errors=True)
         raise
+    if is_client(request):
+        marca = mailer.brand_name(brand_id)
+        what = [f"{len(saved)} {'archivo' if len(saved) == 1 else 'archivos'}"] if saved else []
+        what += ["un link"] if item.link else []
+        mailer.send(await mailer.team_emails(s), f"{marca} mandó material", f"{marca} mandó material.",
+                    [f"{(' y '.join(what) or 'una nota').capitalize()}, de {item.author}."], "Ordenarlo",
+                    mailer.app_url(f"/dashboard/bandeja?marca={brand_id}"), quotes=[item.note] if item.note else [])
     return _out(item)
 
 
@@ -178,6 +185,10 @@ async def incorporate(item_id: str, req: IncorporateIn, request: Request, s: Asy
     item.status = "incorporado"
     item.result = f"{sum(counts.values())} sumadas a {where} ({', '.join(f'{n} {LABEL.get(t, t)}' for t, n in counts.items())})"
     await s.commit()
+    if mailer.is_person(item.author):
+        mailer.send([item.author], "Sumamos tu material", "Sumamos lo que nos mandaste.",
+                    [f"{item.result[0].upper()}{item.result[1:]}.", "Ya lo usamos para lo que viene."],
+                    "Ver tu marca", mailer.app_url("/cliente/marca"), skip=_who(request))
     return _out(item)
 
 

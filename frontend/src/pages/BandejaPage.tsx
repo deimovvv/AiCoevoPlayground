@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { ExternalLink, FileText, Film } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
@@ -104,9 +104,17 @@ function Item({ it, campaigns, onDone }: { it: InboxItem; campaigns: Campaign[];
 }
 
 export function BandejaPage() {
-    const { activeBrand } = useBrand();
+    const { activeBrand, setActiveBrandId } = useBrand();
     const brandId = activeBrand?.id;
     const [items, setItems] = useState<InboxItem[] | null>(null);
+    const [params, setParams] = useSearchParams();
+    // ?marca=<id> abre la bandeja de esa marca (el link del mail «mandó material»).
+    const wanted = params.get("marca");
+    useEffect(() => {
+        if (!wanted) return;
+        setActiveBrandId(wanted);
+        setParams({}, { replace: true });
+    }, [wanted, setActiveBrandId, setParams]);
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
 
     useEffect(() => {

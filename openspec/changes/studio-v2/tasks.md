@@ -25,7 +25,7 @@
 - [x] C.3 `inbox_items` (migración `b4f1c8d2e6a3`), `routers/inbox.py`: el cliente manda archivos / link / nota sin elegir tipos;
       el equipo ordena en `/dashboard/bandeja` (a la marca o a una campaña, tipo por imagen, descartar); el cliente ve el estado.
 - [ ] C.4 Que el agente proponga el destino y el tipo de cada imagen del cliente (hoy lo elige el equipo).
-- [ ] C.5 Aviso por mail al equipo cuando llega material, y al cliente cuando se incorpora.
+- [~] C.5 Avisos por mail (`services/mailer.py`, Resend, 2026-10-20): invitación, «para revisar», el cliente aprobó / pidió cambios / comentó (agrupados), mandó material, lo sumamos. Falta: dominio verificado + `RESEND_API_KEY` en el servidor.
 
 ## O. Operación mensual (design.md §14)
 
