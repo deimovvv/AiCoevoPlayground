@@ -223,4 +223,34 @@ tool("ver_campana",
         return { id: c.id, nombre: c.name, marca: c.brandId, idea: c.brief, tablero };
     });
 
+// ── Costo de lo que se genera desde las skills (fuera de las tools de Studio) ──
+
+tool("registrar_costo",
+    "Registra en Studio lo que se generó desde una skill (fotos con Nano Banana / GPT, clips con Seedance o Kling, voces), " +
+    "con su costo real, para que sume al gasto del mes de la marca. Llamarla UNA vez por tanda generada, después de generar.",
+    {
+        marca: z.string(),
+        que: z.string().describe("qué se hizo, ej. 'Oxidian · 9 tomas animadas 1080p'"),
+        usd: z.number().min(0).describe("costo total en dólares, con los precios verificados"),
+        modelo: z.string().describe("modelo principal, ej. 'seedance-2.5-kie' o 'nano-banana-2'"),
+        tipo: z.enum(["video", "image", "copy"]).optional(),
+        imagenes: z.number().int().min(0).optional(),
+        clips: z.number().int().min(0).optional(),
+        segundos: z.number().min(0).optional().describe("segundos de video generados"),
+        campana_id: z.string().optional(),
+        verificado: z.boolean().optional().describe("true si el precio salió de la tabla oficial del proveedor"),
+    },
+    async ({ marca, que, usd, modelo, tipo = "video", imagenes = 0, clips = 0, segundos = 0, campana_id, verificado = false }) => {
+        const b = await findBrand(marca);
+        const g = await api("/api/generations", {
+            method: "POST",
+            body: {
+                brandId: b.id, campaignId: campana_id ?? null, toolId: "skill", title: que, type: tipo, status: "completed",
+                metadata: { origen: "skill (Claude local)", modelo },
+                cost: { usd, images: imagenes, videoClips: clips, videoSeconds: segundos, ttsChars: 0, byModel: { [modelo]: usd }, verified: verificado },
+            },
+        });
+        return { registrado: g.id ?? true, marca: b.name, usd };
+    });
+
 await server.connect(new StdioServerTransport());

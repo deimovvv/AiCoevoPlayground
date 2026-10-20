@@ -17,6 +17,7 @@ Por qué existe: `openspec/changes/studio-v2/design.md` §8.
 | `proyectos_video` / `ver_proyecto_video` / `guardar_proyecto_video` | timelines guardados en Studio (con versión: 409 si cambió) |
 | `ver_entregas` / `ver_entrega` | entregas de la marca y sus comentarios (lámina + punto + ronda) |
 | `subir_entrega` / `nueva_ronda` / `resolver_comentario` | subir una pieza a Entregas, subir la versión corregida, cerrar comentarios |
+| `registrar_costo` | anotar en Studio lo que costó una generación hecha desde una skill (suma al gasto del mes de la marca, aparece como «Claude (skill)») |
 
 El circuito completo, explicado: [docs/guias/como-funciona-studio-online.md](../../docs/guias/como-funciona-studio-online.md).
 

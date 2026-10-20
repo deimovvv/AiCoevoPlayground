@@ -19,7 +19,7 @@ const ACTIONS = [
     { id: "video_ad_creator", title: "Aviso con guion", tool: "Video Ad Creator", to: "/dashboard/generate/video_ad_creator" },
     { id: "manual_lab", title: "Probar suelto", tool: "Lab · sin marca", to: "/dashboard/lab" },
 ];
-const TOOL_NAME: Record<string, string> = Object.fromEntries(ACTIONS.map((a) => [a.id, a.tool]));
+const TOOL_NAME: Record<string, string> = { ...Object.fromEntries(ACTIONS.map((a) => [a.id, a.tool])), skill: "Claude (skill)" };
 
 /** Tarjeta de una tool con su última pieza real: quieta hasta pasar el mouse, ahí se reproduce. */
 /** Portadas propias en la estética de Coevo (flash, oficina de noche, 35 mm), una por tool.
