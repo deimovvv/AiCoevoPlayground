@@ -28,6 +28,8 @@ import { ClientLayout } from "./components/layout/ClientLayout";
 import { MeProvider, TeamOnly } from "./lib/MeContext";
 import { AccesosPage } from "./pages/AccesosPage";
 import { TableroPage } from "./pages/TableroPage";
+import { BandejaPage } from "./pages/BandejaPage";
+import { ClienteMaterialPage } from "./pages/ClienteMaterialPage";
 import { MarcaPage } from "./pages/MarcaPage";
 import { ProduccionPage } from "./pages/ProduccionPage";
 import { EditorProjectPage } from "./pages/EditorProjectPage";
@@ -67,6 +69,7 @@ function App() {
       <Route path="/cliente" element={<MeProvider><BrandProvider><ClientLayout /></BrandProvider></MeProvider>}>
         <Route index element={<ErrorBoundary><DeliveriesPage mode="cliente" /></ErrorBoundary>} />
         <Route path="marca" element={<div className="h-full overflow-y-auto md:overflow-hidden"><MarcaPage readOnly /></div>} />
+        <Route path="material" element={<ClienteMaterialPage />} />
       </Route>
       <Route
         path="/dashboard"
@@ -86,6 +89,7 @@ function App() {
         <Route path="produccion" element={<ProduccionPage />} />
         <Route path="accesos" element={<AccesosPage />} />
         <Route path="tablero/:id" element={<TableroPage />} />
+        <Route path="bandeja" element={<BandejaPage />} />
         <Route path="chat" element={<ChatPage />} />
         {/* Campañas: el tablero por estado. "trabajo" queda como redirect —
             era la ruta vieja y hay links guardados apuntando ahí. */}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useBrand } from "../lib/BrandContext";
-import { backendUrl, createCampaign, fetchGenerations, fetchToolPreviews, listCampaigns, listDeliveries, type Campaign, type DeliverySummary, type Generation, type ToolPreview } from "../lib/api";
+import { backendUrl, createCampaign, fetchGenerations, fetchToolPreviews, listCampaigns, listDeliveries, listInbox, type Campaign, type DeliverySummary, type Generation, type InboxItem, type ToolPreview } from "../lib/api";
 
 /**
  * Producción (openspec/changes/studio-v2 §1): hacer algo nuevo para la marca y ver qué espera
@@ -134,6 +134,7 @@ export function ProduccionPage() {
     const [deliveries, setDeliveries] = useState<DeliverySummary[]>([]);
     const [previews, setPreviews] = useState<Record<string, ToolPreview>>({});
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [inbox, setInbox] = useState<InboxItem[]>([]);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -143,6 +144,7 @@ export function ProduccionPage() {
         listDeliveries(brandId).then((d) => alive && setDeliveries(d)).catch(() => alive && setDeliveries([]));
         fetchToolPreviews(brandId).then((p) => alive && setPreviews(p));
         listCampaigns(brandId).then((c) => alive && setCampaigns(c)).catch(() => alive && setCampaigns([]));
+        listInbox(brandId).then((x) => alive && setInbox(x.filter((i) => i.status === "nuevo"))).catch(() => alive && setInbox([]));
         return () => { alive = false; };
     }, [brandId]);
 
@@ -198,9 +200,21 @@ export function ProduccionPage() {
                 <section className="flex flex-col md:min-h-0 md:overflow-y-auto">
                     <div className="flex items-baseline gap-2.5 pb-2.5 border-b border-edge">
                         <h2 className="text-[20px] text-fg">Espera una respuesta</h2>
-                        <span className="font-mono text-[11px] text-[var(--color-brand)]">{waiting.length || ""}</span>
+                        <span className="font-mono text-[11px] text-[var(--color-brand)]">{waiting.length + inbox.length || ""}</span>
                     </div>
-                    {waiting.length === 0 && <p className="py-4 text-[13px] text-fg-faint">Nada pendiente en Entregas.</p>}
+                    {inbox.length > 0 && (
+                        <Link to="/dashboard/bandeja" className="flex items-center gap-4 py-3 border-b border-[var(--color-edge-subtle)] no-underline">
+                            <span className="w-12 h-[60px] shrink-0 rounded-[var(--radius-xs)] bg-[var(--color-surface-2)] overflow-hidden">
+                                {inbox[0].files.find((f) => f.kind === "image") && <img src={backendUrl(inbox[0].files.find((f) => f.kind === "image")!.url)} alt="" className="w-full h-full object-cover" />}
+                            </span>
+                            <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+                                <span className="text-[14px] text-fg truncate">Material nuevo del cliente</span>
+                                <span className="text-[12px] text-fg-faint">{inbox.length === 1 ? "1 envío" : `${inbox.length} envíos`} · {inbox.reduce((n, i) => n + i.files.length, 0)} archivos</span>
+                            </span>
+                            <span className="text-[12px] text-fg">Ordenar →</span>
+                        </Link>
+                    )}
+                    {waiting.length === 0 && inbox.length === 0 && <p className="py-4 text-[13px] text-fg-faint">Nada pendiente.</p>}
                     {waiting.map((d) => (
                         <Link key={d.id} to={`/dashboard/entregas?id=${d.id}`}
                             className="flex items-center gap-4 py-3 border-b border-[var(--color-edge-subtle)] no-underline">

@@ -106,3 +106,22 @@ class Membership(Base):
     user_id: Mapped[str] = mapped_column(String(40), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     brand_id: Mapped[str] = mapped_column(String(80), primary_key=True)
     can_approve: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+
+
+class InboxItem(Base):
+    """Material que manda el cliente (studio-v2 §12 y §15): lo que tenga, como lo tenga.
+    No entra directo a la marca: el equipo lo revisa y lo incorpora (a la marca o a una campaña)."""
+
+    __tablename__ = "inbox_items"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: _id("ib"))
+    brand_id: Mapped[str] = mapped_column(String(80), index=True)
+    campaign_id: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    files: Mapped[list] = mapped_column(JSONB, default=list)      # [{url, name, kind: image|video|pdf|other}]
+    link: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    note: Mapped[Optional[str]] = mapped_column(String(4000), nullable=True)
+    author: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    # nuevo → incorporado | descartado
+    status: Mapped[str] = mapped_column(String(12), default="nuevo", server_default="nuevo")
+    result: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)   # qué se hizo, para el cliente
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

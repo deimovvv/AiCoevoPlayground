@@ -18,6 +18,15 @@
 - [ ] M.3 Skill `onboarding-marca` + botón "Cargar marca".
 - [ ] M.4 Mudar `coevo-skills/identidades` a Caras; las skills leen por MCP (§8).
 
+## C. Campañas y material del cliente (design.md §15)
+
+- [x] C.1 Tablero de campaña `/dashboard/tablero/:id` (tipo de input `plano`); columna Campañas en Producción (2026-10-19).
+- [x] C.2 «Cargar material» pregunta «¿para qué es?» (marca o campaña).
+- [x] C.3 `inbox_items` (migración `b4f1c8d2e6a3`), `routers/inbox.py`: el cliente manda archivos / link / nota sin elegir tipos;
+      el equipo ordena en `/dashboard/bandeja` (a la marca o a una campaña, tipo por imagen, descartar); el cliente ve el estado.
+- [ ] C.4 Que el agente proponga el destino y el tipo de cada imagen del cliente (hoy lo elige el equipo).
+- [ ] C.5 Aviso por mail al equipo cuando llega material, y al cliente cuando se incorpora.
+
 ## O. Operación mensual (design.md §14)
 
 - [ ] O.1 Plan del mes por marca como dato (piezas por tipo + cupo), visible para el cliente.

@@ -3879,3 +3879,31 @@ export async function getBrandAgent(brandId: string): Promise<AgentRun> {
 export async function approveBrandBlock(brandId: string, block: string): Promise<void> {
     await editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/agente/aprobar/${block}`, { method: "POST" }), "No se pudo aprobar");
 }
+
+// ── Material que manda el cliente (backend/routers/inbox.py · studio-v2 §12/§15) ──
+
+export interface InboxFile { url: string; name: string; kind: "image" | "video" | "pdf" | "other" }
+export interface InboxItem {
+    id: string; brandId: string; campaignId: string | null; files: InboxFile[]; link: string | null; note: string | null;
+    author: string | null; status: "nuevo" | "incorporado" | "descartado"; result: string | null; createdAt: string | null;
+}
+export type InboxDest = "moodboard" | "luz" | "locacion" | "pose" | "plano" | "cara" | "prenda" | "producto";
+
+export async function sendMaterial(brandId: string, m: { files: File[]; link?: string; note?: string }): Promise<InboxItem> {
+    const form = new FormData();
+    m.files.forEach((f) => form.append("files", f));
+    if (m.link) form.append("link", m.link);
+    if (m.note) form.append("note", m.note);
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/inbox`, { method: "POST", body: form }), "No se pudo mandar");
+}
+export async function listInbox(brandId: string): Promise<InboxItem[]> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/inbox`), "No se pudo cargar el material");
+}
+export async function incorporateInbox(id: string, body: { target: string; type: InboxDest; perFile?: Record<string, InboxDest>; discard?: string[] }): Promise<InboxItem> {
+    return editorJson(await fetch(`${API_BASE}/api/inbox/${encodeURIComponent(id)}/incorporar`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }), "No se pudo incorporar");
+}
+export async function discardInbox(id: string): Promise<InboxItem> {
+    return editorJson(await fetch(`${API_BASE}/api/inbox/${encodeURIComponent(id)}/descartar`, { method: "POST" }), "No se pudo descartar");
+}

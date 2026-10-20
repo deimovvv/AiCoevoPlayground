@@ -12,6 +12,7 @@ import { cn } from "../../lib/utils";
 
 const TABS = [
     { label: "Entregas", to: "/cliente", exact: true },
+    { label: "Mandar material", to: "/cliente/material", exact: false },
     { label: "Mi marca", to: "/cliente/marca", exact: false },
 ];
 
@@ -39,12 +40,12 @@ export function ClientLayout() {
                         </select>
                     ) : activeBrand?.name ?? ""}
                 </span>
-                <nav className="flex items-center gap-1 h-full" aria-label="Secciones">
+                <nav className="flex items-center gap-1 h-full overflow-x-auto" aria-label="Secciones">
                     {TABS.map((t) => {
                         const on = t.exact ? pathname === t.to : pathname.startsWith(t.to);
                         return (
                             <Link key={t.to} to={t.to} aria-current={on ? "page" : undefined}
-                                className={cn("h-full flex items-center px-3 text-[13px] no-underline border-b-[1.5px]",
+                                className={cn("h-full shrink-0 flex items-center px-3 text-[13px] no-underline border-b-[1.5px]",
                                     on ? "text-fg border-fg" : "text-fg-faint border-transparent hover:text-fg")}>
                                 {t.label}
                             </Link>

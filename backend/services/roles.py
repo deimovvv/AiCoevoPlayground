@@ -38,6 +38,8 @@ CLIENT_ALLOWED = [
     ("GET", re.compile(r"^/api/deliveries/[^/]+$")),
     ("POST", re.compile(r"^/api/deliveries/[^/]+/comments$")),
     ("POST", re.compile(r"^/api/deliveries/[^/]+/status$")),
+    ("GET", re.compile(r"^/api/brands/(?P<brand>[^/]+)/inbox$")),
+    ("POST", re.compile(r"^/api/brands/(?P<brand>[^/]+)/inbox$")),
 ]
 
 

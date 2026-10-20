@@ -39,6 +39,7 @@ from services import editor_project
 from routers import video_projects as video_projects_router
 from routers import deliveries as deliveries_router
 from routers import users as users_router
+from routers import inbox as inbox_router
 from fastapi import Request
 from urllib.parse import quote
 from services import llm_router
@@ -100,6 +101,8 @@ app.mount("/static/products", StaticFiles(directory=str(brands.get_products_dir(
 # Láminas y fuentes de las entregas (routers/deliveries.py).
 from routers.deliveries import FILES_DIR as DELIVERIES_DIR
 app.mount("/static/deliveries", StaticFiles(directory=str(DELIVERIES_DIR)), name="deliveries")
+from routers.inbox import FILES_DIR as INBOX_DIR
+app.mount("/static/inbox", StaticFiles(directory=str(INBOX_DIR)), name="inbox")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -5084,6 +5087,8 @@ app.include_router(video_projects_router.router)
 app.include_router(deliveries_router.router)
 # Accesos: /api/me y gestión de usuarios (routers/users.py · studio-v2 §3).
 app.include_router(users_router.router)
+# Material que manda el cliente (routers/inbox.py · studio-v2 §12/§15).
+app.include_router(inbox_router.router)
 
 
 # ── Proyectos del editor (timeline.json en una carpeta) ─────────────────────
