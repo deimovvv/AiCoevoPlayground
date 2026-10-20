@@ -30,6 +30,9 @@ export function AccesosPage() {
     const toggleApprove = (id: string) => setForm((f) => ({
         ...f, brands: f.brands.map((b) => (b.id === id ? { ...b, canApprove: !b.canApprove } : b)),
     }));
+    const toggleInvite = (id: string) => setForm((f) => ({
+        ...f, brands: f.brands.map((b) => (b.id === id ? { ...b, canInvite: !b.canInvite } : b)),
+    }));
     const save = async () => {
         setBusy(true); setError(null);
         try {
@@ -53,7 +56,7 @@ export function AccesosPage() {
                 <h1 className="mt-3 text-[40px] leading-none tracking-[-0.035em] text-fg">Quién entra a Studio</h1>
                 <p className="mt-4 max-w-[560px] text-[13px] leading-relaxed text-fg-muted">
                     El equipo ve todas las marcas. Un cliente ve sólo las suyas: sus entregas y su marca, nada más.
-                    Para que pueda entrar, sumá su mail también en Cloudflare (Access → Policies).
+                    Al darle acceso le llega un mail. Con «suma gente», ese cliente invita a su propio equipo desde su espacio.
                 </p>
                 <div className="mt-8 border-t border-edge">
                     {users === null && <p className="py-5 text-[13px] text-fg-faint">Cargando…</p>}
@@ -67,7 +70,7 @@ export function AccesosPage() {
                             <span className={`${mono} ${u.role === "cliente" ? "text-fg" : "text-fg-faint"}`}>{ROLE_LABEL[u.role]}{u.disabled && " · baja"}</span>
                             <span className="text-[12px] text-fg-muted truncate">
                                 {u.role === "cliente"
-                                    ? u.brands.map((b) => `${nameOf(b.id)}${b.canApprove ? "" : " (sólo comenta)"}`).join(", ")
+                                    ? u.brands.map((b) => `${nameOf(b.id)}${b.canInvite ? " · principal" : ""}${b.canApprove ? "" : " (sólo comenta)"}`).join(", ")
                                     : "Todas las marcas"}
                             </span>
                         </button>
@@ -111,6 +114,11 @@ export function AccesosPage() {
                                         {sel && (
                                             <label className="flex items-center gap-1.5 text-[11px] text-fg-muted cursor-pointer">
                                                 <input type="checkbox" checked={sel.canApprove} onChange={() => toggleApprove(b.id)} /> aprueba
+                                            </label>
+                                        )}
+                                        {sel && (
+                                            <label className="flex items-center gap-1.5 text-[11px] text-fg-muted cursor-pointer" title="Invita y saca a su equipo desde su espacio">
+                                                <input type="checkbox" checked={!!sel.canInvite} onChange={() => toggleInvite(b.id)} /> suma gente
                                             </label>
                                         )}
                                     </div>

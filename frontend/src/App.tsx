@@ -30,6 +30,7 @@ import { AccesosPage } from "./pages/AccesosPage";
 import { TableroPage } from "./pages/TableroPage";
 import { BandejaPage } from "./pages/BandejaPage";
 import { ClienteMaterialPage } from "./pages/ClienteMaterialPage";
+import { ClientePersonasPage } from "./pages/ClientePersonasPage";
 import { ClienteInicioPage } from "./pages/ClienteInicioPage";
 import { MarcaPage } from "./pages/MarcaPage";
 import { ProduccionPage } from "./pages/ProduccionPage";
@@ -72,6 +73,7 @@ function App() {
         <Route path="entregas" element={<ErrorBoundary><DeliveriesPage mode="cliente" /></ErrorBoundary>} />
         <Route path="marca" element={<div className="h-full overflow-y-auto md:overflow-hidden"><MarcaPage readOnly /></div>} />
         <Route path="material" element={<ClienteMaterialPage />} />
+        <Route path="personas" element={<ClientePersonasPage />} />
       </Route>
       <Route
         path="/dashboard"

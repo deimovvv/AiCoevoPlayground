@@ -103,13 +103,15 @@ class User(Base):
 
 
 class Membership(Base):
-    """Qué marcas ve un cliente, y si puede aprobar (si no, sólo comenta)."""
+    """Qué marcas ve un cliente, si puede aprobar (si no, sólo comenta) y si suma gente de su marca
+    (el contacto principal: invita y saca a su equipo desde /cliente/personas)."""
 
     __tablename__ = "memberships"
 
     user_id: Mapped[str] = mapped_column(String(40), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     brand_id: Mapped[str] = mapped_column(String(80), primary_key=True)
     can_approve: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    can_invite: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
 
 class InboxItem(Base):

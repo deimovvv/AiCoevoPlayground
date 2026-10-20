@@ -101,6 +101,7 @@ sesión y el backend (`access_guard.py`) rechaza con 403 cualquier pedido sin JW
 | El cliente comenta | admins y equipo | uno solo por entrega, a los 2 minutos, con todos los comentarios |
 | El cliente manda material | admins y equipo | «<marca> mandó material» |
 | El equipo lo incorpora | quien lo mandó | «Sumamos tu material» |
+| El contacto principal suma a alguien (`/cliente/personas`) | esa persona, y admins y equipo | «Te sumaron a …» / «<marca>: X sumó a Y» |
 
 Lo que hace el equipo o Claude no le avisa al equipo. Sin `RESEND_API_KEY` no se manda nada: queda en el log
 (`docker compose logs api | grep mail`).

@@ -3876,13 +3876,13 @@ export type Role = "admin" | "equipo" | "cliente";
 export interface Me {
     email: string | null; name?: string | null; role: Role | null;
     /** null = todas (equipo/admin). */
-    brands: Array<{ id: string; name: string; canApprove: boolean }> | null;
+    brands: Array<{ id: string; name: string; canApprove: boolean; canInvite: boolean }> | null;
 }
 export interface StudioUser {
     id: string; email: string; name: string | null; role: Role; disabled: boolean; fromEnv: boolean;
-    brands: Array<{ id: string; canApprove: boolean }>;
+    brands: Array<{ id: string; canApprove: boolean; canInvite?: boolean }>;
 }
-export interface StudioUserIn { email: string; name?: string | null; role: Role; brands: Array<{ id: string; canApprove: boolean }>; disabled?: boolean }
+export interface StudioUserIn { email: string; name?: string | null; role: Role; brands: Array<{ id: string; canApprove: boolean; canInvite?: boolean }>; disabled?: boolean }
 
 export async function fetchMe(): Promise<Me> {
     return editorJson(await fetch(`${API_BASE}/api/me`), "No se pudo leer tu usuario");
@@ -3895,6 +3895,19 @@ export async function createUser(u: StudioUserIn): Promise<StudioUser> {
 }
 export async function updateUser(id: string, u: StudioUserIn): Promise<StudioUser> {
     return editorJson(await fetch(`${API_BASE}/api/users/${encodeURIComponent(id)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(u) }), "No se pudo guardar");
+}
+
+// La gente de una marca: el contacto principal (canInvite) suma y saca a su equipo.
+export interface BrandPerson { id: string; email: string; name: string | null; canApprove: boolean; canInvite: boolean; isMe: boolean }
+
+export async function listBrandPeople(brandId: string): Promise<BrandPerson[]> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/people`), "No se pudo cargar tu equipo");
+}
+export async function addBrandPerson(brandId: string, p: { email: string; name?: string; canApprove: boolean }): Promise<BrandPerson> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/people`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p) }), "No se pudo sumar");
+}
+export async function removeBrandPerson(brandId: string, userId: string): Promise<void> {
+    await editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/people/${encodeURIComponent(userId)}`, { method: "DELETE" }), "No se pudo sacar");
 }
 
 // ── Agente de marca (backend/services/brand_agent.py · studio-v2 M.3) ─────────

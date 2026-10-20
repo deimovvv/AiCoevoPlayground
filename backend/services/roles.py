@@ -8,7 +8,7 @@ asigna un rol con la tabla `users`:
   coma) son admin siempre y se crean solos la primera vez que entran.
 - **equipo**: todas las marcas y todas las pantallas.
 - **cliente**: sólo sus marcas (`memberships`) y sólo lo que le toca: ver sus entregas, comentar,
-  aprobar (si `can_approve`), ver su marca. El SERVIDOR le bloquea todo lo demás; no alcanza
+  aprobar (si `can_approve`), ver su marca, y sumar o sacar gente de su marca (si `can_invite`). El SERVIDOR le bloquea todo lo demás; no alcanza
   con esconderlo en la pantalla.
 - Un mail que pasó Access pero no está en `users` (o está dado de baja): no ve datos ("pedí acceso").
 - Token de servicio (Claude, `servicio:...`): equipo. Sin Access (dev local): admin.
@@ -41,6 +41,9 @@ CLIENT_ALLOWED = [
     ("POST", re.compile(r"^/api/deliveries/[^/]+/items/[^/]+/toggle$")),
     ("GET", re.compile(r"^/api/brands/(?P<brand>[^/]+)/inbox$")),
     ("POST", re.compile(r"^/api/brands/(?P<brand>[^/]+)/inbox$")),
+    ("GET", re.compile(r"^/api/brands/(?P<brand>[^/]+)/people$")),
+    ("POST", re.compile(r"^/api/brands/(?P<brand>[^/]+)/people$")),
+    ("DELETE", re.compile(r"^/api/brands/(?P<brand>[^/]+)/people/[^/]+$")),
 ]
 
 
@@ -79,7 +82,8 @@ async def resolve(email: Optional[str]) -> Optional[dict]:
         elif u.role == "cliente":
             rows = (await s.execute(select(Membership).where(Membership.user_id == u.id))).scalars().all()
             out = {"email": key, "role": "cliente", "name": u.name,
-                   "brands": [m.brand_id for m in rows], "approve": [m.brand_id for m in rows if m.can_approve]}
+                   "brands": [m.brand_id for m in rows], "approve": [m.brand_id for m in rows if m.can_approve],
+                   "invite": [m.brand_id for m in rows if m.can_invite]}
         else:
             out = {"email": key, "role": u.role, "name": u.name, "brands": None, "approve": None}
     _cache[key] = (time.time() + _CACHE_SECS, out)
@@ -102,6 +106,11 @@ def can_see_brand(request, brand_id: str) -> bool:
 def can_approve(request, brand_id: str) -> bool:
     u = user_of(request)
     return u.get("role") != "cliente" or brand_id in (u.get("approve") or [])
+
+
+def can_invite(request, brand_id: str) -> bool:
+    u = user_of(request)
+    return u.get("role") != "cliente" or brand_id in (u.get("invite") or [])
 
 
 class RoleGuard:

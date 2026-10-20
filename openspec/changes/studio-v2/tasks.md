@@ -41,6 +41,7 @@
 - [x] 1.2 `services/roles.py` (RoleGuard): rol desde el mail de Access; `ADMIN_EMAILS` crea admins; desconocido → "pedí acceso"; cliente con lista cerrada de rutas.
 - [~] 1.3 Filtro por marca: marcas, entregas y comentarios. Los /static no se filtran por marca (nombres al azar; revisar al mudar a R2).
 - [x] 1.4 `/dashboard/accesos` (admin): alta, rol, marcas, quién aprueba, baja (2026-10-19).
+- [x] 1.6 El cliente suma a su equipo (2026-10-20): `memberships.can_invite` (migración `d8f3b1a7c2e9`), Accesos → «suma gente»; `/cliente/personas` (Equipo): el contacto principal invita (comenta o aprueba) y saca; no saca a otro principal ni a sí mismo, ni reactiva bajas; al equipo le llega un mail.
 - [ ] 1.5 Policy de Access "Clientes" separada de "Equipo Coevo"; guía en `docs/guias/produccion.md`.
 
 ## 2. Navegación
