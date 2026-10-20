@@ -1342,6 +1342,39 @@ Reglas:
         raise HTTPException(status_code=502, detail=f"Gemini error: {str(e)[:300]}")
 
 
+# ── Agente de marca (services/brand_agent.py · studio-v2 M.3) ────────────────
+class BrandAgentIn(BaseModel):
+    web: Optional[str] = None
+    instagram: Optional[str] = None
+
+
+@app.post("/api/brands/{brand_id}/agente")
+async def brand_agent_start(brand_id: str, req: BrandAgentIn):
+    """Arranca el agente: lee web + Instagram y propone los bloques (no pisa lo cargado)."""
+    from services import brand_agent
+    b = brands.find_brand(brands.load_brands(), brand_id)
+    if not b:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not (req.web or req.instagram):
+        raise HTTPException(status_code=400, detail="Pasale al agente la web o el Instagram de la marca.")
+    return brand_agent.start(brand_id, (req.web or "").strip() or None, (req.instagram or "").strip() or None)
+
+
+@app.get("/api/brands/{brand_id}/agente")
+def brand_agent_status(brand_id: str):
+    from services import brand_agent
+    return brand_agent.state(brand_id) or {"status": "idle", "steps": []}
+
+
+@app.post("/api/brands/{brand_id}/agente/aprobar/{block}")
+def brand_agent_approve(brand_id: str, block: str):
+    """Saca el «propuesto · revisar» de un bloque: una persona lo revisó."""
+    from services import brand_agent
+    if not brands.find_brand(brands.load_brands(), brand_id):
+        raise HTTPException(status_code=404, detail="Brand not found")
+    return brand_agent.approve(brand_id, block)
+
+
 @app.post("/api/brands/{brand_id}/extract-all")
 async def extract_all_brand_knowledge(brand_id: str):
     """One-click extract: runs Brand DNA + Design System in sequence and returns combined results.

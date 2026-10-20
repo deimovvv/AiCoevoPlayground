@@ -209,10 +209,10 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                                     placeholder="Qué hace, para quién, qué la hace distinta. Lo que Claude tiene que saber antes de escribir o producir." />
                             </Section>
                             <Section title="Tono (separado por comas)">
-                                <input value={tone} onChange={(e) => setTone(e.target.value)} className={input} placeholder="contemplativo, preciso, riguroso" />
+                                <input value={tone} onChange={(e) => setTone(e.target.value)} className={input} placeholder="ej. seco, frontal, con humor" />
                             </Section>
                             <Section title="Palabras que nunca usa">
-                                <input value={never} onChange={(e) => setNever(e.target.value)} className={input} placeholder="sustentable, innovación" />
+                                <input value={never} onChange={(e) => setNever(e.target.value)} className={input} placeholder="ej. premium, innovador, experiencia única" />
                             </Section>
                         </>
                     )}
@@ -238,8 +238,8 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                             </Section>
                             <Section title="Tipografías (nombre de Google Fonts)">
                                 <div className="grid grid-cols-2 gap-2">
-                                    <label className="flex flex-col gap-1 text-[12px] text-fg-muted">Títulos<input value={headline} onChange={(e) => setHeadline(e.target.value)} className={input} placeholder="IM Fell English" /></label>
-                                    <label className="flex flex-col gap-1 text-[12px] text-fg-muted">Textos<input value={body} onChange={(e) => setBody(e.target.value)} className={input} placeholder="Courier Prime" /></label>
+                                    <label className="flex flex-col gap-1 text-[12px] text-fg-muted">Títulos<input value={headline} onChange={(e) => setHeadline(e.target.value)} className={input} placeholder="ej. Playfair Display" /></label>
+                                    <label className="flex flex-col gap-1 text-[12px] text-fg-muted">Textos<input value={body} onChange={(e) => setBody(e.target.value)} className={input} placeholder="ej. Inter" /></label>
                                 </div>
                                 <p className="text-[11px] text-fg-faint">Si la fuente es propia (con licencia), mandá el archivo: va al DESIGN.md de la marca.</p>
                             </Section>

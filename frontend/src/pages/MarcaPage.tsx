@@ -4,6 +4,8 @@ import { useBrand } from "../lib/BrandContext";
 import { backendUrl, type Brand } from "../lib/api";
 import { loadBrandFonts } from "../tools/shared/fontLoader";
 import { BrandBlockEditor, type BlockKey } from "../components/workspace/BrandBlockEditor";
+import { BrandAgentPanel } from "../components/workspace/BrandAgentPanel";
+import { approveBrandBlock } from "../lib/api";
 
 /**
  * Marca — la entrada de Studio (openspec/changes/studio-v2 §1 y §7).
@@ -25,8 +27,10 @@ const clip = (t: string | undefined, max: number) => {
 };
 const count = (n: number | undefined, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : "");
 
-function Card({ n, title, missing, children, onEdit, className = "" }: {
+function Card({ n, title, missing, children, onEdit, className = "", proposed, onApprove }: {
     n: string; title: string; missing?: string | true | null; children: ReactNode; onEdit?: () => void; className?: string;
+    /** Lo propuso el agente y nadie lo revisó todavía. */
+    proposed?: boolean; onApprove?: () => void;
 }) {
     return (
         <section className={`group relative flex flex-col gap-4 p-5 rounded-[4px] border border-edge bg-[var(--color-surface-1)] min-w-0 min-h-0 overflow-hidden ${onEdit ? "hover:border-[var(--color-edge-strong)]" : ""} ${className}`}>
@@ -36,7 +40,12 @@ function Card({ n, title, missing, children, onEdit, className = "" }: {
                 <span className={`${mono} text-fg-faint`}>{n}</span>
                 <h2 className="text-[15px] tracking-[-0.01em] text-fg">{title}</h2>
                 <span className="flex-1" />
-                {missing
+                {proposed ? (
+                    <span className="relative z-20 flex items-center gap-2">
+                        <span className={`${mono} text-[var(--color-warning)]`}>Propuesto · revisar</span>
+                        {onApprove && <button onClick={onApprove} className="h-6 px-2 rounded-[3px] border border-edge text-[11px] text-fg hover:border-fg cursor-pointer">Aprobar</button>}
+                    </span>
+                ) : missing
                     ? <span className={`${mono} text-[var(--color-brand)]`}>{missing === true ? "Falta" : `Falta ${missing}`}</span>
                     : onEdit && <span className="text-[12px] text-fg-faint opacity-0 group-hover:opacity-100 transition-opacity">Editar</span>}
             </div>
@@ -75,8 +84,9 @@ function data(b: Brand) {
             { label: "Moodboard", urls: (b.moodboards || []).map((x) => x.imageUrl) },
             { label: "Luz / look", urls: (b.lookAndFeel || []).map((x) => x.imageUrl) },
             { label: "Locación", urls: (b.backgrounds || []).map((x) => x.imageUrl) },
-            { label: "Poses", urls: (b.poses || []).map((x) => x.imageUrl) },
             { label: "Planos", urls: (b.shotRefs || []).map((x) => x.imageUrl) },
+            // Las poses son para copiar postura en fichas (Ecommerce Pack), no la estética: van al final.
+            { label: "Poses de catálogo", urls: (b.poses || []).map((x) => x.imageUrl) },
         ].filter((g) => g.urls.length),
         faces: (b.avatars || []).filter((a) => a.imageUrl),
         catalog: [...(b.products || []), ...(b.clothing || [])].map((x) => x.imageUrl),
@@ -86,6 +96,7 @@ function data(b: Brand) {
 export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
     const { activeBrand, setActiveBrandId, refreshBrands } = useBrand();
     const [editing, setEditing] = useState<BlockKey | null>(null);
+    const [agentOpen, setAgentOpen] = useState(false);
     const [params, setParams] = useSearchParams();
     // ?marca=<id> abre esa marca (links directos a la memoria de una marca).
     const wanted = params.get("marca");
@@ -114,6 +125,8 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
         true,
     ];
     const done = missing.filter((m) => !m).length;
+    const proposed = (k: string) => !readOnly && b.agent?.blocks?.[k] === "propuesto";
+    const approve = (k: string) => async () => { await approveBrandBlock(b.id, k); await refreshBrands(); };
 
     return (
         <div className="md:h-full md:grid md:grid-cols-[minmax(320px,30%)_minmax(0,1fr)]">
@@ -146,6 +159,12 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                             </div>
                         </div>
                     )}
+                    {proposed("identidad") && (
+                        <p className="flex items-center gap-2">
+                            <span className={`${mono} text-[var(--color-warning)]`}>Identidad propuesta · revisar</span>
+                            <button onClick={approve("identidad")} className="h-6 px-2 rounded-[3px] border border-edge text-[11px] text-fg hover:border-fg cursor-pointer">Aprobar</button>
+                        </p>
+                    )}
                     <dl className="grid grid-cols-[84px_1fr] gap-y-1.5 text-[13px]">
                         <dt className="text-fg-faint">Tipografía</dt>
                         <dd className="text-fg">{fontNames.length ? fontNames.join(" / ") : <span className="text-fg-faint">sin cargar</span>}</dd>
@@ -161,9 +180,10 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                     </p>
                     {!readOnly && (
                         <div className="flex items-center gap-4">
-                            <button onClick={() => setEditing("material")} className="h-10 px-4 flex items-center rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] cursor-pointer">
-                                Cargar material
+                            <button onClick={() => setAgentOpen(true)} className="h-10 px-4 flex items-center rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] cursor-pointer">
+                                Armar con el agente
                             </button>
+                            <button onClick={() => setEditing("material")} className="text-[13px] text-fg-muted hover:text-fg cursor-pointer">Cargar material</button>
                             <button onClick={() => setEditing("identidad")} className="text-[13px] text-fg-muted hover:text-fg cursor-pointer">Editar identidad</button>
                         </div>
                     )}
@@ -172,7 +192,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
 
             {/* ── La memoria, llenando el alto ── */}
             <div className="p-3 md:p-4 grid gap-3 grid-cols-1 md:grid-cols-2 md:grid-rows-3 md:h-full md:min-h-0">
-                <Card n="01" title="Dirección de foto y video" missing={missing[2]} onEdit={edit("foto")} className="md:row-span-2">
+                <Card n="01" title="Dirección de foto y video" missing={missing[2]} onEdit={edit("foto")} proposed={proposed("foto")} onApprove={approve("foto")} className="md:row-span-2">
                     {lookGroups.length > 0 ? (
                         <div className="flex-1 min-h-0 flex flex-col gap-3">
                             {lookGroups.map((g) => (
@@ -186,7 +206,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                     {ds.photoStyle ? <Note>{clip(ds.photoStyle, 200)}</Note> : <Empty>Sin reglas de foto: Claude no sabe cómo se ve la marca.</Empty>}
                 </Card>
 
-                <Card n="02" title="Quién es" missing={missing[0]} onEdit={edit("quien")}>
+                <Card n="02" title="Quién es" missing={missing[0]} onEdit={edit("quien")} proposed={proposed("quien")} onApprove={approve("quien")}>
                     {b.brandContext || b.business?.value_prop
                         ? <p className="text-[15px] leading-[1.5] tracking-[-0.005em] text-fg">{clip(b.business?.value_prop || b.brandContext, 170)}</p>
                         : <Empty>Todavía no sabemos quién es la marca.</Empty>}
@@ -217,6 +237,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                     </Card>
                 ) : <div className="hidden md:block" />}
             </div>
+            {agentOpen && <BrandAgentPanel brand={b} onClose={() => setAgentOpen(false)} onChanged={refreshBrands} />}
             {editing && <BrandBlockEditor brand={b} block={editing} onClose={() => setEditing(null)} onChanged={refreshBrands} />}
         </div>
     );

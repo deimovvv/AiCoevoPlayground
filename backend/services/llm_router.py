@@ -240,15 +240,22 @@ async def call(
     task: str = TASK_VISION_FAST,
     max_tokens: int | None = None,
     timeout: int | None = None,
+    provider: str | None = None,
 ) -> str:
     """Punto único de salida a un LLM.
+
+    `provider` fuerza el primario (ej. "google" para que corra con Gemini de Coevo); si falla,
+    igual cae al resto.
 
     Elige proveedor+modelo según la tarea y, si el primario falla, cae al
     siguiente disponible. Levanta excepción solo si fallan TODOS — así un
     bloqueo de proveedor degrada la feature en vez de tumbar la plataforma.
     """
     images = images or []
-    provider, model = resolve(task)
+    provider_default, model = resolve(task)
+    if provider and provider != provider_default:
+        model = _fallback_model(provider, task)
+    provider = provider or provider_default
     is_heavy = task == TASK_VISION_VIDEO or "opus" in model.lower() or "pro" in model.lower()
     max_tokens = max_tokens or (16000 if is_heavy else 8000)
     timeout = timeout or (180 if is_heavy else 60)

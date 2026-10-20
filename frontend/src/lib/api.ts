@@ -235,6 +235,8 @@ export interface Brand {
     poses?: PoseItem[];
     /** Referencias de planos / cámara (studio-v2 §7). */
     shotRefs?: PoseItem[];
+    /** Agente de marca: bloques que propuso y todavía nadie revisó. */
+    agent?: { blocks?: Record<string, string>; lastRun?: string; sources?: { web?: string | null; instagram?: string | null } };
     moodboards?: MoodboardItem[];
     lookAndFeel?: LookFeelItem[];
     /** Legacy single-logo (kept for backwards compat). New uploads go to `logos`. */
@@ -3859,4 +3861,21 @@ export async function createUser(u: StudioUserIn): Promise<StudioUser> {
 }
 export async function updateUser(id: string, u: StudioUserIn): Promise<StudioUser> {
     return editorJson(await fetch(`${API_BASE}/api/users/${encodeURIComponent(id)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(u) }), "No se pudo guardar");
+}
+
+// ── Agente de marca (backend/services/brand_agent.py · studio-v2 M.3) ─────────
+
+export interface AgentStep { key: string; label: string; status: "pending" | "running" | "done" | "error" | "skipped"; note: string }
+export interface AgentRun { status: "idle" | "running" | "done" | "error"; steps: AgentStep[]; error?: string | null; touched?: string[] }
+
+export async function startBrandAgent(brandId: string, src: { web?: string; instagram?: string }): Promise<AgentRun> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/agente`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(src),
+    }), "No se pudo arrancar el agente");
+}
+export async function getBrandAgent(brandId: string): Promise<AgentRun> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/agente`), "No se pudo leer el agente");
+}
+export async function approveBrandBlock(brandId: string, block: string): Promise<void> {
+    await editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/agente/aprobar/${block}`, { method: "POST" }), "No se pudo aprobar");
 }
