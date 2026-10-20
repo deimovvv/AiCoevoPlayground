@@ -6783,6 +6783,16 @@ if (_FRONTEND_DIST / "index.html").is_file():
 
     app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIST / "assets")), name="frontend-assets")
 
+    @app.get("/", include_in_schema=False)
+    async def puerta(request: Request):
+        """La puerta de app.coevoagency.com (frontend/public/puerta/): pública y sin datos.
+        Con sesión de Cloudflare Access válida, directo a Studio."""
+        from fastapi.responses import RedirectResponse
+        if (request.scope.get("state") or {}).get("access_email"):
+            return RedirectResponse("/dashboard", status_code=302)
+        door = _FRONTEND_DIST / "puerta" / "index.html"
+        return FileResponse(door) if door.is_file() else RedirectResponse("/dashboard", status_code=302)
+
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa(full_path: str):
         if full_path.startswith(("api/", "static/")):

@@ -11,7 +11,8 @@ pública), la app no muestra nada igual.
 - `CF_ACCESS_TEAM` (ej. `dawn-credit-95f3`): activa la traba. Sin ella (dev local) no hace nada.
 - `CF_ACCESS_AUD`: el "Application Audience (AUD) Tag" de la app de Access. Si está, sólo
   vale un token emitido para ESA app.
-- `/api/health` queda abierto (no devuelve datos).
+- Abiertos (sin datos): `/api/health`, la puerta `/` y sus imágenes `/puerta/`. En la puerta, si hay
+  sesión válida igual se reconoce (para mandar directo a Studio); si no, se muestra igual.
 """
 
 import logging
@@ -24,7 +25,8 @@ from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
 log = logging.getLogger("access_guard")
-OPEN_PATHS = {"/api/health"}
+OPEN_PATHS = {"/api/health", "/"}
+OPEN_PREFIXES = ("/puerta/",)
 
 
 class AccessGuard:
@@ -45,8 +47,9 @@ class AccessGuard:
         )
 
     async def __call__(self, scope, receive, send):
-        if not self.team or scope["type"] not in ("http", "websocket") or scope["path"] in OPEN_PATHS:
+        if not self.team or scope["type"] not in ("http", "websocket"):
             return await self.app(scope, receive, send)
+        is_open = scope["path"] in OPEN_PATHS or scope["path"].startswith(OPEN_PREFIXES)
         req = Request(scope)
         token: Optional[str] = req.headers.get("cf-access-jwt-assertion") or req.cookies.get("CF_Authorization")
         claims = None
@@ -60,6 +63,8 @@ class AccessGuard:
             who = claims.get("email") or (f"servicio:{claims['common_name']}" if claims.get("common_name") else None)
             scope.setdefault("state", {})["access_email"] = who
             # Fuera del try: un error de la app no es un token rechazado.
+            return await self.app(scope, receive, send)
+        if is_open:
             return await self.app(scope, receive, send)
         if scope["type"] == "websocket":
             return await send({"type": "websocket.close", "code": 1008})
