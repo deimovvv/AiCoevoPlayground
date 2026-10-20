@@ -35,6 +35,10 @@ class ProjectError(ValueError):
 
 
 def resolve_dir(path: str) -> Path:
+    # En el servidor (Docker) no existen las carpetas de la Mac de nadie: avisarlo claro.
+    if os.getenv("CF_ACCESS_TEAM") and (path.startswith("/Users/") or path.startswith("~")):
+        raise ProjectError("Esa carpeta está en tu compu y el Studio online no la ve. Abrí este proyecto en el Studio local "
+                           "(./dev.sh → localhost:5180/dashboard/editor) o subí los clips a la app.")
     d = Path(path).expanduser().resolve()
     if not any(d == r.resolve() or r.resolve() in d.parents for r in ALLOWED_ROOTS):
         raise ProjectError("Esa carpeta no está permitida. Usá una dentro de Descargas, Documentos, Escritorio o ~/cov.")
