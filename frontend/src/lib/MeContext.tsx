@@ -41,6 +41,10 @@ function NoAccess({ email }: { email: string | null }) {
                 <p className="text-[13px] leading-relaxed">
                     Entraste como <span className="text-fg">{email ?? "—"}</span>. Pedile a Coevo que te dé acceso a tu marca y volvé a entrar.
                 </p>
+                {/* Cierra la sesión de Cloudflare Access: vuelve al login para elegir otro mail. */}
+                <a href="/cdn-cgi/access/logout" className="mt-3 h-10 px-5 flex items-center rounded-[4px] border border-edge text-[13px] text-fg no-underline hover:border-fg">
+                    Entrar con otro mail
+                </a>
             </div>
         </Centered>
     );
