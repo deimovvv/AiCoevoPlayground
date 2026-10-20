@@ -30,6 +30,7 @@ import { AccesosPage } from "./pages/AccesosPage";
 import { TableroPage } from "./pages/TableroPage";
 import { BandejaPage } from "./pages/BandejaPage";
 import { ClienteMaterialPage } from "./pages/ClienteMaterialPage";
+import { ClienteInicioPage } from "./pages/ClienteInicioPage";
 import { MarcaPage } from "./pages/MarcaPage";
 import { ProduccionPage } from "./pages/ProduccionPage";
 import { EditorProjectPage } from "./pages/EditorProjectPage";
@@ -67,7 +68,8 @@ function App() {
       <Route path="/portal/:token" element={<PortalPage />} />
       {/* Lo que ve el cliente (studio-v2 §11). Hoy: vista previa para el equipo con la marca activa. */}
       <Route path="/cliente" element={<MeProvider><BrandProvider><ClientLayout /></BrandProvider></MeProvider>}>
-        <Route index element={<ErrorBoundary><DeliveriesPage mode="cliente" /></ErrorBoundary>} />
+        <Route index element={<ClienteInicioPage />} />
+        <Route path="entregas" element={<ErrorBoundary><DeliveriesPage mode="cliente" /></ErrorBoundary>} />
         <Route path="marca" element={<div className="h-full overflow-y-auto md:overflow-hidden"><MarcaPage readOnly /></div>} />
         <Route path="material" element={<ClienteMaterialPage />} />
       </Route>

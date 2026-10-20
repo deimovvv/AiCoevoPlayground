@@ -273,10 +273,13 @@ option {
 }
 
 /* Premium typography tightening for headings */
-h1, h2, h3 {
-  letter-spacing: -0.025em;
-  /* studio-v2: titulares livianos; el peso lo da el tamaño, no el grosor. */
-  font-weight: 500;
+/* En @layer base: así las clases de cada pantalla (font-light, tracking-…) le ganan. */
+@layer base {
+  h1, h2, h3 {
+    letter-spacing: -0.025em;
+    /* studio-v2: titulares livianos; el peso lo da el tamaño, no el grosor. */
+    font-weight: 500;
+  }
 }
 
 /* Coevo logo — white PNG, inverts for light theme */

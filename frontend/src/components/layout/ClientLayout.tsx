@@ -11,7 +11,8 @@ import { cn } from "../../lib/utils";
  */
 
 const TABS = [
-    { label: "Entregas", to: "/cliente", exact: true },
+    { label: "Inicio", to: "/cliente", exact: true },
+    { label: "Entregas", to: "/cliente/entregas", exact: false },
     { label: "Mandar material", to: "/cliente/material", exact: false },
     { label: "Mi marca", to: "/cliente/marca", exact: false },
 ];

@@ -381,7 +381,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 </>
                             ) : (
                                 <>
-                                    <Link to={`/cliente?id=${current.id}`} className="flex items-center gap-1 text-[12px] text-fg-faint hover:text-fg no-underline"><Eye size={12} /> Como la ve el cliente</Link>
+                                    <Link to={`/cliente/entregas?id=${current.id}`} className="flex items-center gap-1 text-[12px] text-fg-faint hover:text-fg no-underline"><Eye size={12} /> Como la ve el cliente</Link>
                                     {current.status !== "aprobada" && (
                                         <button disabled={busy} title="Si el cliente la aprobó por otro lado (WhatsApp, reunión)"
                                             onClick={() => run(async () => { await setDeliveryStatus(current.id, "aprobada"); await reload(current.id); })}
