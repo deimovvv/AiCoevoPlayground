@@ -126,6 +126,7 @@ tool("guardar_proyecto_video",
 const entregaCorta = (d) => ({
     id: d.id, titulo: d.title, tipo: d.kind, estado: d.status, ronda: d.round, laminas: d.items?.length ?? d.items,
     visible_para: d.visibility === "cliente" ? "cliente" : "sólo el equipo",
+    campana: d.campaignName ?? null, etapa: d.stage ?? null,
     comentarios_abiertos: d.openComments, aprobada_por: d.approvedBy, actualizada: d.updatedAt,
 });
 
@@ -143,7 +144,8 @@ tool("ver_entrega",
         const label = Object.fromEntries((d.items || []).map((i) => [i.id, i.label]));
         return {
             ...entregaCorta(d), nota: d.note, plantilla: d.template, fuente: d.source,
-            laminas: d.items.map((i) => ({ id: i.id, etiqueta: i.label, tipo: i.kind, url: i.url })),
+            // aprobada=false: el cliente dijo «esta no». Para la etapa siguiente (ej. el video), usar sólo las aprobadas.
+            laminas: d.items.map((i) => ({ id: i.id, etiqueta: i.label, tipo: i.kind, url: i.url, aprobada: !i.rejected })),
             comentarios: d.comments.map((c) => ({
                 id: c.id, lamina: c.itemId ? `${label[c.itemId] ?? "(ronda anterior)"} [${c.itemId}]` : "toda la entrega",
                 punto: c.x != null ? { x: c.x, y: c.y } : null, texto: c.text, autor: c.author, ronda: c.round,
@@ -166,10 +168,12 @@ tool("subir_entrega",
         fuente: z.string().optional().describe("ruta local de la fuente editable"),
         nota: z.string().optional().describe("qué es y qué hay que mirar"),
         plantilla: z.string().optional().describe("plantilla y versión usadas, ej. 'carrusel-v1'"),
+        campana_id: z.string().optional().describe("id de la campaña (ver_campanas), si la pieza es parte de una"),
+        etapa: z.string().optional().describe("etapa dentro de la campaña, ej. '01 Fotos', '02 Video'"),
     },
-    async ({ marca, titulo, archivos, tipo = "carrusel", etiquetas, fuente, nota, plantilla }) => {
+    async ({ marca, titulo, archivos, tipo = "carrusel", etiquetas, fuente, nota, plantilla, campana_id, etapa }) => {
         const b = await findBrand(marca);
-        const form = filesForm({ title: titulo, kind: tipo, note: nota, template: plantilla, labels: etiquetas?.join("|") }, archivos, fuente);
+        const form = filesForm({ title: titulo, kind: tipo, note: nota, template: plantilla, labels: etiquetas?.join("|"), campaignId: campana_id, stage: etapa }, archivos, fuente);
         const d = await api(`/api/brands/${encodeURIComponent(b.id)}/deliveries`, { method: "POST", form });
         return { ...entregaCorta(d), ver_en: `${BASE}/dashboard/entregas?id=${d.id}` };
     });

@@ -3762,7 +3762,7 @@ export async function getTikTokTopVideos(profileUrl: string, limit = 10): Promis
 // ── Entregas (backend/routers/deliveries.py · studio-v2 P.3) ────────────────
 
 export type DeliveryStatus = "en_revision" | "cambios" | "aprobada";
-export interface DeliveryItem { id: string; url: string; kind: "image" | "video"; label: string; poster?: string | null }
+export interface DeliveryItem { id: string; url: string; kind: "image" | "video"; label: string; poster?: string | null; rejected?: boolean }
 export interface DeliveryComment {
     id: string; itemId: string | null; x: number | null; y: number | null; text: string;
     author: string | null; internal: boolean; round: number; resolvedAt: string | null; createdAt: string | null;
@@ -3771,6 +3771,10 @@ export interface DeliverySummary {
     id: string; brandId: string; title: string; kind: string; status: DeliveryStatus; round: number;
     /** interna: sólo el equipo · cliente: ya se le mandó (studio-v2 §11). */
     visibility: "interna" | "cliente"; sentAt: string | null;
+    /** Agrupación: mes (de la fecha) › campaña (opcional) › etapa (opcional, ej. "01 Fotos"). */
+    campaignId: string | null; campaignName: string | null; stage: string | null;
+    /** Aprobada: cuántas láminas quedaron (el cliente puede decir «esta no»). */
+    approvedItems: number | null;
     items: number; cover: string | null; openComments: number; createdBy: string | null;
     approvedBy: string | null; approvedAt: string | null; createdAt: string | null; updatedAt: string | null;
 }
@@ -3821,7 +3825,8 @@ export function uploadWithProgress<T>(url: string, form: FormData, what: string,
     });
 }
 
-export async function createDelivery(brandId: string, title: string, files: File[], source?: File | null, onProgress?: (p: number) => void): Promise<Delivery> {
+export async function createDelivery(brandId: string, title: string, files: File[], source?: File | null, onProgress?: (p: number) => void,
+    group?: { campaignId?: string | null; stage?: string | null }): Promise<Delivery> {
     const big = tooBig([...files, ...(source ? [source] : [])]);
     if (big) throw new Error(`«${big.name}» pesa más de ${MAX_UPLOAD_MB} MB: subilo comprimido o mandalo por link.`);
     const form = new FormData();
@@ -3829,6 +3834,8 @@ export async function createDelivery(brandId: string, title: string, files: File
     form.append("kind", files.some((f) => f.type.startsWith("video/")) && files.length === 1 ? "video" : "carrusel");
     files.forEach((f) => form.append("files", f));
     if (source) form.append("source", source);
+    if (group?.campaignId) form.append("campaignId", group.campaignId);
+    if (group?.stage) form.append("stage", group.stage);
     return uploadWithProgress(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/deliveries`, form, "No se pudo subir la entrega", onProgress);
 }
 
@@ -3937,4 +3944,14 @@ export async function incorporateInbox(id: string, body: { target: string; type:
 }
 export async function discardInbox(id: string): Promise<InboxItem> {
     return editorJson(await fetch(`${API_BASE}/api/inbox/${encodeURIComponent(id)}/descartar`, { method: "POST" }), "No se pudo descartar");
+}
+
+export async function setDeliveryGroup(id: string, g: { campaignId: string | null; stage: string | null }): Promise<Delivery> {
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(g),
+    }), "No se pudo guardar");
+}
+/** «Esta no» / «esta sí» en una lámina, antes de aprobar. */
+export async function toggleDeliveryItem(id: string, itemId: string, vista?: DeliveryView): Promise<Delivery> {
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}/toggle${vista ? `?vista=${vista}` : ""}`, { method: "POST" }), "No se pudo cambiar");
 }

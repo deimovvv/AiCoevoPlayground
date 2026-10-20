@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_session
 from db.models import Delivery, DeliveryComment
-from services import brands
+from services import brands, campaigns as campaigns_service
 from services.roles import can_approve, can_see_brand, is_client
 
 router = APIRouter(tags=["deliveries"])
@@ -117,9 +117,18 @@ def _comment(c: DeliveryComment) -> dict:
     }
 
 
-def _summary(d: Delivery, open_comments: int = 0) -> dict:
+def _campaign_names() -> dict:
+    return {c["id"]: c.get("name") for c in campaigns_service.load_campaigns()}
+
+
+def _summary(d: Delivery, open_comments: int = 0, names: Optional[dict] = None) -> dict:
+    items = d.items or []
     return {
         "id": d.id, "brandId": d.brand_id, "title": d.title, "kind": d.kind, "status": d.status,
+        # Agrupación: mes (de la fecha, en el frontend) › campaña (opcional) › etapa (opcional).
+        "campaignId": d.campaign_id, "campaignName": (names if names is not None else _campaign_names()).get(d.campaign_id) if d.campaign_id else None,
+        "stage": d.stage,
+        "approvedItems": sum(1 for i in items if not i.get("rejected")) if d.status == "aprobada" else None,
         "visibility": d.visibility, "sentAt": _iso(d.sent_at),
         "round": d.round, "items": len(d.items or []),
         "cover": (lambda first: (first.get("poster") or (_poster(first["url"]) if first.get("kind") == "video" else first.get("url"))) if first else None)((d.items or [None])[0]),
@@ -168,7 +177,8 @@ async def list_deliveries(brand_id: str, request: Request, vista: Optional[str] 
             cq = cq.where(DeliveryComment.internal.is_(False))
         for c in (await s.execute(cq)).scalars():
             open_by[c.delivery_id] = open_by.get(c.delivery_id, 0) + 1
-    return [_summary(d, open_by.get(d.id, 0)) for d in rows]
+    names = _campaign_names()
+    return [_summary(d, open_by.get(d.id, 0), names) for d in rows]
 
 
 @router.post("/api/brands/{brand_id}/deliveries")
@@ -176,17 +186,20 @@ async def create_delivery(
     brand_id: str, request: Request,
     title: str = Form(...), kind: str = Form("carrusel"), note: Optional[str] = Form(None),
     template: Optional[str] = Form(None), labels: Optional[str] = Form(None, description="etiquetas separadas por |"),
+    campaignId: Optional[str] = Form(None), stage: Optional[str] = Form(None),
     files: List[UploadFile] = File(...), source: Optional[UploadFile] = File(None),
     s: AsyncSession = Depends(get_session),
 ):
-    """Sube una entrega: `files` son las láminas EN ORDEN; `source`, la fuente editable."""
+    """Sube una entrega: `files` son las láminas EN ORDEN; `source`, la fuente editable.
+    `campaignId` y `stage` (ej. "01 Fotos") son opcionales: agrupan la entrega."""
     _require_brand(brand_id)
     if kind not in KINDS:
         raise HTTPException(status_code=400, detail=f"kind debe ser uno de {sorted(KINDS)}")
     if not files:
         raise HTTPException(status_code=400, detail="Una entrega necesita al menos una lámina")
     d = Delivery(brand_id=brand_id, title=title.strip()[:200], kind=kind, status="en_revision",
-                 note=note, template=template, round=1, created_by=_who(request), items=[])
+                 note=note, template=template, round=1, created_by=_who(request), items=[],
+                 campaign_id=_check_campaign(campaignId, brand_id), stage=(stage or "").strip()[:60] or None)
     d.id = f"dl_{uuid.uuid4().hex[:12]}"
     try:
         d.items = await _store_items(d.id, 1, files, (labels or "").split("|"))
@@ -245,6 +258,54 @@ async def new_round(
     await s.commit()
     await s.refresh(d)
     return await _full(s, d)
+
+
+def _check_campaign(campaign_id: Optional[str], brand_id: str) -> Optional[str]:
+    if not campaign_id:
+        return None
+    c = campaigns_service.find_campaign(campaigns_service.load_campaigns(), campaign_id)
+    if not c or c.get("brandId") != brand_id:
+        raise HTTPException(status_code=400, detail="Esa campaña no es de esta marca")
+    return campaign_id
+
+
+class GroupIn(BaseModel):
+    campaignId: Optional[str] = None
+    stage: Optional[str] = None
+
+
+@router.patch("/api/deliveries/{delivery_id}")
+async def set_group(delivery_id: str, req: GroupIn, request: Request, s: AsyncSession = Depends(get_session)):
+    """Campaña y etapa de una entrega (equipo)."""
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    d = await _get(s, delivery_id)
+    d.campaign_id = _check_campaign(req.campaignId, d.brand_id)
+    d.stage = (req.stage or "").strip()[:60] or None
+    await s.commit()
+    await s.refresh(d)
+    return await _full(s, d)
+
+
+@router.post("/api/deliveries/{delivery_id}/items/{item_id}/toggle")
+async def toggle_item(delivery_id: str, item_id: str, request: Request, s: AsyncSession = Depends(get_session)):
+    """«Esta no» / «esta sí» en una lámina, antes de aprobar (el cliente elige 6 de 9)."""
+    d = await _get(s, delivery_id)
+    if is_client(request) and (d.visibility != "cliente" or not can_see_brand(request, d.brand_id)):
+        raise HTTPException(status_code=404, detail="No existe esa entrega")
+    if d.status == "aprobada":
+        raise HTTPException(status_code=400, detail="Ya está aprobada: pedí cambios para modificarla.")
+    items = [dict(i) for i in d.items or []]
+    hit = next((i for i in items if i["id"] == item_id), None)
+    if not hit:
+        raise HTTPException(status_code=404, detail="Esa lámina no es de la ronda actual")
+    hit["rejected"] = not hit.get("rejected")
+    if all(i.get("rejected") for i in items):
+        raise HTTPException(status_code=400, detail="Tiene que quedar al menos una. Si no va ninguna, pedí cambios.")
+    d.items = items   # reasignar: JSONB no detecta cambios internos
+    await s.commit()
+    await s.refresh(d)
+    return await _full(s, d, client=is_client(request))
 
 
 class StatusIn(BaseModel):

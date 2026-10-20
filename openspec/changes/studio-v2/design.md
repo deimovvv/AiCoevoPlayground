@@ -267,3 +267,12 @@ Un moodboard casi siempre es de una campaña, no de la marca.
 - **Un solo lugar para subir:** «Cargar material» pregunta «¿para qué es?» (la marca o una campaña).
 - **Cliente:** «Mandar material» con la misma pregunta, simplificada; llega a revisión y el agente lo
   ordena. Objetivo: la menor fricción posible para el cliente (manda lo que tenga, como lo tenga).
+
+## 16. Entregas por mes, campaña y etapa; aprobar eligiendo (2026-10-20)
+
+- **Categoría madre: el mes** (abono mensual: cupo, reporte y factura son por mes). La campaña es opcional,
+  un grupo adentro del mes. La **etapa** ordena piezas de una campaña ("01 Fotos" → "02 Video").
+- **Aprobar sin decidir de antemano cómo trabaja el cliente:** «Aprobar todo» en un clic; o «Esta no» en cada
+  lámina antes de aprobar («Aprobar 2 de 3»). Queda registrado qué láminas van (`items[].rejected`).
+- La etapa siguiente usa sólo lo aprobado: el MCP marca `aprobada` por lámina (ej. el video se hace con esas fotos).
+- Pendiente: el cupo del mes arriba de cada mes ("9 de 15"), cuando estén los packs.

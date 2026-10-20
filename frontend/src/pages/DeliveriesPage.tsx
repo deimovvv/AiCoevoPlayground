@@ -6,7 +6,7 @@ import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
 import {
     backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment,
-    toggleDeliveryComment, deleteDelivery, sendDelivery,
+    toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
     type Delivery, type DeliveryStatus, type DeliverySummary,
 } from "../lib/api";
 
@@ -28,6 +28,25 @@ const DOT: Record<DeliveryStatus, string> = {
     aprobada: "bg-[var(--color-success)]",
 };
 /** Cómo se llama el estado según quién mira. */
+/** Mes › campaña › entregas (ordenadas por etapa). El mes sale de cuándo llegó al cliente o se subió. */
+function groupByMonth(list: DeliverySummary[], client: boolean) {
+    const months = new Map<string, { key: string; label: string; blocks: Map<string, { key: string; campaign: string | null; items: DeliverySummary[] }> }>();
+    for (const d of list) {
+        const date = new Date((client ? d.sentAt : null) ?? d.createdAt ?? Date.now());
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        const label = date.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+        if (!months.has(key)) months.set(key, { key, label, blocks: new Map() });
+        const bkey = d.campaignId ?? `_suelta_${d.id}`;
+        const blocks = months.get(key)!.blocks;
+        if (!blocks.has(bkey)) blocks.set(bkey, { key: bkey, campaign: d.campaignName, items: [] });
+        blocks.get(bkey)!.items.push(d);
+    }
+    return [...months.values()].sort((a, b) => b.key.localeCompare(a.key)).map((m) => ({
+        ...m,
+        blocks: [...m.blocks.values()].map((b) => ({ ...b, items: b.items.sort((x, y) => (x.stage ?? "").localeCompare(y.stage ?? "", undefined, { numeric: true })) })),
+    }));
+}
+
 function stateLabel(d: { status: DeliveryStatus; visibility: "interna" | "cliente" }, mode: Mode): string {
     if (d.status === "aprobada") return "Aprobada";
     if (mode === "cliente") return d.status === "cambios" ? "Pediste cambios" : "Para revisar";
@@ -61,6 +80,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const [slide, setSlide] = useState<number | null>(null);   // null = la pieza entera; n = una lámina grande
     const [uploadTitle, setUploadTitle] = useState("");
     const [progress, setProgress] = useState<number | null>(null);   // subida en curso (0–1)
+    const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [upCampaign, setUpCampaign] = useState("");
+    const [upStage, setUpStage] = useState("");
     const [dialog, ask] = useConfirm();
     const [tab, setTab] = useState<"revisar" | "aprobadas">("revisar");   // sólo cliente
     const fileRef = useRef<HTMLInputElement>(null);
@@ -71,6 +93,12 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
         try { setList(await listDeliveries(brandId, vista)); } catch (e) { setError((e as Error).message); }
     }, [brandId, vista]);
     useEffect(() => { setList([]); refreshList(); }, [refreshList]);
+    useEffect(() => {
+        if (client || !brandId) return;
+        let alive = true;
+        listCampaigns(brandId).then((c) => alive && setCampaigns(c)).catch(() => {});
+        return () => { alive = false; };
+    }, [client, brandId]);
 
     const open = useCallback((id: string | null) => {
         setDraft(null); setDraftText(""); setSlide(null);
@@ -105,6 +133,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     };
     const reload = async (id: string) => { setCurrent(await getDelivery(id, vista)); await refreshList(); };
     const shown = client ? list.filter((d) => (tab === "aprobadas") === (d.status === "aprobada")) : list;
+    // Agrupado: mes (de la fecha) › campaña (si tiene) › entregas, por etapa.
+    const groups = groupByMonth(shown, client);
 
     const comments = useMemo(() => {
         if (!current) return [];
@@ -156,7 +186,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
         const title = uploadTitle.trim() || slides[0].name.replace(/\.[^.]+$/, "");
         run(async () => {
             setProgress(0);
-            const d = await createDelivery(brandId, title, slides, source, setProgress).finally(() => setProgress(null));
+            const d = await createDelivery(brandId, title, slides, source, setProgress, { campaignId: upCampaign || null, stage: upStage.trim() || null }).finally(() => setProgress(null));
             setUploadTitle("");
             await refreshList(); open(d.id);
         });
@@ -199,6 +229,17 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 onChange={(e) => { onUpload(e.target.files); e.target.value = ""; }} />
                         </div>
                     )}
+                    {!client && (
+                        <div className="flex items-center gap-1.5">
+                            <select value={upCampaign} onChange={(e) => setUpCampaign(e.target.value)} aria-label="Campaña"
+                                className="flex-1 min-w-0 h-8 bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-1.5 text-[12px] text-fg cursor-pointer">
+                                <option value="">Sin campaña</option>
+                                {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            <input value={upStage} onChange={(e) => setUpStage(e.target.value)} placeholder="Etapa (01 Fotos)" aria-label="Etapa"
+                                className="w-[112px] h-8 bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-fg/40" />
+                        </div>
+                    )}
                     {progress !== null && (
                         <div className="flex flex-col gap-1.5">
                             <div className="h-[3px] rounded-full bg-[var(--color-surface-2)] overflow-hidden">
@@ -215,21 +256,32 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 : <>Todavía no hay entregas. Subilas acá o pedile a Claude: <span className="text-fg-muted">"subí este carrusel a Entregas de {activeBrand.name}"</span>.</>}
                         </p>
                     )}
-                    {shown.map((d) => (
-                        <button key={d.id} onClick={() => open(d.id)}
-                            className={`w-full flex gap-3 items-center p-2.5 rounded-[var(--radius-md)] text-left cursor-pointer transition-colors ${d.id === selectedId ? "bg-surface-2" : "hover:bg-surface-1"}`}>
-                            <div className="w-10 h-12 shrink-0 rounded-[var(--radius-xs)] bg-surface-2 overflow-hidden">
-                                {d.cover && <img src={backendUrl(d.cover)} alt="" className="w-full h-full object-cover" />}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-[13px] text-fg truncate">{d.title}</p>
-                                <p className={`${mono} text-fg-faint mt-1 flex items-center gap-1.5`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${d.visibility === "interna" && !client ? "bg-[var(--color-edge-strong)]" : DOT[d.status]}`} />
-                                    {stateLabel(d, mode)}
-                                    {d.openComments > 0 && <span className="text-fg-muted">· {d.openComments}</span>}
-                                </p>
-                            </div>
-                        </button>
+                    {groups.map((m) => (
+                        <div key={m.key} className="mb-3">
+                            <p className={`${mono} text-fg-faint px-2.5 pt-3 pb-1.5`}>{m.label}</p>
+                            {m.blocks.map((b) => (
+                                <div key={b.key} className={b.campaign ? "mb-1 ml-1 pl-2 border-l border-edge" : ""}>
+                                    {b.campaign && <p className="text-[12px] text-fg-muted px-1.5 pt-1 pb-1">{b.campaign}</p>}
+                                    {b.items.map((d) => (
+                                        <button key={d.id} onClick={() => open(d.id)}
+                                            className={`w-full flex gap-3 items-center p-2 rounded-[var(--radius-md)] text-left cursor-pointer transition-colors ${d.id === selectedId ? "bg-surface-2" : "hover:bg-surface-1"}`}>
+                                            <div className="w-9 h-11 shrink-0 rounded-[var(--radius-xs)] bg-surface-2 overflow-hidden">
+                                                {d.cover && <img src={backendUrl(d.cover)} alt="" className="w-full h-full object-cover" />}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-[13px] text-fg truncate">{d.stage ? <span className="text-fg-muted">{d.stage} · </span> : null}{d.title}</p>
+                                                <p className={`${mono} text-fg-faint mt-1 flex items-center gap-1.5`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${d.visibility === "interna" && !client ? "bg-[var(--color-edge-strong)]" : DOT[d.status]}`} />
+                                                    {stateLabel(d, mode)}
+                                                    {d.status === "aprobada" && d.approvedItems != null && d.approvedItems < d.items && <span>· {d.approvedItems} de {d.items}</span>}
+                                                    {d.openComments > 0 && <span className="text-fg-muted">· {d.openComments}</span>}
+                                                </p>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
                     ))}
                 </div>
             </aside>
@@ -250,7 +302,10 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                         <header className="px-4 md:px-6 py-3 md:py-4 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-edge">
                             <button onClick={() => open(null)} className="md:hidden text-[13px] text-fg-muted cursor-pointer">← Entregas</button>
                             <div className="min-w-0 w-full md:w-auto order-first md:order-none">
-                                <h2 className="text-[15px] font-medium text-fg truncate">{current.title}</h2>
+                                <h2 className="text-[15px] font-medium text-fg truncate">
+                                    {(current.campaignName || current.stage) && <span className="text-fg-muted font-normal">{[current.campaignName, current.stage].filter(Boolean).join(" · ")} · </span>}
+                                    {current.title}
+                                </h2>
                                 <p className="text-[11px] text-fg-faint mt-0.5 flex items-center gap-1.5">
                                     <span className={`w-1.5 h-1.5 rounded-full ${current.visibility === "interna" && !client ? "bg-[var(--color-edge-strong)]" : DOT[current.status]}`} />
                                     {stateLabel(current, mode)}
@@ -259,7 +314,22 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         ? <> · llegó el {when(current.sentAt ?? current.createdAt)}</>
                                         : <>{" "}· subida por {who(current.createdBy)} el {when(current.createdAt)}{current.sentAt && <> · mandada el {when(current.sentAt)}</>}</>}
                                     {current.approvedBy && <> · aprobó {who(current.approvedBy)}</>}
+                                    {current.status === "aprobada" && current.items.some((x) => x.rejected) && <> · {current.items.filter((x) => !x.rejected).length} de {current.items.length} láminas</>}
                                 </p>
+                                {!client && (
+                                    <div className="flex items-center gap-1.5 mt-2">
+                                        <select value={current.campaignId ?? ""} aria-label="Campaña"
+                                            onChange={(e) => run(async () => { setCurrent(await setDeliveryGroup(current.id, { campaignId: e.target.value || null, stage: current.stage })); await refreshList(); })}
+                                            className="h-7 px-1.5 rounded-[3px] border border-edge bg-transparent text-[11px] text-fg-muted cursor-pointer">
+                                            <option value="">Sin campaña</option>
+                                            {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
+                                        <input key={current.id + (current.stage ?? "")} defaultValue={current.stage ?? ""} placeholder="Etapa" aria-label="Etapa"
+                                            onBlur={(e) => { const v = e.target.value.trim(); if (v !== (current.stage ?? "")) run(async () => { setCurrent(await setDeliveryGroup(current.id, { campaignId: current.campaignId, stage: v || null })); await refreshList(); }); }}
+                                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                                            className="w-[110px] h-7 px-2 rounded-[3px] border border-edge bg-transparent text-[11px] text-fg-muted placeholder:text-fg-faint outline-none focus:border-fg/40" />
+                                    </div>
+                                )}
                             </div>
                             <span className="hidden md:block flex-1" />
                             <div className="w-full md:w-auto flex items-center gap-2 [&>button]:flex-1 md:[&>button]:flex-none">
@@ -290,7 +360,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     {current.status !== "aprobada" && mayApprove && (
                                         <button disabled={busy} onClick={() => run(async () => { await setDeliveryStatus(current.id, "aprobada"); await reload(current.id); })}
                                             className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[12px] font-medium cursor-pointer disabled:opacity-50">
-                                            <Check size={12} /> Aprobar
+                                            <Check size={12} /> {(() => { const k = current.items.filter((x) => !x.rejected).length; return k < current.items.length ? `Aprobar ${k} de ${current.items.length}` : current.items.length > 1 ? "Aprobar todo" : "Aprobar"; })()}
                                         </button>
                                     )}
                                 </>
@@ -342,9 +412,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         {current.items.map((it, i) => {
                                             const pins = comments.filter((c) => c.itemId === it.id && c.round === current.round && c.x != null && !c.resolvedAt);
                                             return (
-                                                <button key={it.id} onClick={() => { setSlide(i); setDraft(null); }} title="Abrir para comentar"
-                                                    className="group text-left cursor-zoom-in w-[78vw] max-w-[360px] shrink-0 snap-center md:w-auto md:max-w-fit md:shrink md:flex-[1_1_0] md:min-w-0">
-                                                    <div className="relative md:inline-block md:max-w-full">
+                                                <div key={it.id}
+                                                    className={`group text-left w-[78vw] max-w-[360px] shrink-0 snap-center md:w-auto md:max-w-fit md:shrink md:flex-[1_1_0] md:min-w-0 transition-opacity ${it.rejected ? "opacity-35" : ""}`}>
+                                                    <button onClick={() => { setSlide(i); setDraft(null); }} title="Abrir para comentar" className="relative block md:inline-block md:max-w-full cursor-zoom-in">
                                                         {it.kind === "video"
                                                             ? <span className="relative block">
                                                                 <video src={backendUrl(it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted preload="none" className="block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5" />
@@ -357,12 +427,21 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                                 {numberOf[c.id]}
                                                             </span>
                                                         ))}
-                                                    </div>
+                                                        {it.rejected && <span className="absolute inset-0 flex items-center justify-center"><span className="px-2 py-1 rounded-[3px] bg-black/70 text-white text-[11px]">No va</span></span>}
+                                                    </button>
                                                     <p className="text-[11px] text-fg-faint mt-2 flex items-center gap-1.5">
                                                         <span className="tabular-nums">{String(i + 1).padStart(2, "0")}</span> {it.label !== String(i + 1).padStart(2, "0") && it.label}
                                                         {pins.length > 0 && <span className="text-[var(--color-brand)]">· {pins.length}</span>}
+                                                        <span className="flex-1" />
+                                                        {/* El cliente elige: «esta no» antes de aprobar (6 de 9). */}
+                                                        {current.status !== "aprobada" && total > 1 && (client || it.rejected) && (
+                                                            <button disabled={busy || !client} onClick={() => run(async () => { setCurrent(await toggleDeliveryItem(current.id, it.id, vista)); await refreshList(); })}
+                                                                className={`h-6 px-2 rounded-[3px] border text-[11px] cursor-pointer disabled:cursor-default ${it.rejected ? "border-fg text-fg" : "border-edge text-fg-muted hover:text-fg"}`}>
+                                                                {it.rejected ? (client ? "Volver a sumar" : "El cliente la sacó") : "Esta no"}
+                                                            </button>
+                                                        )}
                                                     </p>
-                                                </button>
+                                                </div>
                                             );
                                         })}
                                     </div>

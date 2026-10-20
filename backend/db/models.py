@@ -52,6 +52,10 @@ class Delivery(Base):
     # interna: sólo la ve el equipo (Claude sube acá) · cliente: se la mandamos (studio-v2 §11)
     visibility: Mapped[str] = mapped_column(String(10), default="interna", server_default="interna")
     sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Agrupación (studio-v2 §16): el mes sale de la fecha; la campaña y la etapa son opcionales.
+    campaign_id: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, index=True)
+    stage: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)      # ej. "01 Fotos", "02 Video"
+    # items: [{id, url, kind, label, rejected?}] — rejected = el cliente dijo «esta no»
     items: Mapped[list] = mapped_column(JSONB, default=list)
     source: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     note: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
