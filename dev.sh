@@ -15,6 +15,14 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$ROOT/backend"
 FRONTEND_DIR="$ROOT/frontend"
 BACKEND_PORT="${BACKEND_PORT:-8000}"
+# Si el 8000 lo ocupa OTRA cosa (ej. otro proyecto en Docker), Studio usa el 8001 y el frontend
+# apunta ahí solo. Así no hay que apagar lo que esté corriendo.
+if [ "${1:-all}" != "frontend" ] && lsof -nP -iTCP:"$BACKEND_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+  if ! curl -s -m 2 "http://127.0.0.1:$BACKEND_PORT/api/health" | grep -q 'coevo-studio-api'; then
+    printf "puerto $BACKEND_PORT ocupado por otra cosa → Studio usa el 8001\n"
+    BACKEND_PORT=8001
+  fi
+fi
 FRONTEND_PORT="${FRONTEND_PORT:-5180}"   # = vite.config.ts (strictPort) y CLAUDE.md
 
 # Color codes (skip if NO_COLOR is set)
@@ -106,7 +114,7 @@ start_frontend() {
   printf "${C_FRONT}[frontend]${C_RESET}${C_DIM} starting on :$FRONTEND_PORT${C_RESET}\n"
   (
     cd "$FRONTEND_DIR" || exit 1
-    exec npm run dev -- --port "$FRONTEND_PORT" 2>&1 \
+    VITE_API_BASE="http://127.0.0.1:$BACKEND_PORT" exec npm run dev -- --port "$FRONTEND_PORT" 2>&1 \
       | sed -u "s/^/$(printf "${C_FRONT}[frontend]${C_RESET} ")/"
   ) &
   PIDS+=($!)

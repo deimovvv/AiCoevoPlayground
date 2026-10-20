@@ -23,7 +23,10 @@ from pathlib import Path
 from typing import List, Optional
 
 HOME = Path.home()
-ALLOWED_ROOTS = [HOME / "Downloads", HOME / "Documents", HOME / "Desktop", HOME / "cov"]
+# Proyectos online (studio-v2): carpetas en el servidor, una por video, por marca.
+SERVER_PROJECTS = Path(__file__).parent.parent / "data" / "projects"
+SERVER_PROJECTS.mkdir(parents=True, exist_ok=True)
+ALLOWED_ROOTS = [HOME / "Downloads", HOME / "Documents", HOME / "Desktop", HOME / "cov", SERVER_PROJECTS]
 PROJECT_FILE = "timeline.json"
 NOTES_FILE = "notas.md"
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp"}

@@ -40,6 +40,7 @@ from routers import video_projects as video_projects_router
 from routers import deliveries as deliveries_router
 from routers import users as users_router
 from routers import inbox as inbox_router
+from routers import proyectos as proyectos_router
 from fastapi import Request
 from urllib.parse import quote
 from services import llm_router
@@ -5089,6 +5090,8 @@ app.include_router(deliveries_router.router)
 app.include_router(users_router.router)
 # Material que manda el cliente (routers/inbox.py · studio-v2 §12/§15).
 app.include_router(inbox_router.router)
+# Videos online: subir clips → proyecto del editor (routers/proyectos.py).
+app.include_router(proyectos_router.router)
 
 
 # ── Proyectos del editor (timeline.json en una carpeta) ─────────────────────

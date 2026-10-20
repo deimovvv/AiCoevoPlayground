@@ -11,6 +11,7 @@ import { exportSignature, type TextBlock, type TextTheme } from "../components/w
 import type { MusicTrack } from "../components/workspace/musicModel";
 import { segLength, segmentsToEdits, editsToSegments, noteTime, isImageSrc, type Seg, type ClipEdit } from "../components/workspace/editorProjectModel";
 import { loadBrandFonts, googleFontUrl, getCanvasFontFamily } from "../tools/shared/fontLoader";
+import { VideosOnline } from "../components/workspace/VideosOnline";
 
 /**
  * Editor de un proyecto `timeline.json` en una carpeta local.
@@ -138,12 +139,12 @@ export function EditorProjectPage() {
                     <div className="min-w-0">
                         <h1 className="text-[15px] font-medium text-fg truncate">{project?.title || "Editor de video"}</h1>
                         <p className="text-[11px] text-fg-faint truncate">
-                            {data ? `${data.dir} · timeline.json` : "Abrí la carpeta de un proyecto con timeline.json"}
+                            {data ? (data.dir.includes("/data/projects/") ? "Video de la marca · se guarda solo" : `${data.dir} · timeline.json`) : "Subí clips para armar un video, o abrí una carpeta local (Studio en tu compu)"}
                         </p>
                     </div>
                     <span className="flex-1" />
                     <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); setParams(draftPath ? { path: draftPath } : {}); }}>
-                        <input value={draftPath} onChange={(e) => setDraftPath(e.target.value)} placeholder="~/Downloads/mi-proyecto"
+                        <input value={draftPath} onChange={(e) => setDraftPath(e.target.value)} placeholder="Carpeta local (sólo en tu compu)"
                             className="w-[340px] h-8 bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-fg/40" />
                         <button type="submit" className="flex items-center gap-1.5 h-8 px-3 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer">
                             <FolderOpen size={13} /> Abrir
@@ -165,6 +166,8 @@ export function EditorProjectPage() {
                 )}
                 {error && <p className="text-[12px] text-[var(--color-error)]">{error}</p>}
                 {loading && !data && <p className="flex items-center gap-2 text-[12px] text-fg-muted"><Loader2 size={13} className="animate-spin" /> Abriendo…</p>}
+                {/* Sin proyecto abierto: los videos de la marca en el servidor y «Nuevo video». */}
+                {!path && <VideosOnline onOpen={(p) => { setDraftPath(""); setParams({ path: p }); }} />}
 
                 {data && project && clips.length > 0 && (
                     <>

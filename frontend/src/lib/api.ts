@@ -3955,3 +3955,23 @@ export async function setDeliveryGroup(id: string, g: { campaignId: string | nul
 export async function toggleDeliveryItem(id: string, itemId: string, vista?: DeliveryView): Promise<Delivery> {
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}/toggle${vista ? `?vista=${vista}` : ""}`, { method: "POST" }), "No se pudo cambiar");
 }
+
+// ── Videos online (backend/routers/proyectos.py): subir clips → proyecto del editor ──
+
+export interface ServerVideo { id: string; path: string; title: string; segments: number; cover: string | null; updatedAt: string }
+
+export async function listServerVideos(brandId: string): Promise<ServerVideo[]> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/videos`), "No se pudieron cargar los videos");
+}
+export async function createServerVideo(brandId: string, title: string, size: { width: number; height: number }): Promise<{ id: string; path: string }> {
+    const form = new FormData();
+    form.append("title", title); form.append("width", String(size.width)); form.append("height", String(size.height));
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/videos`, { method: "POST", body: form }), "No se pudo crear el video");
+}
+/** Sube un clip (de a uno: Cloudflare corta en 100 MB por pedido). */
+export async function addServerVideoClip(brandId: string, id: string, file: File, onProgress?: (p: number) => void): Promise<void> {
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) throw new Error(`«${file.name}» pesa más de ${MAX_UPLOAD_MB} MB: comprimilo antes de subirlo.`);
+    const form = new FormData();
+    form.append("file", file);
+    await uploadWithProgress(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/videos/${encodeURIComponent(id)}/clips`, form, "No se pudo subir el clip", onProgress);
+}
