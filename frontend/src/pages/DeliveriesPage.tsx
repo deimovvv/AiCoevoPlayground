@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router";
 import { ArrowRight, Check, ChevronLeft, ChevronRight, CornerDownLeft, Eye, ExternalLink, Loader2, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useMe } from "../lib/useMe";
+import { useConfirm } from "../lib/useConfirm";
 import {
     backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment,
     toggleDeliveryComment, deleteDelivery, sendDelivery,
@@ -59,6 +60,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const [focus, setFocus] = useState<string | null>(null);
     const [slide, setSlide] = useState<number | null>(null);   // null = la pieza entera; n = una lámina grande
     const [uploadTitle, setUploadTitle] = useState("");
+    const [progress, setProgress] = useState<number | null>(null);   // subida en curso (0–1)
+    const [dialog, ask] = useConfirm();
     const [tab, setTab] = useState<"revisar" | "aprobadas">("revisar");   // sólo cliente
     const fileRef = useRef<HTMLInputElement>(null);
     const brandRef = useRef(brandId);
@@ -152,7 +155,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
         if (!slides.length) { setError("Elegí al menos una imagen o un video."); return; }
         const title = uploadTitle.trim() || slides[0].name.replace(/\.[^.]+$/, "");
         run(async () => {
-            const d = await createDelivery(brandId, title, slides, source);
+            setProgress(0);
+            const d = await createDelivery(brandId, title, slides, source, setProgress).finally(() => setProgress(null));
             setUploadTitle("");
             await refreshList(); open(d.id);
         });
@@ -160,6 +164,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
 
     return (
         <div className="h-full flex min-h-0">
+            {dialog}
             {/* ── Lista ── */}
             {/* Celular: o la lista o la entrega abierta. Escritorio: las dos. */}
             <aside className={`${selectedId ? "hidden md:flex" : "flex"} w-full md:w-[280px] shrink-0 md:border-r border-edge flex-col min-h-0`}>
@@ -188,10 +193,18 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 className="flex-1 min-w-0 h-8 bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-fg/40" />
                             <button onClick={() => fileRef.current?.click()} disabled={busy} title="Subir láminas (en orden por nombre) y, si hay, el .html editable"
                                 className="h-8 px-2.5 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
-                                <Upload size={13} /> Subir
+                                {progress !== null ? <><Loader2 size={13} className="animate-spin" /> {Math.round(progress * 100)}%</> : <><Upload size={13} /> Subir</>}
                             </button>
                             <input ref={fileRef} type="file" multiple hidden accept="image/*,video/*,.html,.htm"
                                 onChange={(e) => { onUpload(e.target.files); e.target.value = ""; }} />
+                        </div>
+                    )}
+                    {progress !== null && (
+                        <div className="flex flex-col gap-1.5">
+                            <div className="h-[3px] rounded-full bg-[var(--color-surface-2)] overflow-hidden">
+                                <div className="h-full bg-fg transition-[width] duration-200" style={{ width: `${Math.max(3, progress * 100)}%` }} />
+                            </div>
+                            <p className="text-[11px] text-fg-faint">{progress < 1 ? `Subiendo… ${Math.round(progress * 100)}%` : "Procesando…"}</p>
                         </div>
                     )}
                 </div>
@@ -257,7 +270,19 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             {client ? (
                                 <>
                                     {current.status !== "cambios" && (
-                                        <button disabled={busy} onClick={() => run(async () => { await setDeliveryStatus(current.id, "cambios"); await reload(current.id); })}
+                                        <button disabled={busy} onClick={async () => {
+                                            const what = await ask({
+                                                title: "¿Qué cambiarías?", input: "Tu pedido", multiline: true, confirm: "Pedir cambios",
+                                                placeholder: "Ej: el texto más grande, otra foto en la lámina 3…",
+                                                body: "Si es sobre algo puntual, también podés tocar la imagen y marcar el lugar exacto.",
+                                            });
+                                            if (typeof what !== "string") return;
+                                            run(async () => {
+                                                await addDeliveryComment(current.id, { text: what, asClient: true });
+                                                await setDeliveryStatus(current.id, "cambios");
+                                                await reload(current.id);
+                                            });
+                                        }}
                                             className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
                                             <RotateCcw size={12} /> Pedir cambios
                                         </button>
@@ -279,7 +304,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         </button>
                                     )}
                                     <button disabled={busy} title="El cliente la ve desde ahora, sin los comentarios internos"
-                                        onClick={() => { if (window.confirm(`¿Mandar "${current.title}" al cliente?`)) run(async () => { await sendDelivery(current.id); await reload(current.id); }); }}
+                                        onClick={async () => { if (await ask({ title: `¿Mandar «${current.title}» al cliente?`, body: "Desde ahora la ve en su espacio, sin los comentarios internos.", confirm: "Mandar" })) run(async () => { await sendDelivery(current.id); await reload(current.id); }); }}
                                         className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[12px] font-medium cursor-pointer disabled:opacity-50">
                                         Mandar al cliente <ArrowRight size={12} />
                                     </button>
@@ -298,7 +323,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             )}
                             {!client && (
                                 <button disabled={busy} title="Borrar la entrega"
-                                    onClick={() => { if (window.confirm(`¿Borrar "${current.title}" y sus comentarios?`)) run(async () => { await deleteDelivery(current.id); open(null); await refreshList(); }); }}
+                                    onClick={async () => { if (await ask({ title: `¿Borrar «${current.title}»?`, body: "Se borran también sus comentarios. No se puede deshacer.", confirm: "Borrar", danger: true })) run(async () => { await deleteDelivery(current.id); open(null); await refreshList(); }); }}
                                     className="w-8 h-8 flex items-center justify-center text-fg-faint hover:text-[var(--color-error)] cursor-pointer">
                                     <Trash2 size={13} />
                                 </button>
@@ -321,7 +346,10 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                     className="group text-left cursor-zoom-in w-[78vw] max-w-[360px] md:w-auto md:max-w-none shrink-0 snap-center">
                                                     <div className="relative">
                                                         {it.kind === "video"
-                                                            ? <video src={backendUrl(it.url)} muted className="w-full h-auto max-h-[64vh] object-contain rounded-[var(--radius-xs)] bg-surface-1 transition-transform group-hover:-translate-y-0.5" />
+                                                            ? <span className="relative block">
+                                                                <video src={backendUrl(it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted preload="none" className="w-full h-auto max-h-[64vh] object-contain rounded-[var(--radius-xs)] bg-surface-1 transition-transform group-hover:-translate-y-0.5" />
+                                                                <span className="absolute left-2 bottom-2 px-1.5 py-0.5 rounded-[2px] bg-black/60 text-white font-mono text-[9px] uppercase tracking-[0.08em]">Video ▶</span>
+                                                            </span>
                                                             : <img src={backendUrl(it.url)} alt={it.label} draggable={false} className="w-full h-auto max-h-[64vh] object-contain rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5" />}
                                                         {pins.map((c) => (
                                                             <span key={c.id} style={{ left: `${c.x! * 100}%`, top: `${c.y! * 100}%` }}
@@ -404,7 +432,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                             <div className="h-[62vh] md:h-auto md:flex-1 min-h-0 flex items-center justify-center px-4 md:px-6 pb-4 md:pb-6">
                                                 <div className="relative h-full max-h-full cursor-crosshair select-none" onClick={(e) => onPick(e, it.id)}>
                                                     {it.kind === "video"
-                                                        ? <video src={backendUrl(it.url)} controls className="h-full w-auto max-w-full object-contain rounded-[var(--radius-xs)]" />
+                                                        ? <video src={backendUrl(it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} controls className="h-full w-auto max-w-full object-contain rounded-[var(--radius-xs)]" />
                                                         : <img src={backendUrl(it.url)} alt={it.label} draggable={false} className="h-full w-auto max-w-full object-contain rounded-[var(--radius-xs)] shadow-[0_8px_30px_rgba(0,0,0,0.35)]" />}
                                                     {here.filter((c) => c.round === current.round && c.x != null).map((c) => (
                                                         <span key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus(null)} onClick={(e) => e.stopPropagation()}

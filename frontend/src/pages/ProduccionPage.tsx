@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { useConfirm } from "../lib/useConfirm";
 import { useBrand } from "../lib/BrandContext";
 import { backendUrl, createCampaign, fetchGenerations, fetchToolPreviews, listCampaigns, listDeliveries, listInbox, type Campaign, type DeliverySummary, type Generation, type InboxItem, type ToolPreview } from "../lib/api";
 
@@ -136,6 +137,7 @@ export function ProduccionPage() {
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
     const [inbox, setInbox] = useState<InboxItem[]>([]);
     const navigate = useNavigate();
+    const [dialog, ask] = useConfirm();
 
     useEffect(() => {
         if (!brandId) return;
@@ -156,6 +158,7 @@ export function ProduccionPage() {
     return (
         // Pantalla entera: las tools llenan la parte de arriba (≈60 %), las listas abajo.
         <div className="md:h-full flex flex-col gap-8 px-4 py-6 md:px-10 md:py-8 md:min-h-0">
+            {dialog}
             <section className="flex flex-col gap-3.5 md:flex-[1.5] md:min-h-0">
                 <p className={`${mono} text-fg-faint`}>Hacer algo nuevo para {activeBrand.name}</p>
                 <div className="flex md:grid gap-4 md:grid-cols-6 overflow-x-auto md:overflow-visible snap-x -mx-4 px-4 md:mx-0 md:px-0 md:flex-1 md:min-h-0">
@@ -174,9 +177,9 @@ export function ProduccionPage() {
                         <span className="font-mono text-[11px] text-fg-faint">{campaigns.length || ""}</span>
                         <span className="flex-1" />
                         <button onClick={async () => {
-                            const name = window.prompt("Nombre de la campaña", "");
-                            if (!name?.trim()) return;
-                            const c = await createCampaign({ brandId: activeBrand.id, name: name.trim(), brief: "" });
+                            const name = await ask({ title: "Nueva campaña", input: "Nombre", placeholder: "Ej: Otoño · lookbook", confirm: "Crear" });
+                            if (typeof name !== "string") return;
+                            const c = await createCampaign({ brandId: activeBrand.id, name, brief: "" });
                             navigate(`/dashboard/tablero/${c.id}`);
                         }} className="text-[12px] text-fg hover:underline cursor-pointer">+ Nueva</button>
                     </div>

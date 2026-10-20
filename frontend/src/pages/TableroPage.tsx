@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Loader2, Trash2, Upload } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
+import { useConfirm } from "../lib/useConfirm";
 import {
     backendUrl, getCampaign, updateCampaign, uploadCampaignInputs, deleteCampaignInput,
     type Campaign, type CampaignInput,
@@ -27,8 +28,9 @@ const ROWS: Array<{ type: T; label: string; hint: string }> = [
 ];
 const mono = "font-mono text-[10px] uppercase tracking-[0.09em]";
 
-function Row({ row, items, campaignId, onChange }: {
+function Row({ row, items, campaignId, onChange, ask }: {
     row: typeof ROWS[number]; items: CampaignInput[]; campaignId: string; onChange: () => Promise<void>;
+    ask: ReturnType<typeof useConfirm>[1];
 }) {
     const ref = useRef<HTMLInputElement>(null);
     const [busy, setBusy] = useState(false);
@@ -52,7 +54,7 @@ function Row({ row, items, campaignId, onChange }: {
                 {items.map((it) => (
                     <figure key={it.id} className="group relative shrink-0 h-[150px] rounded-[2px] overflow-hidden bg-[var(--color-surface-2)]">
                         <img src={backendUrl(it.url)} alt={it.name} loading="lazy" className="h-full w-auto object-cover" />
-                        <button aria-label="Quitar" onClick={async () => { if (window.confirm("¿Quitar esta imagen de la campaña?")) { await deleteCampaignInput(campaignId, it.id); await onChange(); } }}
+                        <button aria-label="Quitar" onClick={async () => { if (await ask({ title: "¿Quitar esta imagen de la campaña?", confirm: "Quitar", danger: true })) { await deleteCampaignInput(campaignId, it.id); await onChange(); } }}
                             className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer">
                             <Trash2 size={12} />
                         </button>
@@ -80,6 +82,7 @@ export function TableroPage() {
     const [saved, setSaved] = useState(true);
     const [err, setErr] = useState<string | null>(null);
     const brandRef = useRef(activeBrand?.id);
+    const [dialog, ask] = useConfirm();
 
     const load = useCallback(async () => {
         try {
@@ -111,6 +114,7 @@ export function TableroPage() {
 
     return (
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-8 pb-20">
+            {dialog}
             <div className="flex flex-wrap items-center gap-3 text-[12px]">
                 <Link to="/dashboard/produccion" className="text-fg-muted hover:text-fg no-underline">← Producción</Link>
                 <span className="flex-1" />
@@ -133,7 +137,7 @@ export function TableroPage() {
             </header>
 
             {ROWS.map((r) => (
-                <Row key={r.type} row={r} campaignId={c.id} onChange={load} items={inputs.filter((i) => i.type === r.type || (r.type === "reference" && i.type === "product"))} />
+                <Row key={r.type} row={r} campaignId={c.id} onChange={load} ask={ask} items={inputs.filter((i) => i.type === r.type || (r.type === "reference" && i.type === "product"))} />
             ))}
             <p className="pt-6 border-t border-edge text-[12px] text-fg-faint">
                 La marca pone los límites (siempre / nunca, paleta, caras); lo de este tablero gana en lo suyo cuando se produce la campaña.

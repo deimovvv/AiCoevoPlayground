@@ -93,6 +93,23 @@ async def _store_items(delivery_id: str, round_: int, files: List[UploadFile], l
     return items
 
 
+def _poster(url: str) -> Optional[str]:
+    """Portada de un video de la entrega: un cuadro con FFmpeg, junto al archivo (se hace una vez).
+    Sin esto, en la lista y en la vista de la pieza el video se ve como una imagen rota."""
+    rel = url.split("/static/deliveries/", 1)[-1]
+    src = FILES_DIR / rel
+    out = src.with_name(src.stem + ".poster.jpg")
+    if not out.exists() and src.is_file():
+        import subprocess
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "0.5", "-i", str(src), "-frames:v", "1",
+                        "-vf", "scale=720:-2", "-q:v", "4", str(out)], timeout=30, check=False)
+    return f"/static/deliveries/{out.relative_to(FILES_DIR).as_posix()}" if out.exists() else None
+
+
+def _items(d: Delivery) -> list:
+    return [{**it, "poster": _poster(it["url"])} if it.get("kind") == "video" else it for it in (d.items or [])]
+
+
 def _comment(c: DeliveryComment) -> dict:
     return {
         "id": c.id, "itemId": c.item_id, "x": c.x, "y": c.y, "text": c.text, "author": c.author, "internal": c.internal,
@@ -104,7 +121,8 @@ def _summary(d: Delivery, open_comments: int = 0) -> dict:
     return {
         "id": d.id, "brandId": d.brand_id, "title": d.title, "kind": d.kind, "status": d.status,
         "visibility": d.visibility, "sentAt": _iso(d.sent_at),
-        "round": d.round, "items": len(d.items or []), "cover": (d.items or [{}])[0].get("url"),
+        "round": d.round, "items": len(d.items or []),
+        "cover": (lambda first: (first.get("poster") or (_poster(first["url"]) if first.get("kind") == "video" else first.get("url"))) if first else None)((d.items or [None])[0]),
         "openComments": open_comments, "createdBy": d.created_by,
         "approvedBy": d.approved_by, "approvedAt": _iso(d.approved_at),
         "createdAt": _iso(d.created_at), "updatedAt": _iso(d.updated_at),
@@ -126,7 +144,7 @@ async def _full(s: AsyncSession, d: Delivery, client: bool = False) -> dict:
         rows = [c for c in rows if not c.internal]
     return {
         **_summary(d, sum(1 for c in rows if not c.resolved_at)),
-        "items": d.items or [], "source": d.source, "note": d.note, "template": d.template,
+        "items": _items(d), "source": d.source, "note": d.note, "template": d.template,
         "comments": [_comment(c) for c in rows],
     }
 

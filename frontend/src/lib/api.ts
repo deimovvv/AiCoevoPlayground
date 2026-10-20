@@ -3762,7 +3762,7 @@ export async function getTikTokTopVideos(profileUrl: string, limit = 10): Promis
 // ── Entregas (backend/routers/deliveries.py · studio-v2 P.3) ────────────────
 
 export type DeliveryStatus = "en_revision" | "cambios" | "aprobada";
-export interface DeliveryItem { id: string; url: string; kind: "image" | "video"; label: string }
+export interface DeliveryItem { id: string; url: string; kind: "image" | "video"; label: string; poster?: string | null }
 export interface DeliveryComment {
     id: string; itemId: string | null; x: number | null; y: number | null; text: string;
     author: string | null; internal: boolean; round: number; resolvedAt: string | null; createdAt: string | null;
@@ -3796,13 +3796,40 @@ export async function sendDelivery(id: string): Promise<Delivery> {
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/send`, { method: "POST" }), "No se pudo mandar");
 }
 
-export async function createDelivery(brandId: string, title: string, files: File[], source?: File | null): Promise<Delivery> {
+/** Cloudflare no deja pasar pedidos de más de 100 MB (plan gratis). */
+export const MAX_UPLOAD_MB = 95;
+export function tooBig(files: File[]): File | undefined {
+    return files.find((f) => f.size > MAX_UPLOAD_MB * 1024 * 1024);
+}
+
+/** Subida con progreso (fetch no lo da). `onProgress` recibe 0–1. */
+export function uploadWithProgress<T>(url: string, form: FormData, what: string, onProgress?: (p: number) => void): Promise<T> {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", url);
+        xhr.withCredentials = true;
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
+        xhr.onload = () => {
+            let body: { detail?: unknown } | null = null;
+            try { body = JSON.parse(xhr.responseText); } catch { /* no es JSON */ }
+            if (xhr.status >= 200 && xhr.status < 300) return resolve(body as T);
+            if (xhr.status === 413) return reject(new Error(`Es muy pesado para subir (máximo ${MAX_UPLOAD_MB} MB por envío). Mandalo por link.`));
+            reject(new Error((typeof body?.detail === "string" && body.detail) || `${what} (${xhr.status})`));
+        };
+        xhr.onerror = () => reject(new Error(`${what}: se cortó la conexión. Probá de nuevo.`));
+        xhr.send(form);
+    });
+}
+
+export async function createDelivery(brandId: string, title: string, files: File[], source?: File | null, onProgress?: (p: number) => void): Promise<Delivery> {
+    const big = tooBig([...files, ...(source ? [source] : [])]);
+    if (big) throw new Error(`«${big.name}» pesa más de ${MAX_UPLOAD_MB} MB: subilo comprimido o mandalo por link.`);
     const form = new FormData();
     form.append("title", title);
     form.append("kind", files.some((f) => f.type.startsWith("video/")) && files.length === 1 ? "video" : "carrusel");
     files.forEach((f) => form.append("files", f));
     if (source) form.append("source", source);
-    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/deliveries`, { method: "POST", body: form }), "No se pudo subir la entrega");
+    return uploadWithProgress(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/deliveries`, form, "No se pudo subir la entrega", onProgress);
 }
 
 export async function setDeliveryStatus(id: string, status: DeliveryStatus): Promise<Delivery> {
@@ -3889,12 +3916,16 @@ export interface InboxItem {
 }
 export type InboxDest = "moodboard" | "luz" | "locacion" | "pose" | "plano" | "cara" | "prenda" | "producto";
 
-export async function sendMaterial(brandId: string, m: { files: File[]; link?: string; note?: string }): Promise<InboxItem> {
+export async function sendMaterial(brandId: string, m: { files: File[]; link?: string; note?: string }, onProgress?: (p: number) => void): Promise<InboxItem> {
+    const big = tooBig(m.files);
+    if (big) throw new Error(`«${big.name}» pesa más de ${MAX_UPLOAD_MB} MB. Subilo a Drive o WeTransfer y pegá el link.`);
+    const total = m.files.reduce((n, f) => n + f.size, 0);
+    if (total > MAX_UPLOAD_MB * 1024 * 1024) throw new Error(`Entre todos pesan más de ${MAX_UPLOAD_MB} MB. Mandalos en partes o por link.`);
     const form = new FormData();
     m.files.forEach((f) => form.append("files", f));
     if (m.link) form.append("link", m.link);
     if (m.note) form.append("note", m.note);
-    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/inbox`, { method: "POST", body: form }), "No se pudo mandar");
+    return uploadWithProgress(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/inbox`, form, "No se pudo mandar", onProgress);
 }
 export async function listInbox(brandId: string): Promise<InboxItem[]> {
     return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/inbox`), "No se pudo cargar el material");

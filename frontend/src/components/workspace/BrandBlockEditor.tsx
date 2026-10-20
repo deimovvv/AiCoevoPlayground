@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
+import { useConfirm } from "../../lib/useConfirm";
 import { Loader2, Trash2, Upload, X } from "lucide-react";
 import {
     backendUrl, updateBrand, uploadAvatar, deleteAvatar, uploadProduct, deleteProduct, uploadClothing, deleteClothing,
@@ -131,15 +132,17 @@ function Drop({ dests, brandId, onDone, hint, dest: destIn, onDest, campaignId }
 
 function Grid({ items, onDelete }: { items: Array<{ id: string; url: string; label?: string }>; onDelete: (id: string) => Promise<void> }) {
     const [busy, setBusy] = useState<string | null>(null);
+    const [dialog, ask] = useConfirm();
     if (!items.length) return null;
     return (
         <div className="grid grid-cols-3 gap-1.5">
+            {dialog}
             {items.map((it) => (
                 <figure key={it.id} className="group relative aspect-[4/5] rounded-[2px] overflow-hidden bg-[var(--color-surface-2)]">
                     <img src={backendUrl(it.url)} alt={it.label ?? ""} loading="lazy" className="w-full h-full object-cover" />
                     {it.label && <figcaption className="absolute left-1 bottom-1 px-1 rounded-[2px] bg-black/55 text-white text-[10px] max-w-[90%] truncate">{it.label}</figcaption>}
                     <button type="button" aria-label="Quitar" disabled={busy === it.id}
-                        onClick={async () => { if (!window.confirm("¿Quitar esta imagen de la marca?")) return; setBusy(it.id); try { await onDelete(it.id); } finally { setBusy(null); } }}
+                        onClick={async () => { if (!(await ask({ title: "¿Quitar esta imagen?", confirm: "Quitar", danger: true }))) return; setBusy(it.id); try { await onDelete(it.id); } finally { setBusy(null); } }}
                         className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer">
                         {busy === it.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                     </button>
