@@ -9,7 +9,7 @@ import {
 
 /**
  * Material del cliente (equipo, studio-v2 §12/§15): lo que mandó, y adónde va cada imagen.
- * Destino: la marca o una campaña. Tipo: uno para todas, y se puede cambiar por imagen o descartar.
+ * Destino: la marca o un proyecto. Tipo: uno para todas, y se puede cambiar por imagen o descartar.
  * PDF, video y links quedan acá para abrirlos (no entran a la memoria).
  */
 
@@ -80,7 +80,7 @@ function Item({ it, campaigns, onDone }: { it: InboxItem; campaigns: Campaign[];
                             <select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Destino"
                                 className="h-9 px-2 rounded-[4px] border border-edge bg-[var(--color-surface-1)] text-[13px] text-fg cursor-pointer">
                                 <option value="marca">A la marca</option>
-                                {campaigns.map((c) => <option key={c.id} value={c.id}>A la campaña · {c.name}</option>)}
+                                {campaigns.map((c) => <option key={c.id} value={c.id}>Al proyecto · {c.name}</option>)}
                             </select>
                             <select value={type} onChange={(e) => { setType(e.target.value as InboxDest); setPer({}); }} aria-label="Tipo para todas"
                                 className="h-9 px-2 rounded-[4px] border border-edge bg-[var(--color-surface-1)] text-[13px] text-fg cursor-pointer">
@@ -132,7 +132,7 @@ export function BandejaPage() {
             <Link to="/dashboard/produccion" className="text-[12px] text-fg-muted hover:text-fg no-underline">← Producción</Link>
             <p className={`${mono} text-fg-faint mt-8`}>{activeBrand?.name}</p>
             <h1 className="mt-2 text-[40px] leading-none tracking-[-0.035em] text-fg">Material del cliente</h1>
-            <p className="mt-3 text-[13px] text-fg-muted max-w-[560px]">Lo que mandó, sin ordenar. Elegí si va a la marca o a una campaña, qué es cada imagen, y sumalo. El cliente ve que lo incorporaste.</p>
+            <p className="mt-3 text-[13px] text-fg-muted max-w-[560px]">Lo que mandó, sin ordenar. Elegí si va a la marca o a un proyecto, qué es cada imagen, y sumalo. El cliente ve que lo incorporaste.</p>
             <div className="mt-8">
                 {items === null && <p className="text-[13px] text-fg-faint">Cargando…</p>}
                 {items !== null && pending.length === 0 && <p className="py-6 border-t border-edge text-[13px] text-fg-faint">No hay material nuevo.</p>}

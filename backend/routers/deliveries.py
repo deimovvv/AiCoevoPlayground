@@ -125,7 +125,7 @@ def _summary(d: Delivery, open_comments: int = 0, names: Optional[dict] = None) 
     items = d.items or []
     return {
         "id": d.id, "brandId": d.brand_id, "title": d.title, "kind": d.kind, "status": d.status,
-        # Agrupación: mes (de la fecha, en el frontend) › campaña (opcional) › etapa (opcional).
+        # Agrupación: mes (de la fecha, en el frontend) › proyecto (opcional) › etapa (opcional).
         "campaignId": d.campaign_id, "campaignName": (names if names is not None else _campaign_names()).get(d.campaign_id) if d.campaign_id else None,
         "stage": d.stage,
         "approvedItems": sum(1 for i in items if not i.get("rejected")) if d.status == "aprobada" else None,
@@ -271,7 +271,7 @@ def _check_campaign(campaign_id: Optional[str], brand_id: str) -> Optional[str]:
         return None
     c = campaigns_service.find_campaign(campaigns_service.load_campaigns(), campaign_id)
     if not c or c.get("brandId") != brand_id:
-        raise HTTPException(status_code=400, detail="Esa campaña no es de esta marca")
+        raise HTTPException(status_code=400, detail="Ese proyecto no es de esta marca")
     return campaign_id
 
 
@@ -282,7 +282,7 @@ class GroupIn(BaseModel):
 
 @router.patch("/api/deliveries/{delivery_id}")
 async def set_group(delivery_id: str, req: GroupIn, request: Request, s: AsyncSession = Depends(get_session)):
-    """Campaña y etapa de una entrega (equipo)."""
+    """Proyecto y etapa de una entrega (equipo)."""
     if is_client(request):
         raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
     d = await _get(s, delivery_id)

@@ -587,7 +587,7 @@ def get_job_status(job_id: str):
 
 class CampaignCreateRequest(BaseModel):
     brandId: str
-    name: str = "Campaña sin nombre"
+    name: str = "Proyecto sin nombre"
     brief: str = ""
     productIds: list[str] = []
     moodboardId: Optional[str] = None

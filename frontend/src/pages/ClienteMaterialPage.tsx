@@ -90,7 +90,7 @@ export function ClienteMaterialPage() {
                     </label>
                     <label className="flex flex-col gap-1 py-3 border-t border-b border-edge">
                         <span className={`${mono} text-fg-faint`}>¿Para qué es? (opcional)</span>
-                        <textarea value={note} onChange={(e) => setNote(e.target.value)} disabled={busy} rows={2} placeholder="Ej: para la campaña de otoño, quiero esta luz"
+                        <textarea value={note} onChange={(e) => setNote(e.target.value)} disabled={busy} rows={2} placeholder="Ej: para el proyecto de otoño, quiero esta luz"
                             className="bg-transparent text-[15px] leading-relaxed text-fg placeholder:text-fg-faint outline-none resize-none" />
                     </label>
                 </div>

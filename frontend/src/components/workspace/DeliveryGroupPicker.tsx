@@ -4,7 +4,7 @@ import type { useConfirm } from "../../lib/useConfirm";
 
 /**
  * Dónde va una entrega (studio-v2 §16): campaña y etapa, con rótulo. La campaña se elige, se crea
- * («+ Nueva campaña…») o se renombra (lápiz) acá mismo. La etapa es el paso dentro de la campaña
+ * («+ Nuevo proyecto…») o se renombra (lápiz) acá mismo. La etapa es el paso dentro del proyecto
  * (01 Fotos → 02 Video): se elige de las que ya hay o se escribe otra.
  */
 
@@ -35,7 +35,7 @@ export function DeliveryGroupPicker({ brandId, campaigns, onCampaigns, campaignI
     const safe = async (fn: () => Promise<void>) => { try { await fn(); } catch (e) { onError((e as Error).message); } };
     const pickCampaign = (v: string) => safe(async () => {
         if (v !== NEW) return onChange({ campaignId: v || null, stage });
-        const name = await ask({ title: "Nueva campaña", input: "Nombre", placeholder: "Ej: Otoño 2026", confirm: "Crear" });
+        const name = await ask({ title: "Nuevo proyecto", input: "Nombre", placeholder: "Ej: Otoño 2026", confirm: "Crear" });
         if (typeof name !== "string") return;
         const c = await createCampaign({ brandId, name });
         onCampaigns([...campaigns, c]);
@@ -43,7 +43,7 @@ export function DeliveryGroupPicker({ brandId, campaigns, onCampaigns, campaignI
     });
     const rename = () => safe(async () => {
         if (!current) return;
-        const name = await ask({ title: "Nombre de la campaña", input: "Nombre", placeholder: current.name, confirm: "Guardar" });
+        const name = await ask({ title: "Nombre del proyecto", input: "Nombre", placeholder: current.name, confirm: "Guardar" });
         if (typeof name !== "string") return;
         const c = await updateCampaign(current.id, { name });
         onCampaigns(campaigns.map((x) => (x.id === c.id ? c : x)));
@@ -58,14 +58,14 @@ export function DeliveryGroupPicker({ brandId, campaigns, onCampaigns, campaignI
     return (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
             <label className="flex items-center gap-1.5">
-                <span className={mono}>Campaña</span>
+                <span className={mono}>Proyecto</span>
                 <select value={campaignId ?? ""} disabled={disabled} onChange={(e) => pickCampaign(e.target.value)} className={field}>
-                    <option value="">Sin campaña</option>
-                    {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name || "Campaña sin nombre"}</option>)}
-                    <option value={NEW}>+ Nueva campaña…</option>
+                    <option value="">Sin proyecto</option>
+                    {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name || "Proyecto sin nombre"}</option>)}
+                    <option value={NEW}>+ Nuevo proyecto…</option>
                 </select>
                 {current && (
-                    <button type="button" onClick={rename} disabled={disabled} title="Cambiarle el nombre a la campaña" aria-label="Cambiarle el nombre a la campaña"
+                    <button type="button" onClick={rename} disabled={disabled} title="Cambiarle el nombre al proyecto" aria-label="Cambiarle el nombre al proyecto"
                         className="w-6 h-6 flex items-center justify-center rounded-[3px] text-fg-faint hover:text-fg cursor-pointer"><Pencil size={11} /></button>
                 )}
             </label>

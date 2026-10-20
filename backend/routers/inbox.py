@@ -125,7 +125,7 @@ async def list_material(brand_id: str, request: Request, s: AsyncSession = Depen
 
 
 class IncorporateIn(BaseModel):
-    # "marca" o el id de una campaña
+    # "marca" o el id de un proyecto
     target: str = "marca"
     # adónde va cada imagen: un tipo para todas, o uno por url
     type: str = "moodboard"
@@ -135,7 +135,7 @@ class IncorporateIn(BaseModel):
 
 @router.post("/api/inbox/{item_id}/incorporar")
 async def incorporate(item_id: str, req: IncorporateIn, request: Request, s: AsyncSession = Depends(get_session)):
-    """El equipo suma las imágenes a la marca o a una campaña. El resto (PDF, video, link) queda acá."""
+    """El equipo suma las imágenes a la marca o a un proyecto. El resto (PDF, video, link) queda acá."""
     if is_client(request):
         raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
     item = await s.get(InboxItem, item_id)
@@ -167,7 +167,7 @@ async def incorporate(item_id: str, req: IncorporateIn, request: Request, s: Asy
         items = campaigns_service.load_campaigns()
         c = campaigns_service.find_campaign(items, req.target)
         if not c or c.get("brandId") != item.brand_id:
-            raise HTTPException(status_code=404, detail="Esa campaña no es de esta marca")
+            raise HTTPException(status_code=404, detail="Ese proyecto no es de esta marca")
         new = []
         for f in images:
             t = req.perFile.get(f["url"], req.type)
@@ -181,7 +181,7 @@ async def incorporate(item_id: str, req: IncorporateIn, request: Request, s: Asy
         c["inputs"] = (c.get("inputs") or []) + new
         campaigns_service.apply_update(c, {"inputs": c["inputs"]})
         campaigns_service.save_campaigns(items)
-        where = f"la campaña «{c.get('name')}»"
+        where = f"el proyecto «{c.get('name')}»"
     item.status = "incorporado"
     item.result = f"{sum(counts.values())} sumadas a {where} ({', '.join(f'{n} {LABEL.get(t, t)}' for t, n in counts.items())})"
     await s.commit()

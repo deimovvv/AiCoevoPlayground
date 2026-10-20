@@ -29,7 +29,7 @@ const DOT: Record<DeliveryStatus, string> = {
     aprobada: "bg-[var(--color-success)]",
 };
 /** Cómo se llama el estado según quién mira. */
-/** Mes › campaña › entregas (ordenadas por etapa). El mes sale de cuándo llegó al cliente o se subió. */
+/** Mes › proyecto › entregas (ordenadas por etapa). El mes sale de cuándo llegó al cliente o se subió. */
 function groupByMonth(list: DeliverySummary[], client: boolean) {
     const months = new Map<string, { key: string; label: string; blocks: Map<string, { key: string; campaign: string | null; items: DeliverySummary[] }> }>();
     for (const d of list) {
@@ -87,6 +87,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const [dialog, ask] = useConfirm();
     const [asking, setAsking] = useState(false);   // cliente: «Pedir cambios» abierto en el panel de la derecha
     const [askText, setAskText] = useState("");
+    // Cliente: «Elegir cuáles» muestra un círculo en cada lámina para sacar las que no van (como elegir fotos).
+    const [picking, setPicking] = useState(false);
     const [tab, setTab] = useState<"revisar" | "aprobadas">("revisar");   // sólo cliente
     const fileRef = useRef<HTMLInputElement>(null);
     const brandRef = useRef(brandId);
@@ -104,7 +106,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     }, [client, brandId]);
 
     const open = useCallback((id: string | null) => {
-        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText("");
+        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false);
         setParams(id ? { id } : {}, { replace: true });
     }, [setParams]);
 
@@ -136,7 +138,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     };
     const reload = async (id: string) => { setCurrent(await getDelivery(id, vista)); await refreshList(); };
     const shown = client ? list.filter((d) => (tab === "aprobadas") === (d.status === "aprobada")) : list;
-    // Agrupado: mes (de la fecha) › campaña (si tiene) › entregas, por etapa.
+    // Agrupado: mes (de la fecha) › proyecto (si tiene) › entregas, por etapa.
     const groups = groupByMonth(shown, client);
     const usedStages = [...new Set(list.map((d) => d.stage).filter((s): s is string => !!s))];
 
@@ -335,8 +337,14 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
                                         <RotateCcw size={12} /> {current.status === "cambios" ? "Pedir algo más" : "Pedir cambios"}
                                     </button>
+                                    {current.status !== "aprobada" && mayApprove && total > 1 && (
+                                        <button disabled={busy} onClick={() => { setSlide(null); setPicking((p) => !p); }}
+                                            className={`h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border text-[12px] cursor-pointer disabled:opacity-50 ${picking ? "border-fg text-fg" : "border-edge text-fg-muted hover:text-fg"}`}>
+                                            {picking ? "Listo" : "Elegir cuáles"}
+                                        </button>
+                                    )}
                                     {current.status !== "aprobada" && mayApprove && (
-                                        <button disabled={busy} onClick={() => run(async () => { await setDeliveryStatus(current.id, "aprobada"); await reload(current.id); })}
+                                        <button disabled={busy} onClick={() => run(async () => { await setDeliveryStatus(current.id, "aprobada"); setPicking(false); await reload(current.id); })}
                                             className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[12px] font-medium cursor-pointer disabled:opacity-50">
                                             <Check size={12} /> {(() => { const k = current.items.filter((x) => !x.rejected).length; return k < current.items.length ? `Aprobar ${k} de ${current.items.length}` : current.items.length > 1 ? "Aprobar todo" : "Aprobar"; })()}
                                         </button>
@@ -389,10 +397,16 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     <div className={`w-full flex gap-3 ${total > 3 ? "md:gap-2.5" : "md:gap-5"} items-center md:justify-center overflow-x-auto md:overflow-visible snap-x px-4 md:px-0`}>
                                         {current.items.map((it, i) => {
                                             const pins = comments.filter((c) => c.itemId === it.id && c.round === current.round && c.x != null && !c.resolvedAt);
+                                            // El círculo: el cliente eligiendo, o una lámina que ya sacó (el equipo la ve marcada).
+                                            const canPick = client && current.status !== "aprobada" && total > 1;
+                                            const showPick = (canPick && (picking || it.rejected)) || (!client && it.rejected);
                                             return (
                                                 <div key={it.id}
-                                                    className={`group text-left w-[78vw] max-w-[360px] shrink-0 snap-center md:w-auto md:max-w-fit md:shrink md:flex-[1_1_0] md:min-w-0 transition-opacity ${it.rejected ? "opacity-35" : ""}`}>
-                                                    <button onClick={() => { setSlide(i); setDraft(null); }} title="Abrir para comentar" className="relative block md:inline-block md:max-w-full cursor-zoom-in">
+                                                    className="group text-left w-[78vw] max-w-[360px] shrink-0 snap-center md:w-auto md:max-w-fit md:shrink md:flex-[1_1_0] md:min-w-0">
+                                                    <span className="relative block md:inline-block md:max-w-full">
+                                                    <button onClick={() => { if (picking && canPick) run(async () => { setCurrent(await toggleDeliveryItem(current.id, it.id, vista)); await refreshList(); }); else { setSlide(i); setDraft(null); } }}
+                                                        title={picking && canPick ? (it.rejected ? "Volver a sumarla" : "Sacarla") : "Abrir para comentar"}
+                                                        className={`relative block md:inline-block md:max-w-full transition-opacity ${picking && canPick ? "cursor-pointer" : "cursor-zoom-in"} ${it.rejected ? "opacity-35" : ""}`}>
                                                         {it.kind === "video"
                                                             ? <span className="relative block">
                                                                 <video src={backendUrl(it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted preload="none" className="block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5" />
@@ -405,19 +419,20 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                                 {numberOf[c.id]}
                                                             </span>
                                                         ))}
-                                                        {it.rejected && <span className="absolute inset-0 flex items-center justify-center"><span className="px-2 py-1 rounded-[3px] bg-black/70 text-white text-[11px]">No va</span></span>}
                                                     </button>
+                                                    {showPick && (
+                                                        <button disabled={busy || !canPick} aria-pressed={!it.rejected}
+                                                            aria-label={it.rejected ? `Volver a sumar la lámina ${i + 1}` : `Sacar la lámina ${i + 1}`}
+                                                            onClick={() => run(async () => { setCurrent(await toggleDeliveryItem(current.id, it.id, vista)); await refreshList(); })}
+                                                            className={`absolute top-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center ring-1 shadow-[0_2px_8px_rgba(0,0,0,0.35)] cursor-pointer disabled:cursor-default transition-colors ${it.rejected ? "bg-black/35 ring-white/80 text-transparent" : "bg-white ring-white text-black"}`}>
+                                                            <Check size={14} strokeWidth={2.5} />
+                                                        </button>
+                                                    )}
+                                                    </span>
                                                     <p className="text-[11px] text-fg-faint mt-2 flex items-center gap-1.5">
                                                         <span className="tabular-nums">{String(i + 1).padStart(2, "0")}</span> {it.label !== String(i + 1).padStart(2, "0") && it.label}
                                                         {pins.length > 0 && <span className="text-[var(--color-brand)]">· {pins.length}</span>}
-                                                        <span className="flex-1" />
-                                                        {/* El cliente elige: «esta no» antes de aprobar (6 de 9). */}
-                                                        {current.status !== "aprobada" && total > 1 && (client || it.rejected) && (
-                                                            <button disabled={busy || !client} onClick={() => run(async () => { setCurrent(await toggleDeliveryItem(current.id, it.id, vista)); await refreshList(); })}
-                                                                className={`h-6 px-2 rounded-[3px] border text-[11px] cursor-pointer disabled:cursor-default ${it.rejected ? "border-fg text-fg" : "border-edge text-fg-muted hover:text-fg"}`}>
-                                                                {it.rejected ? (client ? "Volver a sumar" : "El cliente la sacó") : "Esta no"}
-                                                            </button>
-                                                        )}
+                                                        {it.rejected && <span className="text-fg-muted">· {client ? "no va" : "el cliente la sacó"}</span>}
                                                     </p>
                                                 </div>
                                             );
@@ -425,8 +440,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     </div>
                                 </div>
                                 <footer className="px-6 py-3 border-t border-edge bg-surface-0 flex items-center gap-4">
-                                    <p className="text-[12px] text-fg-faint shrink-0">
-                                        {comments.filter((c) => !c.resolvedAt).length
+                                    <p className={`text-[12px] shrink-0 ${picking ? "text-fg" : "text-fg-faint"}`}>
+                                        {picking ? `Tocá las que no van · quedan ${current.items.filter((x) => !x.rejected).length} de ${total}`
+                                        : comments.filter((c) => !c.resolvedAt).length
                                             ? `${comments.filter((c) => !c.resolvedAt).length === 1 ? "1 comentario abierto" : `${comments.filter((c) => !c.resolvedAt).length} comentarios abiertos`} · tocá una lámina para verla y comentar`
                                             : "Clic en una lámina para verla grande y comentar sobre ella."}
                                     </p>

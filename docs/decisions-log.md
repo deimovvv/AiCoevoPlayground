@@ -26,6 +26,7 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Pose y calce | Endpoints especializados, no pelear por prompt | 2026-09 "Pose y calce" |
 | Fashion Editorial | Convertida en preset de Campañas (hecho) | 2026-09-25 |
 | Campañas | Centro del pedido: imagen adentro, video lanzando la tool | 2026-10-03 · `changes/campaigns-as-hub` |
+| Nombre «Proyecto» | En pantalla se dice **Proyecto**, no «Campaña»: sirve para moda, concesionarias e inmobiliarias. En código, base y MCP sigue siendo `campaign`; el editor dice «video», no «proyecto» | 2026-10-20 · `changes/studio-v2` |
 | Referencias de Campañas | Un dueño por dominio; el moodboard se lee (texto), el fondo se usa literal | 2026-10-12 · `specs/campaigns` |
 | Keys de Google | Sólo la de Coevo (`GEMINI_API_KEY`) o falla; nunca una de Monks | 2026-10-06 |
 | Timeline | Sección **Videos** por marca; tramos generados que se regeneran por prompt; un proyecto, 16:9 y 9:16 | 2026-10-15 · `changes/video-editor-next` §7 |

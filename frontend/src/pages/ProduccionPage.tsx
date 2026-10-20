@@ -173,17 +173,17 @@ export function ProduccionPage() {
             <div className="grid gap-10 grid-cols-1 lg:grid-cols-3 md:flex-1 md:min-h-0">
                 <section className="flex flex-col md:min-h-0 md:overflow-y-auto">
                     <div className="flex items-baseline gap-2.5 pb-2.5 border-b border-edge">
-                        <h2 className="text-[20px] text-fg">Campañas</h2>
+                        <h2 className="text-[20px] text-fg">Proyectos</h2>
                         <span className="font-mono text-[11px] text-fg-faint">{campaigns.length || ""}</span>
                         <span className="flex-1" />
                         <button onClick={async () => {
-                            const name = await ask({ title: "Nueva campaña", input: "Nombre", placeholder: "Ej: Otoño · lookbook", confirm: "Crear" });
+                            const name = await ask({ title: "Nuevo proyecto", input: "Nombre", placeholder: "Ej: Otoño · lookbook", confirm: "Crear" });
                             if (typeof name !== "string") return;
                             const c = await createCampaign({ brandId: activeBrand.id, name, brief: "" });
                             navigate(`/dashboard/tablero/${c.id}`);
                         }} className="text-[12px] text-fg hover:underline cursor-pointer">+ Nueva</button>
                     </div>
-                    {campaigns.length === 0 && <p className="py-4 text-[13px] text-fg-faint">Una campaña junta la idea y su tablero: moodboard, luz, locación, planos.</p>}
+                    {campaigns.length === 0 && <p className="py-4 text-[13px] text-fg-faint">Un proyecto junta la idea y su tablero: moodboard, luz, locación, planos.</p>}
                     {campaigns.slice(0, 8).map((c) => {
                         const cover = (c.inputs || []).find((i) => i.type === "moodboard" || i.type === "lookfeel")?.url || (c.inputs || [])[0]?.url;
                         return (
@@ -261,7 +261,7 @@ export function ProduccionPage() {
 
             <p className="shrink-0 text-[12px] text-fg-muted flex flex-wrap gap-x-4 gap-y-1">
                 <span className="text-fg-faint">También:</span>
-                <Link to="/dashboard/campanas" className="text-fg-muted hover:text-fg">Campañas (vista completa)</Link>
+                <Link to="/dashboard/campanas" className="text-fg-muted hover:text-fg">Proyectos (vista completa)</Link>
                 <Link to="/dashboard/content" className="text-fg-muted hover:text-fg">Todo lo producido</Link>
                 <Link to="/dashboard/generate" className="text-fg-muted hover:text-fg">Todas las tools</Link>
             </p>

@@ -74,7 +74,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
     );
 }
 
-/** En una campaña, cada destino es un tipo de input de la campaña (el logo no aplica). */
+/** En un proyecto, cada destino es un tipo de input del proyecto (el logo no aplica). */
 const CAMPAIGN_TYPE: Partial<Record<Dest, CampaignInput["type"]>> = {
     moodboard: "moodboard", luz: "lookfeel", fondo: "background", pose: "pose", plano: "plano",
     cara: "avatar", prenda: "clothing", producto: "product",
@@ -82,7 +82,7 @@ const CAMPAIGN_TYPE: Partial<Record<Dest, CampaignInput["type"]>> = {
 
 function Drop({ dests, brandId, onDone, hint, dest: destIn, onDest, campaignId }: {
     dests: Dest[]; brandId: string; onDone: () => Promise<void>; hint?: string; dest?: Dest; onDest?: (d: Dest) => void;
-    /** Si viene, se sube a la campaña en vez de a la marca. */
+    /** Si viene, se sube al proyecto en vez de a la marca. */
     campaignId?: string | null;
 }) {
     const [destOwn, setDestOwn] = useState<Dest>(dests[0]);
@@ -223,14 +223,14 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                                 <Section title="¿Para qué es?">
                                     <select value={target} onChange={(e) => setTarget(e.target.value)} className={input + " h-10 cursor-pointer"}>
                                         <option value="">La marca en general (vale para todo)</option>
-                                        {campaigns.map((c) => <option key={c.id} value={c.id}>Campaña · {c.name}</option>)}
+                                        {campaigns.map((c) => <option key={c.id} value={c.id}>Proyecto · {c.name}</option>)}
                                     </select>
-                                    <p className="text-[12px] text-fg-faint">{camp ? "Va al tablero de esa campaña: gana en lo suyo cuando se produce la campaña." : "Va a la memoria de la marca: lo que vale en cualquier campaña."}</p>
+                                    <p className="text-[12px] text-fg-faint">{camp ? "Va al tablero de ese proyecto: gana en lo suyo cuando se produce el proyecto." : "Va a la memoria de la marca: lo que vale en cualquier proyecto."}</p>
                                 </Section>
                                 <Section title="Subir imágenes">
                                     <Drop dests={dests} brandId={id} onDone={async () => { await onChanged(); await reloadCampaigns(); }} dest={matDest} onDest={setMatDest} campaignId={camp?.id ?? null} />
                                 </Section>
-                                <Section title={`${DEST_LABEL[matDest]} · ${items.length} ${camp ? "en la campaña" : "en la marca"}`}>
+                                <Section title={`${DEST_LABEL[matDest]} · ${items.length} ${camp ? "en el proyecto" : "en la marca"}`}>
                                     {items.length
                                         ? <Grid items={items} onDelete={async (itemId) => {
                                             if (camp) { await deleteCampaignInput(camp.id, itemId); await reloadCampaigns(); }

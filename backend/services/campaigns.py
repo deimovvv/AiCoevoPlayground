@@ -52,7 +52,7 @@ def new_campaign(payload: dict) -> dict:
     return {
         "id": f"camp_{uuid.uuid4().hex[:12]}",
         "brandId": payload.get("brandId", ""),
-        "name": (payload.get("name") or "Campaña sin nombre").strip(),
+        "name": (payload.get("name") or "Proyecto sin nombre").strip(),
         "brief": payload.get("brief", ""),
         "productIds": payload.get("productIds", []) or [],
         "moodboardId": payload.get("moodboardId"),

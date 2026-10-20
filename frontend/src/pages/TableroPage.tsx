@@ -9,15 +9,15 @@ import {
 } from "../lib/api";
 
 /**
- * Tablero de una campaña (openspec/changes/studio-v2 §15): la dirección de ESTA pieza o temporada.
+ * Tablero de un proyecto (openspec/changes/studio-v2 §15): la dirección de ESTA pieza o temporada.
  * Como el tablero de dirección de arte: brief, moodboard, luz, locación, poses, planos, casting.
- * La marca pone los límites (siempre / nunca, paleta, caras); lo de la campaña gana en lo suyo.
- * Claude lo lee al producir para la campaña (MCP). El generador viejo sigue en «Abrir en el generador».
+ * La marca pone los límites (siempre / nunca, paleta, caras); lo del proyecto gana en lo suyo.
+ * Claude lo lee al producir para el proyecto (MCP). El generador viejo sigue en «Abrir en el generador».
  */
 
 type T = CampaignInput["type"];
 const ROWS: Array<{ type: T; label: string; hint: string }> = [
-    { type: "moodboard", label: "Moodboard", hint: "El clima de la campaña" },
+    { type: "moodboard", label: "Moodboard", hint: "El clima del proyecto" },
     { type: "lookfeel", label: "Luz / look", hint: "Cómo está iluminada" },
     { type: "background", label: "Locación", hint: "Dónde pasa" },
     { type: "plano", label: "Planos", hint: "Encuadre, lente, movimiento" },
@@ -54,7 +54,7 @@ function Row({ row, items, campaignId, onChange, ask }: {
                 {items.map((it) => (
                     <figure key={it.id} className="group relative shrink-0 h-[150px] rounded-[2px] overflow-hidden bg-[var(--color-surface-2)]">
                         <img src={backendUrl(it.url)} alt={it.name} loading="lazy" className="h-full w-auto object-cover" />
-                        <button aria-label="Quitar" onClick={async () => { if (await ask({ title: "¿Quitar esta imagen de la campaña?", confirm: "Quitar", danger: true })) { await deleteCampaignInput(campaignId, it.id); await onChange(); } }}
+                        <button aria-label="Quitar" onClick={async () => { if (await ask({ title: "¿Quitar esta imagen del proyecto?", confirm: "Quitar", danger: true })) { await deleteCampaignInput(campaignId, it.id); await onChange(); } }}
                             className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer">
                             <Trash2 size={12} />
                         </button>
@@ -124,8 +124,8 @@ export function TableroPage() {
 
             <header className="mt-8 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-12 gap-y-4 pb-8">
                 <div>
-                    <p className={`${mono} text-fg-faint`}>Campaña · {activeBrand?.name}</p>
-                    <input value={name} onChange={(e) => { setName(e.target.value); setSaved(false); }} onBlur={save} aria-label="Nombre de la campaña"
+                    <p className={`${mono} text-fg-faint`}>Proyecto · {activeBrand?.name}</p>
+                    <input value={name} onChange={(e) => { setName(e.target.value); setSaved(false); }} onBlur={save} aria-label="Nombre del proyecto"
                         className="mt-3 w-full bg-transparent text-[40px] leading-[1.05] tracking-[-0.035em] text-fg outline-none border-b border-transparent focus:border-edge" />
                 </div>
                 <label className="flex flex-col gap-2">
@@ -140,7 +140,7 @@ export function TableroPage() {
                 <Row key={r.type} row={r} campaignId={c.id} onChange={load} ask={ask} items={inputs.filter((i) => i.type === r.type || (r.type === "reference" && i.type === "product"))} />
             ))}
             <p className="pt-6 border-t border-edge text-[12px] text-fg-faint">
-                La marca pone los límites (siempre / nunca, paleta, caras); lo de este tablero gana en lo suyo cuando se produce la campaña.
+                La marca pone los límites (siempre / nunca, paleta, caras); lo de este tablero gana en lo suyo cuando se produce el proyecto.
             </p>
         </div>
     );
