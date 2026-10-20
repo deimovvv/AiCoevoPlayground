@@ -4,6 +4,7 @@ import { ArrowRight, Check, ChevronLeft, ChevronRight, CornerDownLeft, Eye, Exte
 import { useBrand } from "../lib/BrandContext";
 import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
+import { DeliveryGroupPicker } from "../components/workspace/DeliveryGroupPicker";
 import {
     backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment,
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
@@ -84,6 +85,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const [upCampaign, setUpCampaign] = useState("");
     const [upStage, setUpStage] = useState("");
     const [dialog, ask] = useConfirm();
+    const [asking, setAsking] = useState(false);   // cliente: «Pedir cambios» abierto en el panel de la derecha
+    const [askText, setAskText] = useState("");
     const [tab, setTab] = useState<"revisar" | "aprobadas">("revisar");   // sólo cliente
     const fileRef = useRef<HTMLInputElement>(null);
     const brandRef = useRef(brandId);
@@ -101,7 +104,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     }, [client, brandId]);
 
     const open = useCallback((id: string | null) => {
-        setDraft(null); setDraftText(""); setSlide(null);
+        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText("");
         setParams(id ? { id } : {}, { replace: true });
     }, [setParams]);
 
@@ -135,6 +138,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const shown = client ? list.filter((d) => (tab === "aprobadas") === (d.status === "aprobada")) : list;
     // Agrupado: mes (de la fecha) › campaña (si tiene) › entregas, por etapa.
     const groups = groupByMonth(shown, client);
+    const usedStages = [...new Set(list.map((d) => d.stage).filter((s): s is string => !!s))];
 
     const comments = useMemo(() => {
         if (!current) return [];
@@ -229,16 +233,10 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 onChange={(e) => { onUpload(e.target.files); e.target.value = ""; }} />
                         </div>
                     )}
-                    {!client && (
-                        <div className="flex items-center gap-1.5">
-                            <select value={upCampaign} onChange={(e) => setUpCampaign(e.target.value)} aria-label="Campaña"
-                                className="flex-1 min-w-0 h-8 bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-1.5 text-[12px] text-fg cursor-pointer">
-                                <option value="">Sin campaña</option>
-                                {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                            <input value={upStage} onChange={(e) => setUpStage(e.target.value)} placeholder="Etapa (01 Fotos)" aria-label="Etapa"
-                                className="w-[112px] h-8 bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-fg/40" />
-                        </div>
+                    {!client && brandId && (
+                        <DeliveryGroupPicker brandId={brandId} campaigns={campaigns} onCampaigns={setCampaigns} ask={ask} onError={setError}
+                            campaignId={upCampaign || null} stage={upStage || null} usedStages={usedStages}
+                            onChange={(g) => { setUpCampaign(g.campaignId ?? ""); setUpStage(g.stage ?? ""); }} />
                     )}
                     {progress !== null && (
                         <div className="flex flex-col gap-1.5">
@@ -317,17 +315,10 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     {current.status === "aprobada" && current.items.some((x) => x.rejected) && <> · {current.items.filter((x) => !x.rejected).length} de {current.items.length} láminas</>}
                                 </p>
                                 {!client && (
-                                    <div className="flex items-center gap-1.5 mt-2">
-                                        <select value={current.campaignId ?? ""} aria-label="Campaña"
-                                            onChange={(e) => run(async () => { setCurrent(await setDeliveryGroup(current.id, { campaignId: e.target.value || null, stage: current.stage })); await refreshList(); })}
-                                            className="h-7 px-1.5 rounded-[3px] border border-edge bg-transparent text-[11px] text-fg-muted cursor-pointer">
-                                            <option value="">Sin campaña</option>
-                                            {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                        </select>
-                                        <input key={current.id + (current.stage ?? "")} defaultValue={current.stage ?? ""} placeholder="Etapa" aria-label="Etapa"
-                                            onBlur={(e) => { const v = e.target.value.trim(); if (v !== (current.stage ?? "")) run(async () => { setCurrent(await setDeliveryGroup(current.id, { campaignId: current.campaignId, stage: v || null })); await refreshList(); }); }}
-                                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                                            className="w-[110px] h-7 px-2 rounded-[3px] border border-edge bg-transparent text-[11px] text-fg-muted placeholder:text-fg-faint outline-none focus:border-fg/40" />
+                                    <div className="mt-2.5">
+                                        <DeliveryGroupPicker brandId={current.brandId} campaigns={campaigns} onCampaigns={setCampaigns} ask={ask} onError={setError} disabled={busy}
+                                            campaignId={current.campaignId} stage={current.stage} usedStages={usedStages}
+                                            onChange={(g) => run(async () => { setCurrent(await setDeliveryGroup(current.id, g)); await refreshList(); })} />
                                     </div>
                                 )}
                             </div>
@@ -339,24 +330,11 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             )}
                             {client ? (
                                 <>
-                                    {current.status !== "cambios" && (
-                                        <button disabled={busy} onClick={async () => {
-                                            const what = await ask({
-                                                title: "¿Qué cambiarías?", input: "Tu pedido", multiline: true, confirm: "Pedir cambios",
-                                                placeholder: "Ej: el texto más grande, otra foto en la lámina 3…",
-                                                body: "Si es sobre algo puntual, también podés tocar la imagen y marcar el lugar exacto.",
-                                            });
-                                            if (typeof what !== "string") return;
-                                            run(async () => {
-                                                await addDeliveryComment(current.id, { text: what, asClient: true });
-                                                await setDeliveryStatus(current.id, "cambios");
-                                                await reload(current.id);
-                                            });
-                                        }}
-                                            className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
-                                            <RotateCcw size={12} /> Pedir cambios
-                                        </button>
-                                    )}
+                                    {/* Se escribe en el panel de la derecha, mirando la pieza (no en un cartel encima). */}
+                                    <button disabled={busy || asking} onClick={() => { setSlide(null); setDraft(null); setAsking(true); }}
+                                        className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
+                                        <RotateCcw size={12} /> {current.status === "cambios" ? "Pedir algo más" : "Pedir cambios"}
+                                    </button>
                                     {current.status !== "aprobada" && mayApprove && (
                                         <button disabled={busy} onClick={() => run(async () => { await setDeliveryStatus(current.id, "aprobada"); await reload(current.id); })}
                                             className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[12px] font-medium cursor-pointer disabled:opacity-50">
@@ -459,13 +437,36 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 // Lo que pidieron, sin entrar a cada lámina: abiertos, primero los del cliente.
                                 const pending = comments.filter((c) => !c.resolvedAt)
                                     .sort((a, b) => Number(a.internal) - Number(b.internal));
-                                if (!pending.length) return null;
+                                if (!pending.length && !asking) return null;
                                 const idx = Object.fromEntries(current.items.map((it, i) => [it.id, i]));
+                                const sendAsk = () => run(async () => {
+                                    await addDeliveryComment(current.id, { text: askText.trim(), asClient: true });
+                                    if (current.status !== "cambios") await setDeliveryStatus(current.id, "cambios");
+                                    setAsking(false); setAskText("");
+                                    await reload(current.id);
+                                });
                                 return (
                                     <aside className="w-full md:w-[320px] shrink-0 border-t md:border-t-0 md:border-l border-edge flex flex-col md:min-h-0">
-                                        <p className={`${mono} text-fg-faint px-5 pt-5 pb-3`}>
+                                        {asking && (
+                                            <div className="px-5 pt-5 pb-5 border-b border-edge flex flex-col gap-3">
+                                                <p className="text-[15px] text-fg">¿Qué cambiarías?</p>
+                                                <textarea value={askText} onChange={(e) => setAskText(e.target.value)} rows={4} autoFocus
+                                                    placeholder="Ej: el texto más grande, otra foto en la lámina 3…"
+                                                    onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && askText.trim()) sendAsk(); if (e.key === "Escape") setAsking(false); }}
+                                                    className="px-3 py-2.5 rounded-[4px] border border-edge bg-[var(--color-surface-1)] text-[14px] leading-relaxed text-fg placeholder:text-fg-faint outline-none focus:border-fg/40 resize-none" />
+                                                <p className="text-[12px] leading-relaxed text-fg-faint">Si es algo puntual, también podés tocar una lámina y marcar el lugar exacto.</p>
+                                                <div className="flex justify-end gap-2">
+                                                    <button onClick={() => { setAsking(false); setAskText(""); }} className="h-8 px-3 text-[12px] text-fg-muted hover:text-fg cursor-pointer">Cancelar</button>
+                                                    <button onClick={sendAsk} disabled={busy || !askText.trim()}
+                                                        className="h-8 px-3.5 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[12px] font-medium cursor-pointer disabled:opacity-35">
+                                                        {current.status === "cambios" ? "Sumar" : "Pedir cambios"}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {pending.length > 0 && <p className={`${mono} text-fg-faint px-5 pt-5 pb-3`}>
                                             {client ? "Tus comentarios" : "Lo que pidieron"} · {pending.length}
-                                        </p>
+                                        </p>}
                                         <ol className="flex-1 overflow-y-auto px-2 pb-4">
                                             {pending.map((c) => {
                                                 const i = c.itemId ? idx[c.itemId] : undefined;
