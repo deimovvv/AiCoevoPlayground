@@ -130,4 +130,6 @@ class InboxItem(Base):
     # nuevo → incorporado | descartado
     status: Mapped[str] = mapped_column(String(12), default="nuevo", server_default="nuevo")
     result: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)   # qué se hizo, para el cliente
+    # Lo que propone el agente (services/inbox_agent.py): {status, target, why, perFile, discard} — el equipo confirma.
+    proposal: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -3933,8 +3933,14 @@ export interface InboxFile { url: string; name: string; kind: "image" | "video" 
 export interface InboxItem {
     id: string; brandId: string; campaignId: string | null; files: InboxFile[]; link: string | null; note: string | null;
     author: string | null; status: "nuevo" | "incorporado" | "descartado"; result: string | null; createdAt: string | null;
+    /** Lo que propone el agente (services/inbox_agent.py); el equipo confirma o corrige. */
+    proposal: InboxProposal | null;
 }
 export type InboxDest = "moodboard" | "luz" | "locacion" | "pose" | "plano" | "cara" | "prenda" | "producto";
+export interface InboxProposal {
+    status: "ok" | "error" | "sin_imagenes"; target?: string; why?: string;
+    perFile?: Record<string, InboxDest>; discard?: string[]; error?: string;
+}
 
 export async function sendMaterial(brandId: string, m: { files: File[]; link?: string; note?: string }, onProgress?: (p: number) => void): Promise<InboxItem> {
     const big = tooBig(m.files);
@@ -3954,6 +3960,9 @@ export async function incorporateInbox(id: string, body: { target: string; type:
     return editorJson(await fetch(`${API_BASE}/api/inbox/${encodeURIComponent(id)}/incorporar`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     }), "No se pudo incorporar");
+}
+export async function proposeInbox(id: string): Promise<InboxItem> {
+    return editorJson(await fetch(`${API_BASE}/api/inbox/${encodeURIComponent(id)}/proponer`, { method: "POST" }), "El agente no pudo proponer");
 }
 export async function discardInbox(id: string): Promise<InboxItem> {
     return editorJson(await fetch(`${API_BASE}/api/inbox/${encodeURIComponent(id)}/descartar`, { method: "POST" }), "No se pudo descartar");

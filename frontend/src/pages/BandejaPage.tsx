@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ExternalLink, FileText, Film } from "lucide-react";
+import { ExternalLink, FileText, Film, Loader2, Sparkles } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import {
-    backendUrl, discardInbox, incorporateInbox, listCampaigns, listInbox,
+    backendUrl, discardInbox, incorporateInbox, listCampaigns, listInbox, proposeInbox,
     type Campaign, type InboxDest, type InboxItem,
 } from "../lib/api";
 
@@ -24,14 +24,27 @@ const who = (a: string | null) => (!a ? "—" : a.startsWith("servicio:") ? "Cla
 function Item({ it, campaigns, onDone }: { it: InboxItem; campaigns: Campaign[]; onDone: (x: InboxItem) => void }) {
     const images = it.files.filter((f) => f.kind === "image");
     const others = it.files.filter((f) => f.kind !== "image");
-    const [target, setTarget] = useState("marca");
+    // Arranca con lo que propuso el agente (si hay); el equipo confirma o corrige.
+    const p = it.proposal?.status === "ok" ? it.proposal : null;
+    const [target, setTarget] = useState(p?.target ?? "marca");
     const [type, setType] = useState<InboxDest>("moodboard");
-    const [per, setPer] = useState<Record<string, InboxDest>>({});
-    const [off, setOff] = useState<string[]>([]);
+    const [per, setPer] = useState<Record<string, InboxDest>>(p?.perFile ?? {});
+    const [off, setOff] = useState<string[]>(p?.discard ?? []);
     const [busy, setBusy] = useState(false);
+    const [thinking, setThinking] = useState(false);
     const [err, setErr] = useState<string | null>(null);
     const run = async (fn: () => Promise<InboxItem>) => { setBusy(true); setErr(null); try { onDone(await fn()); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
     const done = it.status !== "nuevo";
+    const ask = async () => {
+        setThinking(true); setErr(null);
+        try {
+            const x = await proposeInbox(it.id);
+            const q = x.proposal?.status === "ok" ? x.proposal : null;
+            if (q) { setTarget(q.target ?? "marca"); setPer(q.perFile ?? {}); setOff(q.discard ?? []); }
+            else setErr(x.proposal?.error || "El agente no pudo proponer");
+            onDone(x);
+        } catch (e) { setErr((e as Error).message); } finally { setThinking(false); }
+    };
 
     return (
         <article className={`py-6 border-t border-edge ${done ? "opacity-55" : ""}`}>
@@ -41,6 +54,14 @@ function Item({ it, campaigns, onDone }: { it: InboxItem; campaigns: Campaign[];
                 <span className="flex-1" />
                 {done && <span className={`${mono} text-fg-faint`}>{it.status} · {it.result}</span>}
             </div>
+            {!done && images.length > 0 && (
+                <p className="mt-3 flex items-start gap-2 text-[12px] leading-relaxed text-fg-muted">
+                    <Sparkles size={12} className="mt-[3px] shrink-0 text-[var(--color-brand)]" />
+                    {thinking ? <span className="flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> El agente lo está mirando…</span>
+                        : p ? <span>El agente lo dejó elegido{p.why ? `: ${p.why}` : "."} Revisalo y sumalo, o cambiá lo que no va. <button onClick={ask} className="underline underline-offset-2 cursor-pointer">Volver a proponer</button></span>
+                            : <span>{it.proposal?.status === "error" ? "El agente no pudo mirarlo. " : ""}<button onClick={ask} className="underline underline-offset-2 text-fg cursor-pointer">Que lo ordene el agente</button></span>}
+                </p>
+            )}
             {(it.link || others.length > 0) && (
                 <div className="flex flex-wrap gap-3 mt-3 text-[12px]">
                     {it.link && <a href={it.link} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-fg underline underline-offset-2">Link del cliente <ExternalLink size={11} /></a>}
@@ -132,7 +153,7 @@ export function BandejaPage() {
             <Link to="/dashboard/produccion" className="text-[12px] text-fg-muted hover:text-fg no-underline">← Producción</Link>
             <p className={`${mono} text-fg-faint mt-8`}>{activeBrand?.name}</p>
             <h1 className="mt-2 text-[40px] leading-none tracking-[-0.035em] text-fg">Material del cliente</h1>
-            <p className="mt-3 text-[13px] text-fg-muted max-w-[560px]">Lo que mandó, sin ordenar. Elegí si va a la marca o a un proyecto, qué es cada imagen, y sumalo. El cliente ve que lo incorporaste.</p>
+            <p className="mt-3 text-[13px] text-fg-muted max-w-[560px]">Lo que mandó el cliente. El agente propone si va a la marca o a un proyecto y qué es cada imagen; vos revisás y lo sumás. El cliente ve que lo incorporaste.</p>
             <div className="mt-8">
                 {items === null && <p className="text-[13px] text-fg-faint">Cargando…</p>}
                 {items !== null && pending.length === 0 && <p className="py-6 border-t border-edge text-[13px] text-fg-faint">No hay material nuevo.</p>}

@@ -29,7 +29,7 @@
 - [x] C.2 «Cargar material» pregunta «¿para qué es?» (marca o campaña).
 - [x] C.3 `inbox_items` (migración `b4f1c8d2e6a3`), `routers/inbox.py`: el cliente manda archivos / link / nota sin elegir tipos;
       el equipo ordena en `/dashboard/bandeja` (a la marca o a una campaña, tipo por imagen, descartar); el cliente ve el estado.
-- [ ] C.4 Que el agente proponga el destino y el tipo de cada imagen del cliente (hoy lo elige el equipo).
+- [x] C.4 El agente propone destino (marca o proyecto) y tipo de cada imagen, y cuál descartar (`services/inbox_agent.py`, `inbox_items.proposal`, migración `e1a4c9b2f7d3`, 2026-10-21): corre solo al llegar material; en la Bandeja queda elegido con el porqué; el equipo confirma. Nunca incorpora solo.
 - [~] C.5 Avisos por mail (`services/mailer.py`, Resend, 2026-10-20): invitación, «para revisar», el cliente aprobó / pidió cambios / comentó (agrupados), mandó material, lo sumamos. Falta: dominio verificado + `RESEND_API_KEY` en el servidor.
 
 ## O. Operación mensual (design.md §14)

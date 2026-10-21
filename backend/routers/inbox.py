@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_session
 from db.models import InboxItem
-from services import brands, campaigns as campaigns_service, mailer
+from services import brands, campaigns as campaigns_service, inbox_agent, mailer
 from services.roles import can_see_brand, is_client
 
 router = APIRouter(tags=["inbox"])
@@ -62,7 +62,7 @@ def _kind(ext: str) -> str:
 def _out(i: InboxItem) -> dict:
     return {
         "id": i.id, "brandId": i.brand_id, "campaignId": i.campaign_id, "files": i.files or [], "link": i.link,
-        "note": i.note, "author": i.author, "status": i.status, "result": i.result,
+        "note": i.note, "author": i.author, "status": i.status, "result": i.result, "proposal": i.proposal,
         "createdAt": i.created_at.isoformat() if i.created_at else None,
     }
 
@@ -106,6 +106,8 @@ async def send_material(
     except Exception:
         shutil.rmtree(folder, ignore_errors=True)
         raise
+    if any(f["kind"] == "image" for f in saved):
+        inbox_agent.propose_later(item.id)   # propone destino y tipos mientras el equipo no lo mira
     if is_client(request):
         marca = mailer.brand_name(brand_id)
         what = [f"{len(saved)} {'archivo' if len(saved) == 1 else 'archivos'}"] if saved else []
@@ -190,6 +192,18 @@ async def incorporate(item_id: str, req: IncorporateIn, request: Request, s: Asy
                     [f"{item.result[0].upper()}{item.result[1:]}.", "Ya lo usamos para lo que viene."],
                     "Ver tu marca", mailer.app_url("/cliente/marca"), skip=_who(request))
     return _out(item)
+
+
+@router.post("/api/inbox/{item_id}/proponer")
+async def propose(item_id: str, request: Request, s: AsyncSession = Depends(get_session)):
+    """Que el agente (re)proponga destino y tipos ahora (si no llegó a hacerlo o falló)."""
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    if not await s.get(InboxItem, item_id):
+        raise HTTPException(status_code=404, detail="No existe")
+    await inbox_agent.propose(item_id)
+    s.expire_all()
+    return _out(await s.get(InboxItem, item_id))
 
 
 @router.post("/api/inbox/{item_id}/descartar")
