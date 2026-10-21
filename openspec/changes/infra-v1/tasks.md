@@ -21,7 +21,7 @@
       delante de app y API. El túnel no se publica sin esto. Confirmar el límite gratis.
 - [ ] 4.2 ~~Clientes con cuenta propia: Supabase Auth o Clerk~~ → reemplazado por roles sobre Access (`changes/studio-v2`).
 - [ ] 4.4 Abrir sólo `/portal/*` y `/api/portal/*` por fuera de Access (el token del link es la llave) mientras existan links de portal.
-- [~] 4.5 Backups (2026-10-21): base + `backend/data/` diarios, 14 días, restauración probada (`scripts/backup.sh`). Falta: bucket de R2 y claves → copia afuera del VPS (ya programada).
+- [x] 4.5 Backups (2026-10-21): base + `backend/data/` diarios, 14 días en el VPS, restauración probada; copia diaria a R2 `coevo-studio-backups` (954 archivos, 3,5 GB, idéntica) — `scripts/backup.sh`.
 - [x] 4.3 **(token `claude-local` andando 2026-10-18: policy "Claude" · Service Auth; credenciales en `~/.coevo-studio-token`, rotar después de configurar — el secret pasó por el chat)** **Token de servicio de Cloudflare Access** para Claude Code, scripts y skills: que Claude escriba
       directo en los proyectos del servidor (`PUT /api/video-projects/{id}` con versión), no sólo "subir".
       Es lo que cierra "todo nace como skill y vive en la app" (pedido de la otra sesión, 2026-10-16).
