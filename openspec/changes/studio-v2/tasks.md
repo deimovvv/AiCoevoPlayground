@@ -17,6 +17,11 @@
 - [ ] M.2 Identidad gráfica: logo, fuentes con licencia, colores, `DESIGN.md`.
 - [ ] M.3 Skill `onboarding-marca` + botón "Cargar marca".
 - [ ] M.4 Mudar `coevo-skills/identidades` a Caras; las skills leen por MCP (§8).
+- [ ] M.5 Un Design System de Claude Design por marca (pendiente, 2026-10-21). Lo arma Coevo con lo que pasa el cliente
+      (manual, logo, fuentes, refs), vive en la cuenta de Coevo y se comparte con los operadores; el cliente nunca lo ve ni
+      necesita Claude. Studio no diseña: guarda el link en Identidad y `ver_marca` lo devuelve. Carruseles/webs/posts se
+      hacen en Claude Design con ese design system → Entregas. Primero con Coevo (ya hay carruseles) o ALGÜNA (manual en curso).
+      Figma/Canva sólo si un cliente pide el editable.
 
 ## C. Campañas y material del cliente (design.md §15)
 
