@@ -108,6 +108,10 @@ def _days(d: Optional[datetime], now: datetime) -> int:
     return int((now - d).total_seconds() // 86400) if d else 0
 
 
+def _hace(n: int) -> str:
+    return "hoy" if n == 0 else f"hace {n} día" if n == 1 else f"hace {n} días"
+
+
 def _ts(iso: Optional[str]) -> Optional[datetime]:
     try:
         d = datetime.fromisoformat((iso or "").replace("Z", "+00:00"))
@@ -149,18 +153,18 @@ async def semaforo(request: Request, s: AsyncSession = Depends(get_session)):
         red, yellow = [], []
         if changes:
             age = max(_days(d.updated_at, now) for d in changes)
-            (red if age >= 2 else yellow).append(f"{len(changes)} con cambios pedidos: le toca a Coevo" + (f" (hace {age} días)" if age else ""))
+            (red if age >= 2 else yellow).append(f"{len(changes)} con cambios pedidos: le toca a Coevo" + f" ({_hace(age)})")
         if new_mat:
             age = max(_days(i.created_at, now) for i in new_mat)
-            (red if age >= 3 else yellow).append(f"material del cliente sin ordenar" + (f" hace {age} días" if age else ""))
+            (red if age >= 3 else yellow).append(f"material del cliente sin ordenar ({_hace(age)})")
         if waiting:
             age = max(_days(d.sent_at, now) for d in waiting)
             if age >= 4:
-                yellow.append(f"{len(waiting)} esperando al cliente hace {age} días")
+                yellow.append(f"{len(waiting)} esperando al cliente ({_hace(age)})")
         if unsent:
             age = max(_days(d.created_at, now) for d in unsent)
             if age >= 3:
-                yellow.append(f"{len(unsent)} sin mandar al cliente hace {age} días")
+                yellow.append(f"{len(unsent)} sin mandar al cliente ({_hace(age)})")
 
         margin = None
         fee = com.get("fee")
