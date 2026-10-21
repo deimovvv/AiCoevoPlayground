@@ -29,7 +29,7 @@
 - [x] C.2 «Cargar material» pregunta «¿para qué es?» (marca o campaña).
 - [x] C.3 `inbox_items` (migración `b4f1c8d2e6a3`), `routers/inbox.py`: el cliente manda archivos / link / nota sin elegir tipos;
       el equipo ordena en `/dashboard/bandeja` (a la marca o a una campaña, tipo por imagen, descartar); el cliente ve el estado.
-- [x] C.4 El agente propone destino (marca o proyecto) y tipo de cada imagen, y cuál descartar (`services/inbox_agent.py`, `inbox_items.proposal`, migración `e1a4c9b2f7d3`, 2026-10-21): corre solo al llegar material; en la Bandeja queda elegido con el porqué; el equipo confirma. Nunca incorpora solo.
+- [x] C.4 El agente propone destino (marca o proyecto) y tipo de cada imagen, y cuál descartar (`services/inbox_agent.py`, `inbox_items.proposal`, migración `e1a4c9b2f7d3`, 2026-10-21): corre solo al llegar material; en la Bandeja queda elegido con el porqué; el equipo confirma. Nunca incorpora solo. **Falta: que Gonzalo lo pruebe con un envío real.**
 - [~] C.5 Avisos por mail (`services/mailer.py`, Resend, 2026-10-20): invitación, «para revisar», el cliente aprobó / pidió cambios / comentó (agrupados), mandó material, lo sumamos. Falta: dominio verificado + `RESEND_API_KEY` en el servidor.
 
 ## O. Operación mensual (design.md §14)
@@ -39,6 +39,10 @@
 - [ ] O.3 Aprobación en lote (las piezas de la semana).
 - [ ] O.4 Tiempo por pieza, junto al costo de IA → margen por pack.
 - [ ] O.5 Material masivo: agrupar, archivo de la marca, tope del bloque activo (design.md §13).
+
+- [ ] O.6 Postiz (pendiente, 2026-10-21: nube, plan Team; se prende con el primer cliente o proyecto que lo use). API verificada:
+      `api.postiz.com/public/v1` — `GET /integrations`, `POST /upload`, `POST /posts` (now/schedule), `GET /analytics/{id}?date=7|30|90`.
+      Canales por marca en Marca; «Publicar» en una entrega aprobada (sólo las láminas aprobadas); métricas del mes → reporte.
 
 ## 1. Roles (base de todo lo demás)
 
