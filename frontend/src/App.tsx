@@ -27,6 +27,7 @@ import { DeliveriesPage } from "./pages/DeliveriesPage";
 import { ClientLayout } from "./components/layout/ClientLayout";
 import { MeProvider, TeamOnly } from "./lib/MeContext";
 import { AccesosPage } from "./pages/AccesosPage";
+import { SemaforoPage } from "./pages/SemaforoPage";
 import { TableroPage } from "./pages/TableroPage";
 import { BandejaPage } from "./pages/BandejaPage";
 import { ClienteMaterialPage } from "./pages/ClienteMaterialPage";
@@ -92,6 +93,7 @@ function App() {
         <Route path="marca" element={<MarcaPage />} />
         <Route path="produccion" element={<ProduccionPage />} />
         <Route path="accesos" element={<AccesosPage />} />
+        <Route path="semaforo" element={<SemaforoPage />} />
         <Route path="tablero/:id" element={<TableroPage />} />
         <Route path="bandeja" element={<BandejaPage />} />
         <Route path="chat" element={<ChatPage />} />

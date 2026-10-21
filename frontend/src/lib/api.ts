@@ -3910,6 +3910,33 @@ export async function removeBrandPerson(brandId: string, userId: string): Promis
     await editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/people/${encodeURIComponent(userId)}`, { method: "DELETE" }), "No se pudo sacar");
 }
 
+// ── Semáforo y ficha comercial (backend/routers/semaforo.py · studio-v2 O.7, sólo admin) ──
+
+export interface SemaforoBrand {
+    id: string; name: string; logo: string | null; color: "rojo" | "amarillo" | "verde"; reasons: string[];
+    waiting: number; changes: number; unsent: number; newMaterial: number;
+    approvedThisMonth: number; piecesPerMonth: number | null;
+    costUsd: number; fee: number | null; currency: "ARS" | "USD" | null; margin: number | null; hasCommercial: boolean;
+}
+export interface Semaforo { usdArs: number | null; month: string; brands: SemaforoBrand[] }
+export interface Commercial {
+    fee: number | null; currency: "ARS" | "USD"; piecesPerMonth: number | null; services: string; since: string | null;
+    contactName: string; contactEmail: string; contactPhone: string; billingName: string; billingTaxId: string; billingNotes: string;
+}
+
+export async function getSemaforo(): Promise<Semaforo> {
+    return editorJson(await fetch(`${API_BASE}/api/semaforo`), "No se pudo cargar el semáforo");
+}
+export async function setUsdArs(usdArs: number | null): Promise<void> {
+    await editorJson(await fetch(`${API_BASE}/api/semaforo/dolar`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usdArs }) }), "No se pudo guardar el dólar");
+}
+export async function getCommercial(brandId: string): Promise<Commercial> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/comercial`), "No se pudo cargar la ficha");
+}
+export async function saveCommercial(brandId: string, c: Commercial): Promise<Commercial> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/comercial`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c) }), "No se pudo guardar la ficha");
+}
+
 // ── Agente de marca (backend/services/brand_agent.py · studio-v2 M.3) ─────────
 
 export interface AgentStep { key: string; label: string; status: "pending" | "running" | "done" | "error" | "skipped"; note: string }

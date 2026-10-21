@@ -43,7 +43,10 @@ export function TopBar() {
             </div>
             <div className="h-14 flex items-center gap-4 md:order-last md:ml-auto">
                 {me.role === "admin"
-                    ? <Link to="/dashboard/accesos" className={cn("text-[12px] no-underline", pathname === "/dashboard/accesos" ? "text-fg" : "text-fg-faint hover:text-fg")}>Accesos</Link>
+                    ? <>
+                        <Link to="/dashboard/semaforo" className={cn("text-[12px] no-underline", pathname === "/dashboard/semaforo" ? "text-fg" : "text-fg-faint hover:text-fg")}>Semáforo</Link>
+                        <Link to="/dashboard/accesos" className={cn("text-[12px] no-underline", pathname === "/dashboard/accesos" ? "text-fg" : "text-fg-faint hover:text-fg")}>Accesos</Link>
+                    </>
                     : <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-fg-faint">Equipo</span>}
                 <span className="hidden lg:inline text-[12px] text-fg-faint max-w-[200px] truncate" title={me.email ?? ""}>{me.email === "local" ? "local" : me.email?.split("@")[0]}</span>
                 <button onClick={toggle} aria-label={theme === "light" ? "Pasar a modo oscuro" : "Pasar a modo claro"}

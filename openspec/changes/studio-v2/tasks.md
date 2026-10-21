@@ -44,6 +44,12 @@
       `api.postiz.com/public/v1` — `GET /integrations`, `POST /upload`, `POST /posts` (now/schedule), `GET /analytics/{id}?date=7|30|90`.
       Canales por marca en Marca; «Publicar» en una entrega aprobada (sólo las láminas aprobadas); métricas del mes → reporte.
 
+- [x] O.7 Semáforo + ficha comercial (2026-10-21, sólo admin): `/dashboard/semaforo` (`routers/semaforo.py`): una fila por marca con color y porqué
+      (cambios pedidos, material sin ordenar, espera al cliente, sin mandar, margen, piezas contra el pack). Ficha: fee, moneda, pack, contacto,
+      facturación en `data/commercial.json` (fuera de git y fuera de brands.json: el cliente nunca la ve). Margen = fee − costo de IA del mes.
+- [ ] O.8 Interesados de la pauta (pendiente, antes de pautar): formulario de la web → planilla o Notion; quién responde y en cuánto.
+      CRM (HubSpot gratis) recién con muchas consultas por semana. No va en Studio.
+
 ## 1. Roles (base de todo lo demás)
 
 - [x] 1.1 Tablas `users` y `memberships` (migración `9d2e4b7a1c08`).
