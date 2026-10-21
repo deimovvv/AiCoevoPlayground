@@ -44,7 +44,7 @@ export function TopBar() {
             <div className="h-14 flex items-center gap-4 md:order-last md:ml-auto">
                 {me.role === "admin"
                     ? <>
-                        <Link to="/dashboard/semaforo" className={cn("text-[12px] no-underline", pathname === "/dashboard/semaforo" ? "text-fg" : "text-fg-faint hover:text-fg")}>Semáforo</Link>
+                        <Link to="/dashboard/clientes" className={cn("text-[12px] no-underline", pathname === "/dashboard/clientes" ? "text-fg" : "text-fg-faint hover:text-fg")}>Clientes</Link>
                         <Link to="/dashboard/accesos" className={cn("text-[12px] no-underline", pathname === "/dashboard/accesos" ? "text-fg" : "text-fg-faint hover:text-fg")}>Accesos</Link>
                     </>
                     : <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-fg-faint">Equipo</span>}

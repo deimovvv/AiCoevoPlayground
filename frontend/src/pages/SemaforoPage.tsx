@@ -7,7 +7,7 @@ import {
 } from "../lib/api";
 
 /**
- * Semáforo (studio-v2 O.7, sólo admin): todas las marcas de un vistazo, cada una con su color y el
+ * Clientes (studio-v2 O.7, sólo admin; internamente «semáforo»): todas las marcas de un vistazo, cada una con su color y el
  * porqué. Tocar una abre su ficha comercial (fee, pack, contacto, facturación), que es lo que deja
  * calcular el margen: fee − costo de IA del mes. Nada de esto lo ve el cliente.
  */
@@ -105,9 +105,9 @@ export function SemaforoPage() {
     return (
         <div className="pb-16">
             {open && <Ficha brand={open} onClose={() => setOpen(null)} onSaved={load} />}
-            <p className={`${mono} text-fg-faint`}>Semáforo · {monthName}</p>
+            <p className={`${mono} text-fg-faint`}>Clientes · {monthName}</p>
             <div className="mt-3 flex flex-wrap items-end gap-x-8 gap-y-4">
-                <h1 className="text-[40px] leading-none tracking-[-0.035em] text-fg">Cómo viene cada marca</h1>
+                <h1 className="text-[40px] leading-none tracking-[-0.035em] text-fg">Cómo viene cada cliente</h1>
                 {data && (
                     <p className="flex items-center gap-4 text-[13px] text-fg-muted pb-1">
                         <span className="flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${DOT.rojo}`} />{count("rojo")}</span>

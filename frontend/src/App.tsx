@@ -93,7 +93,8 @@ function App() {
         <Route path="marca" element={<MarcaPage />} />
         <Route path="produccion" element={<ProduccionPage />} />
         <Route path="accesos" element={<AccesosPage />} />
-        <Route path="semaforo" element={<SemaforoPage />} />
+        <Route path="clientes" element={<SemaforoPage />} />
+        <Route path="semaforo" element={<Navigate to="/dashboard/clientes" replace />} />
         <Route path="tablero/:id" element={<TableroPage />} />
         <Route path="bandeja" element={<BandejaPage />} />
         <Route path="chat" element={<ChatPage />} />
