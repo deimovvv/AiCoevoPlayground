@@ -109,3 +109,30 @@ Lo que hace el equipo o Claude no le avisa al equipo. Sin `RESEND_API_KEY` no se
 Para prenderlo (usuario): cuenta en resend.com → Domains → `coevoagency.com` → cargar en Cloudflare DNS los
 registros que da (SPF, DKIM) → Verify → API Keys → crear una con permiso «Sending». Claude la pone en el `.env`
 del servidor (`RESEND_API_KEY`, y `MAIL_FROM` si no es `studio@coevoagency.com`) y reinicia la api.
+
+## Backups (2026-10-21)
+
+Servicio `backup` (`scripts/backup.sh`), una vez por día, desde que arranca el contenedor:
+
+- **Base**: `backups/coevo_studio-AAAAMMDD-HHMM.sql.gz`, últimos 14.
+- **Archivos** (`backend/data`: marcas, proyectos, imágenes, entregas): `backups/data/AAAAMMDD-HHMM/`, últimos 14.
+  Lo que no cambió entre días no ocupa lugar (hardlinks): 14 días pesan poco más que uno.
+- **Afuera del servidor (Cloudflare R2)**: la base (14 días) y un espejo de los archivos; lo que se borra o se pisa
+  queda en `attic/<fecha>`. Sólo si hay claves (abajo). Sin claves, el log dice «R2 sin configurar».
+
+Ver que anda: `docker compose -f docker-compose.prod.yml logs --tail 5 backup` (una línea «backup ok» por parte).
+
+**Restaurar** (probado el 2026-10-21):
+```bash
+# Base: a una base aparte primero, para mirar antes de pisar la real
+f=$(ls -1t backups/coevo_studio-*.sql.gz | head -1)
+docker compose -f docker-compose.prod.yml exec -T db psql -U coevo -d postgres -c "create database restore_test"
+gunzip -c $f | docker compose -f docker-compose.prod.yml exec -T db psql -U coevo -d restore_test
+# Un archivo o una carpeta de un día
+cp -a backups/data/<día>/brands.json backend/data/brands.json
+```
+
+**Prender R2** (usuario, una vez): Cloudflare → R2 → Create bucket `coevo-studio-backups` → Manage API tokens →
+Create token con permiso «Object Read & Write» sólo para ese bucket. Claude carga en el `.env` de la RAÍZ del repo en
+el servidor: `R2_BUCKET`, `R2_ENDPOINT` (`https://<account_id>.r2.cloudflarestorage.com`), `R2_ACCESS_KEY_ID`,
+`R2_SECRET_ACCESS_KEY`, y reinicia `backup`. ~4 GB: entra en lo gratis de R2 (10 GB).
