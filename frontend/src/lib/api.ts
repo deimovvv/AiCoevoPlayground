@@ -3942,6 +3942,28 @@ export async function removeBrandPerson(brandId: string, userId: string): Promis
     await editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/people/${encodeURIComponent(userId)}`, { method: "DELETE" }), "No se pudo sacar");
 }
 
+// ── Reporte del mes (backend/routers/reportes.py · studio-v2 O.9) ─────────────
+
+export interface MonthReport {
+    brand: string; month: string;
+    production: {
+        sent: number; approved: number; firstTry: number; withChanges: number; avgResponseDays: number | null;
+        removedSlides: number; clientComments: number; materialSent: number;
+        byProject: Array<{ project: string | null; sent: number; approved: number; changes: number }>;
+    };
+    reading: string; publishedAt: string | null;
+    /** Resultados en redes (Postiz). Todavía null. */
+    social: null;
+}
+export async function getReport(brandId: string, month: string): Promise<MonthReport> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/reporte?mes=${month}`), "No se pudo cargar el reporte");
+}
+export async function saveReport(brandId: string, month: string, body: { reading: string; publish?: boolean }): Promise<{ reading: string; publishedAt: string | null }> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/reporte?mes=${month}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }), "No se pudo guardar el reporte");
+}
+
 // ── Importar referencias (backend/routers/importar.py · studio-v2 M.6) ─────────
 
 /** Un tablero de Pinterest → moodboard (o luz, o locación) con nombre, en la marca o en un proyecto. */

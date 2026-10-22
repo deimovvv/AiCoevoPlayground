@@ -92,7 +92,9 @@ export function ClienteInicioPage() {
                         <ArrowRight size={14} className="text-fg-faint group-hover:text-fg" />
                     </Link>
                 </nav>
-                <p className="mt-5 text-[12px] text-fg-faint">El reporte de {monthName} llega a fin de mes.</p>
+                <p className="mt-5 text-[12px] text-fg-faint">
+                    El reporte de {monthName} llega a fin de mes. <Link to="/cliente/reporte" className="text-fg-muted hover:text-fg">Ver reportes →</Link>
+                </p>
             </section>
 
             {/* ── Imagen ── */}

@@ -53,6 +53,11 @@
 - [x] O.7 «Resumen» (semáforo) + ficha comercial (2026-10-21, sólo admin): `/dashboard/clientes` (`routers/semaforo.py`): una fila por marca con color y porqué
       (cambios pedidos, material sin ordenar, espera al cliente, sin mandar, margen, piezas contra el pack). Ficha: fee, moneda, pack, contacto,
       facturación en `data/commercial.json` (fuera de git y fuera de brands.json: el cliente nunca la ve). Margen = fee − costo de IA del mes.
+- [x] O.9 Reporte del mes (2026-10-22, `routers/reportes.py`, `/dashboard/reporte` y `/cliente/reporte`): producción (mandadas, aprobadas,
+      a la primera, con cambios, días hasta aprobar, por proyecto) + la lectura de Coevo; se publica y recién ahí lo ve el cliente.
+      Resultados en redes: lugar reservado para Postiz (O.6). Sin costos de IA (son de Coevo).
+- [x] O.10 Proyectos plegables en Entregas, con cuántas piezas y aprobadas (2026-10-22). Falta, con el primer catálogo grande: grilla del
+      proyecto (hoja de contactos con filtros) y la ficha por producto (SKU con sus tomas, aprobación por ficha, ZIP con nombres de la tienda).
 - [ ] O.8 Interesados de la pauta (pendiente, antes de pautar): formulario de la web → planilla o Notion; quién responde y en cuánto.
       CRM (HubSpot gratis) recién con muchas consultas por semana. No va en Studio.
 

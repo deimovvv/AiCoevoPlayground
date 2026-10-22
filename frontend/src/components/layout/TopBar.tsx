@@ -25,7 +25,7 @@ const SECTIONS: Section[] = [
             "/dashboard/chat", "/dashboard/tools", "/dashboard/pipeline"],
     },
     { label: "Entregas", href: "/dashboard/entregas", match: ["/dashboard/entregas"] },
-    { label: "Reportes", href: "/dashboard/performance/organic", match: ["/dashboard/performance", "/dashboard/integrations", "/dashboard/automations"] },
+    { label: "Reportes", href: "/dashboard/reporte", match: ["/dashboard/reporte", "/dashboard/performance", "/dashboard/integrations", "/dashboard/automations"] },
 ];
 
 export function TopBar() {

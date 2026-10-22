@@ -63,6 +63,7 @@ backend/data/renders/extracted/
 backend/data/.generations.lock
 backend/data/campaigns.json
 backend/data/commercial.json
+backend/data/reports.json
 backend/data/reviews.json
 backend/data/ig-imports/*
 backend/data/*.before_oom_cleanup

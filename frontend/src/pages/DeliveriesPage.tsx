@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ArrowRight, Check, ChevronLeft, ChevronRight, CornerDownLeft, Eye, ExternalLink, Loader2, Minus, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, CornerDownLeft, Eye, ExternalLink, Loader2, Minus, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
@@ -92,6 +92,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     // Zoom de la pieza entera (como en Canva): null = que entren todas; un número = alto de cada lámina en vh, con scroll.
     // Sin elegir (undefined): hasta 4 láminas entran todas; con más, arranca a un tamaño que se ve, con scroll.
     const [zoomSet, setZoom] = useState<number | null | undefined>(undefined);
+    // Proyectos plegables en la lista: lo que elige la persona; si no eligió, abierto si tiene pocas
+    // entregas (≤ 3) o la que está abierta.
+    const [fold, setFold] = useState<Record<string, boolean>>({});
     const [tab, setTab] = useState<"revisar" | "aprobadas">("revisar");   // sólo cliente
     const fileRef = useRef<HTMLInputElement>(null);
     const addRef = useRef<HTMLInputElement>(null);   // «Sumar láminas» a la entrega abierta
@@ -271,10 +274,27 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                     {groups.map((m) => (
                         <div key={m.key} className="mb-3">
                             <p className={`${mono} text-fg-faint px-2.5 pt-3 pb-1.5`}>{m.label}</p>
-                            {m.blocks.map((b) => (
+                            {m.blocks.map((b) => {
+                                const fk = `${m.key}:${b.key}`;
+                                const isOpen = !b.campaign || (fold[fk] ?? (b.items.length <= 3 || b.items.some((d) => d.id === selectedId)));
+                                const ok = b.items.filter((d) => d.status === "aprobada").length;
+                                const changes = b.items.filter((d) => d.status === "cambios").length;
+                                const waitingN = b.items.filter((d) => d.status === "en_revision" && (client || d.visibility === "cliente")).length;
+                                return (
                                 <div key={b.key} className={b.campaign ? "mb-1 ml-1 pl-2 border-l border-edge" : ""}>
-                                    {b.campaign && <p className="text-[12px] text-fg-muted px-1.5 pt-1 pb-1">{b.campaign}</p>}
-                                    {b.items.map((d) => (
+                                    {b.campaign && (
+                                        <button onClick={() => setFold((f) => ({ ...f, [fk]: !isOpen }))} aria-expanded={isOpen}
+                                            className="w-full flex items-center gap-1.5 px-1.5 pt-1.5 pb-1.5 rounded-[var(--radius-sm)] text-left cursor-pointer hover:bg-surface-1">
+                                            {isOpen ? <ChevronDown size={12} className="text-fg-faint shrink-0" /> : <ChevronRight size={12} className="text-fg-faint shrink-0" />}
+                                            <span className="flex-1 min-w-0 text-[12px] text-fg truncate">{b.campaign}</span>
+                                            <span className="shrink-0 text-[11px] text-fg-faint tabular-nums" title={`${b.items.length} piezas · ${ok} aprobadas${changes ? ` · ${changes} con cambios` : ""}${waitingN ? ` · ${waitingN} esperando` : ""}`}>
+                                                {b.items.length}
+                                                {ok > 0 && <span className="text-[var(--color-success)]"> · {ok}✓</span>}
+                                                {changes > 0 && <span className="text-[var(--color-brand)]"> · {changes}</span>}
+                                            </span>
+                                        </button>
+                                    )}
+                                    {isOpen && b.items.map((d) => (
                                         <button key={d.id} onClick={() => open(d.id)}
                                             className={`w-full flex gap-3 items-center p-2 rounded-[var(--radius-md)] text-left cursor-pointer transition-colors ${d.id === selectedId ? "bg-surface-2" : "hover:bg-surface-1"}`}>
                                             <div className="w-9 h-11 shrink-0 rounded-[var(--radius-xs)] bg-surface-2 overflow-hidden">
@@ -292,7 +312,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         </button>
                                     ))}
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     ))}
                 </div>
