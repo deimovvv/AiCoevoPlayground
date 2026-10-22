@@ -49,6 +49,7 @@ tokens: `frontend/src/index.css`.
 | [market-positioning.md](negocio/market-positioning.md) | nicho: video × español × calce |
 | [competitive-research.md](negocio/competitive-research.md) · [rumbo-2026-2028.md](negocio/rumbo-2026-2028.md) · [estrategia-motor.md](negocio/estrategia-motor.md) | competidores verificados |
 | [financial-model.md](negocio/financial-model.md) | márgenes, descarte, "turista de IA" |
+| [producto-propio.md](negocio/producto-propio.md) | ¿un producto que otros usen solos? opciones, gatillos y cómo probarlo |
 | [client_onboarding.md](negocio/client_onboarding.md) | qué pedirle a un cliente nuevo |
 
 ## Video, audio y operación
