@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
 import { useMe } from "../../lib/useMe";
 import { cn } from "../../lib/utils";
+import { ClientGuide } from "./ClientGuide";
 
 /**
  * Lo que ve el cliente (openspec/changes/studio-v2 §11): una barra mínima con su marca y nada del
@@ -54,6 +55,7 @@ export function ClientLayout() {
                         );
                     })}
                 </nav>
+                <ClientGuide auto={!preview} />
                 {!preview && <span className="hidden md:block shrink-0 text-[12px] text-fg-faint">{me.email}</span>}
             </header>
             <main className="flex-1 min-h-0 overflow-hidden">

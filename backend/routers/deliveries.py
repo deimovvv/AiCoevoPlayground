@@ -278,19 +278,76 @@ def _check_campaign(campaign_id: Optional[str], brand_id: str) -> Optional[str]:
 class GroupIn(BaseModel):
     campaignId: Optional[str] = None
     stage: Optional[str] = None
+    title: Optional[str] = None      # si viene, renombra la entrega
 
 
 @router.patch("/api/deliveries/{delivery_id}")
 async def set_group(delivery_id: str, req: GroupIn, request: Request, s: AsyncSession = Depends(get_session)):
-    """Proyecto y etapa de una entrega (equipo)."""
+    """Proyecto, etapa y título de una entrega (equipo)."""
     if is_client(request):
         raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
     d = await _get(s, delivery_id)
     d.campaign_id = _check_campaign(req.campaignId, d.brand_id)
     d.stage = (req.stage or "").strip()[:60] or None
+    if req.title is not None:
+        if not req.title.strip():
+            raise HTTPException(status_code=400, detail="El título no puede quedar vacío")
+        d.title = req.title.strip()[:200]
     await s.commit()
     await s.refresh(d)
     return await _full(s, d)
+
+
+@router.post("/api/deliveries/{delivery_id}/items")
+async def add_items(delivery_id: str, request: Request, files: List[UploadFile] = File(...), s: AsyncSession = Depends(get_session)):
+    """Sumar láminas a la ronda actual (equipo): otra imagen al lado, o la versión corregida de una
+    para que el cliente compare. Si ya estaba aprobada, vuelve a «en revisión»."""
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    d = await _get(s, delivery_id)
+    start = len(d.items or [])
+    new = await _store_items(d.id, d.round, files, [])
+    for i, it in enumerate(new):
+        it["label"] = f"{start + i + 1:02d}"
+    d.items = [*(d.items or []), *new]
+    if d.status == "aprobada":
+        d.status, d.approved_by, d.approved_at = "en_revision", None, None
+    await s.commit()
+    await s.refresh(d)
+    return await _full(s, d)
+
+
+@router.delete("/api/deliveries/{delivery_id}/items/{item_id}")
+async def remove_item(delivery_id: str, item_id: str, request: Request, s: AsyncSession = Depends(get_session)):
+    """Sacar una lámina de la ronda actual (equipo). El archivo queda en disco por si tenía comentarios."""
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    d = await _get(s, delivery_id)
+    items = [i for i in (d.items or []) if i["id"] != item_id]
+    if len(items) == len(d.items or []):
+        raise HTTPException(status_code=404, detail="Esa lámina no es de la ronda actual")
+    if not items:
+        raise HTTPException(status_code=400, detail="Tiene que quedar al menos una lámina. Para sacar todo, borrá la entrega.")
+    d.items = items
+    await s.commit()
+    await s.refresh(d)
+    return await _full(s, d)
+
+
+@router.delete("/api/proyectos/{campaign_id}")
+async def delete_project(campaign_id: str, request: Request, s: AsyncSession = Depends(get_session)):
+    """Borrar un proyecto (equipo). Sus entregas no se borran: quedan sin proyecto."""
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    items = campaigns_service.load_campaigns()
+    if not campaigns_service.find_campaign(items, campaign_id):
+        raise HTTPException(status_code=404, detail="No existe ese proyecto")
+    rows = (await s.execute(select(Delivery).where(Delivery.campaign_id == campaign_id))).scalars().all()
+    for d in rows:
+        d.campaign_id = None
+    await s.commit()
+    campaigns_service.save_campaigns([c for c in items if c.get("id") != campaign_id])
+    return {"ok": True, "deliveriesFreed": len(rows)}
 
 
 @router.post("/api/deliveries/{delivery_id}/items/{item_id}/toggle")
@@ -324,8 +381,11 @@ async def set_status(delivery_id: str, req: StatusIn, request: Request, s: Async
         raise HTTPException(status_code=400, detail=f"status debe ser uno de {sorted(STATUSES)}")
     d = await _get(s, delivery_id)
     if is_client(request):
-        if d.visibility != "cliente" or not can_see_brand(request, d.brand_id) or req.status == "en_revision":
+        if d.visibility != "cliente" or not can_see_brand(request, d.brand_id):
             raise HTTPException(status_code=404, detail="No existe esa entrega")
+        # «Cambiar mi elección»: sólo puede volver a «en revisión» algo que él mismo aprobó.
+        if req.status == "en_revision" and (d.status != "aprobada" or not can_approve(request, d.brand_id)):
+            raise HTTPException(status_code=400, detail="Sólo se puede reabrir una entrega aprobada.")
         if req.status == "aprobada" and not can_approve(request, d.brand_id):
             raise HTTPException(status_code=403, detail="Podés comentar, pero aprobar lo hace otra persona de tu marca.")
     d.status = req.status

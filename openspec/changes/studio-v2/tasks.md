@@ -85,5 +85,8 @@
 - [x] 4.0 Dos pasos: `deliveries.visibility` + `sent_at`, `delivery_comments.internal` (migración `7c3a9e1f2b55`); equipo: Pedir otra vuelta · Mandar al cliente · Marcar aprobada; una ronda nueva vuelve a interna (2026-10-19).
 - [~] 4.0b Vista cliente en `/cliente` (hoy vista previa del equipo): Entregas (Para revisar · Aprobadas) y Mi marca en lectura. Faltan: descarga de aprobadas, Mandar material, entrar como cliente (roles).
 
+- [x] 4.3 Entregas en uso real (2026-10-22, pedido con Koxis): renombrar la entrega; «+ Proyecto» visible y borrar proyecto (sus entregas
+      quedan sin proyecto); etapas sugeridas Carrusel / Historias / Video; «Sumar láminas» y sacar una lámina (equipo); el cliente
+      «Cambiar mi elección» después de aprobar; «¿Cómo funciona?» para el cliente (se abre la primera vez). Falta: video del recorrido.
 - [ ] 4.1 Entregas por marca: estado, comentarios, aprobación (reusa notas del portal).
 - [ ] 4.2 Migrar clientes del portal por link a cuentas; apagar el portal.

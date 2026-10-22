@@ -3851,6 +3851,22 @@ export async function createDelivery(brandId: string, title: string, files: File
     return uploadWithProgress(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/deliveries`, form, "No se pudo subir la entrega", onProgress);
 }
 
+/** Sumar láminas a la ronda actual (equipo): otra imagen al lado, o la versión corregida de una. */
+export async function addDeliveryItems(id: string, files: File[], onProgress?: (p: number) => void): Promise<Delivery> {
+    const big = tooBig(files);
+    if (big) throw new Error(`«${big.name}» pesa más de ${MAX_UPLOAD_MB} MB: subilo comprimido o mandalo por link.`);
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f));
+    return uploadWithProgress(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/items`, form, "No se pudieron sumar las láminas", onProgress);
+}
+export async function deleteDeliveryItem(id: string, itemId: string): Promise<Delivery> {
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, { method: "DELETE" }), "No se pudo sacar la lámina");
+}
+/** Borrar un proyecto: sus entregas quedan sin proyecto (no se borran). */
+export async function deleteProject(campaignId: string): Promise<void> {
+    await editorJson(await fetch(`${API_BASE}/api/proyectos/${encodeURIComponent(campaignId)}`, { method: "DELETE" }), "No se pudo borrar el proyecto");
+}
+
 export async function setDeliveryStatus(id: string, status: DeliveryStatus): Promise<Delivery> {
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/status`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
@@ -4016,7 +4032,7 @@ export async function discardInbox(id: string): Promise<InboxItem> {
     return editorJson(await fetch(`${API_BASE}/api/inbox/${encodeURIComponent(id)}/descartar`, { method: "POST" }), "No se pudo descartar");
 }
 
-export async function setDeliveryGroup(id: string, g: { campaignId: string | null; stage: string | null }): Promise<Delivery> {
+export async function setDeliveryGroup(id: string, g: { campaignId: string | null; stage: string | null; title?: string }): Promise<Delivery> {
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(g),
     }), "No se pudo guardar");

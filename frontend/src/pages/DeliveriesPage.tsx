@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ArrowRight, Check, ChevronLeft, ChevronRight, CornerDownLeft, Eye, ExternalLink, Loader2, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, CornerDownLeft, Eye, ExternalLink, Loader2, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
 import { DeliveryGroupPicker } from "../components/workspace/DeliveryGroupPicker";
 import {
-    backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment,
+    backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryItems, deleteDeliveryItem,
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
     type Delivery, type DeliveryStatus, type DeliverySummary,
 } from "../lib/api";
@@ -91,6 +91,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const [picking, setPicking] = useState(false);
     const [tab, setTab] = useState<"revisar" | "aprobadas">("revisar");   // sólo cliente
     const fileRef = useRef<HTMLInputElement>(null);
+    const addRef = useRef<HTMLInputElement>(null);   // «Sumar láminas» a la entrega abierta
     const brandRef = useRef(brandId);
 
     const refreshList = useCallback(async () => {
@@ -304,7 +305,15 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             <div className="min-w-0 w-full md:w-auto order-first md:order-none">
                                 <h2 className="text-[15px] font-medium text-fg truncate">
                                     {(current.campaignName || current.stage) && <span className="text-fg-muted font-normal">{[current.campaignName, current.stage].filter(Boolean).join(" · ")} · </span>}
-                                    {current.title}
+                                    {client ? current.title : (
+                                        <button title="Cambiarle el nombre" className="group/t inline-flex items-center gap-1.5 cursor-pointer"
+                                            onClick={async () => {
+                                                const t = await ask({ title: "Nombre de la entrega", input: "Nombre", placeholder: current.title, confirm: "Guardar" });
+                                                if (typeof t === "string") run(async () => { setCurrent(await setDeliveryGroup(current.id, { campaignId: current.campaignId, stage: current.stage, title: t })); await refreshList(); });
+                                            }}>
+                                            {current.title} <Pencil size={11} className="text-fg-faint opacity-0 group-hover/t:opacity-100" />
+                                        </button>
+                                    )}
                                 </h2>
                                 <p className="text-[11px] text-fg-faint mt-0.5 flex items-center gap-1.5">
                                     <span className={`w-1.5 h-1.5 rounded-full ${current.visibility === "interna" && !client ? "bg-[var(--color-edge-strong)]" : DOT[current.status]}`} />
@@ -337,6 +346,13 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
                                         <RotateCcw size={12} /> {current.status === "cambios" ? "Pedir algo más" : "Pedir cambios"}
                                     </button>
+                                    {current.status === "aprobada" && mayApprove && (
+                                        <button disabled={busy} title="Volver a abrirla para cambiar qué láminas van"
+                                            onClick={() => run(async () => { await setDeliveryStatus(current.id, "en_revision"); await reload(current.id); setPicking(total > 1); })}
+                                            className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
+                                            <RotateCcw size={12} /> Cambiar mi elección
+                                        </button>
+                                    )}
                                     {current.status !== "aprobada" && mayApprove && total > 1 && (
                                         <button disabled={busy} onClick={() => { setSlide(null); setPicking((p) => !p); }}
                                             className={`h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border text-[12px] cursor-pointer disabled:opacity-50 ${picking ? "border-fg text-fg" : "border-edge text-fg-muted hover:text-fg"}`}>
@@ -375,6 +391,21 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                             <Check size={12} /> Marcar aprobada
                                         </button>
                                     )}
+                                </>
+                            )}
+                            {!client && (
+                                <>
+                                    <button disabled={busy} title="Sumar imágenes o videos a esta entrega: otra al lado, o la versión corregida de una para comparar"
+                                        onClick={() => addRef.current?.click()}
+                                        className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
+                                        {progress !== null ? <><Loader2 size={12} className="animate-spin" /> {Math.round(progress * 100)}%</> : <><Plus size={12} /> Sumar láminas</>}
+                                    </button>
+                                    <input ref={addRef} type="file" multiple hidden accept="image/*,video/*"
+                                        onChange={(e) => {
+                                            const fs = Array.from(e.target.files || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+                                            e.target.value = "";
+                                            if (fs.length) run(async () => { setProgress(0); try { setCurrent(await addDeliveryItems(current.id, fs, setProgress)); await refreshList(); } finally { setProgress(null); } });
+                                        }} />
                                 </>
                             )}
                             {!client && (
@@ -420,6 +451,13 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                             </span>
                                                         ))}
                                                     </button>
+                                                    {!client && total > 1 && (
+                                                        <button disabled={busy} title="Sacar esta lámina de la entrega" aria-label={`Sacar la lámina ${i + 1}`}
+                                                            onClick={async () => { if (await ask({ title: `¿Sacar la lámina ${String(i + 1).padStart(2, "0")}?`, body: "Sale de esta versión de la entrega. Sus comentarios quedan en el historial.", confirm: "Sacar", danger: true })) run(async () => { setCurrent(await deleteDeliveryItem(current.id, it.id)); await refreshList(); }); }}
+                                                            className="absolute top-2.5 left-2.5 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer">
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    )}
                                                     {showPick && (
                                                         <button disabled={busy || !canPick} aria-pressed={!it.rejected}
                                                             aria-label={it.rejected ? `Volver a sumar la lámina ${i + 1}` : `Sacar la lámina ${i + 1}`}

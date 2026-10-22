@@ -1,16 +1,16 @@
-import { Pencil } from "lucide-react";
-import { createCampaign, updateCampaign, type Campaign } from "../../lib/api";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import { createCampaign, deleteProject, updateCampaign, type Campaign } from "../../lib/api";
 import type { useConfirm } from "../../lib/useConfirm";
 
 /**
  * Dónde va una entrega (studio-v2 §16): campaña y etapa, con rótulo. La campaña se elige, se crea
- * («+ Nuevo proyecto…») o se renombra (lápiz) acá mismo. La etapa es el paso dentro del proyecto
+ * («+ Proyecto»), se renombra (lápiz) o se borra (tacho: sus entregas quedan sin proyecto) acá mismo. La etapa es el paso dentro del proyecto
  * (01 Fotos → 02 Video): se elige de las que ya hay o se escribe otra.
  */
 
 const NEW = "__nueva__";
 const OTHER = "__otra__";
-const PRESET_STAGES = ["01 Fotos", "02 Video"];
+const PRESET_STAGES = ["01 Fotos", "02 Video", "Carrusel", "Historias", "Video"];
 const mono = "font-mono text-[9.5px] uppercase tracking-[0.09em] text-fg-faint";
 const field = "h-7 max-w-[180px] px-1.5 rounded-[3px] border border-edge bg-transparent text-[12px] text-fg cursor-pointer outline-none focus:border-fg/40";
 
@@ -33,13 +33,21 @@ export function DeliveryGroupPicker({ brandId, campaigns, onCampaigns, campaignI
     const current = campaigns.find((c) => c.id === campaignId);
 
     const safe = async (fn: () => Promise<void>) => { try { await fn(); } catch (e) { onError((e as Error).message); } };
-    const pickCampaign = (v: string) => safe(async () => {
-        if (v !== NEW) return onChange({ campaignId: v || null, stage });
-        const name = await ask({ title: "Nuevo proyecto", input: "Nombre", placeholder: "Ej: Otoño 2026", confirm: "Crear" });
+    const create = () => safe(async () => {
+        const name = await ask({ title: "Nuevo proyecto", input: "Nombre", placeholder: "Ej: Jean otoño 2026", confirm: "Crear",
+            body: "Un proyecto junta las entregas de una misma campaña o pedido (fotos, carruseles, historias, videos)." });
         if (typeof name !== "string") return;
         const c = await createCampaign({ brandId, name });
         onCampaigns([...campaigns, c]);
         onChange({ campaignId: c.id, stage });
+    });
+    const pickCampaign = (v: string) => (v === NEW ? create() : onChange({ campaignId: v || null, stage }));
+    const remove = () => safe(async () => {
+        if (!current) return;
+        if (!(await ask({ title: `¿Borrar el proyecto «${current.name || "sin nombre"}»?`, body: "Las entregas no se borran: quedan sin proyecto.", confirm: "Borrar", danger: true }))) return;
+        await deleteProject(current.id);
+        onCampaigns(campaigns.filter((x) => x.id !== current.id));
+        onChange({ campaignId: null, stage });
     });
     const rename = () => safe(async () => {
         if (!current) return;
@@ -57,7 +65,7 @@ export function DeliveryGroupPicker({ brandId, campaigns, onCampaigns, campaignI
 
     return (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-            <label className="flex items-center gap-1.5">
+            <label className="flex flex-wrap items-center gap-1.5 max-w-full">
                 <span className={mono}>Proyecto</span>
                 <select value={campaignId ?? ""} disabled={disabled} onChange={(e) => pickCampaign(e.target.value)} className={field}>
                     <option value="">Sin proyecto</option>
@@ -65,9 +73,15 @@ export function DeliveryGroupPicker({ brandId, campaigns, onCampaigns, campaignI
                     <option value={NEW}>+ Nuevo proyecto…</option>
                 </select>
                 {current && (
-                    <button type="button" onClick={rename} disabled={disabled} title="Cambiarle el nombre al proyecto" aria-label="Cambiarle el nombre al proyecto"
-                        className="w-6 h-6 flex items-center justify-center rounded-[3px] text-fg-faint hover:text-fg cursor-pointer"><Pencil size={11} /></button>
+                    <>
+                        <button type="button" onClick={rename} disabled={disabled} title="Cambiarle el nombre al proyecto" aria-label="Cambiarle el nombre al proyecto"
+                            className="w-6 h-6 flex items-center justify-center rounded-[3px] text-fg-faint hover:text-fg cursor-pointer"><Pencil size={11} /></button>
+                        <button type="button" onClick={remove} disabled={disabled} title="Borrar el proyecto (las entregas quedan sin proyecto)" aria-label="Borrar el proyecto"
+                            className="w-6 h-6 flex items-center justify-center rounded-[3px] text-fg-faint hover:text-[var(--color-error)] cursor-pointer"><Trash2 size={11} /></button>
+                    </>
                 )}
+                <button type="button" onClick={create} disabled={disabled} title="Crear un proyecto nuevo"
+                    className="h-7 px-2 flex items-center gap-1 rounded-[3px] border border-dashed border-edge text-[11px] text-fg-muted hover:text-fg hover:border-fg cursor-pointer"><Plus size={11} /> Proyecto</button>
             </label>
             <label className="flex items-center gap-1.5">
                 <span className={mono}>Etapa</span>
