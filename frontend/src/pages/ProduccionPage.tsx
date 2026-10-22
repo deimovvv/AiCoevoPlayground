@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { Trash2 } from "lucide-react";
 import { useConfirm } from "../lib/useConfirm";
 import { useBrand } from "../lib/BrandContext";
-import { backendUrl, createCampaign, fetchGenerations, fetchToolPreviews, listCampaigns, listDeliveries, listInbox, type Campaign, type DeliverySummary, type Generation, type InboxItem, type ToolPreview } from "../lib/api";
+import { backendUrl, createCampaign, deleteProject, fetchGenerations, fetchToolPreviews, listCampaigns, listDeliveries, listInbox, type Campaign, type DeliverySummary, type Generation, type InboxItem, type ToolPreview } from "../lib/api";
 
 /**
  * Producción (openspec/changes/studio-v2 §1): hacer algo nuevo para la marca y ver qué espera
@@ -184,10 +185,11 @@ export function ProduccionPage() {
                         }} className="text-[12px] text-fg hover:underline cursor-pointer">+ Nueva</button>
                     </div>
                     {campaigns.length === 0 && <p className="py-4 text-[13px] text-fg-faint">Un proyecto junta la idea y su tablero: moodboard, luz, locación, planos.</p>}
-                    {campaigns.slice(0, 8).map((c) => {
+                    {campaigns.map((c) => {
                         const cover = (c.inputs || []).find((i) => i.type === "moodboard" || i.type === "lookfeel")?.url || (c.inputs || [])[0]?.url;
                         return (
-                            <Link key={c.id} to={`/dashboard/tablero/${c.id}`} className="flex items-center gap-4 py-3 border-b border-[var(--color-edge-subtle)] no-underline">
+                            <div key={c.id} className="group flex items-center border-b border-[var(--color-edge-subtle)]">
+                            <Link to={`/dashboard/tablero/${c.id}`} className="flex-1 min-w-0 flex items-center gap-4 py-3 no-underline">
                                 <span className="w-12 h-[60px] shrink-0 rounded-[var(--radius-xs)] bg-[var(--color-surface-2)] overflow-hidden">
                                     {cover && <img src={backendUrl(cover)} alt="" className="w-full h-full object-cover" />}
                                 </span>
@@ -197,6 +199,15 @@ export function ProduccionPage() {
                                 </span>
                                 <span className="text-[12px] text-fg">Abrir →</span>
                             </Link>
+                            {/* Borrar: el proyecto y su tablero; las entregas que tenía quedan sin proyecto. */}
+                            <button title="Borrar el proyecto" aria-label={`Borrar el proyecto ${c.name}`}
+                                onClick={async () => {
+                                    if (!(await ask({ title: `¿Borrar el proyecto «${c.name || "sin nombre"}»?`, body: "Se borra su tablero de referencias. Las entregas que tenía no se borran: quedan sin proyecto.", confirm: "Borrar", danger: true }))) return;
+                                    await deleteProject(c.id);
+                                    setCampaigns((l) => l.filter((x) => x.id !== c.id));
+                                }}
+                                className="ml-2 w-8 h-8 shrink-0 flex items-center justify-center rounded-full text-fg-faint hover:text-[var(--color-error)] md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 cursor-pointer"><Trash2 size={13} /></button>
+                            </div>
                         );
                     })}
                 </section>
