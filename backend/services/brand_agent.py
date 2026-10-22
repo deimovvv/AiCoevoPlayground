@@ -77,7 +77,10 @@ async def _read_web(url: str) -> str:
     from bs4 import BeautifulSoup
     if not url.startswith("http"):
         url = "https://" + url
-    async with httpx.AsyncClient(timeout=25, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0 (CoevoStudio)"}) as c:
+    # Encabezados de navegador: varios hostings (ej. el de Hostinger, «hcdn») devuelven 403 a lo que no parece uno.
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+               "Accept": "text/html,application/xhtml+xml", "Accept-Language": "es-AR,es;q=0.9,en;q=0.8"}
+    async with httpx.AsyncClient(timeout=25, follow_redirects=True, headers=headers) as c:
         r = await c.get(url)
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
