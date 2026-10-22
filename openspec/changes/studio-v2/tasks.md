@@ -57,6 +57,9 @@
 - [~] 1.3 Filtro por marca: marcas, entregas y comentarios. Los /static no se filtran por marca (nombres al azar; revisar al mudar a R2).
 - [x] 1.4 `/dashboard/accesos` (admin): alta, rol, marcas, quién aprueba, baja (2026-10-19).
 - [x] 1.6 El cliente suma a su equipo (2026-10-20): `memberships.can_invite` (migración `d8f3b1a7c2e9`), Accesos → «suma gente»; `/cliente/personas` (Equipo): el contacto principal invita (comenta o aprueba) y saca; no saca a otro principal ni a sí mismo, ni reactiva bajas; al equipo le llega un mail.
+- [ ] 1.7 Login propio (pendiente, depende de Resend): pantalla de entrada con la estética de la puerta, «Entrar con Google» y
+      «Entrar con tu mail» (código por Resend). Cloudflare sigue delante del servidor pero el cliente no ve su pantalla.
+      Hoy: login de Cloudflare con logo, color y textos de Coevo (2026-10-22).
 - [ ] 1.5 Policy de Access "Clientes" separada de "Equipo Coevo"; guía en `docs/guias/produccion.md`.
 
 ## 2. Navegación
