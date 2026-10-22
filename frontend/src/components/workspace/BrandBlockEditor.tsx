@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { useConfirm } from "../../lib/useConfirm";
-import { Loader2, Trash2, Upload, X } from "lucide-react";
+import { Check, ExternalLink, Loader2, Trash2, Upload, X } from "lucide-react";
 import {
     backendUrl, updateBrand, uploadAvatar, deleteAvatar, uploadProduct, deleteProduct, uploadClothing, deleteClothing,
     uploadBackground, deleteBackground, uploadMoodboard, deleteMoodboard, uploadLookAndFeel, deleteLookAndFeel,
     uploadBrandLogo, deleteBrandLogo, uploadPose, deletePose, uploadShotRef, deleteShotRef, type Brand,
-    listCampaigns, uploadCampaignInputs, deleteCampaignInput, type Campaign, type CampaignInput,
+    listCampaigns, uploadCampaignInputs, deleteCampaignInput, importPinterest, type Campaign, type CampaignInput,
 } from "../../lib/api";
 
 /**
@@ -130,25 +130,133 @@ function Drop({ dests, brandId, onDone, hint, dest: destIn, onDest, campaignId }
     );
 }
 
-function Grid({ items, onDelete }: { items: Array<{ id: string; url: string; label?: string }>; onDelete: (id: string) => Promise<void> }) {
+type GridItem = { id: string; url: string; label?: string };
+
+/** Grilla de imágenes. «Elegir» marca varias y las borra juntas; el tachito de cada una sigue para borrar de a una. */
+function Grid({ items, onDelete }: { items: GridItem[]; onDelete: (id: string) => Promise<void> }) {
     const [busy, setBusy] = useState<string | null>(null);
+    const [picking, setPicking] = useState(false);
+    const [sel, setSel] = useState<string[]>([]);
     const [dialog, ask] = useConfirm();
     if (!items.length) return null;
+    const toggle = (id: string) => setSel((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
+    const removeSelected = async () => {
+        if (!(await ask({ title: `¿Quitar ${sel.length} ${sel.length === 1 ? "imagen" : "imágenes"}?`, confirm: "Quitar", danger: true }))) return;
+        for (let i = 0; i < sel.length; i++) {
+            setBusy(`Quitando ${i + 1} de ${sel.length}…`);
+            try { await onDelete(sel[i]); } catch { /* sigue con las demás */ }
+        }
+        setBusy(null); setSel([]); setPicking(false);
+    };
     return (
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="flex flex-col gap-2">
             {dialog}
-            {items.map((it) => (
-                <figure key={it.id} className="group relative aspect-[4/5] rounded-[2px] overflow-hidden bg-[var(--color-surface-2)]">
-                    <img src={backendUrl(it.url)} alt={it.label ?? ""} loading="lazy" className="w-full h-full object-cover" />
-                    {it.label && <figcaption className="absolute left-1 bottom-1 px-1 rounded-[2px] bg-black/55 text-white text-[10px] max-w-[90%] truncate">{it.label}</figcaption>}
-                    <button type="button" aria-label="Quitar" disabled={busy === it.id}
-                        onClick={async () => { if (!(await ask({ title: "¿Quitar esta imagen?", confirm: "Quitar", danger: true }))) return; setBusy(it.id); try { await onDelete(it.id); } finally { setBusy(null); } }}
-                        className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer">
-                        {busy === it.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                    </button>
-                </figure>
-            ))}
+            {(picking || items.length > 1) && (
+                <div className="flex items-center gap-3 text-[12px]">
+                    {picking ? (
+                        <>
+                            <button onClick={() => setSel(sel.length === items.length ? [] : items.map((x) => x.id))} className="text-fg-muted hover:text-fg cursor-pointer">
+                                {sel.length === items.length ? "Ninguna" : "Todas"}
+                            </button>
+                            <span className="flex-1 text-fg-faint">{busy ?? `${sel.length} elegidas`}</span>
+                            <button onClick={() => { setPicking(false); setSel([]); }} disabled={!!busy} className="text-fg-muted hover:text-fg cursor-pointer">Cancelar</button>
+                            <button onClick={removeSelected} disabled={!sel.length || !!busy}
+                                className="h-7 px-2.5 rounded-[3px] bg-[var(--color-error)] text-white cursor-pointer disabled:opacity-35">Quitar {sel.length || ""}</button>
+                        </>
+                    ) : (
+                        <>
+                            <span className="flex-1" />
+                            <button onClick={() => setPicking(true)} className="text-fg-muted hover:text-fg cursor-pointer">Elegir</button>
+                        </>
+                    )}
+                </div>
+            )}
+            <div className="grid grid-cols-3 gap-1.5">
+                {items.map((it) => {
+                    const on = sel.includes(it.id);
+                    return (
+                        <figure key={it.id} onClick={picking ? () => toggle(it.id) : undefined}
+                            className={`group relative aspect-[4/5] rounded-[2px] overflow-hidden bg-[var(--color-surface-2)] ${picking ? "cursor-pointer" : ""}`}>
+                            <img src={backendUrl(it.url)} alt={it.label ?? ""} loading="lazy" className={`w-full h-full object-cover transition-opacity ${picking && !on ? "opacity-60" : ""}`} />
+                            {it.label && <figcaption className="absolute left-1 bottom-1 px-1 rounded-[2px] bg-black/55 text-white text-[10px] max-w-[90%] truncate">{it.label}</figcaption>}
+                            {picking ? (
+                                <span className={`absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center ring-1 ${on ? "bg-white ring-white text-black" : "bg-black/35 ring-white/80 text-transparent"}`}>
+                                    <Check size={13} strokeWidth={2.5} />
+                                </span>
+                            ) : (
+                                <button type="button" aria-label="Quitar" disabled={busy === it.id}
+                                    onClick={async () => { if (!(await ask({ title: "¿Quitar esta imagen?", confirm: "Quitar", danger: true }))) return; setBusy(it.id); try { await onDelete(it.id); } finally { setBusy(null); } }}
+                                    className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer">
+                                    {busy === it.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                </button>
+                            )}
+                        </figure>
+                    );
+                })}
+            </div>
         </div>
+    );
+}
+
+/** Pegar el link de un tablero de Pinterest → moodboard (o luz, o locación) con nombre. */
+function PinterestImport({ brandId, dest, campaignId, onDone }: {
+    brandId: string; dest: "moodboard" | "luz" | "locacion"; campaignId?: string | null; onDone: () => Promise<void>;
+}) {
+    const [url, setUrl] = useState("");
+    const [board, setBoard] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+    const go = async () => {
+        setBusy(true); setMsg(null);
+        try {
+            const r = await importPinterest(brandId, { url, board: board.trim() || undefined, dest, campaignId });
+            setMsg({ ok: true, text: `Listo: ${r.count} imágenes en «${r.board}».` });
+            setUrl(""); setBoard("");
+            await onDone();
+        } catch (e) { setMsg({ ok: false, text: (e as Error).message }); } finally { setBusy(false); }
+    };
+    return (
+        <div className="flex flex-col gap-2">
+            <div className="flex gap-1.5">
+                <input value={url} onChange={(e) => setUrl(e.target.value)} disabled={busy} placeholder="Link de un tablero de Pinterest"
+                    onKeyDown={(e) => { if (e.key === "Enter" && url.trim()) go(); }} className={input + " flex-1 min-w-0"} />
+                <button onClick={go} disabled={busy || !url.trim()}
+                    className="h-[38px] px-3 shrink-0 flex items-center gap-1.5 rounded-[4px] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-40">
+                    {busy ? <><Loader2 size={12} className="animate-spin" /> Trayendo…</> : "Traer"}
+                </button>
+            </div>
+            {url.trim() && <input value={board} onChange={(e) => setBoard(e.target.value)} disabled={busy} placeholder="Nombre del tablero (si no, el de Pinterest)" className={input} />}
+            <p className={`text-[11px] ${msg ? (msg.ok ? "text-fg" : "text-[var(--color-error)]") : "text-fg-faint"}`}>
+                {msg?.text ?? "Trae los últimos 25 pines de un tablero público y los guarda juntos, con su nombre."}
+            </p>
+        </div>
+    );
+}
+
+/** Imágenes agrupadas por tablero: primero los tableros con nombre, después las sueltas. */
+function Boards({ kind, items, onDelete }: {
+    kind: string; items: Array<{ id: string; imageUrl: string; board?: string; source?: string }>; onDelete: (id: string) => Promise<void>;
+}) {
+    const groups = new Map<string, typeof items>();
+    for (const it of items) groups.set(it.board ?? "", [...(groups.get(it.board ?? "") ?? []), it]);
+    const keys = [...groups.keys()].sort((a, b) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)));
+    return (
+        <>
+            {keys.map((k) => {
+                const xs = groups.get(k)!;
+                const src = xs.find((x) => x.source)?.source;
+                return (
+                    <div key={k || "_"} className="flex flex-col gap-1.5 pt-2">
+                        <p className="flex items-center gap-1.5 text-[12px] text-fg">
+                            {kind}{k ? <> · <span className="font-medium">{k}</span></> : keys.length > 1 ? " · sueltas" : ""}
+                            <span className="text-fg-faint">{xs.length}</span>
+                            {src && <a href={src} target="_blank" rel="noreferrer" title="Ver el tablero original" className="text-fg-faint hover:text-fg"><ExternalLink size={11} /></a>}
+                        </p>
+                        <Grid items={xs.map((x) => ({ id: x.id, url: x.imageUrl }))} onDelete={onDelete} />
+                    </div>
+                );
+            })}
+        </>
     );
 }
 
@@ -230,6 +338,12 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                                 <Section title="Subir imágenes">
                                     <Drop dests={dests} brandId={id} onDone={async () => { await onChanged(); await reloadCampaigns(); }} dest={matDest} onDest={setMatDest} campaignId={camp?.id ?? null} />
                                 </Section>
+                                {(matDest === "moodboard" || matDest === "luz" || matDest === "fondo") && (
+                                    <Section title={`O traer un tablero de Pinterest como ${DEST_LABEL[matDest].toLowerCase()}`}>
+                                        <PinterestImport brandId={id} dest={matDest === "fondo" ? "locacion" : matDest} campaignId={camp?.id ?? null}
+                                            onDone={async () => { await onChanged(); await reloadCampaigns(); }} />
+                                    </Section>
+                                )}
                                 <Section title={`${DEST_LABEL[matDest]} · ${items.length} ${camp ? "en el proyecto" : "en la marca"}`}>
                                     {items.length
                                         ? <Grid items={items} onDelete={async (itemId) => {
@@ -289,19 +403,19 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                     {block === "foto" && (
                         <>
                             <Section title="Imágenes de referencia">
-                                <Grid items={[
-                                    ...(brand.moodboards || []).map((m) => ({ id: "m:" + m.id, url: m.imageUrl, label: "moodboard" })),
-                                    ...(brand.lookAndFeel || []).map((m) => ({ id: "l:" + m.id, url: m.imageUrl, label: "luz" })),
-                                    ...(brand.backgrounds || []).map((m) => ({ id: "b:" + m.id, url: m.imageUrl, label: "locación" })),
-                                    ...(brand.poses || []).map((m) => ({ id: "p:" + m.id, url: m.imageUrl, label: "pose" })),
-                                    ...(brand.shotRefs || []).map((m) => ({ id: "s:" + m.id, url: m.imageUrl, label: "plano" })),
-                                ]} onDelete={async (key) => {
-                                    const [k, itemId] = [key.slice(0, 1), key.slice(2)];
-                                    const fn = { m: deleteMoodboard, l: deleteLookAndFeel, b: deleteBackground, p: deletePose, s: deleteShotRef }[k]!;
-                                    await fn(id, itemId);
-                                    await onChanged();
-                                }} />
+                                {!(brand.moodboards?.length || brand.lookAndFeel?.length || brand.backgrounds?.length || brand.poses?.length || brand.shotRefs?.length)
+                                    && <p className="text-[13px] text-fg-faint">Todavía no hay referencias.</p>}
+                                <Boards kind="Moodboard" items={brand.moodboards || []} onDelete={del(deleteMoodboard)} />
+                                <Boards kind="Luz" items={brand.lookAndFeel || []} onDelete={del(deleteLookAndFeel)} />
+                                <Boards kind="Locación" items={brand.backgrounds || []} onDelete={del(deleteBackground)} />
+                                <Boards kind="Pose" items={(brand.poses || []).filter((x) => x.imageUrl).map((x) => ({ id: x.id, imageUrl: x.imageUrl! }))} onDelete={del(deletePose)} />
+                                <Boards kind="Plano" items={(brand.shotRefs || []).filter((x) => x.imageUrl).map((x) => ({ id: x.id, imageUrl: x.imageUrl! }))} onDelete={del(deleteShotRef)} />
+                            </Section>
+                            <Section title="Sumar imágenes">
                                 <Drop dests={["moodboard", "luz", "fondo", "pose", "plano"]} brandId={id} onDone={onChanged} />
+                            </Section>
+                            <Section title="Traer un tablero de Pinterest">
+                                <PinterestImport brandId={id} dest="moodboard" onDone={onChanged} />
                             </Section>
                             <Section title="Cómo se ve la marca">
                                 <textarea value={style} onChange={(e) => setStyle(e.target.value)} rows={5} className={input + " resize-y leading-relaxed"}

@@ -42,6 +42,7 @@ from routers import users as users_router
 from routers import inbox as inbox_router
 from routers import proyectos as proyectos_router
 from routers import semaforo as semaforo_router
+from routers import importar as importar_router
 from fastapi import Request
 from urllib.parse import quote
 from services import llm_router
@@ -5094,6 +5095,7 @@ app.include_router(inbox_router.router)
 # Videos online: subir clips → proyecto del editor (routers/proyectos.py).
 app.include_router(proyectos_router.router)
 app.include_router(semaforo_router.router)
+app.include_router(importar_router.router)
 
 
 # ── Proyectos del editor (timeline.json en una carpeta) ─────────────────────

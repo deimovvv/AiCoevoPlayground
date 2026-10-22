@@ -136,6 +136,9 @@ export interface BackgroundItem {
     tags?: string[];
     filename: string;
     imageUrl: string;
+    /** Tablero al que pertenece (ej. uno importado de Pinterest) y de dónde vino. */
+    board?: string;
+    source?: string;
 }
 
 export interface MoodboardItem {
@@ -144,6 +147,9 @@ export interface MoodboardItem {
     description?: string;
     filename: string;
     imageUrl: string;
+    /** Tablero al que pertenece (ej. uno importado de Pinterest) y de dónde vino. */
+    board?: string;
+    source?: string;
 }
 
 /** Per-brand lighting / color-grade reference. Applied as a relight transfer onto an input image. */
@@ -153,6 +159,9 @@ export interface LookFeelItem {
     description?: string;
     filename: string;
     imageUrl: string;
+    /** Tablero al que pertenece (ej. uno importado de Pinterest) y de dónde vino. */
+    board?: string;
+    source?: string;
 }
 
 /** A single brand logo variant — brands typically have isotipo + logotipo + dark/light versions. */
@@ -473,6 +482,9 @@ export interface CampaignInput {
     name: string;
     filename: string;
     uploadedAt: string;
+    /** Tablero al que pertenece (ej. uno importado de Pinterest) y de dónde vino. */
+    board?: string;
+    source?: string;
 }
 
 export interface Campaign {
@@ -3908,6 +3920,15 @@ export async function addBrandPerson(brandId: string, p: { email: string; name?:
 }
 export async function removeBrandPerson(brandId: string, userId: string): Promise<void> {
     await editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/people/${encodeURIComponent(userId)}`, { method: "DELETE" }), "No se pudo sacar");
+}
+
+// ── Importar referencias (backend/routers/importar.py · studio-v2 M.6) ─────────
+
+/** Un tablero de Pinterest → moodboard (o luz, o locación) con nombre, en la marca o en un proyecto. */
+export async function importPinterest(brandId: string, body: { url: string; board?: string; dest: "moodboard" | "luz" | "locacion"; campaignId?: string | null }): Promise<{ board: string; count: number; of: number }> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/import/pinterest`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }), "No se pudo traer el tablero");
 }
 
 // ── Semáforo y ficha comercial (backend/routers/semaforo.py · studio-v2 O.7, sólo admin) ──

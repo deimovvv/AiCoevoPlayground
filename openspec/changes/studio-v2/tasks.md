@@ -23,6 +23,12 @@
       hacen en Claude Design con ese design system → Entregas. Primero con Coevo (ya hay carruseles) o ALGÜNA (manual en curso).
       Figma/Canva sólo si un cliente pide el editable.
 
+- [x] M.6 Referencias de afuera (2026-10-22): link de un tablero de Pinterest → moodboard (o luz, o locación) con nombre, en la marca o en
+      un proyecto (`routers/importar.py`, feed público del tablero: últimos 25 pines, 736 px). Las imágenes quedan con `board` y `source`:
+      en Marca se agrupan por tablero. «Elegir» y quitar varias en todas las grillas.
+- [ ] M.7 Catálogo desde una carpeta de Drive compartida (necesita habilitar la API de Drive en el proyecto de Google de Coevo).
+- [ ] M.8 Curar la memoria: de dónde vino cada imagen (web, Instagram, cliente, Coevo) y para qué la usa Claude en cada bloque.
+
 ## C. Campañas y material del cliente (design.md §15)
 
 - [x] C.1 Tablero de campaña `/dashboard/tablero/:id` (tipo de input `plano`); columna Campañas en Producción (2026-10-19).

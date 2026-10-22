@@ -81,7 +81,9 @@ function data(b: Brand) {
         looks: [...(b.moodboards || []), ...(b.lookAndFeel || []), ...(b.backgrounds || []), ...(b.poses || []), ...(b.shotRefs || [])].map((x) => x.imageUrl),
         // Separado como en un tablero de dirección: moodboard · luz · locación.
         lookGroups: [
-            { label: "Moodboard", urls: (b.moodboards || []).map((x) => x.imageUrl) },
+            // Un moodboard por tablero (ej. uno traído de Pinterest); las sueltas, juntas.
+            ...[...new Set((b.moodboards || []).map((x) => x.board ?? ""))].sort((x, y) => (x === "" ? 1 : y === "" ? -1 : x.localeCompare(y)))
+                .map((k) => ({ label: k ? `Moodboard · ${k}` : "Moodboard", urls: (b.moodboards || []).filter((x) => (x.board ?? "") === k).map((x) => x.imageUrl) })),
             { label: "Luz / look", urls: (b.lookAndFeel || []).map((x) => x.imageUrl) },
             { label: "Locación", urls: (b.backgrounds || []).map((x) => x.imageUrl) },
             { label: "Planos", urls: (b.shotRefs || []).map((x) => x.imageUrl) },
