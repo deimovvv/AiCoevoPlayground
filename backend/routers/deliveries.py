@@ -455,3 +455,16 @@ async def resolve_comment(delivery_id: str, comment_id: str, s: AsyncSession = D
     c.resolved_at = None if c.resolved_at else datetime.now(timezone.utc)
     await s.commit()
     return _comment(c)
+
+
+@router.delete("/api/deliveries/{delivery_id}/comments/{comment_id}")
+async def delete_comment(delivery_id: str, comment_id: str, request: Request, s: AsyncSession = Depends(get_session)):
+    """Borrar un comentario (y su punto). El equipo, cualquiera; un cliente, sólo los suyos."""
+    c = await s.get(DeliveryComment, comment_id)
+    if not c or c.delivery_id != delivery_id:
+        raise HTTPException(status_code=404, detail="No existe ese comentario")
+    if is_client(request) and (c.internal or (c.author or "").lower() != (_who(request) or "").lower()):
+        raise HTTPException(status_code=403, detail="Sólo podés borrar tus comentarios.")
+    await s.delete(c)
+    await s.commit()
+    return {"ok": True}

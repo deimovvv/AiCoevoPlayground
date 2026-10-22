@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ArrowRight, Check, ChevronLeft, ChevronRight, CornerDownLeft, Eye, ExternalLink, Loader2, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, CornerDownLeft, Eye, ExternalLink, Loader2, Minus, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
 import { DeliveryGroupPicker } from "../components/workspace/DeliveryGroupPicker";
 import {
-    backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryItems, deleteDeliveryItem,
+    backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment,
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
     type Delivery, type DeliveryStatus, type DeliverySummary,
 } from "../lib/api";
@@ -89,6 +89,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const [askText, setAskText] = useState("");
     // Cliente: «Elegir cuáles» muestra un círculo en cada lámina para sacar las que no van (como elegir fotos).
     const [picking, setPicking] = useState(false);
+    // Zoom de la pieza entera (como en Canva): null = que entren todas; un número = alto de cada lámina en vh, con scroll.
+    // Sin elegir (undefined): hasta 4 láminas entran todas; con más, arranca a un tamaño que se ve, con scroll.
+    const [zoomSet, setZoom] = useState<number | null | undefined>(undefined);
     const [tab, setTab] = useState<"revisar" | "aprobadas">("revisar");   // sólo cliente
     const fileRef = useRef<HTMLInputElement>(null);
     const addRef = useRef<HTMLInputElement>(null);   // «Sumar láminas» a la entrega abierta
@@ -107,7 +110,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     }, [client, brandId]);
 
     const open = useCallback((id: string | null) => {
-        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false);
+        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false); setZoom(undefined);
         setParams(id ? { id } : {}, { replace: true });
     }, [setParams]);
 
@@ -138,6 +141,13 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
         try { await fn(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
     };
     const reload = async (id: string) => { setCurrent(await getDelivery(id, vista)); await refreshList(); };
+    // El equipo borra cualquiera; el cliente, sólo los que escribió él.
+    const canDeleteComment = (c: { internal: boolean; author: string | null }) =>
+        !client || (!c.internal && !!me.email && (c.author ?? "").toLowerCase() === me.email.toLowerCase());
+    const removeComment = async (commentId: string) => {
+        if (!current || !(await ask({ title: "¿Borrar este comentario?", body: "Se borra también su punto en la imagen.", confirm: "Borrar", danger: true }))) return;
+        run(async () => { await deleteDeliveryComment(current.id, commentId); await reload(current.id); });
+    };
     const shown = client ? list.filter((d) => (tab === "aprobadas") === (d.status === "aprobada")) : list;
     // Agrupado: mes (de la fecha) › proyecto (si tiene) › entregas, por etapa.
     const groups = groupByMonth(shown, client);
@@ -152,6 +162,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     }, [current]);
     const numberOf = useMemo(() => Object.fromEntries(comments.map((c, i) => [c.id, i + 1])), [comments]);
     const total = current?.items.length ?? 0;
+    const zoom = zoomSet === undefined ? (total > 4 ? 46 : null) : zoomSet;
 
     // Lámina abierta: ← → para pasar, Esc para volver a la pieza (salvo escribiendo un comentario).
     useEffect(() => {
@@ -237,7 +248,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                         </div>
                     )}
                     {!client && brandId && (
-                        <DeliveryGroupPicker brandId={brandId} campaigns={campaigns} onCampaigns={setCampaigns} ask={ask} onError={setError}
+                        <DeliveryGroupPicker variant="upload" brandId={brandId} campaigns={campaigns} onCampaigns={setCampaigns} ask={ask} onError={setError}
                             campaignId={upCampaign || null} stage={upStage || null} usedStages={usedStages}
                             onChange={(g) => { setUpCampaign(g.campaignId ?? ""); setUpStage(g.stage ?? ""); }} />
                     )}
@@ -334,7 +345,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 )}
                             </div>
                             <span className="hidden md:block flex-1" />
-                            <div className="w-full md:w-auto flex items-center gap-2 [&>button]:flex-1 md:[&>button]:flex-none">
+                            <div className="w-full md:w-auto flex flex-wrap items-center gap-2 [&>button]:flex-1 md:[&>button]:flex-none [&>button]:whitespace-nowrap [&>button]:justify-center">
                             {!client && current.source && (
                                 <a href={backendUrl(current.source.url)} target="_blank" rel="noreferrer" title="El archivo editable de la pieza"
                                     className="flex items-center gap-1 text-[12px] text-fg-faint hover:text-fg">Fuente <ExternalLink size={11} /></a>
@@ -395,11 +406,6 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             )}
                             {!client && (
                                 <>
-                                    <button disabled={busy} title="Sumar imágenes o videos a esta entrega: otra al lado, o la versión corregida de una para comparar"
-                                        onClick={() => addRef.current?.click()}
-                                        className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
-                                        {progress !== null ? <><Loader2 size={12} className="animate-spin" /> {Math.round(progress * 100)}%</> : <><Plus size={12} /> Sumar láminas</>}
-                                    </button>
                                     <input ref={addRef} type="file" multiple hidden accept="image/*,video/*"
                                         onChange={(e) => {
                                             const fs = Array.from(e.target.files || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
@@ -425,7 +431,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 <div className="md:flex-1 flex items-center justify-center py-5 md:px-6 md:py-8">
                                     {/* Celular: láminas que se deslizan. Escritorio: todas en una fila. */}
                                     {/* Cada pieza usa el lugar que hay: alto hasta ~2/3 de la pantalla, ancho repartido. */}
-                                    <div className={`w-full flex gap-3 ${total > 3 ? "md:gap-2.5" : "md:gap-5"} items-center md:justify-center overflow-x-auto md:overflow-visible snap-x px-4 md:px-0`}>
+                                    <div className={`w-full flex gap-3 ${total > 3 ? "md:gap-2.5" : "md:gap-5"} items-center overflow-x-auto snap-x px-4 ${zoom ? "md:justify-start md:pb-3" : "md:justify-center md:overflow-visible md:px-0"}`}>
                                         {current.items.map((it, i) => {
                                             const pins = comments.filter((c) => c.itemId === it.id && c.round === current.round && c.x != null && !c.resolvedAt);
                                             // El círculo: el cliente eligiendo, o una lámina que ya sacó (el equipo la ve marcada).
@@ -433,21 +439,22 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                             const showPick = (canPick && (picking || it.rejected)) || (!client && it.rejected);
                                             return (
                                                 <div key={it.id}
-                                                    className="group text-left w-[78vw] max-w-[360px] shrink-0 snap-center md:w-auto md:max-w-fit md:shrink md:flex-[1_1_0] md:min-w-0">
+                                                    className={`group text-left w-[78vw] max-w-[360px] shrink-0 snap-center md:w-auto ${zoom ? "md:max-w-none md:flex-none" : "md:max-w-fit md:shrink md:flex-[1_1_0] md:min-w-0"}`}>
                                                     <span className="relative block md:inline-block md:max-w-full">
                                                     <button onClick={() => { if (picking && canPick) run(async () => { setCurrent(await toggleDeliveryItem(current.id, it.id, vista)); await refreshList(); }); else { setSlide(i); setDraft(null); } }}
                                                         title={picking && canPick ? (it.rejected ? "Volver a sumarla" : "Sacarla") : "Abrir para comentar"}
                                                         className={`relative block md:inline-block md:max-w-full transition-opacity ${picking && canPick ? "cursor-pointer" : "cursor-zoom-in"} ${it.rejected ? "opacity-35" : ""}`}>
                                                         {it.kind === "video"
                                                             ? <span className="relative block">
-                                                                <video src={backendUrl(it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted preload="none" className="block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5" />
+                                                                <video src={backendUrl(it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted preload="none" style={zoom ? ({ "--z": `${zoom}vh` } as React.CSSProperties) : undefined} className={`block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] ${zoom ? "md:max-h-[var(--z)]" : ""} rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5`} />
                                                                 <span className="absolute left-2 bottom-2 px-1.5 py-0.5 rounded-[2px] bg-black/60 text-white font-mono text-[9px] uppercase tracking-[0.08em]">Video ▶</span>
                                                             </span>
-                                                            : <img src={backendUrl(it.url)} alt={it.label} draggable={false} className="block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5" />}
+                                                            : <img src={backendUrl(it.url)} alt={it.label} draggable={false} style={zoom ? ({ "--z": `${zoom}vh` } as React.CSSProperties) : undefined} className={`block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] ${zoom ? "md:max-h-[var(--z)]" : ""} rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5`} />}
                                                         {pins.map((c) => (
                                                             <span key={c.id} style={{ left: `${c.x! * 100}%`, top: `${c.y! * 100}%` }}
-                                                                className="absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] ring-2 ring-black/30">
+                                                                className="group/pin absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 hover:scale-125 transition-transform rounded-full flex items-center justify-center text-[9px] font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] ring-2 ring-black/30 z-10">
                                                                 {numberOf[c.id]}
+                                                                <span className="pointer-events-none absolute left-1/2 top-full mt-1.5 -translate-x-1/2 w-max max-w-[220px] px-2 py-1 rounded-[3px] bg-black/85 text-white text-[11px] font-normal leading-snug text-left whitespace-normal opacity-0 group-hover/pin:opacity-100 transition-opacity">{c.text}</span>
                                                             </span>
                                                         ))}
                                                     </button>
@@ -475,6 +482,12 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                 </div>
                                             );
                                         })}
+                                        {!client && (
+                                            <button disabled={busy} onClick={() => addRef.current?.click()} title="Sumar imágenes o videos a esta entrega: otra al lado, o la versión corregida de una para comparar"
+                                                className="shrink-0 self-stretch w-[110px] md:w-[130px] min-h-[180px] rounded-[var(--radius-xs)] border border-dashed border-[var(--color-edge-strong)] flex flex-col items-center justify-center gap-1.5 text-[12px] text-fg-muted hover:text-fg hover:border-fg cursor-pointer disabled:opacity-50">
+                                                {progress !== null ? <><Loader2 size={15} className="animate-spin" /> {Math.round(progress * 100)}%</> : <><Plus size={15} /> Sumar lámina</>}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                                 <footer className="px-6 py-3 border-t border-edge bg-surface-0 flex items-center gap-4">
@@ -485,6 +498,12 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                             : "Clic en una lámina para verla grande y comentar sobre ella."}
                                     </p>
                                     {current.note && <p className="text-[12px] text-fg-muted truncate" title={current.note}>{current.note}</p>}
+                                    <span className="flex-1" />
+                                    <div className="hidden md:flex items-center gap-1 text-[12px] text-fg-muted shrink-0" aria-label="Zoom">
+                                        <button onClick={() => setZoom((z) => Math.max(20, (z ?? 66) - 12))} aria-label="Achicar" className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-2 hover:text-fg cursor-pointer"><Minus size={13} /></button>
+                                        <button onClick={() => setZoom(null)} title="Que entren todas" className={`h-7 px-2 rounded-[3px] cursor-pointer ${zoom ? "hover:text-fg" : "text-fg"}`}>{zoom ? `${Math.round((zoom / 66) * 100)}%` : "Ajustar"}</button>
+                                        <button onClick={() => setZoom((z) => Math.min(84, (z ?? 54) + 12))} aria-label="Agrandar" className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-2 hover:text-fg cursor-pointer"><Plus size={13} /></button>
+                                    </div>
                                 </footer>
                             </div>
                             {(() => {
@@ -525,7 +544,11 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                             {pending.map((c) => {
                                                 const i = c.itemId ? idx[c.itemId] : undefined;
                                                 return (
-                                                    <li key={c.id}>
+                                                    <li key={c.id} className="group relative">
+                                                        {canDeleteComment(c) && (
+                                                            <button onClick={() => removeComment(c.id)} title="Borrar el comentario" aria-label="Borrar el comentario"
+                                                                className="absolute top-2.5 right-2.5 w-6 h-6 flex items-center justify-center rounded-full text-fg-faint hover:text-[var(--color-error)] opacity-0 group-hover:opacity-100 cursor-pointer z-10"><Trash2 size={11} /></button>
+                                                        )}
                                                         <button onClick={() => { if (i !== undefined) { setSlide(i); setDraft(null); } }}
                                                             disabled={i === undefined}
                                                             className="w-full text-left p-3 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-1)] cursor-pointer disabled:cursor-default">
@@ -574,6 +597,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                             className={`absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-medium ring-2 ring-black/30 transition-transform
                                                                 ${c.resolvedAt ? "bg-surface-3 text-fg-faint" : "bg-[var(--color-brand)] text-[var(--color-brand-fg)]"} ${focus === c.id ? "scale-125" : ""}`}>
                                                             {numberOf[c.id]}
+                                                            <span className={`pointer-events-none absolute left-1/2 top-full mt-1.5 -translate-x-1/2 w-max max-w-[240px] px-2 py-1 rounded-[3px] bg-black/85 text-white text-[11px] font-normal leading-snug text-left whitespace-normal transition-opacity ${focus === c.id ? "opacity-100" : "opacity-0"}`}>{c.text}</span>
                                                         </span>
                                                     ))}
                                                     {draft?.itemId === it.id && (
@@ -614,6 +638,10 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                             {!client && <span className={c.internal ? "" : "text-[var(--color-brand)]"}> · {c.internal ? "interno" : "cliente"}</span>}
                                                             {!c.itemId && " · sobre toda la pieza"}{c.round < current.round && ` · versión ${c.round}`}{c.resolvedAt && " · resuelto"}
                                                             <span className="flex-1" />
+                                                            {canDeleteComment(c) && (
+                                                                <button onClick={() => removeComment(c.id)} title="Borrar el comentario"
+                                                                    className="opacity-0 group-hover:opacity-100 text-fg-faint hover:text-[var(--color-error)] cursor-pointer"><Trash2 size={11} /></button>
+                                                            )}
                                                             {!client && (
                                                                 <button onClick={() => run(async () => { await toggleDeliveryComment(current.id, c.id); await reload(current.id); })}
                                                                     title={c.resolvedAt ? "Reabrir" : "Marcar resuelto"}

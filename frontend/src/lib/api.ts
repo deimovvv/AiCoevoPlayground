@@ -3862,6 +3862,10 @@ export async function addDeliveryItems(id: string, files: File[], onProgress?: (
 export async function deleteDeliveryItem(id: string, itemId: string): Promise<Delivery> {
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, { method: "DELETE" }), "No se pudo sacar la lámina");
 }
+/** Borrar un comentario (y su punto). El cliente sólo puede borrar los suyos. */
+export async function deleteDeliveryComment(id: string, commentId: string): Promise<void> {
+    await editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, { method: "DELETE" }), "No se pudo borrar el comentario");
+}
 /** Borrar un proyecto: sus entregas quedan sin proyecto (no se borran). */
 export async function deleteProject(campaignId: string): Promise<void> {
     await editorJson(await fetch(`${API_BASE}/api/proyectos/${encodeURIComponent(campaignId)}`, { method: "DELETE" }), "No se pudo borrar el proyecto");

@@ -88,5 +88,7 @@
 - [x] 4.3 Entregas en uso real (2026-10-22, pedido con Koxis): renombrar la entrega; «+ Proyecto» visible y borrar proyecto (sus entregas
       quedan sin proyecto); etapas sugeridas Carrusel / Historias / Video; «Sumar láminas» y sacar una lámina (equipo); el cliente
       «Cambiar mi elección» después de aprobar; «¿Cómo funciona?» para el cliente (se abre la primera vez). Falta: video del recorrido.
+      Después (2026-10-22): el punto muestra su nota al pasar el mouse; borrar comentarios (el cliente, sólo los suyos); «+ Proyecto» sólo como
+      opción del desplegable; «Sumar lámina» como tarjeta al final de la fila; zoom con scroll tipo Canva (con más de 4 láminas arranca al 70%).
 - [ ] 4.1 Entregas por marca: estado, comentarios, aprobación (reusa notas del portal).
 - [ ] 4.2 Migrar clientes del portal por link a cuentas; apagar el portal.

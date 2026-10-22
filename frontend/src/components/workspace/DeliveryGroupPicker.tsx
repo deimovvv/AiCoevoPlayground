@@ -1,4 +1,4 @@
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { createCampaign, deleteProject, updateCampaign, type Campaign } from "../../lib/api";
 import type { useConfirm } from "../../lib/useConfirm";
 
@@ -16,7 +16,7 @@ const field = "h-7 max-w-[180px] px-1.5 rounded-[3px] border border-edge bg-tran
 
 type Ask = ReturnType<typeof useConfirm>[1];
 
-export function DeliveryGroupPicker({ brandId, campaigns, onCampaigns, campaignId, stage, usedStages, onChange, ask, onError, disabled }: {
+export function DeliveryGroupPicker({ brandId, campaigns, onCampaigns, campaignId, stage, usedStages, onChange, ask, onError, disabled, variant = "full" }: {
     brandId: string;
     campaigns: Campaign[];
     onCampaigns: (c: Campaign[]) => void;
@@ -28,6 +28,8 @@ export function DeliveryGroupPicker({ brandId, campaigns, onCampaigns, campaignI
     ask: Ask;
     onError: (msg: string) => void;
     disabled?: boolean;
+    /** «upload»: sólo el proyecto (al subir). «full»: proyecto (renombrar, borrar) y etapa. */
+    variant?: "full" | "upload";
 }) {
     const stages = [...new Set([...PRESET_STAGES, ...usedStages, ...(stage ? [stage] : [])])].sort();
     const current = campaigns.find((c) => c.id === campaignId);
@@ -72,7 +74,7 @@ export function DeliveryGroupPicker({ brandId, campaigns, onCampaigns, campaignI
                     {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name || "Proyecto sin nombre"}</option>)}
                     <option value={NEW}>+ Nuevo proyecto…</option>
                 </select>
-                {current && (
+                {current && variant === "full" && (
                     <>
                         <button type="button" onClick={rename} disabled={disabled} title="Cambiarle el nombre al proyecto" aria-label="Cambiarle el nombre al proyecto"
                             className="w-6 h-6 flex items-center justify-center rounded-[3px] text-fg-faint hover:text-fg cursor-pointer"><Pencil size={11} /></button>
@@ -80,17 +82,15 @@ export function DeliveryGroupPicker({ brandId, campaigns, onCampaigns, campaignI
                             className="w-6 h-6 flex items-center justify-center rounded-[3px] text-fg-faint hover:text-[var(--color-error)] cursor-pointer"><Trash2 size={11} /></button>
                     </>
                 )}
-                <button type="button" onClick={create} disabled={disabled} title="Crear un proyecto nuevo"
-                    className="h-7 px-2 flex items-center gap-1 rounded-[3px] border border-dashed border-edge text-[11px] text-fg-muted hover:text-fg hover:border-fg cursor-pointer"><Plus size={11} /> Proyecto</button>
             </label>
-            <label className="flex items-center gap-1.5">
+            {variant === "full" && <label className="flex items-center gap-1.5">
                 <span className={mono}>Etapa</span>
                 <select value={stage ?? ""} disabled={disabled} onChange={(e) => pickStage(e.target.value)} className={field}>
                     <option value="">Sin etapa</option>
                     {stages.map((s) => <option key={s} value={s}>{s}</option>)}
                     <option value={OTHER}>+ Otra…</option>
                 </select>
-            </label>
+            </label>}
         </div>
     );
 }
