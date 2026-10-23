@@ -6,6 +6,7 @@ import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
 import { DeliveryGroupPicker } from "../components/workspace/DeliveryGroupPicker";
 import { SlideStage } from "../components/workspace/SlideStage";
+import { NewVersionDialog } from "../components/workspace/NewVersionDialog";
 import {
     backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound, setDeliveryCommentInternal,
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
@@ -125,7 +126,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const [tab, setTab] = useState<"revisar" | "aprobadas">("revisar");   // sólo cliente
     const fileRef = useRef<HTMLInputElement>(null);
     const addRef = useRef<HTMLInputElement>(null);   // «Sumar láminas» a la entrega abierta
-    const roundRef = useRef<HTMLInputElement>(null); // «Nueva versión» (reemplaza las láminas; la anterior queda para comparar)
+    const [versionOpen, setVersionOpen] = useState(false); // «Nueva versión»: panel con láminas + qué cambiaron
     const [showPrev, setShowPrev] = useState(false);
     // Equipo: el comentario nuevo lo ve el cliente o queda entre el equipo. Por defecto: si la entrega ya se mandó, lo ve.
     const [forClient, setForClient] = useState<boolean | null>(null);
@@ -469,32 +470,23 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 </>
                             )}
                             {!client && (
-                                <button disabled={busy} onClick={() => roundRef.current?.click()}
+                                <button disabled={busy} onClick={() => setVersionOpen(true)}
                                     title="Subí las láminas corregidas: reemplazan a las actuales y la versión anterior queda para comparar"
                                     className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
                                     {progress !== null ? <><Loader2 size={12} className="animate-spin" /> {Math.round(progress * 100)}%</> : <><Upload size={12} /> Nueva versión</>}
                                 </button>
                             )}
-                            {!client && (
-                                <input ref={roundRef} type="file" multiple hidden accept="image/*,video/*"
-                                    onChange={async (e) => {
-                                        const fs = Array.from(e.target.files || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-                                        e.target.value = "";
-                                        if (!fs.length) return;
-                                        const note = await ask({
-                                            title: `Versión ${current.round + 1}: ¿qué cambiaron?`, input: "Lo ve el cliente junto a la versión nueva", multiline: true,
-                                            placeholder: "Ej: los globos más grandes y la pose para atrás, como pediste.", confirm: "Subir",
-                                        });
-                                        if (typeof note !== "string") return;
-                                        run(async () => {
-                                            setProgress(0);
-                                            let d;
-                                            try { d = await newDeliveryRound(current.id, fs, note, setProgress); } finally { setProgress(null); }
-                                            setCurrent(d); await refreshList();
-                                            if (await ask({ title: `¿Mandar la versión ${d.round} al cliente?`, body: "Le llega a revisar, con lo que cambiaron. Si preferís revisarla antes, después usás «Mandar al cliente».", confirm: "Mandar", cancel: "Después" })) {
-                                                await sendDelivery(d.id); await reload(d.id);
-                                            }
-                                        });
+                            {!client && versionOpen && (
+                                <NewVersionDialog round={current.round + 1} progress={progress} onClose={() => setVersionOpen(false)}
+                                    onSubmit={async (fs, note) => {
+                                        setProgress(0);
+                                        let d;
+                                        try { d = await newDeliveryRound(current.id, fs, note, setProgress); } finally { setProgress(null); }
+                                        setVersionOpen(false);
+                                        setCurrent(d); await refreshList();
+                                        if (await ask({ title: `¿Mandar la versión ${d.round} al cliente?`, body: "Le llega a revisar, con lo que cambiaron. Si preferís revisarla antes, después usás «Mandar al cliente».", confirm: "Mandar", cancel: "Después" })) {
+                                            run(async () => { await sendDelivery(d.id); await reload(d.id); });
+                                        }
                                     }} />
                             )}
                             {!client && (
