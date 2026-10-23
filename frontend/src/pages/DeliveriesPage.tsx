@@ -607,8 +607,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                 <span className="flex items-center gap-0.5 text-fg-muted" aria-label="Zoom de la lámina">
                                                     <button onClick={() => setSlideZoom((z) => Math.max(1, Math.round((z - 0.5) * 10) / 10))} disabled={slideZoom <= 1} aria-label="Achicar"
                                                         className="w-7 h-7 flex items-center justify-center rounded-full hover:text-fg hover:bg-surface-2 disabled:opacity-30 cursor-pointer"><Minus size={13} /></button>
-                                                    <button onClick={() => setSlideZoom(1)} title="Que entre entera" className={`h-7 px-1.5 tabular-nums cursor-pointer ${slideZoom > 1 ? "hover:text-fg" : "text-fg"}`}>{slideZoom > 1 ? `${Math.round(slideZoom * 100)}%` : "Entera"}</button>
-                                                    <button onClick={() => setSlideZoom((z) => Math.min(4, z + 0.5))} aria-label="Agrandar"
+                                                    <button onClick={() => setSlideZoom(1)} title="Que entre entera · pellizcá el trackpad o ⌘ + rueda para hacer zoom donde está el mouse" className={`h-7 px-1.5 tabular-nums cursor-pointer ${slideZoom > 1 ? "hover:text-fg" : "text-fg"}`}>{slideZoom > 1 ? `${Math.round(slideZoom * 100)}%` : "Entera"}</button>
+                                                    <button onClick={() => setSlideZoom((z) => Math.min(6, z + 0.5))} aria-label="Agrandar"
                                                         className="w-7 h-7 flex items-center justify-center rounded-full hover:text-fg hover:bg-surface-2 cursor-pointer"><Plus size={13} /></button>
                                                 </span>
                                                 <span className="w-px h-4 bg-[var(--color-edge)]" />
@@ -620,7 +620,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                             </div>
                                             {/* Mide el lugar y la imagen: siempre entra entera; con zoom se recorre con scroll. */}
                                             <div className="relative h-[62vh] md:h-auto md:flex-1 min-h-0 mx-4 md:mx-6 mb-4 md:mb-6">
-                                                <SlideStage key={it.id} url={it.url} kind={it.kind === "video" ? "video" : "image"} poster={it.poster} zoom={slideZoom}
+                                                <SlideStage key={it.id} url={it.url} kind={it.kind === "video" ? "video" : "image"} poster={it.poster} zoom={slideZoom} onZoom={setSlideZoom}
                                                     onPick={(e) => onPick(e, it.id)}>
                                                     {here.filter((c) => c.round === current.round && c.x != null).map((c) => (
                                                         <span key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus(null)} onClick={(e) => e.stopPropagation()}
