@@ -25,9 +25,11 @@ El circuito completo, explicado: [docs/guias/como-funciona-studio-online.md](../
 
 ```bash
 cd mcp/coevo-studio && npm install
-claude mcp add --scope user coevo-studio -- node "$PWD/server.mjs"
+claude mcp add --scope user coevo-studio -- node --use-system-ca "$PWD/server.mjs"
 npm run check        # prueba la conexión
 ```
+`--use-system-ca`: Node usa los certificados del sistema. Sin eso, en una Mac con un filtro de red que abre las conexiones (ej. Netskope en una compu de Monks) falla con `SELF_SIGNED_CERT_IN_CHAIN` y todas las herramientas devuelven «fetch failed».
+
 
 - **Llave:** token de servicio de Cloudflare Access en `~/.coevo-studio-token` (`chmod 600`):
   `CF_ACCESS_CLIENT_ID=…` y `CF_ACCESS_CLIENT_SECRET=…`. En Cloudflare: app "Coevo Studio" →
