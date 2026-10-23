@@ -552,7 +552,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                 {prev.items.map((it, i) => (
                                                     <figure key={it.id} className="shrink-0">
                                                         {it.kind === "video"
-                                                            ? <video src={backendUrl(it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted controls className="h-[26vh] w-auto rounded-[var(--radius-xs)] opacity-80" />
+                                                            ? <video src={backendUrl(it.preview || it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted controls className="h-[26vh] w-auto rounded-[var(--radius-xs)] opacity-80" />
                                                             : <img src={backendUrl(it.url)} alt="" className="h-[26vh] w-auto rounded-[var(--radius-xs)] opacity-80" />}
                                                         <figcaption className="text-[10px] text-fg-faint mt-1">{String(i + 1).padStart(2, "0")}</figcaption>
                                                     </figure>
@@ -581,7 +581,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                         className={`relative block md:inline-block md:max-w-full transition-opacity ${picking && canPick ? "cursor-pointer" : "cursor-zoom-in"} ${it.rejected ? "opacity-35" : ""}`}>
                                                         {it.kind === "video"
                                                             ? <span className="relative block">
-                                                                <video src={backendUrl(it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted preload="none" style={it.rejected ? { maxHeight: "24vh" } : zoom ? ({ "--z": `${zoom}vh` } as React.CSSProperties) : undefined} className={`block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] ${zoom ? "md:max-h-[var(--z)]" : ""} rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5`} />
+                                                                <video src={backendUrl(it.preview || it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted preload="none" style={it.rejected ? { maxHeight: "24vh" } : zoom ? ({ "--z": `${zoom}vh` } as React.CSSProperties) : undefined} className={`block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] ${zoom ? "md:max-h-[var(--z)]" : ""} rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5`} />
                                                                 <span className="absolute left-2 bottom-2 px-1.5 py-0.5 rounded-[2px] bg-black/60 text-white font-mono text-[9px] uppercase tracking-[0.08em]">Video ▶</span>
                                                             </span>
                                                             : <img src={backendUrl(it.url)} alt={it.label} draggable={false} style={it.rejected ? { maxHeight: "24vh" } : zoom ? ({ "--z": `${zoom}vh` } as React.CSSProperties) : undefined} className={`block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] ${zoom ? "md:max-h-[var(--z)]" : ""} rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5`} />}
@@ -744,6 +744,10 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         <div className="md:flex-1 min-w-0 md:min-h-0 flex flex-col bg-[var(--color-canvas)]">
                                             <div className="px-4 md:px-6 py-3 flex items-center gap-3 text-[12px]">
                                                 <button onClick={() => { setSlide(null); setDraft(null); setSlideZoom(1); }} className="text-fg-muted hover:text-fg cursor-pointer">← Toda la pieza</button>
+                                                {it.preview && (
+                                                    <a href={backendUrl(it.url)} download title="Lo que se ve es una copia sobre cuadritos para el navegador; el original conserva la transparencia"
+                                                        className="text-fg-faint hover:text-fg no-underline">Bajar el original (con transparencia)</a>
+                                                )}
                                                 <span className="flex-1" />
                                                 <span className="flex items-center gap-0.5 text-fg-muted" aria-label="Zoom de la lámina">
                                                     <button onClick={() => setSlideZoom((z) => Math.max(1, Math.round((z - 0.5) * 10) / 10))} disabled={slideZoom <= 1} aria-label="Achicar"
@@ -761,7 +765,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                             </div>
                                             {/* Mide el lugar y la imagen: siempre entra entera; con zoom se recorre con scroll. */}
                                             <div className="relative h-[62vh] md:h-auto md:flex-1 min-h-0 mx-4 md:mx-6 mb-4 md:mb-6">
-                                                <SlideStage key={it.id} url={it.url} kind={it.kind === "video" ? "video" : "image"} poster={it.poster} zoom={slideZoom} onZoom={setSlideZoom}
+                                                <SlideStage key={it.id} url={it.preview || it.url} kind={it.kind === "video" ? "video" : "image"} poster={it.poster} zoom={slideZoom} onZoom={setSlideZoom}
                                                     onPick={(e) => onPick(e, it.id)}>
                                                     {here.filter((c) => c.round === current.round && c.x != null).map((c) => (
                                                         <span key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus(null)} onClick={(e) => e.stopPropagation()}

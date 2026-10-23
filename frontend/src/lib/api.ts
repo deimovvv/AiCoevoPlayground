@@ -3778,7 +3778,11 @@ export async function getTikTokTopVideos(profileUrl: string, limit = 10): Promis
 // ── Entregas (backend/routers/deliveries.py · studio-v2 P.3) ────────────────
 
 export type DeliveryStatus = "en_revision" | "cambios" | "aprobada";
-export interface DeliveryItem { id: string; url: string; kind: "image" | "video"; label: string; poster?: string | null; rejected?: boolean }
+export interface DeliveryItem {
+    id: string; url: string; kind: "image" | "video"; label: string; poster?: string | null; rejected?: boolean;
+    /** Copia para ver en el navegador cuando el original no se puede (ej. ProRes con transparencia). */
+    preview?: string | null;
+}
 export interface DeliveryComment {
     id: string; itemId: string | null; x: number | null; y: number | null; text: string;
     author: string | null; internal: boolean; round: number; resolvedAt: string | null; createdAt: string | null;

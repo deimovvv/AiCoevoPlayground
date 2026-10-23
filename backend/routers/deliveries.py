@@ -85,6 +85,9 @@ async def _store_items(delivery_id: str, round_: int, files: List[UploadFile], l
     items = []
     for i, f in enumerate(files):
         s = await _store(delivery_id, round_, f, IMAGE_EXT | VIDEO_EXT)
+        if s["ext"] in VIDEO_EXT:
+            import asyncio
+            await asyncio.to_thread(_make_preview, FILES_DIR / s["url"].split("/static/deliveries/", 1)[1])
         items.append({
             "id": uuid.uuid4().hex[:8], "url": s["url"],
             "kind": "video" if s["ext"] in VIDEO_EXT else "image",
@@ -106,8 +109,50 @@ def _poster(url: str) -> Optional[str]:
     return f"/static/deliveries/{out.relative_to(FILES_DIR).as_posix()}" if out.exists() else None
 
 
+# Lo que Chrome reproduce sin problema. ProRes (con o sin transparencia), DNxHD y compañía no: para esos se
+# arma una copia para ver (MP4 H.264) y el original queda para bajar.
+PLAYABLE = {"h264", "vp8", "vp9", "av1"}
+
+
+def _make_preview(path: Path) -> None:
+    """Si el video no se puede ver en el navegador (ej. ProRes 4444 de After Effects), arma `<nombre>.preview.mp4`
+    sobre un fondo de cuadritos (así se ve qué es transparente) y rehace la portada desde ahí."""
+    import json as _json
+    import subprocess
+    try:
+        info = _json.loads(subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name,pix_fmt,width,height",
+             "-of", "json", str(path)], capture_output=True, text=True, timeout=30).stdout or "{}")
+        st = (info.get("streams") or [{}])[0]
+    except Exception:
+        return
+    codec, fmt = st.get("codec_name", ""), st.get("pix_fmt", "")
+    alpha = fmt.startswith(("yuva", "rgba", "argb", "bgra", "abgr", "gbrap", "ya"))
+    if codec in PLAYABLE and not alpha:
+        return
+    w, h = int(st.get("width") or 720), int(st.get("height") or 1280)
+    out = path.with_name(path.stem + ".preview.mp4")
+    bg = f"color=c=gray:s={w}x{h},format=yuv420p,geq=lum='if(mod(floor(X/24)+floor(Y/24),2),205,236)':cb=128:cr=128"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(path), "-f", "lavfi", "-i", bg,
+                    "-filter_complex", "[1:v][0:v]overlay=shortest=1,format=yuv420p[v]", "-map", "[v]", "-map", "0:a?",
+                    "-c:v", "libx264", "-crf", "20", "-preset", "veryfast", "-c:a", "aac", "-movflags", "+faststart", str(out)],
+                   timeout=600, check=False)
+    if out.exists():
+        poster = path.with_name(path.stem + ".poster.jpg")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "0.5", "-i", str(out), "-frames:v", "1",
+                        "-vf", "scale=720:-2", "-q:v", "4", str(poster)], timeout=30, check=False)
+
+
+def _preview(url: str) -> Optional[str]:
+    rel = url.split("/static/deliveries/", 1)[-1]
+    src = FILES_DIR / rel
+    out = src.with_name(src.stem + ".preview.mp4")
+    return f"/static/deliveries/{out.relative_to(FILES_DIR).as_posix()}" if out.exists() else None
+
+
 def _items(d: Delivery) -> list:
-    return [{**it, "poster": _poster(it["url"])} if it.get("kind") == "video" else it for it in (d.items or [])]
+    return [{**it, "poster": _poster(it["url"]), "preview": _preview(it["url"])} if it.get("kind") == "video" else it
+            for it in (d.items or [])]
 
 
 def _comment(c: DeliveryComment, clients: Optional[set] = None) -> dict:
@@ -159,7 +204,7 @@ async def _full(s: AsyncSession, d: Delivery, client: bool = False) -> dict:
         "items": _items(d), "source": d.source, "note": d.note, "template": d.template,
         "comments": [_comment(c, {e.lower() for e in await mailer.client_emails(s, d.brand_id)}) for c in rows],
         # Versiones anteriores para comparar; el cliente sólo ve las que se le mandaron.
-        "history": [{**h, "items": [{**i, "poster": _poster(i["url"])} if i.get("kind") == "video" else i for i in h.get("items") or []]}
+        "history": [{**h, "items": [{**i, "poster": _poster(i["url"]), "preview": _preview(i["url"])} if i.get("kind") == "video" else i for i in h.get("items") or []]}
                     for h in (d.history or []) if not client or h.get("sentAt")],
     }
 
