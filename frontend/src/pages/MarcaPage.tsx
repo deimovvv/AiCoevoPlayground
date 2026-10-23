@@ -173,6 +173,11 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                         <dt className="text-fg-faint">Logo</dt>
                         <dd className={logo ? "text-fg" : "text-[var(--color-brand)]"}>{logo ? "cargado" : "falta"}</dd>
                         {dna.tone?.length ? <><dt className="text-fg-faint">Tono</dt><dd className="text-fg">{dna.tone.slice(0, 3).join(", ").toLowerCase()}</dd></> : null}
+                        {/* El design system es de Coevo (Claude Design): el cliente no lo ve. */}
+                        {!readOnly && <><dt className="text-fg-faint">Design system</dt>
+                            <dd>{b.designSystemUrl
+                                ? <a href={b.designSystemUrl} target="_blank" rel="noreferrer" className="text-fg underline underline-offset-2">abrir en Claude ↗</a>
+                                : <span className="text-fg-faint">sin armar</span>}</dd></>}
                     </dl>
                 </div>
 

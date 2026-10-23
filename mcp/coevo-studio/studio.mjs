@@ -93,7 +93,10 @@ export function brandBlocks(b) {
             colores: colors || null,
             tipografias: b.fonts || null,
             logos: files(b.logos),
-            falta: "DESIGN.md (logo en archivo, fuentes con licencia, componentes) todavía no existe en Studio — pedirlo a Gonzalo.",
+            design_system: b.designSystemUrl || null,
+            ...(b.designSystemUrl
+                ? { como_usarlo: "Para piezas gráficas (carruseles, posts, láminas, webs) usar este Design System de Claude Design: leer su README (project/README.md) antes de diseñar; tiene tokens, fuentes, logos y piezas tipo." }
+                : { falta: "Esta marca todavía no tiene Design System de Claude Design: pedirlo a Gonzalo antes de hacer piezas gráficas." }),
         },
         direccion_foto_video: {
             reglas: b.designSystem || null,

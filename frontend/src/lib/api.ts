@@ -252,6 +252,8 @@ export interface Brand {
     logo?: { filename: string; imageUrl: string };
     /** Multi-logo array — isotipo, logotipo, dark/light variants, etc. */
     logos?: LogoItem[];
+    /** Design System de la marca en Claude Design (studio-v2 M.5): carruseles, posts y webs se diseñan con él. */
+    designSystemUrl?: string;
     fonts?: BrandFonts;
     dna?: BrandDNA;
     designSystem?: DesignSystem;
@@ -656,6 +658,8 @@ export interface UpdateBrandPayload {
     brandSources?: BrandSource[];
     competitors?: BrandCompetitor[];
     customerReviews?: string[];
+    /** Link al Design System de Claude Design de la marca; "" lo saca. */
+    designSystemUrl?: string;
 }
 
 export async function updateBrand(brandId: string, updates: UpdateBrandPayload): Promise<Brand> {

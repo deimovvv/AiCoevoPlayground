@@ -275,6 +275,7 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
     const [colors, setColors] = useState(dna.colors || []);
     const [headline, setHeadline] = useState(brand.fonts?.headline || "");
     const [body, setBody] = useState(brand.fonts?.body || "");
+    const [dsUrl, setDsUrl] = useState(brand.designSystemUrl || "");
     const [style, setStyle] = useState(ds.photoStyle || "");
     const [dos, setDos] = useState(lines(ds.visualDos));
     const [donts, setDonts] = useState(lines(ds.visualDonts));
@@ -300,7 +301,7 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
     const textBlock = block === "quien" || block === "identidad" || block === "foto";
     const onSave = () => {
         if (block === "quien") return save({ brandContext: context, dna: { ...dna, tone: fromLines(tone), forbidden_words: fromLines(never) } });
-        if (block === "identidad") return save({ fonts: { ...brand.fonts, headline: headline || undefined, body: body || undefined }, dna: { ...dna, colors: colors.filter((c) => /^#[0-9a-f]{6}$/i.test(c.hex)) } });
+        if (block === "identidad") return save({ fonts: { ...brand.fonts, headline: headline || undefined, body: body || undefined }, dna: { ...dna, colors: colors.filter((c) => /^#[0-9a-f]{6}$/i.test(c.hex)) }, designSystemUrl: dsUrl.trim() });
         if (block === "foto") return save({ designSystem: { ...ds, photoStyle: style, visualDos: fromLines(dos), visualDonts: fromLines(donts) } });
     };
 
@@ -396,6 +397,10 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                                     <label className="flex flex-col gap-1 text-[12px] text-fg-muted">Textos<input value={body} onChange={(e) => setBody(e.target.value)} className={input} placeholder="ej. Inter" /></label>
                                 </div>
                                 <p className="text-[11px] text-fg-faint">Si la fuente es propia (con licencia), mandá el archivo: va al DESIGN.md de la marca.</p>
+                            </Section>
+                            <Section title="Design system (Claude Design)">
+                                <input value={dsUrl} onChange={(e) => setDsUrl(e.target.value)} className={input} placeholder="https://claude.ai/artifact/…" />
+                                <p className="text-[11px] text-fg-faint">El de esta marca en Claude Design: lo arma Coevo a partir del manual. Claude lo usa para carruseles, posts y webs. El cliente no lo ve.</p>
                             </Section>
                         </>
                     )}

@@ -203,6 +203,8 @@ class UpdateBrandRequest(BaseModel):
     brandSources: Optional[list[BrandSource]] = None
     competitors: Optional[list[BrandCompetitor]] = None
     customerReviews: Optional[list[str]] = None    # Plain-text reviews / testimonials
+    # Link al Design System de Claude Design de la marca (studio-v2 M.5): lo arma Coevo; "" lo saca.
+    designSystemUrl: Optional[str] = None
 
 
 class GenerateCopyRequest(BaseModel):
@@ -965,6 +967,14 @@ def update_brand(brand_id: str, req: UpdateBrandRequest):
         brand["competitors"] = [c.model_dump(exclude_none=True) for c in req.competitors]
     if req.customerReviews is not None:
         brand["customerReviews"] = req.customerReviews
+    if req.designSystemUrl is not None:
+        url = req.designSystemUrl.strip()
+        if url and not url.startswith("https://claude.ai/"):
+            raise HTTPException(status_code=400, detail="El design system tiene que ser un link de claude.ai")
+        if url:
+            brand["designSystemUrl"] = url
+        else:
+            brand.pop("designSystemUrl", None)
     brands.save_brands(all_brands)
     return brand
 
