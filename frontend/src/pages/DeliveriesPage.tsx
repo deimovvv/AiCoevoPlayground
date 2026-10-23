@@ -130,6 +130,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const [showPrev, setShowPrev] = useState(false);
     // Equipo: el comentario nuevo lo ve el cliente o queda entre el equipo. Por defecto: si la entrega ya se mandó, lo ve.
     const [forClient, setForClient] = useState<boolean | null>(null);
+    // Una lámina de una versión anterior, abierta desde un comentario viejo.
+    const [oldSlide, setOldSlide] = useState<{ itemId: string; url: string; kind: string; round: number; n: number } | null>(null);
+    const [commentsInView, setCommentsInView] = useState(false);
     const brandRef = useRef(brandId);
 
     const refreshList = useCallback(async () => {
@@ -145,7 +148,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     }, [client, brandId]);
 
     const open = useCallback((id: string | null) => {
-        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false); setZoom(undefined); setSlideZoom(1); setShowPrev(false);
+        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false); setZoom(undefined); setSlideZoom(1); setShowPrev(false); setOldSlide(null);
         setParams(id ? { id } : {}, { replace: true });
     }, [setParams]);
 
@@ -248,6 +251,28 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     return (
         <div className="h-full flex min-h-0">
             {dialog}
+            {oldSlide && current && (
+                <div className="fixed inset-0 z-[80] flex flex-col bg-black/85" role="dialog" aria-label={`Versión ${oldSlide.round}`} onClick={() => setOldSlide(null)}>
+                    <div className="h-12 shrink-0 flex items-center gap-3 px-4 text-white text-[13px]">
+                        <span className="px-2 py-0.5 rounded-[3px] bg-white/15">Versión {oldSlide.round} · anterior</span>
+                        <span className="text-white/70">Lámina {String(oldSlide.n).padStart(2, "0")}</span>
+                        <span className="flex-1" />
+                        <button onClick={() => setOldSlide(null)} aria-label="Cerrar" className="w-8 h-8 flex items-center justify-center cursor-pointer"><X size={16} /></button>
+                    </div>
+                    <div className="flex-1 min-h-0 flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+                        <span className="relative inline-block max-h-full">
+                            <img src={backendUrl(oldSlide.url)} alt="" className="block max-h-[calc(100vh-6rem)] max-w-full w-auto rounded-[var(--radius-xs)]" />
+                            {current.comments.filter((c) => c.itemId === oldSlide.itemId && c.x != null).map((c) => (
+                                <span key={c.id} title={c.text} style={{ left: `${c.x! * 100}%`, top: `${c.y! * 100}%`, background: personColor(c.author) }}
+                                    className="group/pin absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[11px] text-white ring-2 ring-white/70">
+                                    {numberOf[c.id]}
+                                    <span className="pointer-events-none absolute left-1/2 top-full mt-1.5 -translate-x-1/2 w-max max-w-[240px] px-2 py-1 rounded-[3px] bg-black/85 text-white text-[11px] leading-snug whitespace-normal opacity-0 group-hover/pin:opacity-100">{c.text}</span>
+                                </span>
+                            ))}
+                        </span>
+                    </div>
+                </div>
+            )}
             {/* ── Lista ── */}
             {/* Celular: o la lista o la entrega abierta. Escritorio: las dos. */}
             <aside className={`${selectedId ? "hidden md:flex" : "flex"} w-full md:w-[280px] shrink-0 md:border-r border-edge flex-col min-h-0`}>
@@ -616,7 +641,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     </div>
                                 </footer>
                             </div>
-                            {comments.some((c) => !c.resolvedAt) && !asking && (
+                            {comments.some((c) => !c.resolvedAt) && !asking && !commentsInView && (
                                 <button onClick={() => document.getElementById("lo-que-pidieron")?.scrollIntoView({ behavior: "smooth" })}
                                     className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-30 h-10 px-4 rounded-full bg-fg text-[var(--color-canvas)] text-[13px] shadow-[0_6px_20px_rgba(0,0,0,0.3)] cursor-pointer">
                                     {comments.filter((c) => !c.resolvedAt).length} {comments.filter((c) => !c.resolvedAt).length === 1 ? "comentario" : "comentarios"} ↓
@@ -627,6 +652,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 const pending = comments.filter((c) => !c.resolvedAt);
                                 if (!pending.length && !asking) return null;
                                 const idx = Object.fromEntries(current.items.map((it, i) => [it.id, i]));
+                                // Las láminas de las versiones anteriores, para que un comentario viejo no pierda a qué se refería.
+                                const older: Record<string, { url: string; kind: string; round: number; n: number }> = {};
+                                for (const h of current.history ?? []) h.items.forEach((x, k) => { older[x.id] = { url: x.poster || x.url, kind: x.kind, round: h.round, n: k + 1 }; });
                                 const sendAsk = () => run(async () => {
                                     await addDeliveryComment(current.id, { text: askText.trim(), asClient: true });
                                     if (current.status !== "cambios") await setDeliveryStatus(current.id, "cambios");
@@ -634,7 +662,11 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     await reload(current.id);
                                 });
                                 return (
-                                    <aside id="lo-que-pidieron" className="w-full md:w-[320px] shrink-0 border-t md:border-t-0 md:border-l border-edge flex flex-col md:min-h-0 scroll-mt-4">
+                                    <aside id="lo-que-pidieron" ref={(el) => {
+                                        if (!el || (el as HTMLElement & { _io?: boolean })._io) return;
+                                        (el as HTMLElement & { _io?: boolean })._io = true;
+                                        new IntersectionObserver(([e]) => setCommentsInView(e.isIntersecting), { threshold: 0.05 }).observe(el);
+                                    }} className="w-full md:w-[320px] shrink-0 border-t md:border-t-0 md:border-l border-edge flex flex-col md:min-h-0 scroll-mt-4">
                                         {asking && (
                                             <div className="px-5 pt-5 pb-5 border-b border-edge flex flex-col gap-3">
                                                 <p className="text-[15px] text-fg">¿Qué cambiarías?</p>
@@ -658,23 +690,40 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         <ol className="flex-1 overflow-y-auto px-2 pb-4">
                                             {pending.map((c) => {
                                                 const i = c.itemId ? idx[c.itemId] : undefined;
+                                                const old = c.itemId && i === undefined ? older[c.itemId] : undefined;
+                                                const cur = i !== undefined ? current.items[i] : undefined;
+                                                const thumb = cur ? (cur.poster || cur.url) : old?.url;
+                                                const open = () => {
+                                                    if (i !== undefined) { setSlide(i); setDraft(null); }
+                                                    else if (old && c.itemId) setOldSlide({ itemId: c.itemId, ...old });
+                                                };
                                                 return (
                                                     <li key={c.id} className="group relative">
                                                         {canDeleteComment(c) && (
                                                             <button onClick={() => removeComment(c.id)} title="Borrar el comentario" aria-label="Borrar el comentario"
                                                                 className="absolute top-2.5 right-2.5 w-6 h-6 flex items-center justify-center rounded-full text-fg-faint hover:text-[var(--color-error)] md:opacity-0 md:group-hover:opacity-100 cursor-pointer z-10"><Trash2 size={11} /></button>
                                                         )}
-                                                        <button onClick={() => { if (i !== undefined) { setSlide(i); setDraft(null); } }}
-                                                            disabled={i === undefined}
-                                                            className="w-full text-left p-3 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-1)] cursor-pointer disabled:cursor-default">
+                                                        <button onClick={open} disabled={!thumb}
+                                                            className="w-full text-left p-3 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-1)] cursor-pointer disabled:cursor-default flex gap-3">
+                                                            {thumb && (
+                                                                <span className="relative shrink-0 w-11 h-14 rounded-[3px] overflow-hidden bg-surface-2">
+                                                                    <img src={backendUrl(thumb)} alt="" className="w-full h-full object-cover" />
+                                                                    {c.x != null && c.y != null && (
+                                                                        <span style={{ left: `${c.x * 100}%`, top: `${c.y * 100}%`, background: personColor(c.author) }}
+                                                                            className="absolute w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-1 ring-white" />
+                                                                    )}
+                                                                </span>
+                                                            )}
+                                                            <span className="flex-1 min-w-0">
                                                             <span className="text-[11px] text-fg-faint flex flex-wrap items-center gap-x-1.5 gap-y-0.5 whitespace-nowrap">
                                                                 <span style={{ background: personColor(c.author) }} className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white">{numberOf[c.id]}</span>
-                                                                {i !== undefined ? `Lámina ${String(i + 1).padStart(2, "0")}` : "Toda la pieza"}
+                                                                {i !== undefined ? `Lámina ${String(i + 1).padStart(2, "0")}` : old ? `Lámina ${String(old.n).padStart(2, "0")}` : "Toda la pieza"}
                                                                 {" · "}{client ? (c.byClient ? (sameAuthor(c.author) ? "Vos" : who(c.author)) : "Coevo") : <span className={c.byClient ? "text-[var(--color-brand)]" : ""}>{c.internal ? `${who(c.author)} · interno` : c.byClient ? "cliente" : `${who(c.author)} · para el cliente`}</span>}
                                                                 {c.round < current.round && ` · versión ${c.round}`}
                                                                 <span className="ml-auto shrink-0 pr-6 tabular-nums">{stamp(c.createdAt)}</span>
                                                             </span>
                                                             <span className="block text-[13px] leading-relaxed text-fg mt-1.5">{c.text}</span>
+                                                            </span>
                                                         </button>
                                                     </li>
                                                 );
