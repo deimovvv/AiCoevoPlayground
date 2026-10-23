@@ -392,6 +392,11 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         )}
                                     </p>
                                 )}
+                                {current.round > 1 && current.note && (
+                                    <p className="mt-2 max-w-[640px] text-[13px] leading-snug text-fg">
+                                        <span className="text-fg-muted">Qué cambiamos: </span>{current.note}
+                                    </p>
+                                )}
                                 <p className="text-[11px] text-fg-faint mt-0.5 flex items-center gap-1.5">
                                     <span className={`w-1.5 h-1.5 rounded-full ${current.visibility === "interna" && !client ? "bg-[var(--color-edge-strong)]" : DOT[current.status]}`} />
                                     {stateLabel(current, mode)}
@@ -532,6 +537,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         </div>
                                     );
                                 })() : null}
+                                {client && <p className="md:hidden px-4 pt-4 text-[12px] text-fg-muted">Tocá una lámina para verla grande y marcar algo puntual.</p>}
                                 <div className="md:flex-1 flex items-center justify-center py-5 md:px-6 md:py-8">
                                     {/* Celular: láminas que se deslizan. Escritorio: todas en una fila. */}
                                     {/* Cada pieza usa el lugar que hay: alto hasta ~2/3 de la pantalla, ancho repartido. */}
@@ -601,7 +607,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                             ? `${comments.filter((c) => !c.resolvedAt).length === 1 ? "1 comentario abierto" : `${comments.filter((c) => !c.resolvedAt).length} comentarios abiertos`} · tocá una lámina para verla y comentar`
                                             : "Clic en una lámina para verla grande y comentar sobre ella."}
                                     </p>
-                                    {current.note && <p className="text-[12px] text-fg-muted truncate" title={current.note}>{current.note}</p>}
+                                    {current.note && current.round <= 1 && <p className="text-[12px] text-fg-muted truncate" title={current.note}>{current.note}</p>}
                                     <span className="flex-1" />
                                     <div className="hidden md:flex items-center gap-1 text-[12px] text-fg-muted shrink-0" aria-label="Zoom">
                                         <button onClick={() => setZoom((z) => Math.max(20, (z ?? 66) - 12))} aria-label="Achicar" className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-surface-2 hover:text-fg cursor-pointer"><Minus size={13} /></button>
@@ -610,6 +616,12 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     </div>
                                 </footer>
                             </div>
+                            {comments.some((c) => !c.resolvedAt) && !asking && (
+                                <button onClick={() => document.getElementById("lo-que-pidieron")?.scrollIntoView({ behavior: "smooth" })}
+                                    className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-30 h-10 px-4 rounded-full bg-fg text-[var(--color-canvas)] text-[13px] shadow-[0_6px_20px_rgba(0,0,0,0.3)] cursor-pointer">
+                                    {comments.filter((c) => !c.resolvedAt).length} {comments.filter((c) => !c.resolvedAt).length === 1 ? "comentario" : "comentarios"} ↓
+                                </button>
+                            )}
                             {(() => {
                                 // Lo que pidieron, sin entrar a cada lámina: abiertos, primero los del cliente.
                                 const pending = comments.filter((c) => !c.resolvedAt);
@@ -622,7 +634,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     await reload(current.id);
                                 });
                                 return (
-                                    <aside className="w-full md:w-[320px] shrink-0 border-t md:border-t-0 md:border-l border-edge flex flex-col md:min-h-0">
+                                    <aside id="lo-que-pidieron" className="w-full md:w-[320px] shrink-0 border-t md:border-t-0 md:border-l border-edge flex flex-col md:min-h-0 scroll-mt-4">
                                         {asking && (
                                             <div className="px-5 pt-5 pb-5 border-b border-edge flex flex-col gap-3">
                                                 <p className="text-[15px] text-fg">¿Qué cambiarías?</p>
