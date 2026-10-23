@@ -5,6 +5,7 @@ import { useBrand } from "../lib/BrandContext";
 import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
 import { DeliveryGroupPicker } from "../components/workspace/DeliveryGroupPicker";
+import { SlideStage } from "../components/workspace/SlideStage";
 import {
     backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment,
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
@@ -95,6 +96,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     // Proyectos plegables en la lista: lo que elige la persona; si no eligió, abierto si tiene pocas
     // entregas (≤ 3) o la que está abierta.
     const [fold, setFold] = useState<Record<string, boolean>>({});
+    // Zoom de la lámina grande: 1 = entra entera; más, se recorre con scroll.
+    const [slideZoom, setSlideZoom] = useState(1);
     const [tab, setTab] = useState<"revisar" | "aprobadas">("revisar");   // sólo cliente
     const fileRef = useRef<HTMLInputElement>(null);
     const addRef = useRef<HTMLInputElement>(null);   // «Sumar láminas» a la entrega abierta
@@ -113,7 +116,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     }, [client, brandId]);
 
     const open = useCallback((id: string | null) => {
-        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false); setZoom(undefined);
+        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false); setZoom(undefined); setSlideZoom(1);
         setParams(id ? { id } : {}, { replace: true });
     }, [setParams]);
 
@@ -597,21 +600,28 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 const general = comments.filter((c) => !c.itemId);
                                 return (
                                     <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
-                                        <div className="md:flex-1 min-w-0 flex flex-col bg-[var(--color-canvas)]">
-                                            <div className="px-6 py-3 flex items-center gap-3 text-[12px]">
-                                                <button onClick={() => { setSlide(null); setDraft(null); }} className="text-fg-muted hover:text-fg cursor-pointer">← Toda la pieza</button>
+                                        <div className="md:flex-1 min-w-0 md:min-h-0 flex flex-col bg-[var(--color-canvas)]">
+                                            <div className="px-4 md:px-6 py-3 flex items-center gap-3 text-[12px]">
+                                                <button onClick={() => { setSlide(null); setDraft(null); setSlideZoom(1); }} className="text-fg-muted hover:text-fg cursor-pointer">← Toda la pieza</button>
                                                 <span className="flex-1" />
+                                                <span className="flex items-center gap-0.5 text-fg-muted" aria-label="Zoom de la lámina">
+                                                    <button onClick={() => setSlideZoom((z) => Math.max(1, Math.round((z - 0.5) * 10) / 10))} disabled={slideZoom <= 1} aria-label="Achicar"
+                                                        className="w-7 h-7 flex items-center justify-center rounded-full hover:text-fg hover:bg-surface-2 disabled:opacity-30 cursor-pointer"><Minus size={13} /></button>
+                                                    <button onClick={() => setSlideZoom(1)} title="Que entre entera" className={`h-7 px-1.5 tabular-nums cursor-pointer ${slideZoom > 1 ? "hover:text-fg" : "text-fg"}`}>{slideZoom > 1 ? `${Math.round(slideZoom * 100)}%` : "Entera"}</button>
+                                                    <button onClick={() => setSlideZoom((z) => Math.min(4, z + 0.5))} aria-label="Agrandar"
+                                                        className="w-7 h-7 flex items-center justify-center rounded-full hover:text-fg hover:bg-surface-2 cursor-pointer"><Plus size={13} /></button>
+                                                </span>
+                                                <span className="w-px h-4 bg-[var(--color-edge)]" />
                                                 <button disabled={slide === 0} onClick={() => { setSlide(slide - 1); setDraft(null); }}
                                                     className="w-7 h-7 flex items-center justify-center rounded-full text-fg-muted hover:text-fg hover:bg-surface-2 disabled:opacity-30 cursor-pointer"><ChevronLeft size={15} /></button>
                                                 <span className="text-fg-faint tabular-nums">{slide + 1} / {total}</span>
                                                 <button disabled={slide === total - 1} onClick={() => { setSlide(slide + 1); setDraft(null); }}
                                                     className="w-7 h-7 flex items-center justify-center rounded-full text-fg-muted hover:text-fg hover:bg-surface-2 disabled:opacity-30 cursor-pointer"><ChevronRight size={15} /></button>
                                             </div>
-                                            <div className="h-[62vh] md:h-auto md:flex-1 min-h-0 flex items-center justify-center px-4 md:px-6 pb-4 md:pb-6">
-                                                <div className="relative h-full max-h-full cursor-crosshair select-none" onClick={(e) => onPick(e, it.id)}>
-                                                    {it.kind === "video"
-                                                        ? <video src={backendUrl(it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} controls className="h-full w-auto max-w-full object-contain rounded-[var(--radius-xs)]" />
-                                                        : <img src={backendUrl(it.url)} alt={it.label} draggable={false} className="h-full w-auto max-w-full object-contain rounded-[var(--radius-xs)] shadow-[0_8px_30px_rgba(0,0,0,0.35)]" />}
+                                            {/* Mide el lugar y la imagen: siempre entra entera; con zoom se recorre con scroll. */}
+                                            <div className="relative h-[62vh] md:h-auto md:flex-1 min-h-0 mx-4 md:mx-6 mb-4 md:mb-6">
+                                                <SlideStage key={it.id} url={it.url} kind={it.kind === "video" ? "video" : "image"} poster={it.poster} zoom={slideZoom}
+                                                    onPick={(e) => onPick(e, it.id)}>
                                                     {here.filter((c) => c.round === current.round && c.x != null).map((c) => (
                                                         <span key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus(null)} onClick={(e) => e.stopPropagation()}
                                                             style={{ left: `${c.x! * 100}%`, top: `${c.y! * 100}%` }}
@@ -625,7 +635,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                         <span style={{ left: `${draft.x * 100}%`, top: `${draft.y * 100}%` }}
                                                             className="absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 border-[var(--color-brand)] bg-black/40 animate-pulse" />
                                                     )}
-                                                </div>
+                                                </SlideStage>
                                             </div>
                                         </div>
 
