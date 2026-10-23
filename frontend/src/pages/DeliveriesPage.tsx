@@ -568,7 +568,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                     <li key={c.id} className="group relative">
                                                         {canDeleteComment(c) && (
                                                             <button onClick={() => removeComment(c.id)} title="Borrar el comentario" aria-label="Borrar el comentario"
-                                                                className="absolute top-2.5 right-2.5 w-6 h-6 flex items-center justify-center rounded-full text-fg-faint hover:text-[var(--color-error)] opacity-0 group-hover:opacity-100 cursor-pointer z-10"><Trash2 size={11} /></button>
+                                                                className="absolute top-2.5 right-2.5 w-6 h-6 flex items-center justify-center rounded-full text-fg-faint hover:text-[var(--color-error)] md:opacity-0 md:group-hover:opacity-100 cursor-pointer z-10"><Trash2 size={11} /></button>
                                                         )}
                                                         <button onClick={() => { if (i !== undefined) { setSlide(i); setDraft(null); } }}
                                                             disabled={i === undefined}
@@ -661,7 +661,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                             <span className="flex-1" />
                                                             {canDeleteComment(c) && (
                                                                 <button onClick={() => removeComment(c.id)} title="Borrar el comentario"
-                                                                    className="opacity-0 group-hover:opacity-100 text-fg-faint hover:text-[var(--color-error)] cursor-pointer"><Trash2 size={11} /></button>
+                                                                    className="md:opacity-0 md:group-hover:opacity-100 text-fg-faint hover:text-[var(--color-error)] cursor-pointer"><Trash2 size={11} /></button>
                                                             )}
                                                             {!client && (
                                                                 <button onClick={() => run(async () => { await toggleDeliveryComment(current.id, c.id); await reload(current.id); })}
