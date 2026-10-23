@@ -110,9 +110,12 @@ def _items(d: Delivery) -> list:
     return [{**it, "poster": _poster(it["url"])} if it.get("kind") == "video" else it for it in (d.items or [])]
 
 
-def _comment(c: DeliveryComment) -> dict:
+def _comment(c: DeliveryComment, clients: Optional[set] = None) -> dict:
+    """`byClient`: lo escribió alguien del cliente (no Coevo). Sin la lista de clientes, se deduce de `internal`."""
+    by_client = (c.author or "").lower() in clients if clients is not None else not c.internal
     return {
         "id": c.id, "itemId": c.item_id, "x": c.x, "y": c.y, "text": c.text, "author": c.author, "internal": c.internal,
+        "byClient": by_client and not c.internal,
         "round": c.round, "resolvedAt": _iso(c.resolved_at), "createdAt": _iso(c.created_at),
     }
 
@@ -154,7 +157,10 @@ async def _full(s: AsyncSession, d: Delivery, client: bool = False) -> dict:
     return {
         **_summary(d, sum(1 for c in rows if not c.resolved_at)),
         "items": _items(d), "source": d.source, "note": d.note, "template": d.template,
-        "comments": [_comment(c) for c in rows],
+        "comments": [_comment(c, {e.lower() for e in await mailer.client_emails(s, d.brand_id)}) for c in rows],
+        # Versiones anteriores para comparar; el cliente sólo ve las que se le mandaron.
+        "history": [{**h, "items": [{**i, "poster": _poster(i["url"])} if i.get("kind") == "video" else i for i in h.get("items") or []]}
+                    for h in (d.history or []) if not client or h.get("sentAt")],
     }
 
 
@@ -252,11 +258,21 @@ async def new_round(
     Las láminas viejas quedan en disco: los comentarios de la ronda anterior siguen apuntando ahí."""
     d = await _get(s, delivery_id)
     nxt = d.round + 1
+    # La versión que se reemplaza queda en el historial (sin las marcas de «esta no»), para comparar.
+    prev = {"round": d.round, "items": [{k: v for k, v in i.items() if k != "rejected"} for i in (d.items or [])],
+            "note": d.note, "sentAt": _iso(d.sent_at), "at": datetime.now(timezone.utc).isoformat()}
+    d.history = [*(d.history or []), prev]
     items = await _store_items(d.id, nxt, files, (labels or "").split("|"))
     if source and source.filename:
         st = await _store(d.id, nxt, source, SOURCE_EXT)
         d.source = {"url": st["url"], "name": st["name"]}
     d.items, d.round, d.status = items, nxt, "en_revision"
+    if note and note.strip():
+        # «Qué cambiamos»: un comentario de Coevo que el cliente ve junto a la versión nueva.
+        c = DeliveryComment(delivery_id=d.id, text=f"Versión {nxt}: {note.strip()}"[:4000], author=_who(request),
+                            round=nxt, internal=False)
+        c.id = f"dc_{uuid.uuid4().hex[:12]}"
+        s.add(c)
     d.visibility = "interna"   # el equipo la revisa antes de volver a mandarla
     d.approved_by = d.approved_at = None
     if note:

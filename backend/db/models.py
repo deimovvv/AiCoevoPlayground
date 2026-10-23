@@ -58,6 +58,8 @@ class Delivery(Base):
     # items: [{id, url, kind, label, rejected?}] — rejected = el cliente dijo «esta no»
     items: Mapped[list] = mapped_column(JSONB, default=list)
     source: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    # Versiones anteriores: [{round, items, note, sentAt, at}] — para que el cliente compare con la nueva.
+    history: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
     note: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
     template: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     round: Mapped[int] = mapped_column(Integer, default=1)

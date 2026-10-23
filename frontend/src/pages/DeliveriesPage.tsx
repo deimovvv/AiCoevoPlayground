@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, CornerDownLeft, Eye, ExternalLink, Loader2, Minus, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, CornerDownLeft, Eye, ExternalLink, History, Loader2, Minus, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
 import { DeliveryGroupPicker } from "../components/workspace/DeliveryGroupPicker";
 import { SlideStage } from "../components/workspace/SlideStage";
 import {
-    backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment,
+    backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound,
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
     type Delivery, type DeliveryStatus, type DeliverySummary,
 } from "../lib/api";
@@ -101,6 +101,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const [tab, setTab] = useState<"revisar" | "aprobadas">("revisar");   // sólo cliente
     const fileRef = useRef<HTMLInputElement>(null);
     const addRef = useRef<HTMLInputElement>(null);   // «Sumar láminas» a la entrega abierta
+    const roundRef = useRef<HTMLInputElement>(null); // «Nueva versión» (reemplaza las láminas; la anterior queda para comparar)
+    const [showPrev, setShowPrev] = useState(false);
     const brandRef = useRef(brandId);
 
     const refreshList = useCallback(async () => {
@@ -116,7 +118,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     }, [client, brandId]);
 
     const open = useCallback((id: string | null) => {
-        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false); setZoom(undefined); setSlideZoom(1);
+        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false); setZoom(undefined); setSlideZoom(1); setShowPrev(false);
         setParams(id ? { id } : {}, { replace: true });
     }, [setParams]);
 
@@ -147,6 +149,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
         try { await fn(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
     };
     const reload = async (id: string) => { setCurrent(await getDelivery(id, vista)); await refreshList(); };
+    const sameAuthor = (a: string | null) => !!me.email && (a ?? "").toLowerCase() === me.email.toLowerCase();
     // El equipo borra cualquiera; el cliente, sólo los que escribió él.
     const canDeleteComment = (c: { internal: boolean; author: string | null }) =>
         !client || (!c.internal && !!me.email && (c.author ?? "").toLowerCase() === me.email.toLowerCase());
@@ -350,10 +353,22 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         </button>
                                     )}
                                 </h2>
+                                {current.round > 1 && (
+                                    <p className="mt-1.5 flex flex-wrap items-center gap-2">
+                                        <span className="h-6 px-2 inline-flex items-center rounded-[3px] bg-fg text-[var(--color-canvas)] text-[11px] font-medium">
+                                            Versión {current.round}{current.status === "en_revision" ? " · nueva" : ""}
+                                        </span>
+                                        {(current.history?.length ?? 0) > 0 && (
+                                            <button onClick={() => { setSlide(null); setShowPrev((v) => !v); }}
+                                                className={`h-6 px-2 inline-flex items-center gap-1 rounded-[3px] border text-[11px] cursor-pointer ${showPrev ? "border-fg text-fg" : "border-edge text-fg-muted hover:text-fg"}`}>
+                                                <History size={11} /> {showPrev ? "Ocultar la versión anterior" : "Ver la versión anterior"}
+                                            </button>
+                                        )}
+                                    </p>
+                                )}
                                 <p className="text-[11px] text-fg-faint mt-0.5 flex items-center gap-1.5">
                                     <span className={`w-1.5 h-1.5 rounded-full ${current.visibility === "interna" && !client ? "bg-[var(--color-edge-strong)]" : DOT[current.status]}`} />
                                     {stateLabel(current, mode)}
-                                    {current.round > 1 && <> · versión {current.round}</>}
                                     {client
                                         ? <> · llegó el {when(current.sentAt ?? current.createdAt)}</>
                                         : <>{" "}· subida por {who(current.createdBy)} el {when(current.createdAt)}{current.sentAt && <> · mandada el {when(current.sentAt)}</>}</>}
@@ -429,6 +444,35 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 </>
                             )}
                             {!client && (
+                                <button disabled={busy} onClick={() => roundRef.current?.click()}
+                                    title="Subí las láminas corregidas: reemplazan a las actuales y la versión anterior queda para comparar"
+                                    className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
+                                    {progress !== null ? <><Loader2 size={12} className="animate-spin" /> {Math.round(progress * 100)}%</> : <><Upload size={12} /> Nueva versión</>}
+                                </button>
+                            )}
+                            {!client && (
+                                <input ref={roundRef} type="file" multiple hidden accept="image/*,video/*"
+                                    onChange={async (e) => {
+                                        const fs = Array.from(e.target.files || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+                                        e.target.value = "";
+                                        if (!fs.length) return;
+                                        const note = await ask({
+                                            title: `Versión ${current.round + 1}: ¿qué cambiaron?`, input: "Lo ve el cliente junto a la versión nueva", multiline: true,
+                                            placeholder: "Ej: los globos más grandes y la pose para atrás, como pediste.", confirm: "Subir",
+                                        });
+                                        if (typeof note !== "string") return;
+                                        run(async () => {
+                                            setProgress(0);
+                                            let d;
+                                            try { d = await newDeliveryRound(current.id, fs, note, setProgress); } finally { setProgress(null); }
+                                            setCurrent(d); await refreshList();
+                                            if (await ask({ title: `¿Mandar la versión ${d.round} al cliente?`, body: "Le llega a revisar, con lo que cambiaron. Si preferís revisarla antes, después usás «Mandar al cliente».", confirm: "Mandar", cancel: "Después" })) {
+                                                await sendDelivery(d.id); await reload(d.id);
+                                            }
+                                        });
+                                    }} />
+                            )}
+                            {!client && (
                                 <>
                                     <input ref={addRef} type="file" multiple hidden accept="image/*,video/*"
                                         onChange={(e) => {
@@ -452,6 +496,25 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             /* ── Vista 1: la pieza entera, como en el canvas, + lo que pidieron ── */
                             <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
                             <div className="md:flex-1 min-w-0 md:overflow-auto bg-[var(--color-canvas)] flex flex-col">
+                                {showPrev && current.history?.length ? (() => {
+                                    const prev = current.history[current.history.length - 1];
+                                    return (
+                                        <div className="px-4 md:px-6 pt-5 pb-4 border-b border-edge bg-[var(--color-surface-1)]">
+                                            <p className="text-[11px] text-fg-faint mb-2.5">Versión {prev.round} · antes{prev.note ? ` · ${prev.note}` : ""}</p>
+                                            <div className="flex gap-2.5 overflow-x-auto">
+                                                {prev.items.map((it, i) => (
+                                                    <figure key={it.id} className="shrink-0">
+                                                        {it.kind === "video"
+                                                            ? <video src={backendUrl(it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted controls className="h-[26vh] w-auto rounded-[var(--radius-xs)] opacity-80" />
+                                                            : <img src={backendUrl(it.url)} alt="" className="h-[26vh] w-auto rounded-[var(--radius-xs)] opacity-80" />}
+                                                        <figcaption className="text-[10px] text-fg-faint mt-1">{String(i + 1).padStart(2, "0")}</figcaption>
+                                                    </figure>
+                                                ))}
+                                            </div>
+                                            <p className="text-[11px] text-fg-muted mt-2.5">Abajo, la versión {current.round}: la nueva.</p>
+                                        </div>
+                                    );
+                                })() : null}
                                 <div className="md:flex-1 flex items-center justify-center py-5 md:px-6 md:py-8">
                                     {/* Celular: láminas que se deslizan. Escritorio: todas en una fila. */}
                                     {/* Cada pieza usa el lugar que hay: alto hasta ~2/3 de la pantalla, ancho repartido. */}
@@ -507,7 +570,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                             );
                                         })}
                                         {!client && (
-                                            <button disabled={busy} onClick={() => addRef.current?.click()} title="Sumar imágenes o videos a esta entrega: otra al lado, o la versión corregida de una para comparar"
+                                            <button disabled={busy} onClick={() => addRef.current?.click()} title="Sumar otra lámina a esta misma versión. Para una corrección, usá «Nueva versión»"
                                                 className="shrink-0 self-stretch w-[110px] md:w-[130px] min-h-[180px] rounded-[var(--radius-xs)] border border-dashed border-[var(--color-edge-strong)] flex flex-col items-center justify-center gap-1.5 text-[12px] text-fg-muted hover:text-fg hover:border-fg cursor-pointer disabled:opacity-50">
                                                 {progress !== null ? <><Loader2 size={15} className="animate-spin" /> {Math.round(progress * 100)}%</> : <><Plus size={15} /> Sumar lámina</>}
                                             </button>
@@ -579,7 +642,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                             <span className="text-[11px] text-fg-faint flex items-center gap-1.5">
                                                                 <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] bg-[var(--color-brand)] text-[var(--color-brand-fg)]">{numberOf[c.id]}</span>
                                                                 {i !== undefined ? `Lámina ${String(i + 1).padStart(2, "0")}` : "Toda la pieza"}
-                                                                {" · "}{client ? (c.internal ? "Coevo" : "Vos") : <span className={c.internal ? "" : "text-[var(--color-brand)]"}>{c.internal ? `${who(c.author)} · interno` : "cliente"}</span>}
+                                                                {" · "}{client ? (c.byClient ? (sameAuthor(c.author) ? "Vos" : who(c.author)) : "Coevo") : <span className={c.byClient ? "text-[var(--color-brand)]" : ""}>{c.internal ? `${who(c.author)} · interno` : c.byClient ? "cliente" : `${who(c.author)} · para el cliente`}</span>}
                                                                 {c.round < current.round && ` · versión ${c.round}`}
                                                             </span>
                                                             <span className="block text-[13px] leading-relaxed text-fg mt-1.5">{c.text}</span>
@@ -665,8 +728,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                         className={`group p-2.5 rounded-[var(--radius-md)] ${focus === c.id ? "bg-surface-1" : ""} ${c.resolvedAt || c.round < current.round ? "opacity-50" : ""}`}>
                                                         <div className="text-[11px] text-fg-faint flex items-center gap-1.5">
                                                             <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${c.resolvedAt ? "bg-surface-3" : "bg-[var(--color-brand)] text-[var(--color-brand-fg)]"}`}>{numberOf[c.id]}</span>
-                                                            {client ? (c.internal ? "Coevo" : "Vos") : who(c.author)}
-                                                            {!client && <span className={c.internal ? "" : "text-[var(--color-brand)]"}> · {c.internal ? "interno" : "cliente"}</span>}
+                                                            {client ? (c.byClient ? (sameAuthor(c.author) ? "Vos" : who(c.author)) : "Coevo") : who(c.author)}
+                                                            {!client && <span className={c.byClient ? "text-[var(--color-brand)]" : ""}> · {c.internal ? "interno" : c.byClient ? "cliente" : "para el cliente"}</span>}
                                                             {!c.itemId && " · sobre toda la pieza"}{c.round < current.round && ` · versión ${c.round}`}{c.resolvedAt && " · resuelto"}
                                                             <span className="flex-1" />
                                                             {canDeleteComment(c) && (

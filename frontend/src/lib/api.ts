@@ -3782,6 +3782,8 @@ export interface DeliveryItem { id: string; url: string; kind: "image" | "video"
 export interface DeliveryComment {
     id: string; itemId: string | null; x: number | null; y: number | null; text: string;
     author: string | null; internal: boolean; round: number; resolvedAt: string | null; createdAt: string | null;
+    /** Lo escribió alguien del cliente (si no, Coevo). */
+    byClient?: boolean;
 }
 export interface DeliverySummary {
     id: string; brandId: string; title: string; kind: string; status: DeliveryStatus; round: number;
@@ -3797,6 +3799,8 @@ export interface DeliverySummary {
 export interface Delivery extends Omit<DeliverySummary, "items"> {
     items: DeliveryItem[]; source: { url: string; name: string } | null; note: string | null;
     template: string | null; comments: DeliveryComment[];
+    /** Versiones anteriores (la más vieja primero), para comparar con la actual. */
+    history?: Array<{ round: number; items: DeliveryItem[]; note: string | null; sentAt: string | null; at: string }>;
 }
 
 /** `vista: "cliente"` = sólo lo mandado al cliente y sin comentarios internos. */
@@ -3855,6 +3859,15 @@ export async function createDelivery(brandId: string, title: string, files: File
     return uploadWithProgress(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/deliveries`, form, "No se pudo subir la entrega", onProgress);
 }
 
+/** Nueva versión (equipo): reemplaza las láminas; la anterior queda para comparar. `note` = qué cambiamos (lo ve el cliente). */
+export async function newDeliveryRound(id: string, files: File[], note: string, onProgress?: (p: number) => void): Promise<Delivery> {
+    const big = tooBig(files);
+    if (big) throw new Error(`«${big.name}» pesa más de ${MAX_UPLOAD_MB} MB: subilo comprimido o mandalo por link.`);
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f));
+    if (note.trim()) form.append("note", note.trim());
+    return uploadWithProgress(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/round`, form, "No se pudo subir la versión nueva", onProgress);
+}
 /** Sumar láminas a la ronda actual (equipo): otra imagen al lado, o la versión corregida de una. */
 export async function addDeliveryItems(id: string, files: File[], onProgress?: (p: number) => void): Promise<Delivery> {
     const big = tooBig(files);
