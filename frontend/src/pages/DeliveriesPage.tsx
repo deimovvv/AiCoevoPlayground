@@ -62,6 +62,30 @@ const who = (a: string | null) => (!a ? "—" : a.startsWith("servicio:") ? "Cla
 
 interface Draft { itemId: string; x: number; y: number }
 
+/** Un color fijo por persona (como en Figma): sale del mail, así es siempre el mismo. Texto blanco encima. */
+// Bien distintos entre sí (tono y luz), todos con texto blanco legible encima.
+const PERSON_COLORS = ["#2f6fdb", "#1f8a5b", "#c4572a", "#7b4fd6", "#c23a6b", "#6b5a1f", "#334155"];
+function personColor(author: string | null): string {
+    const a = (author ?? "").toLowerCase();
+    let h = 0;
+    for (let i = 0; i < a.length; i++) h = (h * 31 + a.charCodeAt(i)) >>> 0;
+    return PERSON_COLORS[h % PERSON_COLORS.length];
+}
+/** «hace 5 min», «hace 3 h», «ayer 18:20», «21 oct 12:48». */
+function stamp(iso: string | null): string {
+    if (!iso) return "";
+    const d = new Date(iso), now = new Date();
+    const min = Math.round((now.getTime() - d.getTime()) / 60000);
+    if (min < 1) return "recién";
+    if (min < 60) return `hace ${min} min`;
+    if (min < 6 * 60) return `hace ${Math.round(min / 60)} h`;
+    const hm = d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    const y = new Date(now); y.setDate(now.getDate() - 1);
+    if (d.toDateString() === now.toDateString()) return `hoy ${hm}`;
+    if (d.toDateString() === y.toDateString()) return `ayer ${hm}`;
+    return `${d.toLocaleDateString("es-AR", { day: "numeric", month: "short" })} ${hm}`;
+}
+
 export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const client = mode === "cliente";
     const me = useMe();
@@ -166,10 +190,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
 
     const comments = useMemo(() => {
         if (!current) return [];
-        const order = Object.fromEntries(current.items.map((it, i) => [it.id, i]));
         return [...current.comments].sort((a, b) =>
-            Number(!!a.resolvedAt) - Number(!!b.resolvedAt) || b.round - a.round
-            || (order[a.itemId ?? ""] ?? -1) - (order[b.itemId ?? ""] ?? -1));
+            Number(!!a.resolvedAt) - Number(!!b.resolvedAt) || (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
     }, [current]);
     const numberOf = useMemo(() => Object.fromEntries(comments.map((c, i) => [c.id, i + 1])), [comments]);
     const total = current?.items.length ?? 0;
@@ -541,8 +563,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                             </span>
                                                             : <img src={backendUrl(it.url)} alt={it.label} draggable={false} style={zoom ? ({ "--z": `${zoom}vh` } as React.CSSProperties) : undefined} className={`block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] ${zoom ? "md:max-h-[var(--z)]" : ""} rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5`} />}
                                                         {pins.map((c) => (
-                                                            <span key={c.id} style={{ left: `${c.x! * 100}%`, top: `${c.y! * 100}%` }}
-                                                                className="group/pin absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 hover:scale-125 transition-transform rounded-full flex items-center justify-center text-[9px] font-medium bg-[var(--color-brand)] text-[var(--color-brand-fg)] ring-2 ring-black/30 z-10">
+                                                            <span key={c.id} style={{ left: `${c.x! * 100}%`, top: `${c.y! * 100}%`, background: personColor(c.author) }}
+                                                                className="group/pin absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 hover:scale-125 transition-transform rounded-full flex items-center justify-center text-[9px] font-medium text-white ring-2 ring-white/70 z-10">
                                                                 {numberOf[c.id]}
                                                                 <span className="pointer-events-none absolute left-1/2 top-full mt-1.5 -translate-x-1/2 w-max max-w-[220px] px-2 py-1 rounded-[3px] bg-black/85 text-white text-[11px] font-normal leading-snug text-left whitespace-normal opacity-0 group-hover/pin:opacity-100 transition-opacity">{c.text}</span>
                                                             </span>
@@ -598,8 +620,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             </div>
                             {(() => {
                                 // Lo que pidieron, sin entrar a cada lámina: abiertos, primero los del cliente.
-                                const pending = comments.filter((c) => !c.resolvedAt)
-                                    .sort((a, b) => Number(a.internal) - Number(b.internal));
+                                const pending = comments.filter((c) => !c.resolvedAt);
                                 if (!pending.length && !asking) return null;
                                 const idx = Object.fromEntries(current.items.map((it, i) => [it.id, i]));
                                 const sendAsk = () => run(async () => {
@@ -642,11 +663,12 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                         <button onClick={() => { if (i !== undefined) { setSlide(i); setDraft(null); } }}
                                                             disabled={i === undefined}
                                                             className="w-full text-left p-3 rounded-[var(--radius-md)] hover:bg-[var(--color-surface-1)] cursor-pointer disabled:cursor-default">
-                                                            <span className="text-[11px] text-fg-faint flex items-center gap-1.5">
-                                                                <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] bg-[var(--color-brand)] text-[var(--color-brand-fg)]">{numberOf[c.id]}</span>
+                                                            <span className="text-[11px] text-fg-faint flex flex-wrap items-center gap-x-1.5 gap-y-0.5 whitespace-nowrap">
+                                                                <span style={{ background: personColor(c.author) }} className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] text-white">{numberOf[c.id]}</span>
                                                                 {i !== undefined ? `Lámina ${String(i + 1).padStart(2, "0")}` : "Toda la pieza"}
                                                                 {" · "}{client ? (c.byClient ? (sameAuthor(c.author) ? "Vos" : who(c.author)) : "Coevo") : <span className={c.byClient ? "text-[var(--color-brand)]" : ""}>{c.internal ? `${who(c.author)} · interno` : c.byClient ? "cliente" : `${who(c.author)} · para el cliente`}</span>}
                                                                 {c.round < current.round && ` · versión ${c.round}`}
+                                                                <span className="ml-auto shrink-0 pr-6 tabular-nums">{stamp(c.createdAt)}</span>
                                                             </span>
                                                             <span className="block text-[13px] leading-relaxed text-fg mt-1.5">{c.text}</span>
                                                         </button>
@@ -690,9 +712,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                     onPick={(e) => onPick(e, it.id)}>
                                                     {here.filter((c) => c.round === current.round && c.x != null).map((c) => (
                                                         <span key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus(null)} onClick={(e) => e.stopPropagation()}
-                                                            style={{ left: `${c.x! * 100}%`, top: `${c.y! * 100}%` }}
-                                                            className={`absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-medium ring-2 ring-black/30 transition-transform
-                                                                ${c.resolvedAt ? "bg-surface-3 text-fg-faint" : "bg-[var(--color-brand)] text-[var(--color-brand-fg)]"} ${focus === c.id ? "scale-125" : ""}`}>
+                                                            style={{ left: `${c.x! * 100}%`, top: `${c.y! * 100}%`, ...(c.resolvedAt ? {} : { background: personColor(c.author) }) }}
+                                                            className={`absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-medium ring-2 ring-white/70 transition-transform
+                                                                ${c.resolvedAt ? "bg-surface-3 text-fg-faint" : "text-white"} ${focus === c.id ? "scale-125" : ""}`}>
                                                             {numberOf[c.id]}
                                                             <span className={`pointer-events-none absolute left-1/2 top-full mt-1.5 -translate-x-1/2 w-max max-w-[240px] px-2 py-1 rounded-[3px] bg-black/85 text-white text-[11px] font-normal leading-snug text-left whitespace-normal transition-opacity ${focus === c.id ? "opacity-100" : "opacity-0"}`}>{c.text}</span>
                                                         </span>
@@ -741,10 +763,11 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                     <li key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus(null)}
                                                         className={`group p-2.5 rounded-[var(--radius-md)] ${focus === c.id ? "bg-surface-1" : ""} ${c.resolvedAt || c.round < current.round ? "opacity-50" : ""}`}>
                                                         <div className="text-[11px] text-fg-faint flex flex-wrap items-center gap-x-1.5 gap-y-1 whitespace-nowrap">
-                                                            <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${c.resolvedAt ? "bg-surface-3" : "bg-[var(--color-brand)] text-[var(--color-brand-fg)]"}`}>{numberOf[c.id]}</span>
+                                                            <span style={c.resolvedAt ? undefined : { background: personColor(c.author) }} className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${c.resolvedAt ? "bg-surface-3" : "text-white"}`}>{numberOf[c.id]}</span>
                                                             {client ? (c.byClient ? (sameAuthor(c.author) ? "Vos" : who(c.author)) : "Coevo") : who(c.author)}
                                                             {!client && <span className={c.byClient ? "text-[var(--color-brand)]" : ""}> · {c.internal ? "interno" : c.byClient ? "cliente" : "para el cliente"}</span>}
                                                             {!c.itemId && " · sobre toda la pieza"}{c.round < current.round && ` · versión ${c.round}`}{c.resolvedAt && " · resuelto"}
+                                                            <span className="tabular-nums">· {stamp(c.createdAt)}</span>
                                                             <span className="flex-1" />
                                                             {!client && !c.byClient && (
                                                                 <button onClick={() => run(async () => { await setDeliveryCommentInternal(current.id, c.id, !c.internal); await reload(current.id); })}
