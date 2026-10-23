@@ -484,3 +484,21 @@ async def delete_comment(delivery_id: str, comment_id: str, request: Request, s:
     await s.delete(c)
     await s.commit()
     return {"ok": True}
+
+
+class CommentVisibilityIn(BaseModel):
+    internal: bool
+
+
+@router.patch("/api/deliveries/{delivery_id}/comments/{comment_id}")
+async def set_comment_visibility(delivery_id: str, comment_id: str, req: CommentVisibilityIn, request: Request,
+                                 s: AsyncSession = Depends(get_session)):
+    """Equipo: pasar un comentario a «lo ve el cliente» o a «sólo el equipo»."""
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    c = await s.get(DeliveryComment, comment_id)
+    if not c or c.delivery_id != delivery_id:
+        raise HTTPException(status_code=404, detail="No existe ese comentario")
+    c.internal = req.internal
+    await s.commit()
+    return _comment(c)

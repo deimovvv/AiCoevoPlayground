@@ -3879,6 +3879,12 @@ export async function addDeliveryItems(id: string, files: File[], onProgress?: (
 export async function deleteDeliveryItem(id: string, itemId: string): Promise<Delivery> {
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}`, { method: "DELETE" }), "No se pudo sacar la lámina");
 }
+/** Equipo: un comentario pasa a «lo ve el cliente» (internal=false) o «sólo el equipo» (true). */
+export async function setDeliveryCommentInternal(id: string, commentId: string, internal: boolean): Promise<void> {
+    await editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ internal }),
+    }), "No se pudo cambiar quién lo ve");
+}
 /** Borrar un comentario (y su punto). El cliente sólo puede borrar los suyos. */
 export async function deleteDeliveryComment(id: string, commentId: string): Promise<void> {
     await editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`, { method: "DELETE" }), "No se pudo borrar el comentario");

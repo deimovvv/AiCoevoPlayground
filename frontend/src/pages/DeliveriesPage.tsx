@@ -7,7 +7,7 @@ import { useConfirm } from "../lib/useConfirm";
 import { DeliveryGroupPicker } from "../components/workspace/DeliveryGroupPicker";
 import { SlideStage } from "../components/workspace/SlideStage";
 import {
-    backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound,
+    backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound, setDeliveryCommentInternal,
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
     type Delivery, type DeliveryStatus, type DeliverySummary,
 } from "../lib/api";
@@ -103,6 +103,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const addRef = useRef<HTMLInputElement>(null);   // «Sumar láminas» a la entrega abierta
     const roundRef = useRef<HTMLInputElement>(null); // «Nueva versión» (reemplaza las láminas; la anterior queda para comparar)
     const [showPrev, setShowPrev] = useState(false);
+    // Equipo: el comentario nuevo lo ve el cliente o queda entre el equipo. Por defecto: si la entrega ya se mandó, lo ve.
+    const [forClient, setForClient] = useState<boolean | null>(null);
     const brandRef = useRef(brandId);
 
     const refreshList = useCallback(async () => {
@@ -199,7 +201,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
         if (!current || !draftText.trim()) return;
         const d = draft?.itemId === itemId ? draft : null;
         run(async () => {
-            await addDeliveryComment(current.id, { text: draftText, itemId, x: d?.x ?? null, y: d?.y ?? null, asClient: client });
+            const visible = client || (forClient ?? current.visibility === "cliente");
+            await addDeliveryComment(current.id, { text: draftText, itemId, x: d?.x ?? null, y: d?.y ?? null, asClient: visible });
             setDraft(null); setDraftText("");
             await reload(current.id);
         });
@@ -529,7 +532,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                     className={`group text-left w-[78vw] max-w-[360px] shrink-0 snap-center md:w-auto ${zoom ? "md:max-w-none md:flex-none" : "md:max-w-fit md:shrink md:flex-[1_1_0] md:min-w-0"}`}>
                                                     <span className="relative block md:inline-block md:max-w-full">
                                                     <button onClick={() => { if (picking && canPick) run(async () => { setCurrent(await toggleDeliveryItem(current.id, it.id, vista)); await refreshList(); }); else { setSlide(i); setDraft(null); } }}
-                                                        title={picking && canPick ? (it.rejected ? "Volver a sumarla" : "Sacarla") : "Abrir para comentar"}
+                                                        aria-label={picking && canPick ? (it.rejected ? "Volver a sumarla" : "Sacarla") : "Abrir para comentar"}
                                                         className={`relative block md:inline-block md:max-w-full transition-opacity ${picking && canPick ? "cursor-pointer" : "cursor-zoom-in"} ${it.rejected ? "opacity-35" : ""}`}>
                                                         {it.kind === "video"
                                                             ? <span className="relative block">
@@ -713,6 +716,17 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                     onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveDraft(it.id); }}
                                                     placeholder="Qué cambiarías…"
                                                     className="w-full mt-3 bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-fg/40 resize-none" />
+                                                {!client && (() => {
+                                                    const visible = forClient ?? current.visibility === "cliente";
+                                                    return (
+                                                        <div className="flex gap-0.5 p-0.5 mt-2 bg-[var(--color-surface-2)] rounded-[4px] text-[11px]" role="radiogroup" aria-label="Quién lo ve">
+                                                            {([[true, "Lo ve el cliente"], [false, "Sólo el equipo"]] as const).map(([v, l]) => (
+                                                                <button key={l} role="radio" aria-checked={visible === v} onClick={() => setForClient(v)}
+                                                                    className={`flex-1 h-6 rounded-[3px] cursor-pointer ${visible === v ? "bg-[var(--color-surface-1)] text-fg" : "text-fg-muted"}`}>{l}</button>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                })()}
                                                 <div className="flex items-center justify-end gap-3 mt-2">
                                                     {draft && <button onClick={() => setDraft(null)} className="text-[11px] text-fg-faint hover:text-fg cursor-pointer">Quitar punto</button>}
                                                     <button disabled={busy || !draftText.trim()} onClick={() => saveDraft(it.id)}
@@ -726,12 +740,19 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                 {[...here, ...general].map((c) => (
                                                     <li key={c.id} onMouseEnter={() => setFocus(c.id)} onMouseLeave={() => setFocus(null)}
                                                         className={`group p-2.5 rounded-[var(--radius-md)] ${focus === c.id ? "bg-surface-1" : ""} ${c.resolvedAt || c.round < current.round ? "opacity-50" : ""}`}>
-                                                        <div className="text-[11px] text-fg-faint flex items-center gap-1.5">
+                                                        <div className="text-[11px] text-fg-faint flex flex-wrap items-center gap-x-1.5 gap-y-1 whitespace-nowrap">
                                                             <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] ${c.resolvedAt ? "bg-surface-3" : "bg-[var(--color-brand)] text-[var(--color-brand-fg)]"}`}>{numberOf[c.id]}</span>
                                                             {client ? (c.byClient ? (sameAuthor(c.author) ? "Vos" : who(c.author)) : "Coevo") : who(c.author)}
                                                             {!client && <span className={c.byClient ? "text-[var(--color-brand)]" : ""}> · {c.internal ? "interno" : c.byClient ? "cliente" : "para el cliente"}</span>}
                                                             {!c.itemId && " · sobre toda la pieza"}{c.round < current.round && ` · versión ${c.round}`}{c.resolvedAt && " · resuelto"}
                                                             <span className="flex-1" />
+                                                            {!client && !c.byClient && (
+                                                                <button onClick={() => run(async () => { await setDeliveryCommentInternal(current.id, c.id, !c.internal); await reload(current.id); })}
+                                                                    title={c.internal ? "Que lo vea el cliente" : "Que lo vea sólo el equipo"}
+                                                                    className="md:opacity-0 md:group-hover:opacity-100 h-5 px-1.5 rounded-[3px] border border-edge text-[10px] text-fg-muted hover:text-fg cursor-pointer">
+                                                                    {c.internal ? "Mostrar al cliente" : "Ocultar al cliente"}
+                                                                </button>
+                                                            )}
                                                             {canDeleteComment(c) && (
                                                                 <button onClick={() => removeComment(c.id)} title="Borrar el comentario"
                                                                     className="md:opacity-0 md:group-hover:opacity-100 text-fg-faint hover:text-[var(--color-error)] cursor-pointer"><Trash2 size={11} /></button>
