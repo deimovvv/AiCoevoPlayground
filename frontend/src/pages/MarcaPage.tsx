@@ -1,7 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { useSearchParams } from "react-router";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import { useBrand } from "../lib/BrandContext";
-import { backendUrl, type Brand } from "../lib/api";
+import { backendUrl, sendMaterial, type Brand } from "../lib/api";
 import { loadBrandFonts } from "../tools/shared/fontLoader";
 import { BrandBlockEditor, type BlockKey } from "../components/workspace/BrandBlockEditor";
 import { BrandAgentPanel } from "../components/workspace/BrandAgentPanel";
@@ -99,6 +99,11 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
     const { activeBrand, setActiveBrandId, refreshBrands } = useBrand();
     const [editing, setEditing] = useState<BlockKey | null>(null);
     const [agentOpen, setAgentOpen] = useState(false);
+    // «Subir PDF de marca»: lo manda a la Bandeja, que lo parte en páginas y el agente lo ordena.
+    const navigate = useNavigate();
+    const pdfRef = useRef<HTMLInputElement>(null);
+    const [pdfUp, setPdfUp] = useState<number | null>(null);
+    const [pdfErr, setPdfErr] = useState<string | null>(null);
     const [params, setParams] = useSearchParams();
     // ?marca=<id> abre esa marca (links directos a la memoria de una marca).
     const wanted = params.get("marca");
@@ -190,10 +195,25 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                             <button onClick={() => setAgentOpen(true)} className="h-10 px-4 flex items-center rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] cursor-pointer">
                                 Armar con el agente
                             </button>
+                            <button onClick={() => pdfRef.current?.click()} disabled={pdfUp !== null} title="Manual, moodboard, referencias: todo junto. Se separa en páginas y el agente ordena cada una y lee la identidad."
+                                className="text-[13px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-60">
+                                {pdfUp === null ? "Subir PDF de marca" : pdfUp < 1 ? `Subiendo ${Math.round(pdfUp * 100)}%` : "Separando páginas…"}
+                            </button>
+                            <input ref={pdfRef} type="file" accept="application/pdf" hidden onChange={async (e) => {
+                                const f = e.target.files?.[0];
+                                e.target.value = "";
+                                if (!f || !activeBrand) return;
+                                setPdfErr(null); setPdfUp(0);
+                                try {
+                                    await sendMaterial(activeBrand.id, { files: [f], note: `PDF de marca: ${f.name}` }, setPdfUp);
+                                    navigate(`/dashboard/bandeja?marca=${activeBrand.id}`);
+                                } catch (err) { setPdfErr((err as Error).message); } finally { setPdfUp(null); }
+                            }} />
                             <button onClick={() => setEditing("material")} className="text-[13px] text-fg-muted hover:text-fg cursor-pointer">Cargar material</button>
                             <button onClick={() => setEditing("identidad")} className="text-[13px] text-fg-muted hover:text-fg cursor-pointer">Editar identidad</button>
                         </div>
                     )}
+                    {pdfErr && <p className="text-[12px] text-[var(--color-error)]">{pdfErr}</p>}
                 </div>
             </aside>
 
