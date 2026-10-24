@@ -244,6 +244,9 @@ export interface Brand {
     poses?: PoseItem[];
     /** Referencias de planos / cámara (studio-v2 §7). */
     shotRefs?: PoseItem[];
+    /** Páginas del manual de marca y referencias de carrusel (llegan desde un PDF por la Bandeja). */
+    manualPages?: MoodboardItem[];
+    carouselRefs?: MoodboardItem[];
     /** Agente de marca: bloques que propuso y todavía nadie revisó. */
     agent?: { blocks?: Record<string, string>; lastRun?: string; sources?: { web?: string | null; instagram?: string | null } };
     moodboards?: MoodboardItem[];
@@ -1417,6 +1420,14 @@ export async function uploadShotRef(brandId: string, name: string, imageFile: Fi
     return res.json();
 }
 
+export async function deleteManualPage(brandId: string, itemId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/manualpages/${itemId}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("No se pudo borrar la página");
+}
+export async function deleteCarouselRef(brandId: string, itemId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/carouselrefs/${itemId}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("No se pudo borrar la referencia");
+}
 export async function deleteShotRef(brandId: string, itemId: string): Promise<void> {
     const res = await fetch(`${API_BASE}/api/brands/${brandId}/shotrefs/${itemId}`, { method: "DELETE" });
     if (!res.ok) throw new Error("No se pudo borrar el plano");
@@ -4046,17 +4057,32 @@ export async function approveBrandBlock(brandId: string, block: string): Promise
 
 // ── Material que manda el cliente (backend/routers/inbox.py · studio-v2 §12/§15) ──
 
-export interface InboxFile { url: string; name: string; kind: "image" | "video" | "pdf" | "other" }
+export interface InboxFile {
+    url: string; name: string; kind: "image" | "video" | "pdf" | "other";
+    /** Página de un PDF de marca: de qué PDF salió y qué número de página es. */
+    fromPdf?: string; page?: number;
+}
 export interface InboxItem {
     id: string; brandId: string; campaignId: string | null; files: InboxFile[]; link: string | null; note: string | null;
     author: string | null; status: "nuevo" | "incorporado" | "descartado"; result: string | null; createdAt: string | null;
     /** Lo que propone el agente (services/inbox_agent.py); el equipo confirma o corrige. */
     proposal: InboxProposal | null;
 }
-export type InboxDest = "moodboard" | "luz" | "locacion" | "pose" | "plano" | "cara" | "prenda" | "producto";
+export type InboxDest = "moodboard" | "luz" | "locacion" | "pose" | "plano" | "cara" | "prenda" | "producto" | "manual" | "carrusel";
+/** La identidad que el agente leyó de un PDF de marca (sólo lo que el PDF dice). */
+export interface PdfIdentity {
+    contexto?: string; tono?: string[]; nunca?: string[]; estilo?: string; siempre?: string[]; nunca_visual?: string[];
+    colores?: Array<{ name: string; hex: string; usage?: string }>; tipografias?: { headline?: string; body?: string };
+}
 export interface InboxProposal {
     status: "ok" | "error" | "sin_imagenes"; target?: string; why?: string;
     perFile?: Record<string, InboxDest>; discard?: string[]; error?: string;
+    identity?: PdfIdentity; identityApplied?: string[];
+}
+
+/** Pasa a Marca, como propuesta, la identidad leída del PDF (sólo llena lo vacío). */
+export async function applyInboxIdentity(id: string): Promise<{ touched: string[] }> {
+    return editorJson(await fetch(`${API_BASE}/api/inbox/${encodeURIComponent(id)}/identidad`, { method: "POST" }), "No se pudo pasar la identidad a Marca");
 }
 
 export async function sendMaterial(brandId: string, m: { files: File[]; link?: string; note?: string }, onProgress?: (p: number) => void): Promise<InboxItem> {

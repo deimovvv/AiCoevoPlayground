@@ -124,7 +124,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
         !ds.photoStyle ? "reglas" : !looks.length ? "referencias" : null,
         !faces.length ? true : null,
         !catalog.length ? true : null,
-        true,
+        (b.carouselRefs?.length ?? 0) > 0 ? null : true,
     ];
     const done = missing.filter((m) => !m).length;
     const proposed = (k: string) => !readOnly && b.agent?.blocks?.[k] === "propuesto";
@@ -240,7 +240,12 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
 
                 {!readOnly ? (
                     <Card n="05" title="Plantillas" missing={missing[5]}>
-                        <Empty>Se guardan cuando una pieza se aprueba, para repetir el formato.</Empty>
+                        {b.carouselRefs?.length ? (
+                            <>
+                                <Fill urls={b.carouselRefs.slice(0, 4).map((x) => x.imageUrl)} small />
+                                <Note>{count(b.carouselRefs.length, "referencia de carrusel", "referencias de carrusel")} (de un PDF de marca)</Note>
+                            </>
+                        ) : <Empty>Se guardan cuando una pieza se aprueba, para repetir el formato. Las referencias de carrusel de un PDF de marca también llegan acá.</Empty>}
                     </Card>
                 ) : <div className="hidden md:block" />}
             </div>

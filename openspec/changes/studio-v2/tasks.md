@@ -26,6 +26,10 @@
 - [x] M.6 Referencias de afuera (2026-10-22): link de un tablero de Pinterest → moodboard (o luz, o locación) con nombre, en la marca o en
       un proyecto (`routers/importar.py`, feed público del tablero: últimos 25 pines, 736 px). Las imágenes quedan con `board` y `source`:
       en Marca se agrupan por tablero. «Elegir» y quitar varias en todas las grillas.
+- [x] M.9 PDF de marca (2026-10-24): se sube por Mandar material o «Subir un PDF de marca» en la Bandeja; se parte en páginas
+      (PyMuPDF, `services/pdf_pages.py`, hasta 40) y el agente clasifica cada una (tipos nuevos «manual» y «carrusel») y lee la
+      identidad (colores, tipografías, tono, siempre/nunca). «Pasar a Marca como propuesta» sólo llena lo vacío y marca «propuesto».
+      Páginas del manual en Identidad; referencias de carrusel en Dirección de foto y Plantillas; el MCP las devuelve.
 - [ ] M.7 Catálogo desde una carpeta de Drive compartida (necesita habilitar la API de Drive en el proyecto de Google de Coevo).
 - [ ] M.8 Curar la memoria: de dónde vino cada imagen (web, Instagram, cliente, Coevo) y para qué la usa Claude en cada bloque.
 

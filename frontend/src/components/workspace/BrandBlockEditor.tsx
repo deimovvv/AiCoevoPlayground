@@ -5,7 +5,7 @@ import { Check, ExternalLink, Loader2, Trash2, Upload, X } from "lucide-react";
 import {
     backendUrl, updateBrand, uploadAvatar, deleteAvatar, uploadProduct, deleteProduct, uploadClothing, deleteClothing,
     uploadBackground, deleteBackground, uploadMoodboard, deleteMoodboard, uploadLookAndFeel, deleteLookAndFeel,
-    uploadBrandLogo, deleteBrandLogo, uploadPose, deletePose, uploadShotRef, deleteShotRef, type Brand,
+    uploadBrandLogo, deleteBrandLogo, uploadPose, deletePose, uploadShotRef, deleteShotRef, deleteManualPage, deleteCarouselRef, type Brand,
     listCampaigns, uploadCampaignInputs, deleteCampaignInput, importPinterest, type Campaign, type CampaignInput,
 } from "../../lib/api";
 
@@ -398,6 +398,12 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                                 </div>
                                 <p className="text-[11px] text-fg-faint">Si la fuente es propia (con licencia), mandá el archivo: va al DESIGN.md de la marca.</p>
                             </Section>
+                            {brand.manualPages?.length ? (
+                                <Section title={`Páginas del manual · ${brand.manualPages.length}`}>
+                                    <Grid items={brand.manualPages.map((x) => ({ id: x.id, url: x.imageUrl }))} onDelete={del(deleteManualPage)} />
+                                    <p className="text-[11px] text-fg-faint">Llegaron de un PDF de marca por la Bandeja. Claude las mira al producir.</p>
+                                </Section>
+                            ) : null}
                             <Section title="Design system (Claude Design)">
                                 <input value={dsUrl} onChange={(e) => setDsUrl(e.target.value)} className={input} placeholder="https://claude.ai/artifact/…" />
                                 <p className="text-[11px] text-fg-faint">El de esta marca en Claude Design: lo arma Coevo a partir del manual. Claude lo usa para carruseles, posts y webs. El cliente no lo ve.</p>
@@ -415,6 +421,7 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                                 <Boards kind="Locación" items={brand.backgrounds || []} onDelete={del(deleteBackground)} />
                                 <Boards kind="Pose" items={(brand.poses || []).filter((x) => x.imageUrl).map((x) => ({ id: x.id, imageUrl: x.imageUrl! }))} onDelete={del(deletePose)} />
                                 <Boards kind="Plano" items={(brand.shotRefs || []).filter((x) => x.imageUrl).map((x) => ({ id: x.id, imageUrl: x.imageUrl! }))} onDelete={del(deleteShotRef)} />
+                                <Boards kind="Carrusel" items={brand.carouselRefs || []} onDelete={del(deleteCarouselRef)} />
                             </Section>
                             <Section title="Sumar imágenes">
                                 <Drop dests={["moodboard", "luz", "fondo", "pose", "plano"]} brandId={id} onDone={onChanged} />

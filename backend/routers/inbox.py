@@ -43,12 +43,17 @@ BRAND_DEST = {
     "cara": ("avatars", brands.get_avatars_dir, "/static/avatars"),
     "prenda": ("clothing", brands.get_clothing_dir, "/static/clothing"),
     "producto": ("products", brands.get_products_dir, "/static/products"),
+    # Páginas de un PDF de marca: las del manual (logo, colores, reglas) y las referencias de carruseles / piezas.
+    "manual": ("manualPages", brands.get_manual_dir, "/static/manualpages"),
+    "carrusel": ("carouselRefs", brands.get_carousel_dir, "/static/carouselrefs"),
 }
 # Lo mismo, en una CAMPAÑA (tipos de campaign.inputs).
 CAMPAIGN_TYPE = {"moodboard": "moodboard", "luz": "lookfeel", "locacion": "background", "pose": "pose",
-                 "plano": "plano", "cara": "avatar", "prenda": "clothing", "producto": "product"}
+                 "plano": "plano", "cara": "avatar", "prenda": "clothing", "producto": "product",
+                 "manual": "reference", "carrusel": "reference"}
 LABEL = {"moodboard": "moodboard", "luz": "luz", "locacion": "locación", "pose": "poses", "plano": "planos",
-         "cara": "caras", "prenda": "prendas", "producto": "productos"}
+         "cara": "caras", "prenda": "prendas", "producto": "productos",
+         "manual": "páginas del manual", "carrusel": "referencias de carrusel"}
 
 
 def _who(request: Request) -> str:
@@ -100,6 +105,19 @@ async def send_material(
                         raise HTTPException(status_code=413, detail=f"{f.filename} pesa más de 200 MB: mandalo por link.")
                     fh.write(chunk)
             saved.append({"url": f"/static/inbox/{item.id}/{name}", "name": f.filename, "kind": _kind(ext)})
+            if ext == ".pdf":
+                # Un PDF de marca trae todo junto: se parte en páginas para que cada una vaya a su lugar.
+                import asyncio
+                from services import pdf_pages
+                try:
+                    pages, text = await asyncio.to_thread(pdf_pages.split, folder / name, folder, Path(name).stem)
+                except Exception:
+                    pages, text = [], ""
+                for pg in pages:
+                    saved.append({"url": f"/static/inbox/{item.id}/{pg['filename']}", "kind": "image",
+                                  "name": f"{f.filename} · pág. {pg['page']}", "fromPdf": f.filename, "page": pg["page"]})
+                if text:
+                    (folder / f"{Path(name).stem}.txt").write_text(text, encoding="utf-8")
         item.files = saved
         s.add(item)
         await s.commit()
@@ -204,6 +222,45 @@ async def propose(item_id: str, request: Request, s: AsyncSession = Depends(get_
     await inbox_agent.propose(item_id)
     s.expire_all()
     return _out(await s.get(InboxItem, item_id))
+
+
+@router.post("/api/inbox/{item_id}/identidad")
+async def apply_identity(item_id: str, request: Request, s: AsyncSession = Depends(get_session)):
+    """Pasa a Marca la identidad que el agente leyó del PDF: sólo llena lo que está vacío y lo marca como
+    «propuesto» (se aprueba en Marca, como lo de «Armar con el agente»). Nunca pisa lo que ya está cargado."""
+    import re as _re
+    import time
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    item = await s.get(InboxItem, item_id)
+    ident = ((item.proposal or {}).get("identity") if item else None) or {}
+    if not ident:
+        raise HTTPException(status_code=400, detail="No hay identidad leída en este envío.")
+    all_b = brands.load_brands()
+    br = brands.find_brand(all_b, item.brand_id)
+    empty = lambda v: v is None or v == "" or v == [] or v == {}
+    dna, ds, touched = dict(br.get("dna") or {}), dict(br.get("designSystem") or {}), set()
+    if empty(br.get("brandContext")) and ident.get("contexto"):
+        br["brandContext"] = ident["contexto"]; touched.add("quien")
+    for src, dst in (("tono", "tone"), ("nunca", "forbidden_words")):
+        if empty(dna.get(dst)) and ident.get(src):
+            dna[dst] = ident[src]; touched.add("quien")
+    if empty(dna.get("colors")) and ident.get("colores"):
+        dna["colors"] = [c for c in ident["colores"] if _re.match(r"^#[0-9a-fA-F]{6}$", c.get("hex", ""))]; touched.add("identidad")
+    fonts = {k: v for k, v in (ident.get("tipografias") or {}).items() if v}
+    if fonts and not any((br.get("fonts") or {}).get(k) for k in ("headline", "body")):
+        br["fonts"] = {**(br.get("fonts") or {}), **fonts}; touched.add("identidad")
+    for src, dst in (("estilo", "photoStyle"), ("siempre", "visualDos"), ("nunca_visual", "visualDonts")):
+        if empty(ds.get(dst)) and ident.get(src):
+            ds[dst] = ident[src]; touched.add("foto")
+    br["dna"], br["designSystem"] = dna, ds
+    agent = dict(br.get("agent") or {})
+    blocks = {**(agent.get("blocks") or {}), **{k: "propuesto" for k in touched}}
+    br["agent"] = {**agent, "blocks": blocks, "lastRun": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    brands.save_brands(all_b)
+    item.proposal = {**(item.proposal or {}), "identityApplied": sorted(touched)}
+    await s.commit()
+    return {"touched": sorted(touched)}
 
 
 @router.post("/api/inbox/{item_id}/descartar")

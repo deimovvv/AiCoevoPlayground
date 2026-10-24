@@ -93,6 +93,7 @@ export function brandBlocks(b) {
             colores: colors || null,
             tipografias: b.fonts || null,
             logos: files(b.logos),
+            paginas_del_manual: files(b.manualPages),
             design_system: b.designSystemUrl || null,
             ...(b.designSystemUrl
                 ? { como_usarlo: "Para piezas gráficas (carruseles, posts, láminas, webs) usar este Design System de Claude Design: leer su README (project/README.md) antes de diseñar; tiene tokens, fuentes, logos y piezas tipo." }
@@ -105,6 +106,7 @@ export function brandBlocks(b) {
             locaciones: files(b.backgrounds),
             poses: files(b.poses),
             planos: files(b.shotRefs),
+            referencias_de_carrusel: files(b.carouselRefs),
         },
         caras: {
             avatares: files(b.avatars),

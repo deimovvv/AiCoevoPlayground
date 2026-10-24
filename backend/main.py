@@ -2331,6 +2331,37 @@ async def upload_shotref(brand_id: str, name: str = Form(...), image: UploadFile
     return item
 
 
+# Páginas del manual y referencias de carrusel (llegan desde un PDF por la Bandeja). Se ven y se borran desde Marca.
+app.mount("/static/manualpages", StaticFiles(directory=str(brands.get_manual_dir())), name="manualpages")
+app.mount("/static/carouselrefs", StaticFiles(directory=str(brands.get_carousel_dir())), name="carouselrefs")
+
+
+@app.delete("/api/brands/{brand_id}/manualpages/{item_id}")
+def delete_manual_page(brand_id: str, item_id: str):
+    return _delete_brand_ref(brand_id, item_id, "manualPages", brands.get_manual_dir)
+
+
+@app.delete("/api/brands/{brand_id}/carouselrefs/{item_id}")
+def delete_carousel_ref(brand_id: str, item_id: str):
+    return _delete_brand_ref(brand_id, item_id, "carouselRefs", brands.get_carousel_dir)
+
+
+def _delete_brand_ref(brand_id: str, item_id: str, key: str, folder):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    item = next((b for b in brand.get(key, []) if b["id"] == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="No existe")
+    path = folder() / item.get("filename", "")
+    if item.get("filename") and path.is_file():
+        path.unlink()
+    brand[key] = [b for b in brand[key] if b["id"] != item_id]
+    brands.save_brands(all_brands)
+    return {"ok": True}
+
+
 @app.delete("/api/brands/{brand_id}/shotrefs/{item_id}")
 def delete_shotref(brand_id: str, item_id: str):
     all_brands = brands.load_brands()

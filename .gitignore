@@ -53,6 +53,8 @@ backend/data/deliveries/
 backend/data/projects/
 backend/data/inbox/
 backend/data/shotrefs/
+backend/data/manualpages/
+backend/data/carouselrefs/
 backend/data/music/
 backend/data/campaign_uploads/
 backend/data/brands.json
