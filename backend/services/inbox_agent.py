@@ -28,7 +28,7 @@ log = logging.getLogger("inbox_agent")
 FILES_DIR = Path(__file__).parent.parent / "data" / "inbox"
 MAX_IMAGES = 40   # un PDF de marca entra partido en páginas (services/pdf_pages.py)
 TYPES = {
-    "moodboard": "clima, estética, referencias de estilo o de otras marcas",
+    "moodboard": "clima y estética: fotos sueltas o collages SIN instrucciones escritas sobre cómo diseñar",
     "luz": "cómo está iluminada la foto, color, contraste (look & feel)",
     "locacion": "un lugar o fondo donde podría pasar la foto, sin persona protagonista",
     "plano": "un encuadre o movimiento de cámara de referencia (cómo filmar o fotografiar)",
@@ -36,7 +36,8 @@ TYPES = {
     "cara": "una persona/modelo cuya cara se va a repetir (casting, avatar)",
     "prenda": "una prenda de la marca, sola o puesta, para mostrar el producto",
     "producto": "un producto que no es ropa (envase, accesorio, objeto)",
-    "manual": "una página del manual de marca: logo y sus usos, paleta de colores, tipografías, reglas, tono de voz",
+    "manual": "una página del manual de marca: logo y sus usos, paleta, tipografías, jerarquía, reglas, tono de voz; "
+              "también las páginas de «referencias» que muestran ejemplos para enseñar una regla (ej. «aplicación de logo»)",
     "carrusel": "una pieza gráfica de referencia: carrusel, post, story, flyer o layout con texto y diseño",
 }
 
@@ -61,7 +62,9 @@ async def _propose(item: InboxItem) -> dict:
     if any(f.get("fromPdf") for f in images):
         pdf_note = ("\nVarias imágenes son PÁGINAS de un PDF de marca (dice «pág. N» en el nombre). Un PDF así suele mezclar "
                     "manual, moodboard y referencias: clasificá cada página por lo que muestra. Portadas, índices o páginas "
-                    "de sólo texto sin valor visual: «descartar».\n")
+                    "de sólo texto sin valor visual: «descartar». Si una página tiene un título o una regla escrita sobre cómo diseñar "
+                    "(«referencias aplicación de logo», «jerarquía», «el acento»), es «manual» aunque tenga fotos: lo que importa es lo "
+                    "que enseña, no las fotos de ejemplo.\n")
         pdf_note += "\n".join(f'{n}. {f.get("name", "")}' for n, f in enumerate(images, 1)) + "\n"
     proj_txt = "\n".join(f'- id "{c["id"]}": {c.get("name") or "sin nombre"}. {(c.get("brief") or "")[:300]}' for c in projects[-15:]) or "(ninguno)"
     prompt = f"""Sos el asistente de una agencia de contenido de moda. La marca «{brand.get('name', item.brand_id)}» mandó material.
