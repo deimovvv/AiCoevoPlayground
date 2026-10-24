@@ -71,6 +71,8 @@ function Item({ it, campaigns, onDone }: { it: InboxItem; campaigns: Campaign[];
     const images = it.files.filter((f) => f.kind === "image");
     const others = it.files.filter((f) => f.kind !== "image");
     const [applied, setApplied] = useState<string[] | undefined>(it.proposal?.identityApplied);
+    // El agente tarda: mientras no hay propuesta, no se puede sumar (si no, todo entra como «moodboard»).
+    const waitingAgent = it.status === "nuevo" && it.files.some((f) => f.kind === "image") && !it.proposal;
     // Arranca con lo que propuso el agente (si hay); el equipo confirma o corrige.
     const p = it.proposal?.status === "ok" ? it.proposal : null;
     const [target, setTarget] = useState(p?.target ?? "marca");
@@ -79,6 +81,9 @@ function Item({ it, campaigns, onDone }: { it: InboxItem; campaigns: Campaign[];
     const [off, setOff] = useState<string[]>(p?.discard ?? []);
     const [busy, setBusy] = useState(false);
     const [thinking, setThinking] = useState(false);
+    // Cuando la propuesta llega (la Bandeja se actualiza sola), elegir lo que propuso.
+    const [seen, setSeen] = useState(!!p);
+    if (p && !seen) { setSeen(true); setTarget(p.target ?? "marca"); setPer(p.perFile ?? {}); setOff(p.discard ?? []); }
     const [err, setErr] = useState<string | null>(null);
     const run = async (fn: () => Promise<InboxItem>) => { setBusy(true); setErr(null); try { onDone(await fn()); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } };
     const done = it.status !== "nuevo";
@@ -104,7 +109,7 @@ function Item({ it, campaigns, onDone }: { it: InboxItem; campaigns: Campaign[];
             {!done && images.length > 0 && (
                 <p className="mt-3 flex items-start gap-2 text-[12px] leading-relaxed text-fg-muted">
                     <Sparkles size={12} className="mt-[3px] shrink-0 text-[var(--color-brand)]" />
-                    {thinking ? <span className="flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> El agente lo está mirando…</span>
+                    {thinking || waitingAgent ? <span className="flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> El agente lo está mirando… (un PDF tarda hasta un minuto)</span>
                         : p ? <span>El agente lo dejó elegido{p.why ? `: ${p.why}` : "."} Revisalo y sumalo, o cambiá lo que no va. <button onClick={ask} className="underline underline-offset-2 cursor-pointer">Volver a proponer</button></span>
                             : <span>{it.proposal?.status === "error" ? "El agente no pudo mirarlo. " : ""}<button onClick={ask} className="underline underline-offset-2 text-fg cursor-pointer">Que lo ordene el agente</button></span>}
                 </p>
@@ -157,7 +162,7 @@ function Item({ it, campaigns, onDone }: { it: InboxItem; campaigns: Campaign[];
                                 className="h-9 px-2 rounded-[4px] border border-edge bg-[var(--color-surface-1)] text-[13px] text-fg cursor-pointer">
                                 {DEST.map(([k, l]) => <option key={k} value={k}>Todas como {l.toLowerCase()}</option>)}
                             </select>
-                            <button disabled={busy || off.length === images.length}
+                            <button disabled={busy || waitingAgent || thinking || off.length === images.length} title={waitingAgent ? "Esperá a que el agente termine" : undefined}
                                 onClick={() => run(() => incorporateInbox(it.id, { target, type, perFile: per, discard: off }))}
                                 className="h-9 px-4 rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] cursor-pointer disabled:opacity-40">
                                 Sumar {images.length - off.length}
@@ -209,6 +214,12 @@ export function BandejaPage() {
         } catch (e) { setUpErr((e as Error).message); } finally { setUploading(null); }
     };
     const pending = (items || []).filter((i) => i.status === "nuevo");
+    const anyWaiting = pending.some((i) => !i.proposal && i.files.some((f) => f.kind === "image"));
+    useEffect(() => {
+        if (!anyWaiting || !brandId) return;
+        const t = setInterval(() => { listInbox(brandId).then(setItems).catch(() => {}); }, 4000);
+        return () => clearInterval(t);
+    }, [anyWaiting, brandId]);
     const past = (items || []).filter((i) => i.status !== "nuevo");
     return (
         <div className="max-w-[1200px] mx-auto px-4 md:px-10 py-8 pb-20">
