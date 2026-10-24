@@ -62,6 +62,10 @@
       Resultados en redes: lugar reservado para Postiz (O.6). Sin costos de IA (son de Coevo).
 - [x] O.10 Proyectos plegables en Entregas, con cuántas piezas y aprobadas (2026-10-22). Falta, con el primer catálogo grande: grilla del
       proyecto (hoja de contactos con filtros) y la ficha por producto (SKU con sus tomas, aprobación por ficha, ZIP con nombres de la tienda).
+- [ ] O.11 Pauta en el reporte (pendiente, 2026-10-24; no se aborda todavía). Primero a mano: sección «Pauta» del reporte con
+      invertido, alcance, consultas y costo por consulta (cargados o desde el CSV del Administrador de anuncios). Automático con la API
+      de anuncios de Meta (app + usuario del sistema con lectura) recién si se pauta seguido para varias marcas. Meta: un portafolio,
+      una cuenta publicitaria por marca (Coevo, Morph).
 - [ ] O.8 Interesados de la pauta (pendiente, antes de pautar): formulario de la web → planilla o Notion; quién responde y en cuánto.
       CRM (HubSpot gratis) recién con muchas consultas por semana. No va en Studio.
 
