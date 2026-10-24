@@ -2336,6 +2336,34 @@ app.mount("/static/manualpages", StaticFiles(directory=str(brands.get_manual_dir
 app.mount("/static/carouselrefs", StaticFiles(directory=str(brands.get_carousel_dir())), name="carouselrefs")
 
 
+@app.post("/api/brands/{brand_id}/manualpages")
+async def upload_manual_page(brand_id: str, name: str = Form(...), image: UploadFile = File(...)):
+    return await _upload_brand_ref(brand_id, name, image, "manualPages", brands.get_manual_dir(), "/static/manualpages", "man")
+
+
+@app.post("/api/brands/{brand_id}/carouselrefs")
+async def upload_carousel_ref(brand_id: str, name: str = Form(...), image: UploadFile = File(...)):
+    return await _upload_brand_ref(brand_id, name, image, "carouselRefs", brands.get_carousel_dir(), "/static/carouselrefs", "car")
+
+
+async def _upload_brand_ref(brand_id: str, name: str, image: UploadFile, key: str, folder, prefix: str, tag: str):
+    all_brands = brands.load_brands()
+    brand = brands.find_brand(all_brands, brand_id)
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    if not is_image_upload(image.content_type, image.filename):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    image_data, ext = normalize_image_bytes(await image.read(), image.filename, image.content_type)
+    item_id = str(uuid.uuid4())[:8]
+    filename = f"{brand_id}_{tag}_{item_id}{ext}"
+    with open(folder / filename, "wb") as f:
+        f.write(image_data)
+    item = {"id": item_id, "name": name, "filename": filename, "imageUrl": f"{prefix}/{filename}"}
+    brand.setdefault(key, []).append(item)
+    brands.save_brands(all_brands)
+    return item
+
+
 @app.delete("/api/brands/{brand_id}/manualpages/{item_id}")
 def delete_manual_page(brand_id: str, item_id: str):
     return _delete_brand_ref(brand_id, item_id, "manualPages", brands.get_manual_dir)

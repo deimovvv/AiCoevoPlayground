@@ -259,7 +259,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                 </Card>
 
                 {!readOnly ? (
-                    <Card n="05" title="Plantillas" missing={missing[5]}>
+                    <Card n="05" title="Plantillas" missing={missing[5]} onEdit={edit("plantillas")}>
                         {b.carouselRefs?.length ? (
                             <>
                                 <Fill urls={b.carouselRefs.slice(0, 4).map((x) => x.imageUrl)} small />

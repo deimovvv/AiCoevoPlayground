@@ -1420,6 +1420,16 @@ export async function uploadShotRef(brandId: string, name: string, imageFile: Fi
     return res.json();
 }
 
+async function uploadBrandRef(path: string, brandId: string, name: string, imageFile: File): Promise<MoodboardItem> {
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("image", imageFile);
+    const res = await fetch(`${API_BASE}/api/brands/${brandId}/${path}`, { method: "POST", body: formData });
+    if (!res.ok) throw new Error(`No se pudo subir (${res.status})`);
+    return res.json();
+}
+export const uploadManualPage = (brandId: string, name: string, f: File) => uploadBrandRef("manualpages", brandId, name, f);
+export const uploadCarouselRef = (brandId: string, name: string, f: File) => uploadBrandRef("carouselrefs", brandId, name, f);
 export async function deleteManualPage(brandId: string, itemId: string): Promise<void> {
     const res = await fetch(`${API_BASE}/api/brands/${brandId}/manualpages/${itemId}`, { method: "DELETE" });
     if (!res.ok) throw new Error("No se pudo borrar la página");

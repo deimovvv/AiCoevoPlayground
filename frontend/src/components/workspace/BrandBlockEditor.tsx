@@ -5,7 +5,7 @@ import { Check, ExternalLink, Loader2, Trash2, Upload, X } from "lucide-react";
 import {
     backendUrl, updateBrand, uploadAvatar, deleteAvatar, uploadProduct, deleteProduct, uploadClothing, deleteClothing,
     uploadBackground, deleteBackground, uploadMoodboard, deleteMoodboard, uploadLookAndFeel, deleteLookAndFeel,
-    uploadBrandLogo, deleteBrandLogo, uploadPose, deletePose, uploadShotRef, deleteShotRef, deleteManualPage, deleteCarouselRef, type Brand,
+    uploadBrandLogo, deleteBrandLogo, uploadPose, deletePose, uploadShotRef, deleteShotRef, deleteManualPage, deleteCarouselRef, uploadManualPage, uploadCarouselRef, type Brand,
     listCampaigns, uploadCampaignInputs, deleteCampaignInput, importPinterest, type Campaign, type CampaignInput,
 } from "../../lib/api";
 
@@ -15,18 +15,18 @@ import {
  * Reusa las subidas de siempre del backend; reemplaza, de a poco, a la pantalla vieja de 13 categorías.
  */
 
-export type BlockKey = "quien" | "identidad" | "foto" | "caras" | "catalogo" | "material";
+export type BlockKey = "quien" | "identidad" | "foto" | "caras" | "catalogo" | "material" | "plantillas";
 
 const TITLES: Record<BlockKey, string> = {
     quien: "Quién es", identidad: "Identidad gráfica", foto: "Dirección de foto y video",
-    caras: "Caras", catalogo: "Catálogo", material: "Cargar material",
+    caras: "Caras", catalogo: "Catálogo", material: "Cargar material", plantillas: "Plantillas",
 };
 
 /** Adónde puede ir una imagen, y con qué se sube. */
-type Dest = "moodboard" | "luz" | "fondo" | "pose" | "plano" | "cara" | "prenda" | "producto" | "logo";
+type Dest = "moodboard" | "luz" | "fondo" | "pose" | "plano" | "cara" | "prenda" | "producto" | "logo" | "carrusel" | "manual";
 const DEST_LABEL: Record<Dest, string> = {
     moodboard: "Moodboard", luz: "Luz / look", fondo: "Locación / fondo", pose: "Pose", plano: "Plano / cámara", cara: "Cara (modelo)",
-    prenda: "Prenda", producto: "Producto", logo: "Logo",
+    prenda: "Prenda", producto: "Producto", logo: "Logo", carrusel: "Referencia de carrusel", manual: "Página del manual",
 };
 const nameOf = (f: File) => f.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").slice(0, 60);
 
@@ -40,6 +40,8 @@ async function uploadTo(dest: Dest, brandId: string, f: File) {
     if (dest === "cara") return uploadAvatar(brandId, n, f, false);
     if (dest === "prenda") return uploadClothing(brandId, n, f);
     if (dest === "producto") return uploadProduct(brandId, n, f);
+    if (dest === "carrusel") return uploadCarouselRef(brandId, n, f);
+    if (dest === "manual") return uploadManualPage(brandId, n, f);
     return uploadBrandLogo(brandId, n, f);
 }
 
@@ -55,11 +57,13 @@ function destItems(b: Brand, d: Dest): Array<{ id: string; url: string; label?: 
     if (d === "cara") return map(b.avatars);
     if (d === "prenda") return map(b.clothing);
     if (d === "producto") return map(b.products);
+    if (d === "carrusel") return map(b.carouselRefs);
+    if (d === "manual") return map(b.manualPages);
     return map(b.logos);
 }
 const DEST_DELETE: Record<Dest, (brandId: string, itemId: string) => Promise<unknown>> = {
     moodboard: deleteMoodboard, luz: deleteLookAndFeel, fondo: deleteBackground, pose: deletePose, plano: deleteShotRef, cara: deleteAvatar,
-    prenda: deleteClothing, producto: deleteProduct, logo: deleteBrandLogo,
+    prenda: deleteClothing, producto: deleteProduct, logo: deleteBrandLogo, carrusel: deleteCarouselRef, manual: deleteManualPage,
 };
 
 const mono = "font-mono text-[10px] uppercase tracking-[0.09em]";
@@ -437,6 +441,20 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                                 <Section title="Siempre (una por línea)"><textarea value={dos} onChange={(e) => setDos(e.target.value)} rows={5} className={input + " resize-y"} /></Section>
                                 <Section title="Nunca (una por línea)"><textarea value={donts} onChange={(e) => setDonts(e.target.value)} rows={5} className={input + " resize-y"} /></Section>
                             </div>
+                        </>
+                    )}
+
+                    {block === "plantillas" && (
+                        <>
+                            <Section title={`Referencias de carrusel y piezas · ${brand.carouselRefs?.length ?? 0}`}>
+                                <Grid items={(brand.carouselRefs || []).map((x) => ({ id: x.id, url: x.imageUrl }))} onDelete={del(deleteCarouselRef)} />
+                                <Drop dests={["carrusel"]} brandId={id} onDone={onChanged} hint="Carruseles, posts, stories, placas: lo que tiene que parecerse a esta marca." />
+                            </Section>
+                            <Section title={`Páginas del manual · ${brand.manualPages?.length ?? 0}`}>
+                                <Grid items={(brand.manualPages || []).map((x) => ({ id: x.id, url: x.imageUrl }))} onDelete={del(deleteManualPage)} />
+                                <Drop dests={["manual"]} brandId={id} onDone={onChanged} hint="Páginas del manual de marca como imagen. Para un PDF entero, usá «Subir PDF de marca»." />
+                            </Section>
+                            <p className="text-[12px] text-fg-faint">Las plantillas de piezas aprobadas se suman acá cuando una entrega se aprueba (próximamente).</p>
                         </>
                     )}
 
