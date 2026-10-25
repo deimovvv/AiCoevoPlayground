@@ -30,6 +30,13 @@
       (PyMuPDF, `services/pdf_pages.py`, hasta 40) y el agente clasifica cada una (tipos nuevos «manual» y «carrusel») y lee la
       identidad (colores, tipografías, tono, siempre/nunca). «Pasar a Marca como propuesta» sólo llena lo vacío y marca «propuesto».
       Páginas del manual en Identidad; referencias de carrusel en Dirección de foto y Plantillas; el MCP las devuelve.
+- [x] M.10 Archivos de trabajo (2026-10-25): Marca → «Archivos» guarda los links de cada marca (piezas, exploraciones,
+  manual, design system) con «lo ve el cliente»; el cliente recibe sólo los marcados (`_brand_for` en main.py); el MCP los
+  da en `identidad_grafica.archivos_de_trabajo` con la regla de sumar piezas al archivo «piezas», no abrir uno nuevo.
+- [ ] M.11 PDF de marca, v2: guardarlo entero como «Manual de marca», leer la identidad y sacar páginas como referencia
+  sólo si se elige (hoy se parte en páginas y pregunta una por una). «Juntar en un tablero» para unificar moodboards.
+- [ ] M.12 Instructivos: «¿Cómo funciona?» por sección (Marca, Bandeja, Entregas, Archivos) + página de ayuda del
+  circuito completo + videos cortos (skill explicar-herramienta) cuando las pantallas estén quietas.
 - [ ] M.7 Catálogo desde una carpeta de Drive compartida (necesita habilitar la API de Drive en el proyecto de Google de Coevo).
 - [ ] M.8 Curar la memoria: de dónde vino cada imagen (web, Instagram, cliente, Coevo) y para qué la usa Claude en cada bloque.
 
