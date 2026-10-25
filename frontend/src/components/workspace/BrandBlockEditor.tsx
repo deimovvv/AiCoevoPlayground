@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { useConfirm } from "../../lib/useConfirm";
+import { Lightbox } from "../Lightbox";
 import { Check, ExternalLink, Loader2, Trash2, Upload, X } from "lucide-react";
 import {
     backendUrl, updateBrand, uploadAvatar, deleteAvatar, uploadProduct, deleteProduct, uploadClothing, deleteClothing,
@@ -141,6 +142,7 @@ function Grid({ items, onDelete }: { items: GridItem[]; onDelete: (id: string) =
     const [busy, setBusy] = useState<string | null>(null);
     const [picking, setPicking] = useState(false);
     const [sel, setSel] = useState<string[]>([]);
+    const [open, setOpen] = useState<number | null>(null);
     const [dialog, ask] = useConfirm();
     if (!items.length) return null;
     const toggle = (id: string) => setSel((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
@@ -155,6 +157,7 @@ function Grid({ items, onDelete }: { items: GridItem[]; onDelete: (id: string) =
     return (
         <div className="flex flex-col gap-2">
             {dialog}
+            {open !== null && <Lightbox items={items.map((x) => ({ url: backendUrl(x.url), caption: x.label }))} index={open} onNavigate={setOpen} onClose={() => setOpen(null)} />}
             {(picking || items.length > 1) && (
                 <div className="flex items-center gap-3 text-[12px]">
                     {picking ? (
@@ -176,11 +179,11 @@ function Grid({ items, onDelete }: { items: GridItem[]; onDelete: (id: string) =
                 </div>
             )}
             <div className="grid grid-cols-3 gap-1.5">
-                {items.map((it) => {
+                {items.map((it, idx) => {
                     const on = sel.includes(it.id);
                     return (
-                        <figure key={it.id} onClick={picking ? () => toggle(it.id) : undefined}
-                            className={`group relative aspect-[4/5] rounded-[2px] overflow-hidden bg-[var(--color-surface-2)] ${picking ? "cursor-pointer" : ""}`}>
+                        <figure key={it.id} onClick={picking ? () => toggle(it.id) : () => setOpen(idx)} title={picking ? undefined : "Ver en grande"}
+                            className={`group relative aspect-[4/5] rounded-[2px] overflow-hidden bg-[var(--color-surface-2)] ${picking ? "cursor-pointer" : "cursor-zoom-in"}`}>
                             <img src={backendUrl(it.url)} alt={it.label ?? ""} loading="lazy" className={`w-full h-full object-cover transition-opacity ${picking && !on ? "opacity-60" : ""}`} />
                             {it.label && <figcaption className="absolute left-1 bottom-1 px-1 rounded-[2px] bg-black/55 text-white text-[10px] max-w-[90%] truncate">{it.label}</figcaption>}
                             {picking ? (
@@ -189,7 +192,7 @@ function Grid({ items, onDelete }: { items: GridItem[]; onDelete: (id: string) =
                                 </span>
                             ) : (
                                 <button type="button" aria-label="Quitar" disabled={busy === it.id}
-                                    onClick={async () => { if (!(await ask({ title: "¿Quitar esta imagen?", confirm: "Quitar", danger: true }))) return; setBusy(it.id); try { await onDelete(it.id); } finally { setBusy(null); } }}
+                                    onClick={async (e) => { e.stopPropagation(); if (!(await ask({ title: "¿Quitar esta imagen?", confirm: "Quitar", danger: true }))) return; setBusy(it.id); try { await onDelete(it.id); } finally { setBusy(null); } }}
                                     className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer">
                                     {busy === it.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                                 </button>

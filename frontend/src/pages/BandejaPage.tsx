@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ExternalLink, FileText, Film, Loader2, Sparkles, Upload } from "lucide-react";
+import { ExternalLink, FileText, Film, Loader2, Maximize2, Sparkles, Upload } from "lucide-react";
+import { Lightbox } from "../components/Lightbox";
 import { useBrand } from "../lib/BrandContext";
 import {
     applyInboxIdentity, backendUrl, discardInbox, incorporateInbox, listCampaigns, listInbox, proposeInbox, sendMaterial,
@@ -70,6 +71,7 @@ const who = (a: string | null) => (!a ? "—" : a.startsWith("servicio:") ? "Cla
 function Item({ it, campaigns, onDone }: { it: InboxItem; campaigns: Campaign[]; onDone: (x: InboxItem) => void }) {
     const images = it.files.filter((f) => f.kind === "image");
     const others = it.files.filter((f) => f.kind !== "image");
+    const [big, setBig] = useState<number | null>(null);
     const [applied, setApplied] = useState<string[] | undefined>(it.proposal?.identityApplied);
     // El agente tarda: mientras no hay propuesta, no se puede sumar (si no, todo entra como «moodboard»).
     const waitingAgent = it.status === "nuevo" && it.files.some((f) => f.kind === "image") && !it.proposal;
@@ -126,12 +128,17 @@ function Item({ it, campaigns, onDone }: { it: InboxItem; campaigns: Campaign[];
                     ))}
                 </div>
             )}
+            {big !== null && <Lightbox items={images.map((f) => ({ url: backendUrl(f.url), caption: f.page ? `Página ${f.page}` : f.name }))} index={big} onNavigate={setBig} onClose={() => setBig(null)} />}
             {images.length > 0 && (
                 <div className="flex gap-2 overflow-x-auto mt-4 pb-1">
-                    {images.map((f) => {
+                    {images.map((f, idx) => {
                         const isOff = off.includes(f.url);
                         return (
-                            <figure key={f.url} className={`shrink-0 ${f.fromPdf ? "w-[230px]" : "w-[132px]"} flex flex-col gap-1.5`}>
+                            <figure key={f.url} className={`group relative shrink-0 ${f.fromPdf ? "w-[230px]" : "w-[132px]"} flex flex-col gap-1.5`}>
+                                <button type="button" onClick={() => setBig(idx)} title="Ver en grande" aria-label="Ver en grande"
+                                    className="absolute z-10 top-1 right-1 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                    <Maximize2 size={12} />
+                                </button>
                                 <button disabled={done} onClick={() => setOff(isOff ? off.filter((u) => u !== f.url) : [...off, f.url])} title={isOff ? "Sumar" : "Descartar esta"}
                                     className={`relative ${f.fromPdf ? "h-[140px]" : "h-[165px]"} rounded-[2px] overflow-hidden cursor-pointer ${isOff ? "opacity-30" : ""}`}>
                                     <img src={backendUrl(f.url)} alt={f.name} className={`w-full h-full ${f.fromPdf ? "object-contain bg-[var(--color-surface-2)]" : "object-cover"}`} />

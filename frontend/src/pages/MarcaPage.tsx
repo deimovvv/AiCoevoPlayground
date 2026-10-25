@@ -5,6 +5,7 @@ import { backendUrl, sendMaterial, type Brand } from "../lib/api";
 import { loadBrandFonts } from "../tools/shared/fontLoader";
 import { BrandBlockEditor, type BlockKey } from "../components/workspace/BrandBlockEditor";
 import { BrandAgentPanel } from "../components/workspace/BrandAgentPanel";
+import { Lightbox } from "../components/Lightbox";
 import { approveBrandBlock } from "../lib/api";
 
 /**
@@ -57,16 +58,23 @@ function Card({ n, title, missing, children, onEdit, className = "", proposed, o
 const Note = ({ children }: { children: ReactNode }) => <p className="shrink-0 text-[12px] leading-relaxed text-fg-muted">{children}</p>;
 const Empty = ({ children }: { children: ReactNode }) => <p className="text-[14px] leading-relaxed text-fg-faint">{children}</p>;
 
-/** Imágenes que llenan el espacio del bloque (en celular, un alto fijo). */
-function Fill({ urls, faces, small }: { urls: string[]; faces?: boolean; small?: boolean }) {
+/** Imágenes que llenan el espacio del bloque (en celular, un alto fijo). Tocar una la abre en grande
+ *  y se recorren todas las del grupo (`all`), no sólo las que entran en la tarjeta. */
+function Fill({ urls, all, faces, small }: { urls: string[]; all?: string[]; faces?: boolean; small?: boolean }) {
+    const [open, setOpen] = useState<number | null>(null);
+    const list = (all?.length ? all : urls).map((u) => ({ url: backendUrl(u) }));
     return (
+        <>
+        {open !== null && <div onClick={(e) => e.stopPropagation()}><Lightbox items={list} index={open} onNavigate={setOpen} onClose={() => setOpen(null)} /></div>}
         <div className={`flex-1 ${small ? "min-h-[110px]" : "min-h-[200px]"} md:min-h-0 grid gap-1.5 overflow-hidden`}
             style={{ gridTemplateColumns: `repeat(${urls.length}, minmax(0, 1fr))`, gridTemplateRows: "minmax(0, 1fr)" }}>
             {urls.map((u, i) => (
-                <img key={i} src={backendUrl(u)} alt="" loading="lazy"
-                    className={`w-full h-full object-cover rounded-[2px] ${faces ? "object-top" : ""}`} />
+                <img key={i} src={backendUrl(u)} alt="" loading="lazy" title="Ver en grande"
+                    onClick={(e) => { e.stopPropagation(); setOpen(i); }}
+                    className={`w-full h-full object-cover rounded-[2px] cursor-zoom-in ${faces ? "object-top" : ""}`} />
             ))}
         </div>
+        </>
     );
 }
 
@@ -225,7 +233,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                             {lookGroups.map((g) => (
                                 <div key={g.label} className="flex-1 min-h-[140px] md:min-h-0 flex flex-col gap-1.5 overflow-hidden">
                                     <p className="font-mono text-[10px] uppercase tracking-[0.09em] text-fg-faint shrink-0">{g.label} · {g.urls.length}</p>
-                                    <Fill urls={g.urls.slice(0, 4)} small />
+                                    <Fill urls={g.urls.slice(0, 4)} all={g.urls} small />
                                 </div>
                             ))}
                         </div>
@@ -243,7 +251,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                 <Card n="03" title="Caras" missing={missing[3]} onEdit={edit("caras")}>
                     {faces.length > 0 ? (
                         <>
-                            <Fill urls={faces.slice(0, 4).map((a) => a.imageUrl!)} faces />
+                            <Fill urls={faces.slice(0, 4).map((a) => a.imageUrl!)} all={faces.map((a) => a.imageUrl!)} faces />
                             <Note>{faces.slice(0, 4).map((a) => a.name.split(" ")[0]).join(" · ")}{b.voicePresets?.length ? ` · ${count(b.voicePresets.length, "voz", "voces")}` : ""}</Note>
                         </>
                     ) : <Empty>Sin avatares ni modelos. Sin caras, no hay video con personas.</Empty>}
@@ -252,7 +260,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                 <Card n="04" title="Catálogo" missing={missing[4]} onEdit={edit("catalogo")}>
                     {catalog.length > 0 ? (
                         <>
-                            <Fill urls={catalog.slice(0, 4)} />
+                            <Fill urls={catalog.slice(0, 4)} all={catalog} />
                             <Note>{[count(b.products?.length, "producto", "productos"), count(b.clothing?.length, "prenda", "prendas")].filter(Boolean).join(" · ")}</Note>
                         </>
                     ) : <Empty>Sin productos ni prendas: no se pueden hacer fichas ni prenda sobre modelo.</Empty>}
@@ -262,7 +270,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                     <Card n="05" title="Plantillas" missing={missing[5]} onEdit={edit("plantillas")}>
                         {b.carouselRefs?.length ? (
                             <>
-                                <Fill urls={b.carouselRefs.slice(0, 4).map((x) => x.imageUrl)} small />
+                                <Fill urls={b.carouselRefs.slice(0, 4).map((x) => x.imageUrl)} all={b.carouselRefs.map((x) => x.imageUrl)} small />
                                 <Note>{count(b.carouselRefs.length, "referencia de carrusel", "referencias de carrusel")} (de un PDF de marca)</Note>
                             </>
                         ) : <Empty>Se guardan cuando una pieza se aprueba, para repetir el formato. Las referencias de carrusel de un PDF de marca también llegan acá.</Empty>}
