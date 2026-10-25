@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
 from services.access_guard import AccessGuard
-from services.roles import RoleGuard, can_see_brand
+from services.roles import RoleGuard, can_see_brand, is_client
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -137,6 +137,29 @@ class CreateBrandRequest(BaseModel):
     brandContext: str = ""
 
 
+class WorkLink(BaseModel):
+    """Un archivo de trabajo de la marca (studio-v2 M.10): exploraciones, piezas, manual… casi siempre
+    un artifact de Claude Design. `client` = lo ve el cliente en su Marca."""
+    id: Optional[str] = None
+    title: str
+    kind: str = "otro"          # piezas | exploracion | manual | design-system | otro
+    url: str
+    client: bool = False
+
+
+WORK_LINK_KINDS = {"piezas", "exploracion", "manual", "design-system", "otro"}
+
+
+def _brand_for(request: Request, brand: dict) -> dict:
+    """Lo que ve quien pide la marca: un cliente no ve el design system ni los archivos de trabajo
+    que no se le marcaron como visibles."""
+    if not is_client(request):
+        return brand
+    out = {k: v for k, v in brand.items() if k != "designSystemUrl"}
+    out["workLinks"] = [l for l in brand.get("workLinks") or [] if l.get("client")]
+    return out
+
+
 class BrandFonts(BaseModel):
     headline: Optional[str] = None
     body: Optional[str] = None
@@ -205,6 +228,8 @@ class UpdateBrandRequest(BaseModel):
     customerReviews: Optional[list[str]] = None    # Plain-text reviews / testimonials
     # Link al Design System de Claude Design de la marca (studio-v2 M.5): lo arma Coevo; "" lo saca.
     designSystemUrl: Optional[str] = None
+    # Archivos de trabajo de la marca (studio-v2 M.10): la lista entera, reemplaza a la anterior.
+    workLinks: Optional[List[WorkLink]] = None
 
 
 class GenerateCopyRequest(BaseModel):
@@ -913,7 +938,7 @@ def delete_campaign(campaign_id: str):
 @app.get("/api/brands")
 def list_brands(request: Request):
     # Un cliente sólo ve sus marcas (services/roles.py).
-    return {"brands": [b for b in brands.load_brands() if can_see_brand(request, b["id"])]}
+    return {"brands": [_brand_for(request, b) for b in brands.load_brands() if can_see_brand(request, b["id"])]}
 
 
 @app.post("/api/brands")
@@ -940,7 +965,7 @@ def get_brand(brand_id: str, request: Request):
     brand = brands.find_brand(all_brands, brand_id)
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
-    return brand
+    return _brand_for(request, brand)
 
 
 @app.patch("/api/brands/{brand_id}")
@@ -975,6 +1000,17 @@ def update_brand(brand_id: str, req: UpdateBrandRequest):
             brand["designSystemUrl"] = url
         else:
             brand.pop("designSystemUrl", None)
+    if req.workLinks is not None:
+        links = []
+        for l in req.workLinks:
+            url, title = l.url.strip(), l.title.strip()
+            if not url.startswith("https://"):
+                raise HTTPException(status_code=400, detail=f"«{title or url}»: el link tiene que empezar con https://")
+            if not title:
+                raise HTTPException(status_code=400, detail="Cada archivo necesita un nombre")
+            links.append({"id": l.id or f"wl_{uuid.uuid4().hex[:10]}", "title": title,
+                          "kind": l.kind if l.kind in WORK_LINK_KINDS else "otro", "url": url, "client": bool(l.client)})
+        brand["workLinks"] = links
     brands.save_brands(all_brands)
     return brand
 

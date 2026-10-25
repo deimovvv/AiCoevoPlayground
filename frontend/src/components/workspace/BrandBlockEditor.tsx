@@ -7,7 +7,7 @@ import {
     backendUrl, updateBrand, uploadAvatar, deleteAvatar, uploadProduct, deleteProduct, uploadClothing, deleteClothing,
     uploadBackground, deleteBackground, uploadMoodboard, deleteMoodboard, uploadLookAndFeel, deleteLookAndFeel,
     uploadBrandLogo, deleteBrandLogo, uploadPose, deletePose, uploadShotRef, deleteShotRef, deleteManualPage, deleteCarouselRef, uploadManualPage, uploadCarouselRef, type Brand,
-    listCampaigns, uploadCampaignInputs, deleteCampaignInput, importPinterest, type Campaign, type CampaignInput,
+    listCampaigns, uploadCampaignInputs, deleteCampaignInput, importPinterest, type Campaign, type CampaignInput, type WorkLink, type WorkLinkKind,
 } from "../../lib/api";
 
 /**
@@ -16,12 +16,51 @@ import {
  * Reusa las subidas de siempre del backend; reemplaza, de a poco, a la pantalla vieja de 13 categorías.
  */
 
-export type BlockKey = "quien" | "identidad" | "foto" | "caras" | "catalogo" | "material" | "plantillas";
+export type BlockKey = "quien" | "identidad" | "foto" | "caras" | "catalogo" | "material" | "plantillas" | "archivos";
 
 const TITLES: Record<BlockKey, string> = {
     quien: "Quién es", identidad: "Identidad gráfica", foto: "Dirección de foto y video",
-    caras: "Caras", catalogo: "Catálogo", material: "Cargar material", plantillas: "Plantillas",
+    caras: "Caras", catalogo: "Catálogo", material: "Cargar material", plantillas: "Plantillas", archivos: "Archivos de trabajo",
 };
+
+const LINK_KINDS: [WorkLinkKind, string][] = [
+    ["piezas", "Piezas"], ["exploracion", "Exploración"], ["manual", "Manual"], ["design-system", "Design system"], ["otro", "Otro"],
+];
+
+/** Los links de trabajo de la marca: uno por archivo, no uno por pedido (las piezas nuevas se suman al de «Piezas»). */
+function WorkLinksEditor({ links, setLinks }: { links: WorkLink[]; setLinks: (l: WorkLink[]) => void }) {
+    const set = (i: number, patch: Partial<WorkLink>) => setLinks(links.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+    return (
+        <div className="flex flex-col gap-3">
+            {links.map((l, i) => (
+                <div key={l.id || i} className="flex flex-col gap-1.5 p-3 rounded-[4px] border border-edge">
+                    <div className="flex gap-1.5">
+                        <input value={l.title} onChange={(e) => set(i, { title: e.target.value })} className={input} placeholder="Nombre (ej. Exploraciones gráficas)" />
+                        <select value={l.kind} onChange={(e) => set(i, { kind: e.target.value as WorkLinkKind })} aria-label="Tipo"
+                            className="shrink-0 px-2 rounded-[4px] border border-edge bg-[var(--color-surface-1)] text-[12px] text-fg cursor-pointer">
+                            {LINK_KINDS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+                        </select>
+                    </div>
+                    <input value={l.url} onChange={(e) => set(i, { url: e.target.value })} className={input} placeholder="https://claude.ai/artifact/…" />
+                    <div className="flex items-center gap-3 text-[12px]">
+                        <label className="flex items-center gap-1.5 text-fg-muted cursor-pointer">
+                            <input type="checkbox" checked={l.client} onChange={(e) => set(i, { client: e.target.checked })} /> Lo ve el cliente
+                        </label>
+                        <span className="flex-1" />
+                        {l.url && <a href={l.url} target="_blank" rel="noreferrer" className="text-fg-muted hover:text-fg">abrir ↗</a>}
+                        <button onClick={() => setLinks(links.filter((_, j) => j !== i))} className="text-fg-muted hover:text-[var(--color-error)] cursor-pointer">Quitar</button>
+                    </div>
+                </div>
+            ))}
+            <button onClick={() => setLinks([...links, { title: "", kind: "piezas", url: "", client: false }])}
+                className="self-start h-8 px-3 rounded-[4px] border border-edge text-[12px] text-fg hover:border-fg cursor-pointer">+ Sumar link</button>
+            <p className="text-[11px] leading-relaxed text-fg-faint">
+                Un link por archivo, no uno por pedido: cada carrusel o pieza nueva se suma dentro del de «Piezas».
+                Claude los encuentra por el MCP. Si el cliente tiene que editar uno en Claude, además hay que compartírselo desde «Share» en Claude.
+            </p>
+        </div>
+    );
+}
 
 /** Adónde puede ir una imagen, y con qué se sube. */
 type Dest = "moodboard" | "luz" | "fondo" | "pose" | "plano" | "cara" | "prenda" | "producto" | "logo" | "carrusel" | "manual";
@@ -283,6 +322,7 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
     const [headline, setHeadline] = useState(brand.fonts?.headline || "");
     const [body, setBody] = useState(brand.fonts?.body || "");
     const [dsUrl, setDsUrl] = useState(brand.designSystemUrl || "");
+    const [links, setLinks] = useState<WorkLink[]>(brand.workLinks || []);
     const [style, setStyle] = useState(ds.photoStyle || "");
     const [dos, setDos] = useState(lines(ds.visualDos));
     const [donts, setDonts] = useState(lines(ds.visualDonts));
@@ -305,10 +345,11 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
     };
     const del = (fn: (b: string, i: string) => Promise<unknown>) => async (itemId: string) => { await fn(id, itemId); await onChanged(); };
 
-    const textBlock = block === "quien" || block === "identidad" || block === "foto";
+    const textBlock = block === "quien" || block === "identidad" || block === "foto" || block === "archivos";
     const onSave = () => {
         if (block === "quien") return save({ brandContext: context, dna: { ...dna, tone: fromLines(tone), forbidden_words: fromLines(never) } });
         if (block === "identidad") return save({ fonts: { ...brand.fonts, headline: headline || undefined, body: body || undefined }, dna: { ...dna, colors: colors.filter((c) => /^#[0-9a-f]{6}$/i.test(c.hex)) }, designSystemUrl: dsUrl.trim() });
+        if (block === "archivos") return save({ designSystemUrl: dsUrl.trim(), workLinks: links.filter((l) => l.url.trim() || l.title.trim()) });
         if (block === "foto") return save({ designSystem: { ...ds, photoStyle: style, visualDos: fromLines(dos), visualDonts: fromLines(donts) } });
     };
 
@@ -414,6 +455,18 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                             <Section title="Design system (Claude Design)">
                                 <input value={dsUrl} onChange={(e) => setDsUrl(e.target.value)} className={input} placeholder="https://claude.ai/artifact/…" />
                                 <p className="text-[11px] text-fg-faint">El de esta marca en Claude Design: lo arma Coevo a partir del manual. Claude lo usa para carruseles, posts y webs. El cliente no lo ve.</p>
+                            </Section>
+                        </>
+                    )}
+
+                    {block === "archivos" && (
+                        <>
+                            <Section title="Design system (Claude Design)">
+                                <input value={dsUrl} onChange={(e) => setDsUrl(e.target.value)} className={input} placeholder="https://claude.ai/artifact/…" />
+                                <p className="text-[11px] text-fg-faint">La fuente de verdad de cómo se ve la marca. El cliente no lo ve.</p>
+                            </Section>
+                            <Section title="Archivos de trabajo">
+                                <WorkLinksEditor links={links} setLinks={setLinks} />
                             </Section>
                         </>
                     )}

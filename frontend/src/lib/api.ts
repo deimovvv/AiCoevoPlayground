@@ -231,6 +231,9 @@ export interface BrandCompetitor {
     notes?: string;
 }
 
+export type WorkLinkKind = "piezas" | "exploracion" | "manual" | "design-system" | "otro";
+export interface WorkLink { id?: string; title: string; kind: WorkLinkKind; url: string; client: boolean }
+
 export interface Brand {
     id: string;
     name: string;
@@ -257,6 +260,8 @@ export interface Brand {
     logos?: LogoItem[];
     /** Design System de la marca en Claude Design (studio-v2 M.5): carruseles, posts y webs se diseñan con él. */
     designSystemUrl?: string;
+    /** Archivos de trabajo (studio-v2 M.10): piezas, exploraciones, manual… El cliente recibe sólo los `client`. */
+    workLinks?: WorkLink[];
     fonts?: BrandFonts;
     dna?: BrandDNA;
     designSystem?: DesignSystem;
@@ -663,6 +668,8 @@ export interface UpdateBrandPayload {
     customerReviews?: string[];
     /** Link al Design System de Claude Design de la marca; "" lo saca. */
     designSystemUrl?: string;
+    /** La lista entera de archivos de trabajo; reemplaza a la anterior. */
+    workLinks?: WorkLink[];
 }
 
 export async function updateBrand(brandId: string, updates: UpdateBrandPayload): Promise<Brand> {

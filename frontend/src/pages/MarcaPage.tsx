@@ -191,6 +191,18 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                             <dd>{b.designSystemUrl
                                 ? <a href={b.designSystemUrl} target="_blank" rel="noreferrer" className="text-fg underline underline-offset-2">abrir en Claude ↗</a>
                                 : <span className="text-fg-faint">sin armar</span>}</dd></>}
+                        {/* Archivos de trabajo: el cliente recibe sólo los que se le marcaron (backend). */}
+                        {(b.workLinks?.length || !readOnly) ? <><dt className="text-fg-faint">Archivos</dt>
+                            <dd className="flex flex-col gap-1 min-w-0">
+                                {(b.workLinks || []).map((l) => (
+                                    <a key={l.id || l.url} href={l.url} target="_blank" rel="noreferrer" className="text-fg underline underline-offset-2 truncate">
+                                        {l.title} ↗{!readOnly && !l.client && <span className="no-underline text-fg-faint"> · sólo equipo</span>}
+                                    </a>
+                                ))}
+                                {!readOnly && <button onClick={() => setEditing("archivos")} className="self-start text-fg-muted hover:text-fg cursor-pointer text-[12px]">
+                                    {b.workLinks?.length ? "Editar archivos" : "+ Sumar links (exploraciones, piezas, manual)"}
+                                </button>}
+                            </dd></> : null}
                     </dl>
                 </div>
 
