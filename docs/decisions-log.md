@@ -34,6 +34,7 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Timeline | Sección **Videos** por marca; tramos generados que se regeneran por prompt; un proyecto, 16:9 y 9:16 | 2026-10-15 · `changes/video-editor-next` §7 |
 | Fotos de ficha | Poses curadas de Coevo por plano y género; estilo Catálogo / Editorial | 2026-10-15 · `changes/catalog-poses-quality` |
 | Estrategia | Un motor (skills + criterio + memoria de marca + circuito), cuatro líneas (Morph, Coevo Studio, sistemas, arte y tecnología); no SaaS | 2026-10-16 · `docs/negocio/estrategia-motor.md` |
+| Curva (self-serve de moda, AR) | No cambia el rumbo: no SaaS. Es el piso de precio de Morph y la vara de comparación | 2026-10-24 · `negocio/competitive-research.md` |
 | Infraestructura | FastAPI + PostgreSQL + SQLAlchemy 2 + Alembic; archivos en R2; migrar de a una | 2026-10-09 · `changes/infra-v1` |
 | Servidor de producción | Hostinger VPS KVM 2 (2 vCPU/8 GB) + Cloudflare (Pages, Access, Tunnel, R2) | 2026-10-13 · `infra-v1`, `docs/guias/produccion.md` |
 | Remotion | Gratis hasta 3 empleados; después US$100/mes mínimo → reemplazarlo antes de crecer | 2026-10-13 · `infra-v1` |
@@ -42,6 +43,35 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Dónde se trabaja | En `app.coevoagency.com` (servidor = fuente de verdad); lo local es sólo desarrollo | 2026-10-17 |
 | Login | Equipo: Cloudflare Access (PIN por mail) + el backend verifica el JWT | 2026-10-17 · `docs/guias/produccion.md` |
 | Rol de Studio | Casa de la marca + vitrina del cliente; se produce en el taller (Claude). Sin canvas propio (salvo video); la crew es relato, no pantalla | 2026-10-18 · `changes/studio-v2` |
+
+---
+
+## 2026-10-24 — Curva no cambia el rumbo: es el piso de precio de Morph
+
+**Contexto.** Apareció Curva (curva-studio.com), un self-serve argentino de fotos de moda con IA:
+la marca sube su prenda, elige una modelo y genera la colección. Cobra ≈ ARS 650–775 por foto
+Estándar y declara +20 marcas. La pregunta de Gonzalo: *"¿tendría sentido ir a ese modelo de
+negocio? El nuestro podría estar diez veces mejor."*
+
+**Decisión.** Se mantiene la del 2026-10-16 (`estrategia-motor.md`): **no** SaaS self-serve.
+
+**Por qué.**
+- Curva compite por precio de foto, y generar cuesta centavos (~US$0,08–0,16). El modelo
+  financiero ya mostró que cobrar por pieza da LTV/CAC 2,6×, debajo del mínimo.
+- "Más lindo" no es ventaja: las marcas pagan la foto, no la pantalla, y una UI se copia.
+- Curva **no tiene video** ni calce verificado, que es el nicho escrito de Coevo
+  (video × español × calce).
+
+**Lo que sí aporta.**
+- Es la primera evidencia local de que hay marcas que generan solas: el dato que faltaba en
+  `market-positioning.md`. Si se quiere medir demanda propia, el experimento sigue siendo el mismo:
+  acceso directo a 2–3 clientas de Morph, sin construir nada.
+- **Fija el piso de precio de Morph**: una foto terminada no puede costar menos que la foto que la
+  marca opera sola en Curva.
+
+**Abierto.** El nombre "Morph" coincide con otras marcas (incluida "Morph Studios"). Antes de
+invertir en la marca: consulta de registro en INPI (clase de servicios de publicidad), dominio y
+usuario de Instagram.
 
 ---
 

@@ -825,3 +825,43 @@ Scrape con `pipeline-contenido` (24 posts) + 5 reels analizados con Gemini + cua
   detecta** (dijo "persona real" en los cinco).
 - **SEO del sitio:** 328 URLs en el sitemap: 214 artículos en /resources, 31 páginas de skills,
   19 casos ×2 idiomas, glosario, 4 herramientas gratis, landings por keyword (/paginas-web-baratas).
+
+---
+
+## Curva (curva-studio.com) — self-serve de fotos de moda, Buenos Aires (2026-10-24)
+
+**Qué es.** Plataforma self-serve: la marca sube fotos de la prenda hechas con el celular
+(frente, espalda y detalle por producto), elige una modelo del banco de Curva (o las suyas) y
+genera la colección. Hace on-model, flat lay, maniquí invisible, campañas y una dirección de arte
+a partir de un tablero de Pinterest. Estilista automático que arma looks del catálogo ("Generar 3
+looks" gratis). Instagram: `@curva__studio`.
+
+**Precios** (pantalla de "Plan y créditos", vista el 2026-10-24; 1 crédito = 1 foto Estándar, 2 = Alta):
+
+| Plan | ARS/mes | Créditos | ARS por foto Estándar |
+|---|---|---|---|
+| Básico | 93.000 | 120 | ≈ 775 |
+| Pro | 155.000 | 220 | ≈ 705 |
+| Ultra | 387.500 | 600 | ≈ 646 |
+
+10 créditos gratis al registrarse, sin tarjeta. Los créditos no vencen y se comparten entre
+usuarios. Promo de lanzamiento: créditos extra el primer mes (6/10 al 31/12/2026).
+
+**Lo que declaran** (no verificado): "+20 marcas" (logos de IMAN, La Época, Manifesto, Kosaf,
+La Rando, Alaska, Atelier Asch, Liarte, Chocolate, Sunstore), uso comercial sin límites, no
+entrenan con el material del cliente.
+
+**Lo que no tiene:** **video** (Ads figura "En camino"), calce verificado foto por foto y memoria
+de marca más allá de la modelo y el catálogo.
+
+**Lectura para Coevo:**
+- Es la **primera evidencia local de demanda self-serve**: el dato que `market-positioning.md`
+  decía que faltaba (*"ninguna marca usó la herramienta sin Gonzalo operando"*). No alcanza para
+  cambiar el rumbo (ver decisions-log 2026-10-24).
+- Compite por precio de foto, que es commodity: generar le cuesta ~US$0,08–0,16 por imagen.
+- **Es el piso de precio de Morph.** Una foto terminada no puede costar menos que la foto que la
+  marca opera sola en Curva (regla de `market-positioning.md`: vender terminado por debajo del
+  precio de insumo es un error de pricing). El argumento de Morph frente a Curva: video, calce
+  verificado y que la marca no opera nada.
+- Su interfaz es pobre, pero no es una ventaja nuestra: las marcas pagan por la foto, no por la pantalla.
+
