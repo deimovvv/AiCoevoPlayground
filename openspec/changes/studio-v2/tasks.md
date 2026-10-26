@@ -110,5 +110,10 @@
       «Cambiar mi elección» después de aprobar; «¿Cómo funciona?» para el cliente (se abre la primera vez). Falta: video del recorrido.
       Después (2026-10-22): el punto muestra su nota al pasar el mouse; borrar comentarios (el cliente, sólo los suyos); «+ Proyecto» sólo como
       opción del desplegable; «Sumar lámina» como tarjeta al final de la fila; zoom con scroll tipo Canva (con más de 4 láminas arranca al 70%).
+- [ ] 4.4 «Descargar aprobadas» (2026-10-26, pedido de Keyla: a Koxis se le terminó pasando un Drive aparte): zip por proyecto
+      o etapa con los originales (video con transparencia) y nombres `Marca_Proyecto_vN_03.ext`. Para el equipo y el cliente.
+- [ ] 4.5 Drive del cliente: una carpeta general por marca (la pone el cliente, nos da permiso de edición); al aprobar una pieza,
+      Studio crea solo `Proyecto / Etapa / vN` y copia el original. Un sentido: Studio → Drive. Verificar antes: API de Drive en el
+      proyecto de Google de Coevo (sirve también para M.7) y de quién es el espacio que ocupan los archivos subidos.
 - [ ] 4.1 Entregas por marca: estado, comentarios, aprobación (reusa notas del portal).
 - [ ] 4.2 Migrar clientes del portal por link a cuentas; apagar el portal.
