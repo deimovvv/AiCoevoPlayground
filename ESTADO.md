@@ -15,7 +15,10 @@
 2. Ordenar Descargas con la skill `archivos` (plan esperando el OK de Gonzalo).
 3. M.11 PDF de marca v2 + «Juntar en un tablero».
 4. M.12 instructivos (cuando las pantallas estén quietas).
-5. Notas de reunión automáticas → Notion → Studio (falta saber plan de Notion y si las reuniones son por Meet o Zoom).
+5. **E-commerce listo para un cliente nuevo** (2026-10-26): el método de Clara (ficha técnica, calce por toma, QA, ~USD 0,40/SKU) vive
+   sólo en la memoria de Claude; la carpeta `Coevo-Ecommerce` (WORKFLOW.md, manual, scripts) no está en esta compu. Pasarlo a una skill
+   `ficha-ecommerce` en coevo-skills (aviso dejado allá) + guía de fotos de calce para el cliente. Ecommerce Pack queda para prendas simples.
+6. Notas de reunión automáticas → Notion → Studio (falta saber plan de Notion y si las reuniones son por Meet o Zoom).
 
 ## Usa de otros / les da
 - Usa: `coevo-skills` (sistema de trabajo, skills), Claude Design (design systems), `morph-site` (fuentes y manual de Morph).
@@ -37,3 +40,15 @@
   aparte (`alguna-panel` sobre Airtable) linkeada desde «Archivos». Si funciona y se repite en
   otras marcas, pasa a ser un módulo de Studio. A decidir: hoy la voz de ALGÜNA vive en
   `alguna-web/.claude/skills/alguna-voice/`; ¿el hogar de la voz es Studio o la skill?
+- [ ] 2026-10-25 · de coevo-skills · **Un solo nombre por marca: el id de Studio.** Regla nueva en
+  `coevo-skills/SISTEMA.md`: skills = cómo se hace (git); marca = datos en Studio (`ver_marca`);
+  las carpetas `~/cov/archivos/<id>/` usan el id de Studio. Para hacer acá:
+  (1) ALGÜNA tiene id **`alkura`** → pasarlo a **`alguna`** (las carpetas ya usan `alguna`).
+  (2) Marcas sin contexto ni ADN: Geely, Garcon Garcia, Clara Ibarguren, Cascara; Posadas La Manso
+  sin ADN. (3) Faltan: Giumati, Lastre; ¿Kooris es "Koxis" (id `koxis`)? Confirmar con Gonzalo.
+  (4) La voz de ALGÜNA hoy vive en `alguna-web/.claude/skills/alguna-voice/`: pasarla al ADN de la
+  marca en Studio (es dato, no skill).
+- [ ] 2026-10-26 · de coevo-skills · **Modelos de Gemini a un solo lugar.** El chequeo encontró
+  `gemini-2.5-flash` escrito a mano en `backend/main.py` y 8 archivos más (y `gemini-2.5-pro` en
+  otros). Pasar todo a una variable (`GEMINI_MODEL`, vacía = `gemini-flash-latest`) en
+  `llm_router.py`. Correr `python3 ~/.claude/skills/chequeo/scripts/chequeo.py` para ver la lista.
