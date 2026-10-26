@@ -103,14 +103,14 @@
 ## 4. Entregas
 
 - [x] 4.0 Dos pasos: `deliveries.visibility` + `sent_at`, `delivery_comments.internal` (migración `7c3a9e1f2b55`); equipo: Pedir otra vuelta · Mandar al cliente · Marcar aprobada; una ronda nueva vuelve a interna (2026-10-19).
-- [~] 4.0b Vista cliente en `/cliente` (hoy vista previa del equipo): Entregas (Para revisar · Aprobadas) y Mi marca en lectura. Faltan: descarga de aprobadas, Mandar material, entrar como cliente (roles).
+- [~] 4.0b Vista cliente en `/cliente` (hoy vista previa del equipo): Entregas (Para revisar · Aprobadas) y Mi marca en lectura. Faltan: Mandar material, entrar como cliente (roles).
 
 - [x] 4.3 Entregas en uso real (2026-10-22, pedido con Koxis): renombrar la entrega; «+ Proyecto» visible y borrar proyecto (sus entregas
       quedan sin proyecto); etapas sugeridas Carrusel / Historias / Video; «Sumar láminas» y sacar una lámina (equipo); el cliente
       «Cambiar mi elección» después de aprobar; «¿Cómo funciona?» para el cliente (se abre la primera vez). Falta: video del recorrido.
       Después (2026-10-22): el punto muestra su nota al pasar el mouse; borrar comentarios (el cliente, sólo los suyos); «+ Proyecto» sólo como
       opción del desplegable; «Sumar lámina» como tarjeta al final de la fila; zoom con scroll tipo Canva (con más de 4 láminas arranca al 70%).
-- [ ] 4.4 «Descargar aprobadas» (2026-10-26, pedido de Keyla: a Koxis se le terminó pasando un Drive aparte): zip por proyecto
+- [x] 4.4 «Descargar aprobadas» (hecho 2026-10-26: botón «Descargar» en la entrega aprobada, ícono por proyecto, «Bajar todo» del cliente; probado con Koxis, 15 piezas) (2026-10-26, pedido de Keyla: a Koxis se le terminó pasando un Drive aparte): zip por proyecto
       o etapa con los originales (video con transparencia) y nombres `Marca_Proyecto_vN_03.ext`. Para el equipo y el cliente.
 - [ ] 4.5 Drive del cliente: una carpeta general por marca (la pone el cliente, nos da permiso de edición); al aprobar una pieza,
       Studio crea solo `Proyecto / Etapa / vN` y copia el original. Un sentido: Studio → Drive. Verificar antes: API de Drive en el
