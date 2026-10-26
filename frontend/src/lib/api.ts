@@ -3839,6 +3839,15 @@ export interface Delivery extends Omit<DeliverySummary, "items"> {
 export type DeliveryView = "cliente" | undefined;
 const vistaQ = (v: DeliveryView) => (v ? `?vista=${v}` : "");
 
+/** Link para bajar lo aprobado en un zip (studio-v2 4.4): una entrega, un proyecto («sin» = sin proyecto) o todo. */
+export function approvedZipUrl(brandId: string, opts: { entrega?: string; proyecto?: string } = {}): string {
+    const q = new URLSearchParams();
+    if (opts.entrega) q.set("entrega", opts.entrega);
+    if (opts.proyecto) q.set("proyecto", opts.proyecto);
+    const qs = q.toString();
+    return backendUrl(`/api/brands/${encodeURIComponent(brandId)}/deliveries/aprobadas${qs ? `?${qs}` : ""}`);
+}
+
 export async function listDeliveries(brandId: string, vista?: DeliveryView): Promise<DeliverySummary[]> {
     return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/deliveries${vistaQ(vista)}`), "No se pudieron cargar las entregas");
 }

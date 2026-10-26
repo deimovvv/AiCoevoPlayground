@@ -16,12 +16,17 @@ antes de volver a mandarla. Hasta que haya roles (studio-v2 §3), la vista la el
 """
 import re
 import shutil
+import tempfile
+import unicodedata
 import uuid
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -230,6 +235,58 @@ async def list_deliveries(brand_id: str, request: Request, vista: Optional[str] 
             open_by[c.delivery_id] = open_by.get(c.delivery_id, 0) + 1
     names = _campaign_names()
     return [_summary(d, open_by.get(d.id, 0), names) for d in rows]
+
+
+def _slug(text: str) -> str:
+    """Nombre de archivo legible y seguro en cualquier sistema: sin tildes, sin barras, con guiones."""
+    t = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode()
+    return re.sub(r"[^A-Za-z0-9]+", "-", t).strip("-")[:60] or "sin-nombre"
+
+
+@router.get("/api/brands/{brand_id}/deliveries/aprobadas")
+async def download_approved(brand_id: str, request: Request, entrega: Optional[str] = None, proyecto: Optional[str] = None,
+                            s: AsyncSession = Depends(get_session)):
+    """Lo aprobado, en un zip (studio-v2 4.4): los originales (el video con su transparencia), sin las láminas que el
+    cliente dijo «esta no», ordenado en Proyecto/Etapa/ y con nombres `Marca_Entrega_vN_01.ext`.
+    `entrega`: una sola · `proyecto`: un proyecto (`sin` = las que no tienen) · nada: todo lo aprobado de la marca."""
+    brand = _require_brand(brand_id)
+    if not can_see_brand(request, brand_id):
+        raise HTTPException(status_code=404, detail="No existe esa marca")
+    q = select(Delivery).where(Delivery.brand_id == brand_id, Delivery.status == "aprobada")
+    if is_client(request):
+        q = q.where(Delivery.visibility == "cliente")
+    if entrega:
+        q = q.where(Delivery.id == entrega)
+    elif proyecto == "sin":
+        q = q.where(Delivery.campaign_id.is_(None))
+    elif proyecto:
+        q = q.where(Delivery.campaign_id == proyecto)
+    rows = (await s.execute(q.order_by(Delivery.created_at))).scalars().all()
+    names = _campaign_names()
+    marca = _slug(brand.get("name") or brand_id)
+    tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+    count = 0
+    # Sin comprimir: imágenes y video ya vienen comprimidos; así arma rápido aunque haya video pesado.
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED) as z:
+        for d in rows:
+            folder = "/".join(_slug(x) for x in (names.get(d.campaign_id) or "Sin proyecto", d.stage) if x)
+            n = 0
+            for it in d.items or []:
+                if it.get("rejected"):
+                    continue
+                src = FILES_DIR / it["url"].split("/static/deliveries/", 1)[-1]
+                if not src.is_file():
+                    continue
+                n += 1
+                z.write(src, f"{folder}/{marca}_{_slug(d.title)}_v{d.round}_{n:02d}{src.suffix.lower()}")
+                count += 1
+    tmp.close()
+    if not count:
+        Path(tmp.name).unlink(missing_ok=True)
+        raise HTTPException(status_code=404, detail="No hay piezas aprobadas para bajar")
+    label = _slug(rows[0].title) if entrega and rows else (_slug(names.get(proyecto) or "") if proyecto and proyecto != "sin" else "aprobadas")
+    return FileResponse(tmp.name, media_type="application/zip", filename=f"{marca}_{label}.zip",
+                        background=BackgroundTask(lambda: Path(tmp.name).unlink(missing_ok=True)))
 
 
 @router.post("/api/brands/{brand_id}/deliveries")

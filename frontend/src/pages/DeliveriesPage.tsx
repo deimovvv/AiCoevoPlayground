@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, CornerDownLeft, Eye, ExternalLink, History, Loader2, Minus, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, CornerDownLeft, Download, Eye, ExternalLink, History, Loader2, Minus, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
@@ -8,7 +8,7 @@ import { DeliveryGroupPicker } from "../components/workspace/DeliveryGroupPicker
 import { SlideStage } from "../components/workspace/SlideStage";
 import { NewVersionDialog } from "../components/workspace/NewVersionDialog";
 import {
-    backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound, setDeliveryCommentInternal,
+    approvedZipUrl, backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound, setDeliveryCommentInternal,
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
     type Delivery, type DeliveryStatus, type DeliverySummary,
 } from "../lib/api";
@@ -281,6 +281,10 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                         <h1 className="text-[15px] font-medium text-fg">{client ? (tab === "revisar" ? "Para revisar" : "Aprobadas") : "Entregas"}</h1>
                         <span className={`${mono} text-fg-faint`}>{shown.length}</span>
                         <span className="flex-1" />
+                        {client && tab === "aprobadas" && shown.length > 0 && (
+                            <a href={approvedZipUrl(activeBrand.id)} download title="Todo lo aprobado, en un zip, ordenado por proyecto y etapa"
+                                className="flex items-center gap-1 text-[12px] text-fg-muted hover:text-fg no-underline"><Download size={12} /> Bajar todo</a>
+                        )}
                         {!client && (
                             <Link to="/cliente" title="Ver lo que ve el cliente de esta marca"
                                 className="flex items-center gap-1 text-[12px] text-fg-faint hover:text-fg no-underline"><Eye size={12} /> Ver como cliente</Link>
@@ -338,10 +342,11 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 const changes = b.items.filter((d) => d.status === "cambios").length;
                                 const waitingN = b.items.filter((d) => d.status === "en_revision" && (client || d.visibility === "cliente")).length;
                                 return (
-                                <div key={b.key} className={b.campaign ? "mb-1 ml-1 pl-2 border-l border-edge" : ""}>
+                                <div key={b.key} className={b.campaign ? "group/p mb-1 ml-1 pl-2 border-l border-edge" : ""}>
                                     {b.campaign && (
+                                        <div className="flex items-center">
                                         <button onClick={() => setFold((f) => ({ ...f, [fk]: !isOpen }))} aria-expanded={isOpen}
-                                            className="w-full flex items-center gap-1.5 px-1.5 pt-1.5 pb-1.5 rounded-[var(--radius-sm)] text-left cursor-pointer hover:bg-surface-1">
+                                            className="flex-1 min-w-0 flex items-center gap-1.5 px-1.5 pt-1.5 pb-1.5 rounded-[var(--radius-sm)] text-left cursor-pointer hover:bg-surface-1">
                                             {isOpen ? <ChevronDown size={12} className="text-fg-faint shrink-0" /> : <ChevronRight size={12} className="text-fg-faint shrink-0" />}
                                             <span className="flex-1 min-w-0 text-[12px] text-fg truncate">{b.campaign}</span>
                                             <span className="shrink-0 text-[11px] text-fg-faint tabular-nums" title={`${b.items.length} piezas · ${ok} aprobadas${changes ? ` · ${changes} con cambios` : ""}${waitingN ? ` · ${waitingN} esperando` : ""}`}>
@@ -350,6 +355,13 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                 {changes > 0 && <span className="text-[var(--color-brand)]"> · {changes}</span>}
                                             </span>
                                         </button>
+                                        {ok > 0 && (
+                                            <a href={approvedZipUrl(activeBrand.id, { proyecto: b.key })} download title={`Bajar lo aprobado de «${b.campaign}» (zip)`} aria-label="Bajar lo aprobado del proyecto"
+                                                className="shrink-0 w-6 h-6 flex items-center justify-center rounded-[var(--radius-sm)] text-fg-faint hover:text-fg hover:bg-surface-2 md:opacity-0 md:group-hover/p:opacity-100 focus:opacity-100">
+                                                <Download size={12} />
+                                            </a>
+                                        )}
+                                        </div>
                                     )}
                                     {isOpen && b.items.map((d) => (
                                         <button key={d.id} onClick={() => open(d.id)}
@@ -441,6 +453,12 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             </div>
                             <span className="hidden md:block flex-1" />
                             <div className="w-full md:w-auto flex flex-wrap items-center gap-2 [&>button]:flex-1 md:[&>button]:flex-none [&>button]:whitespace-nowrap [&>button]:justify-center">
+                            {current.status === "aprobada" && (
+                                <a href={approvedZipUrl(current.brandId, { entrega: current.id })} download title="Las piezas aprobadas en su calidad original, en un zip"
+                                    className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg hover:border-fg no-underline">
+                                    <Download size={12} /> Descargar
+                                </a>
+                            )}
                             {!client && current.source && (
                                 <a href={backendUrl(current.source.url)} target="_blank" rel="noreferrer" title="El archivo editable de la pieza"
                                     className="flex items-center gap-1 text-[12px] text-fg-faint hover:text-fg">Fuente <ExternalLink size={11} /></a>
