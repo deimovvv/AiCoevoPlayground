@@ -3,6 +3,9 @@
 > Lo que está pasando ahora en este proyecto (no cómo se trabaja: eso es CLAUDE.md).
 > Cada sesión lo lee al empezar y lo actualiza al cerrar. Lo completa la próxima sesión de acá.
 
+Temas: plataforma, portal de clientes, créditos, producción de contenido, agentes, marcas
+Ideas leídas: linea-base-antes-de-intervenir, criterio-y-regla
+
 ## Ahora (2026-10-25)
 - **Marca** ya tiene: visor de imágenes en grande en todos lados, «Archivos» (links de trabajo de cada
   marca con «lo ve el cliente»; el MCP los da) y design system por marca en Claude Design
@@ -18,7 +21,9 @@
 5. **E-commerce:** skill `ficha-ecommerce` hecha (2026-10-27, coevo-skills; la carpeta `Coevo-Ecommerce` se perdió y las reglas salieron
    de la memoria). Falta el piloto con una prenda real. Después: «Qué es Coevo Studio» para Facu (su rama de diseño empieza por
    la vista del cliente) y la puerta con piezas reales; el inicio de /estudio va en coevo-web (aviso dejado).
-6. Notas de reunión automáticas → Notion → Studio (falta saber plan de Notion y si las reuniones son por Meet o Zoom).
+6. **De NORA, en orden:** O.12 números de Coevo (a la primera, costo por pieza, volumen) → M.13 reglas de marca que se
+   chequean solas → O.6 publicar y medir (Postiz). Ver `docs/negocio/que-es-coevo-studio.md`.
+7. Notas de reunión automáticas → Notion → Studio (falta saber plan de Notion y si las reuniones son por Meet o Zoom).
 
 ## Usa de otros / les da
 - Usa: `coevo-skills` (sistema de trabajo, skills), Claude Design (design systems), `morph-site` (fuentes y manual de Morph).
@@ -26,6 +31,11 @@
 
 ## Avisos de otros proyectos
 > Se leen primero. Al resolver uno: marcarlo [x] y decir qué se hizo, o borrarlo si no aplica.
+- [ ] 2026-10-27 · de coevo-skills · **Informe del mes contra la línea base (aprendizaje IA Partner).** Agustín Medina vende
+  "diagnóstico → línea base → priorizar → construir → informe mensual". Si coevo-web suma la línea base a la oferta,
+  el portal de Studio es donde se ve: una vista por marca con los números de antes y los del mes. También su
+  **agente híbrido** (la IA entiende, el código decide lo que cuesta plata) es la regla para créditos y cobros.
+  Ideas: biblioteca `linea-base-antes-de-intervenir`, `criterio-y-regla`.
 
 - [ ] 2026-10-26 · de alguna-web · **El archivo de ALGÜNA puede usar el patrón de Studio.** Tras la llamada del
   26/10, ALGÜNA suma tesorería (cajas, gastos), facturación por ARCA y precios con reglas a ventas y stock.

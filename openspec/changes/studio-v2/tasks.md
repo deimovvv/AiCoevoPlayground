@@ -36,6 +36,11 @@
 - [ ] M.11 PDF de marca, v2: guardarlo entero como «Manual de marca», leer la identidad y sacar páginas como referencia
   sólo si se elige (hoy se parte en páginas y pregunta una por una). «Juntar en un tablero» para unificar moodboards.
 - [ ] M.12 Instructivos: «¿Cómo funciona?» por sección (Marca, Bandeja, Entregas, Archivos) + página de ayuda del
+- [ ] M.13 Reglas de marca que se chequean solas (2026-10-27, de NORA: «el 95 % de los malos resultados venía de datos de marca
+      flojos, no del modelo»). En Marca, un bloque «Reglas» como dato: **nunca** (colores, palabras, cosas que no van), **siempre**
+      (cómo se escribe el nombre, español rioplatense o neutro), con ejemplo de cada una. `ver_marca` las devuelve y las skills las
+      leen antes de generar. Chequeo en dos tiempos: (1) antes de gastar, el pedido/prompt contra las reglas (texto, gratis); (2) después,
+      el texto de la pieza (OCR con Gemini) contra las reglas, como aviso en Entregas, no bloqueo. Arrancar con 2–3 marcas reales.
   circuito completo + videos cortos (skill explicar-herramienta) cuando las pantallas estén quietas.
 - [ ] M.7 Catálogo desde una carpeta de Drive compartida (necesita habilitar la API de Drive en el proyecto de Google de Coevo).
 - [ ] M.8 Curar la memoria: de dónde vino cada imagen (web, Instagram, cliente, Coevo) y para qué la usa Claude en cada bloque.
@@ -75,6 +80,12 @@
       una cuenta publicitaria por marca (Coevo, Morph).
 - [ ] O.8 Interesados de la pauta (pendiente, antes de pautar): formulario de la web → planilla o Notion; quién responde y en cuánto.
       CRM (HubSpot gratis) recién con muchas consultas por semana. No va en Studio.
+- [ ] O.12 Números de Coevo (2026-10-27, sólo admin; de NORA, que muestra «aprobado a la primera» con fuente). El reporte del mes (O.9)
+      ya calcula a la primera / con cambios / días por marca: juntarlo para todas las marcas y por mes, **por tipo de pieza** (`kind`:
+      carrusel · video · imágenes) y con tendencia: mandadas, aprobadas, % a la primera, rondas promedio, días hasta aprobar, volumen, y
+      **costo de IA por pieza aprobada** (costo del mes de `generations` / aprobadas; aproximado hasta O.4). Es la fuente de las cifras
+      para propuestas y la web («X piezas en 30 días, Y % aprobadas a la primera»). Primero de los tres: los datos ya están.
+      Orden acordado: O.12 → M.13 → O.6 (publicar y medir en el portal; necesita el plan de Postiz y la primera marca que publique con Coevo).
 
 ## 1. Roles (base de todo lo demás)
 
