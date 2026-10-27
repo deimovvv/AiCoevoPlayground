@@ -882,3 +882,29 @@ verificado + la marca no opera nada + aprobación del cliente en un solo lugar**
 3 pasos, el "subís la colección una vez" (el Catálogo de Studio está vacío en casi todas las marcas) y la guía
 de fotos para el cliente como contenido. No copiar: precio por foto ni self-serve.
 
+
+## Flora (flora.ai) — lienzo creativo con todos los modelos (2026-10-27)
+
+Lo trajo Facu como referencia de UX/UI. Leído: home, /enterprise, /pricing.
+
+**Qué es:** un lienzo de nodos con 50+ modelos (imagen, video, 3D, voz). El usuario opera; los flujos se guardan
+como «Techniques» que el equipo o el cliente re-corre (en el lienzo, como app, por API o MCP). Botón «Add to Claude».
+
+**Precios:** Free (≈17 imágenes) · Starter USD 18/asiento/mes · Pro 50 · Max 200 · Enterprise a medida (9+ asientos).
+El consumo se cobra aparte, a precio de cada modelo.
+
+**Página de inicio (lo que se ve fino):** titular en serif con una palabra en itálica (*«Your creative workspace»*),
+fondo negro con grilla de puntos, fotos reales de moda flotando alrededor en tamaños distintos y cortadas por el
+borde, dos botones (gratis / «Add to Claude») y una fila de logos de clientes. Después: 8 herramientas en tarjetas,
+«From concept to delivery» en tres pasos (Generate · Refine · Deliver), 3 casos con cita, grilla de modelos.
+
+**Enterprise, lo importante:**
+- Lanzaron **Fashion Studio** («probado por diseñadores con prendas reales»): entran a moda.
+- **«Forward Deployed Creative»:** una persona embebida que arma los primeros flujos de la marca. Hasta la
+  herramienta vende al humano: valida el servicio de Coevo.
+- **Aprobaciones: no tienen.** La revisión pasa en el lienzo; no hay circuito cliente → aprobado → entrega.
+
+**Lectura para Coevo:** Flora es software (el cliente hace el trabajo); Coevo Studio es servicio con portal.
+No competir en «todos los modelos» ni en «gratis». Sí copiar la factura visual del inicio (titular editorial +
+piezas reales flotando), los tres pasos a la vista, los casos con cita y los logos. Idea propia a evaluar:
+nuestro «Add to Claude» ya existe — el MCP `coevo-studio` pone la memoria de la marca dentro del Claude del equipo.
