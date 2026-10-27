@@ -865,3 +865,20 @@ de marca más allá de la modelo y el catálogo.
   verificado y que la marca no opera nada.
 - Su interfaz es pobre, pero no es una ventaja nuestra: las marcas pagan por la foto, no por la pantalla.
 
+**Actualización 2026-10-26** (curva-studio.com, /precios, /lookbook y /blog, sin entrar a la app):
+- **Ya cobra video:** /precios dice *"1 crédito por segundo, con un máximo de 15 segundos por video"* y /lookbook
+  ofrece cada prenda *"con modelo, en video o en maniquí invisible"*. Lo de "video en camino" del 24/10 quedó viejo
+  (no verificado si el video está andando o sólo publicado). Créditos sueltos: ARS 1.550 c/u, desde 40.
+- **El proceso es un playbook de 3 pasos, a la vista:** subís las prendas una vez (quedan en el catálogo) →
+  elegís modelo y looks y generás la colección → bajás todo junto, listo para tienda y redes. Más formatos (9:16,
+  feed, banners) y edición por zona.
+- **Máquina de contenido:** 19 posts de blog entre abril y octubre de 2026, en español, para marcas de moda
+  (cuánto cuesta externalizar, agencia vs inhouse, cómo fotografiar ropa para vender, maniquí invisible, qué IA usar).
+  Venden "internalizar el contenido": le hablan al dueño y al CFO, no al director de arte.
+- **No publican** fidelidad de la prenda ni guía de cuántas fotos subir; la promesa es velocidad y costo.
+
+**Lectura (2026-10-26):** el nicho "video × español" ya no está vacío; lo que sigue sin dueño es **calce
+verificado + la marca no opera nada + aprobación del cliente en un solo lugar**. Copiar: el playbook visible en
+3 pasos, el "subís la colección una vez" (el Catálogo de Studio está vacío en casi todas las marcas) y la guía
+de fotos para el cliente como contenido. No copiar: precio por foto ni self-serve.
+
