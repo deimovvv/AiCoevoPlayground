@@ -768,6 +768,42 @@ marketing de Coevo (`coevo-web/docs/sistema-foundation.md`).
   clientes, quien busca lo más barato, métricas de vanidad, quien no da 45 min/semana.
 - Quién está detrás: no aparece. **El dominio sistemanora.com se registró el 2026-09-29** (whois, registrante oculto): la marca tiene días; sus cifras ("2.288 posteos", "60 informes") son de otra operación previa o no verificables.
 
+### NORA por dentro — la presentación en Morfeo (sistemanora.com/morfeus, leída 2026-10-27)
+
+Deck de una charla en Morfeo Academy (15/06/2026). Resuelve "quién está detrás": **NORA Labs** (noralabs.cl),
+operación desde el Maule, Chile, **9 marcas** en producción (transporte, salud, loteos, seguros, herramientas,
+climatización, casas). El dominio sistemanora.com es nuevo; la operación no.
+
+- **Qué es:** "una agencia operada por IA — piensa, ejecuta y mide". Pensamiento humano (diagnóstico + plan) +
+  ejecución por el sistema (producir, aprobar, publicar, medir) + **plataforma propia como contrato** (un panel por marca).
+- **Lugar en el mercado:** entre la agencia tradicional (USD 1.670–3.330/mes) y las herramientas self-serve: "el hueco
+  es la operación, no las herramientas". Suscripción gestionada, no SaaS.
+- **Precios en junio:** BASE USD 560 · PRO 890 · MAX 1.330 /mes, con reunión semanal de 60/75/90 min. En octubre la
+  web dice Plus 990 · Max 1.490: **subieron ~75 % en cuatro meses.** Sin contrato anual, exclusividad por rubro y
+  región, la marca se exporta al salir. "Sin la reunión semanal no hay marketing, hay publicaciones."
+- **Lo que ve el cliente (6 módulos):** Creatividades (aprobar o pedir cambios por pieza) · Publicaciones (cola por red)
+  · Análisis (auditoría web + GA4) · Ideas + Ficha de marca (editable por el cliente) · Requerimientos (con seguimiento)
+  · Todo auditable (cada pieza guarda su linaje). Las observaciones del cliente entran **estructuradas** al pipeline.
+- **Ficha de marca:** 12 dimensiones; la de su cliente más grande tiene 33K caracteres y 57 restricciones duras que
+  validan scripts. "~95 % de los malos resultados del principio venían de datos de marca flojos, no del modelo."
+- **Stack:** Claude Code (plan Max) con **47 skills** versionadas y 280+ memorias, MCP a Supabase/GA4/Google Ads/Meta;
+  Supabase + Next en Vercel; gpt-image-2, voces chilenas (Cartesia), GPU local para video (US$0 por render).
+  **Total ~USD 360/mes para 9 marcas.** Sin backend de orquestación propio.
+- **6 pipelines** (portada, imagen, motion, carrusel, UGC, bumper), USD 0–0,28 por pieza; mismo esqueleto y misma cola
+  de revisión. Arquitectura: ficha → spec → validar antes de gastar → generar → QA por capas → humano → publicar y medir.
+- **Resultados que muestran (con fuente):** 296 piezas vivas, 140 en 30 días, 390 posteos, 20 reportes. **Aprobación a
+  la primera:** motion 75 %, portada 20,8 %, UGC 12,5 % — portada llega a 80,8 % después del loop de observaciones
+  (69 % de las correcciones eran de texto → el QA arranca con OCR). Webs: +78 % usuarios en un cliente tras rediseño.
+- **Sus lecciones:** (1) el cuello de botella ya no es producir, es **revisar**; (2) US$0 es una decisión de arquitectura;
+  (3) generador congelado, todo cambia en la spec; (4) la calidad vive en las capas alrededor del modelo.
+
+**Lectura para Coevo:** es casi exactamente Coevo Studio — mismo motor (Claude Code + skills + MCP + memoria de marca),
+mismo portal (aprobar, ficha de marca, reportes), mismo modelo (suscripción gestionada, no SaaS). Ellos ya tienen lo que
+a nosotros nos falta: **números por pieza** (aprobación a la primera, costo, volumen), **publicación y medición** dentro
+del portal y la **ficha de marca con restricciones que se validan**. Nosotros tenemos lo que ellos no: **moda y calce**
+(ellos hacen transporte, seguros y loteos), video de producto fiel, y oficio de arte. No competimos por rubro; copiamos
+la forma de mostrar: cifras con fuente, aprobación a la primera, y el portal como contrato.
+
 ### Claura (claura-ai.com) — agencia de automatización + capacitación + skills
 
 | Servicio | Qué es concretamente | Precio publicado |
