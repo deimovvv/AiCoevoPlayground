@@ -46,6 +46,7 @@ tokens: `frontend/src/index.css`.
 ## Negocio
 | Doc | Qué es |
 |---|---|
+| [que-es-coevo-studio.md](negocio/que-es-coevo-studio.md) | qué es Studio y cómo se presenta (resultado · portal · motor) |
 | [market-positioning.md](negocio/market-positioning.md) | nicho: video × español × calce |
 | [competitive-research.md](negocio/competitive-research.md) · [rumbo-2026-2028.md](negocio/rumbo-2026-2028.md) · [estrategia-motor.md](negocio/estrategia-motor.md) | competidores verificados |
 | [financial-model.md](negocio/financial-model.md) | márgenes, descarte, "turista de IA" |
