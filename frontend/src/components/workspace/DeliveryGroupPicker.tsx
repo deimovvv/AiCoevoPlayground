@@ -46,7 +46,7 @@ export function DeliveryGroupPicker({ brandId, campaigns, onCampaigns, campaignI
     const pickCampaign = (v: string) => (v === NEW ? create() : onChange({ campaignId: v || null, stage }));
     const remove = () => safe(async () => {
         if (!current) return;
-        if (!(await ask({ title: `¿Borrar el proyecto «${current.name || "sin nombre"}»?`, body: "Las entregas no se borran: quedan sin proyecto.", confirm: "Borrar", danger: true }))) return;
+        if (!(await ask({ title: `¿Borrar el proyecto «${current.name || "sin nombre"}»?`, body: "Se borra sólo el proyecto (la carpeta). Sus entregas y sus imágenes no se borran: quedan sin proyecto.", confirm: "Borrar el proyecto", danger: true }))) return;
         await deleteProject(current.id);
         onCampaigns(campaigns.filter((x) => x.id !== current.id));
         onChange({ campaignId: null, stage });

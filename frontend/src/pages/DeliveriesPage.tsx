@@ -524,9 +524,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             )}
                             {!client && (
                                 <button disabled={busy} onClick={() => { setVersionItem(null); setVersionOpen(true); }}
-                                    title="Subí las láminas corregidas: reemplazan a las actuales y la versión anterior queda para comparar"
+                                    title="Reemplaza TODAS las láminas. Para corregir una sola, usá el botón de subir sobre esa lámina"
                                     className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
-                                    {progress !== null ? <><Loader2 size={12} className="animate-spin" /> {Math.round(progress * 100)}%</> : <><Upload size={12} /> Nueva versión</>}
+                                    {progress !== null ? <><Loader2 size={12} className="animate-spin" /> {Math.round(progress * 100)}%</> : <><Upload size={12} /> Nueva versión de todo</>}
                                 </button>
                             )}
                             {!client && versionOpen && (
@@ -554,10 +554,10 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 </>
                             )}
                             {!client && (
-                                <button disabled={busy} title="Borrar la entrega"
-                                    onClick={async () => { if (await ask({ title: `¿Borrar «${current.title}»?`, body: "Se borran también sus comentarios. No se puede deshacer.", confirm: "Borrar", danger: true })) run(async () => { await deleteDelivery(current.id); open(null); await refreshList(); }); }}
-                                    className="w-8 h-8 flex items-center justify-center text-fg-faint hover:text-[var(--color-error)] cursor-pointer">
-                                    <Trash2 size={13} />
+                                <button disabled={busy} title="Borra la entrega entera: todas sus láminas, versiones y comentarios"
+                                    onClick={async () => { if (await ask({ title: `¿Borrar la entrega entera «${current.title}»?`, body: `Se borran sus ${total} ${total === 1 ? "lámina" : "láminas"}${current.round > 1 ? `, sus ${current.round} versiones` : ""} y todos los comentarios. El proyecto no se toca. No se puede deshacer. (Para sacar una sola imagen, usá el tachito que aparece sobre esa lámina.)`, confirm: "Borrar la entrega", danger: true })) run(async () => { await deleteDelivery(current.id); open(null); await refreshList(); }); }}
+                                    className="h-8 px-2.5 flex items-center gap-1.5 text-[12px] text-fg-faint hover:text-[var(--color-error)] cursor-pointer">
+                                    <Trash2 size={12} /> Borrar entrega
                                 </button>
                             )}
                             </div>
@@ -628,8 +628,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                         </button>
                                                     )}
                                                     {!client && total > 1 && (
-                                                        <button disabled={busy} title="Sacar esta lámina de la entrega" aria-label={`Sacar la lámina ${i + 1}`}
-                                                            onClick={async () => { if (await ask({ title: `¿Sacar la lámina ${String(i + 1).padStart(2, "0")}?`, body: "Sale de esta versión de la entrega. Sus comentarios quedan en el historial.", confirm: "Sacar", danger: true })) run(async () => { setCurrent(await deleteDeliveryItem(current.id, it.id)); await refreshList(); }); }}
+                                                        <button disabled={busy} title="Sacar sólo esta lámina (la entrega sigue con las demás)" aria-label={`Sacar la lámina ${i + 1}`}
+                                                            onClick={async () => { if (await ask({ title: `¿Sacar sólo la lámina ${String(i + 1).padStart(2, "0")}?`, body: `La entrega sigue con las otras ${total - 1} ${total - 1 === 1 ? "lámina" : "láminas"}. Sus comentarios quedan en el historial.`, confirm: "Sacar esta lámina", danger: true })) run(async () => { setCurrent(await deleteDeliveryItem(current.id, it.id)); await refreshList(); }); }}
                                                             className="absolute top-2.5 left-2.5 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer">
                                                             <Trash2 size={12} />
                                                         </button>
