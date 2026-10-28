@@ -23,7 +23,9 @@ Ideas leídas: linea-base-antes-de-intervenir, criterio-y-regla
    la vista del cliente) y la puerta con piezas reales; el inicio de /estudio va en coevo-web (aviso dejado).
 6. **De NORA, en orden:** O.12 números de Coevo (a la primera, costo por pieza, volumen) → M.13 reglas de marca que se
    chequean solas → O.6 publicar y medir (Postiz). Ver `docs/negocio/que-es-coevo-studio.md`.
-7. Notas de reunión automáticas → Notion → Studio (falta saber plan de Notion y si las reuniones son por Meet o Zoom).
+7. **De la reunión del 28/10** (`docs/negocio/reuniones/2026-10-28-estrategia.md`): Studio cómodo en celular; versiones
+   anteriores en grande en Entregas; onboarding de cliente (qué pedimos, qué respondemos); Studio integral, no sólo moda.
+8. Notas de reunión automáticas → Notion → Studio (falta saber plan de Notion y si las reuniones son por Meet o Zoom).
 
 ## Usa de otros / les da
 - Usa: `coevo-skills` (sistema de trabajo, skills), Claude Design (design systems), `morph-site` (fuentes y manual de Morph).
