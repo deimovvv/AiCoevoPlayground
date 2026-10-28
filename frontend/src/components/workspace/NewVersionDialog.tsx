@@ -6,8 +6,10 @@ import { Film, Loader2, Upload, X } from "lucide-react";
  * sueltan, con vista previa), 2) qué cambiaron (lo ve el cliente), 3) subir. Antes el selector de archivos
  * se abría solo y después aparecía un cartel pidiendo un comentario: no se entendía qué se estaba subiendo.
  */
-export function NewVersionDialog({ round, onClose, onSubmit, progress }: {
+export function NewVersionDialog({ round, lamina, onClose, onSubmit, progress }: {
     round: number;
+    /** Versión de una sola lámina («04»): se sube un archivo y las demás quedan como están. */
+    lamina?: string;
     onClose: () => void;
     onSubmit: (files: File[], note: string) => Promise<void>;
     progress: number | null;
@@ -21,6 +23,7 @@ export function NewVersionDialog({ round, onClose, onSubmit, progress }: {
 
     const add = (list: FileList | null) => {
         const fs = Array.from(list || []).filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"));
+        if (lamina) { if (fs[0]) setFiles([fs[0]]); return; }
         setFiles((cur) => [...cur, ...fs].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })));
     };
     const previews = useMemo(() => files.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : null)), [files]);
@@ -37,22 +40,24 @@ export function NewVersionDialog({ round, onClose, onSubmit, progress }: {
             <div className="relative w-full max-w-[560px] max-h-[90vh] overflow-y-auto rounded-[6px] border border-edge bg-[var(--color-canvas)] shadow-[var(--shadow-modal)] p-6 flex flex-col gap-5">
                 <div className="flex items-start gap-3">
                     <div className="flex-1">
-                        <h2 className="text-[17px] text-fg">Subir la versión {round}</h2>
-                        <p className="mt-1 text-[13px] text-fg-muted">Las láminas nuevas reemplazan a las actuales. La versión anterior queda para que el cliente compare.</p>
+                        <h2 className="text-[17px] text-fg">{lamina ? `Nueva versión de la lámina ${lamina}` : `Subir la versión ${round}`}</h2>
+                        <p className="mt-1 text-[13px] text-fg-muted">{lamina
+                            ? `Reemplaza sólo esta lámina; las demás pasan iguales a la versión ${round}. La anterior queda para que el cliente compare.`
+                            : "Las láminas nuevas reemplazan a las actuales. La versión anterior queda para que el cliente compare."}</p>
                     </div>
                     <button onClick={onClose} disabled={busy} aria-label="Cerrar" className="w-8 h-8 flex items-center justify-center text-fg-faint hover:text-fg cursor-pointer"><X size={15} /></button>
                 </div>
 
                 <section className="flex flex-col gap-2">
-                    <p className="text-[12px] text-fg-muted">1 · Las láminas corregidas</p>
+                    <p className="text-[12px] text-fg-muted">1 · {lamina ? "La lámina corregida" : "Las láminas corregidas"}</p>
                     <button type="button" onClick={() => ref.current?.click()} disabled={busy}
                         onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
                         onDrop={(e) => { e.preventDefault(); setOver(false); add(e.dataTransfer.files); }}
                         className={`h-24 rounded-[4px] border border-dashed flex flex-col items-center justify-center gap-1 text-[13px] cursor-pointer transition-colors ${over ? "border-fg bg-[var(--color-surface-2)] text-fg" : "border-[var(--color-edge-strong)] text-fg-muted hover:text-fg hover:border-fg"}`}>
-                        <Upload size={16} /> {files.length ? "Sumar más" : "Elegí o soltá las imágenes / videos"}
-                        <span className="text-[11px] text-fg-faint">Van en el orden del nombre del archivo (01, 02…)</span>
+                        <Upload size={16} /> {lamina ? (files.length ? "Elegir otra" : "Elegí o soltá la imagen / video") : files.length ? "Sumar más" : "Elegí o soltá las imágenes / videos"}
+                        {!lamina && <span className="text-[11px] text-fg-faint">Van en el orden del nombre del archivo (01, 02…)</span>}
                     </button>
-                    <input ref={ref} type="file" multiple hidden accept="image/*,video/*" onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
+                    <input ref={ref} type="file" multiple={!lamina} hidden accept="image/*,video/*" onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
                     {files.length > 0 && (
                         <div className="flex gap-2 overflow-x-auto pb-1">
                             {files.map((f, i) => (
@@ -60,7 +65,7 @@ export function NewVersionDialog({ round, onClose, onSubmit, progress }: {
                                     <span className="block w-20 h-24 rounded-[3px] overflow-hidden bg-[var(--color-surface-2)] flex items-center justify-center">
                                         {previews[i] ? <img src={previews[i]!} alt="" className="w-full h-full object-cover" /> : <Film size={16} className="text-fg-muted" />}
                                     </span>
-                                    <figcaption className="mt-1 text-[10px] text-fg-faint truncate">{String(i + 1).padStart(2, "0")} · {f.name}</figcaption>
+                                    <figcaption className="mt-1 text-[10px] text-fg-faint truncate">{lamina ?? String(i + 1).padStart(2, "0")} · {f.name}</figcaption>
                                     {!busy && (
                                         <button onClick={() => setFiles(files.filter((_, j) => j !== i))} aria-label={`Quitar ${f.name}`}
                                             className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer"><X size={10} /></button>
@@ -92,7 +97,7 @@ export function NewVersionDialog({ round, onClose, onSubmit, progress }: {
                     <button onClick={onClose} disabled={busy} className="h-9 px-3 text-[13px] text-fg-muted hover:text-fg cursor-pointer">Cancelar</button>
                     <button onClick={go} disabled={busy || !files.length}
                         className="h-9 px-4 flex items-center gap-1.5 rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] cursor-pointer disabled:opacity-35">
-                        {busy && <Loader2 size={13} className="animate-spin" />} Subir versión {round}
+                        {busy && <Loader2 size={13} className="animate-spin" />} {lamina ? `Subir la lámina ${lamina}` : `Subir versión ${round}`}
                     </button>
                 </div>
             </div>

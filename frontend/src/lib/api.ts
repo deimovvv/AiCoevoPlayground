@@ -3808,6 +3808,8 @@ export async function getTikTokTopVideos(profileUrl: string, limit = 10): Promis
 export type DeliveryStatus = "en_revision" | "cambios" | "aprobada";
 export interface DeliveryItem {
     id: string; url: string; kind: "image" | "video"; label: string; poster?: string | null; rejected?: boolean;
+    /** Versión de una sola lámina: en qué ronda cambió y qué lámina reemplazó (las demás pasaron iguales). */
+    changed?: number; prev?: string;
     /** Copia para ver en el navegador cuando el original no se puede (ej. ProRes con transparencia). */
     preview?: string | null;
 }
@@ -3901,12 +3903,14 @@ export async function createDelivery(brandId: string, title: string, files: File
 }
 
 /** Nueva versión (equipo): reemplaza las láminas; la anterior queda para comparar. `note` = qué cambiamos (lo ve el cliente). */
-export async function newDeliveryRound(id: string, files: File[], note: string, onProgress?: (p: number) => void): Promise<Delivery> {
+/** `replace`: ids de las láminas que cambian (una por archivo); el resto pasa igual a la versión nueva. */
+export async function newDeliveryRound(id: string, files: File[], note: string, onProgress?: (p: number) => void, replace?: string[]): Promise<Delivery> {
     const big = tooBig(files);
     if (big) throw new Error(`«${big.name}» pesa más de ${MAX_UPLOAD_MB} MB: subilo comprimido o mandalo por link.`);
     const form = new FormData();
     files.forEach((f) => form.append("files", f));
     if (note.trim()) form.append("note", note.trim());
+    if (replace?.length) form.append("replace", replace.join("|"));
     return uploadWithProgress(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/round`, form, "No se pudo subir la versión nueva", onProgress);
 }
 /** Sumar láminas a la ronda actual (equipo): otra imagen al lado, o la versión corregida de una. */

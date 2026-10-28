@@ -127,6 +127,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const fileRef = useRef<HTMLInputElement>(null);
     const addRef = useRef<HTMLInputElement>(null);   // «Sumar láminas» a la entrega abierta
     const [versionOpen, setVersionOpen] = useState(false); // «Nueva versión»: panel con láminas + qué cambiaron
+    const [versionItem, setVersionItem] = useState<string | null>(null); // la lámina a reemplazar sola (null = todas)
     const [showPrev, setShowPrev] = useState(false);
     // Equipo: el comentario nuevo lo ve el cliente o queda entre el equipo. Por defecto: si la entrega ya se mandó, lo ve.
     const [forClient, setForClient] = useState<boolean | null>(null);
@@ -148,7 +149,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     }, [client, brandId]);
 
     const open = useCallback((id: string | null) => {
-        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false); setZoom(undefined); setSlideZoom(1); setShowPrev(false); setOldSlide(null);
+        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false); setZoom(undefined); setSlideZoom(1); setShowPrev(false); setOldSlide(null); setVersionItem(null);
         setParams(id ? { id } : {}, { replace: true });
     }, [setParams]);
 
@@ -212,6 +213,10 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
+    }, [slide, total]);
+    // Una versión nueva puede tener menos láminas: si la abierta ya no existe, ir a la última.
+    useEffect(() => {
+        if (slide !== null && slide >= total) setSlide(total ? total - 1 : null);
     }, [slide, total]);
 
     if (!activeBrand) {
@@ -518,19 +523,20 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 </>
                             )}
                             {!client && (
-                                <button disabled={busy} onClick={() => setVersionOpen(true)}
+                                <button disabled={busy} onClick={() => { setVersionItem(null); setVersionOpen(true); }}
                                     title="Subí las láminas corregidas: reemplazan a las actuales y la versión anterior queda para comparar"
                                     className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
                                     {progress !== null ? <><Loader2 size={12} className="animate-spin" /> {Math.round(progress * 100)}%</> : <><Upload size={12} /> Nueva versión</>}
                                 </button>
                             )}
                             {!client && versionOpen && (
-                                <NewVersionDialog round={current.round + 1} progress={progress} onClose={() => setVersionOpen(false)}
+                                <NewVersionDialog round={current.round + 1} progress={progress} onClose={() => { setVersionOpen(false); setVersionItem(null); }}
+                                    lamina={versionItem ? String(current.items.findIndex((x) => x.id === versionItem) + 1).padStart(2, "0") : undefined}
                                     onSubmit={async (fs, note) => {
                                         setProgress(0);
                                         let d;
-                                        try { d = await newDeliveryRound(current.id, fs, note, setProgress); } finally { setProgress(null); }
-                                        setVersionOpen(false);
+                                        try { d = await newDeliveryRound(current.id, fs, note, setProgress, versionItem ? [versionItem] : undefined); } finally { setProgress(null); }
+                                        setVersionOpen(false); setVersionItem(null);
                                         setCurrent(d); await refreshList();
                                         if (await ask({ title: `¿Mandar la versión ${d.round} al cliente?`, body: "Le llega a revisar, con lo que cambiaron. Si preferís revisarla antes, después usás «Mandar al cliente».", confirm: "Mandar", cancel: "Después" })) {
                                             run(async () => { await sendDelivery(d.id); await reload(d.id); });
@@ -563,11 +569,14 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             <div className="md:flex-1 min-w-0 md:overflow-auto bg-[var(--color-canvas)] flex flex-col">
                                 {showPrev && current.history?.length ? (() => {
                                     const prev = current.history[current.history.length - 1];
+                                    // Si sólo cambiaron algunas láminas, se comparan esas (con su número de siempre).
+                                    const replaced = new Set(current.items.filter((x) => x.changed === current.round && x.prev).map((x) => x.prev!));
+                                    const before = prev.items.map((it, i) => ({ it, i })).filter(({ it }) => !replaced.size || replaced.has(it.id));
                                     return (
                                         <div className="px-4 md:px-6 pt-5 pb-4 border-b border-edge bg-[var(--color-surface-1)]">
                                             <p className="text-[11px] text-fg-faint mb-2.5">Versión {prev.round} · antes{prev.note ? ` · ${prev.note}` : ""}</p>
                                             <div className="flex gap-2.5 overflow-x-auto">
-                                                {prev.items.map((it, i) => (
+                                                {before.map(({ it, i }) => (
                                                     <figure key={it.id} className="shrink-0">
                                                         {it.kind === "video"
                                                             ? <video src={backendUrl(it.preview || it.url)} poster={it.poster ? backendUrl(it.poster) : undefined} muted controls className="h-[26vh] w-auto rounded-[var(--radius-xs)] opacity-80" />
@@ -576,7 +585,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                     </figure>
                                                 ))}
                                             </div>
-                                            <p className="text-[11px] text-fg-muted mt-2.5">Abajo, la versión {current.round}: la nueva.</p>
+                                            <p className="text-[11px] text-fg-muted mt-2.5">Abajo, la versión {current.round}: la nueva{replaced.size ? ` (las demás láminas no cambiaron)` : ""}.</p>
                                         </div>
                                     );
                                 })() : null}
@@ -611,6 +620,13 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                             </span>
                                                         ))}
                                                     </button>
+                                                    {!client && !it.rejected && (
+                                                        <button disabled={busy} title="Nueva versión de esta lámina: las demás quedan como están" aria-label={`Nueva versión de la lámina ${i + 1}`}
+                                                            onClick={() => { setVersionItem(it.id); setVersionOpen(true); }}
+                                                            className={`absolute top-2.5 ${total > 1 ? "left-11" : "left-2.5"} w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer`}>
+                                                            <Upload size={12} />
+                                                        </button>
+                                                    )}
                                                     {!client && total > 1 && (
                                                         <button disabled={busy} title="Sacar esta lámina de la entrega" aria-label={`Sacar la lámina ${i + 1}`}
                                                             onClick={async () => { if (await ask({ title: `¿Sacar la lámina ${String(i + 1).padStart(2, "0")}?`, body: "Sale de esta versión de la entrega. Sus comentarios quedan en el historial.", confirm: "Sacar", danger: true })) run(async () => { setCurrent(await deleteDeliveryItem(current.id, it.id)); await refreshList(); }); }}
@@ -631,6 +647,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                         <span className="tabular-nums">{String(i + 1).padStart(2, "0")}</span> {it.label !== String(i + 1).padStart(2, "0") && it.label}
                                                         {pins.length > 0 && <span className="text-[var(--color-brand)]">· {pins.length}</span>}
                                                         {it.rejected && <span className="text-fg-muted">· {client ? "no va" : "el cliente la sacó"}</span>}
+                                                        {it.changed === current.round && current.round > 1 && <span className="text-fg">· nueva</span>}
                                                     </p>
                                                 </div>
                                             );
@@ -754,7 +771,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                         ) : (
                             /* ── Vista 2: una lámina grande + sus comentarios ── */
                             (() => {
-                                const it = current.items[slide];
+                                const it = current.items[Math.min(slide, total - 1)];
+                                if (!it) return null;
                                 const here = comments.filter((c) => c.itemId === it.id);
                                 const general = comments.filter((c) => !c.itemId);
                                 return (
@@ -762,6 +780,12 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         <div className="md:flex-1 min-w-0 md:min-h-0 flex flex-col bg-[var(--color-canvas)]">
                                             <div className="px-4 md:px-6 py-3 flex items-center gap-3 text-[12px]">
                                                 <button onClick={() => { setSlide(null); setDraft(null); setSlideZoom(1); }} className="text-fg-muted hover:text-fg cursor-pointer">← Toda la pieza</button>
+                                                {!client && (
+                                                    <button disabled={busy} onClick={() => { setVersionItem(it.id); setVersionOpen(true); }}
+                                                        title="Las demás láminas quedan como están" className="flex items-center gap-1 text-fg-muted hover:text-fg cursor-pointer">
+                                                        <Upload size={12} /> Nueva versión de esta lámina
+                                                    </button>
+                                                )}
                                                 {it.preview && (
                                                     <a href={backendUrl(it.url)} download title="Lo que se ve es una copia sobre cuadritos para el navegador; el original conserva la transparencia"
                                                         className="text-fg-faint hover:text-fg no-underline">Bajar el original (con transparencia)</a>

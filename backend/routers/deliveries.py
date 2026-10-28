@@ -353,25 +353,43 @@ async def send_to_client(delivery_id: str, s: AsyncSession = Depends(get_session
 async def new_round(
     delivery_id: str, request: Request,
     note: Optional[str] = Form(None), labels: Optional[str] = Form(None),
+    replace: Optional[str] = Form(None),
     files: List[UploadFile] = File(...), source: Optional[UploadFile] = File(None),
     s: AsyncSession = Depends(get_session),
 ):
     """Nueva versión de las láminas (después de aplicar comentarios). Vuelve a 'en revisión'.
-    Las láminas viejas quedan en disco: los comentarios de la ronda anterior siguen apuntando ahí."""
+    Las láminas viejas quedan en disco: los comentarios de la ronda anterior siguen apuntando ahí.
+    Con `replace` (ids separados por «|», uno por archivo) sólo cambian esas láminas, en su lugar;
+    las demás pasan iguales a la versión nueva (Keila, 2026-10-28: corregir una de un editorial de varias)."""
     d = await _get(s, delivery_id)
+    ids = [x for x in (replace or "").split("|") if x]
+    if ids:
+        current_ids = {i["id"] for i in (d.items or [])}
+        if len(ids) != len(files) or not set(ids) <= current_ids:
+            raise HTTPException(status_code=400, detail="Una lámina nueva por cada lámina a reemplazar")
     nxt = d.round + 1
     # La versión que se reemplaza queda en el historial (sin las marcas de «esta no»), para comparar.
     prev = {"round": d.round, "items": [{k: v for k, v in i.items() if k != "rejected"} for i in (d.items or [])],
             "note": d.note, "sentAt": _iso(d.sent_at), "at": datetime.now(timezone.utc).isoformat()}
     d.history = [*(d.history or []), prev]
-    items = await _store_items(d.id, nxt, files, (labels or "").split("|"))
+    if ids:
+        old = {i["id"]: i for i in (d.items or [])}
+        new = await _store_items(d.id, nxt, files, [old[x].get("label", "") for x in ids])
+        by_old = {x: {**n, "prev": x, "changed": nxt} for x, n in zip(ids, new)}
+        items = [by_old.get(i["id"]) or {k: v for k, v in i.items() if k not in ("changed", "prev")} for i in (d.items or [])]
+    else:
+        items = await _store_items(d.id, nxt, files, (labels or "").split("|"))
     if source and source.filename:
         st = await _store(d.id, nxt, source, SOURCE_EXT)
         d.source = {"url": st["url"], "name": st["name"]}
     d.items, d.round, d.status = items, nxt, "en_revision"
     if note and note.strip():
         # «Qué cambiamos»: un comentario de Coevo que el cliente ve junto a la versión nueva.
-        c = DeliveryComment(delivery_id=d.id, text=f"Versión {nxt}: {note.strip()}"[:4000], author=_who(request),
+        which = ""
+        if ids:
+            pos = [str(k + 1).zfill(2) for k, i in enumerate(items) if i.get("changed") == nxt]
+            which = f", lámina {', '.join(pos)}" if len(pos) < len(items) else ""
+        c = DeliveryComment(delivery_id=d.id, text=f"Versión {nxt}{which}: {note.strip()}"[:4000], author=_who(request),
                             round=nxt, internal=False)
         c.id = f"dc_{uuid.uuid4().hex[:12]}"
         s.add(c)
