@@ -85,6 +85,27 @@ skill (coevo-skills)  ── se repite 3 veces ──▶  Coevo Studio (la app) 
   (transporte, salud, loteos, seguros, herramientas, climatización, casas) sirven para buscar el par argentino
   (aviso en `coevo-web/ESTADO.md`).
 
+## Studio para el equipo y para otras agencias (propuesta, 2026-10-28)
+
+Gonzalo: *"¿a una empresa de publicidad le deberíamos pasar las skills? ¿Las empresas o parte de mi equipo
+deberían pasar todas las skills? ¿Cómo sería el formato?"* La reunión del 28/10 ya lo dejó abierto
+(Cáscara, Team 23).
+
+Las skills son texto en markdown: se copian en un minuto, así que solas no son lo que vale. Lo que vale es
+**el conjunto**: las skills + el portal + la memoria de cada marca + el criterio que se acumula (reglas,
+recetas, lo aprobado y lo rechazado) + que alguien las mantenga cuando cambian los modelos.
+
+| Para quién | Qué recibe | Cómo cobra | Qué no recibe |
+|---|---|---|---|
+| **El equipo de Coevo** (Facu, quien se sume) | Todas las skills con `install.sh`, acceso a Studio con su rol, las claves de Coevo en su compu | — | — |
+| **Una agencia socia** (opera a sus clientes) | Su propio espacio en Studio (sus marcas, su portal para sus clientes), el paquete de skills de producción instalado y actualizado, una capacitación | Setup + mensual por la plataforma (y por marca activa, a definir) | El criterio y las marcas de Coevo; las skills de estrategia propias; las claves (usan las suyas) |
+| **Una marca que quiere su propio sistema** (la línea de sistemas) | El motor armado para su marca, en su cuenta | Setup + mantenimiento | Las marcas de otros |
+| **El cliente de Studio** | Sólo el portal: marca, entregas, reportes | El plan | Las skills: nunca las ve |
+
+Lo que falta para la fila de agencias: Studio todavía tiene **un solo espacio** (todas las marcas de Coevo
+juntas). Una agencia necesita el suyo, con sus usuarios y sus claves, sin ver lo nuestro. Es trabajo de base
+(roles y espacios, `infra-v1` / studio-v2 §1); no conviene prometerlo antes de tener 2 o 3 clientes propios andando.
+
 ## Lo que hay que decidir
 
 1. **Pauta:** ¿fee fijo desde USD 400, o fijo + porcentaje arriba de cierta inversión? ¿Qué canales primero (Meta solo)?
@@ -92,3 +113,4 @@ skill (coevo-skills)  ── se repite 3 veces ──▶  Coevo Studio (la app) 
 3. **GA4 en Completo o en todos:** si la marca tiene web, medirla es barato y hace más creíble el reporte.
 4. **Exclusividad por rubro y zona** (NORA la ofrece): ¿la damos? Sirve para vender, pero limita la cartera.
 5. **Qué marca propia prueba la pauta primero.**
+6. **Agencias:** ¿se ofrece ya, o después de tener 2 o 3 clientes propios? ¿Quién sería la primera?

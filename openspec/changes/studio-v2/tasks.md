@@ -42,6 +42,14 @@
       leen antes de generar. Chequeo en dos tiempos: (1) antes de gastar, el pedido/prompt contra las reglas (texto, gratis); (2) después,
       el texto de la pieza (OCR con Gemini) contra las reglas, como aviso en Entregas, no bloqueo. Arrancar con 2–3 marcas reales.
   circuito completo + videos cortos (skill explicar-herramienta) cuando las pantallas estén quietas.
+- [ ] M.14 Marca: primero lo que **es** la marca, después las imágenes (Gonzalo, 2026-10-28: «ves como pura otras imágenes»).
+      Hoy 4 de 5 bloques de la derecha son grillas de fotos y «Quién es» queda en un cuadro chico; con una concesionaria o una
+      clínica se ve peor, y los nombres son de moda («prendas», «Poses de catálogo»). Propuesta: (1) arriba, en texto, Quién es ·
+      Cómo habla (tono, siempre/nunca) · Reglas (M.13) · Objetivos y línea base; (2) las imágenes juntas en un bloque «Cómo se ve»
+      más chico, con «ver todo»; (3) «Catálogo» → «Productos o servicios»; (4) el «3 de 6» pasa a ser **la lista del arranque**
+      (`docs/negocio/onboarding-cliente.md`: identidad, reglas, productos, persona, quién aprueba, accesos, línea base, pilotos),
+      el cliente ve lo suyo. Antes de diseñar: mirar 2–3 referencias (Frontify, Brandfolder, páginas de marca de Notion).
+      Va con la rama de UX de Facu.
 - [ ] M.7 Catálogo desde una carpeta de Drive compartida (necesita habilitar la API de Drive en el proyecto de Google de Coevo).
 - [ ] M.8 Curar la memoria: de dónde vino cada imagen (web, Instagram, cliente, Coevo) y para qué la usa Claude en cada bloque.
 

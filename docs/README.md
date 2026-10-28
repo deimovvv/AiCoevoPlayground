@@ -47,6 +47,7 @@ tokens: `frontend/src/index.css`.
 | Doc | Qué es |
 |---|---|
 | [que-es-coevo-studio.md](negocio/que-es-coevo-studio.md) | qué es Studio y cómo se presenta (resultado · portal · motor) |
+| [onboarding-cliente.md](negocio/onboarding-cliente.md) | el onboarding de un cliente: etapas, qué le pedimos, qué le respondemos, la lista del arranque (propuesta) |
 | [modelo-de-negocio.md](negocio/modelo-de-negocio.md) | pauta como módulo, medición por plan, recorrido de venta y cómo se conecta cada línea (propuesta) |
 | [market-positioning.md](negocio/market-positioning.md) | nicho: video × español × calce |
 | [competitive-research.md](negocio/competitive-research.md) · [rumbo-2026-2028.md](negocio/rumbo-2026-2028.md) · [estrategia-motor.md](negocio/estrategia-motor.md) | competidores verificados |

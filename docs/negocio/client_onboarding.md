@@ -1,5 +1,8 @@
 # Onboarding de Cliente — Coevo Studio
 
+> **Reemplazada el 2026-10-28 por [onboarding-cliente.md](onboarding-cliente.md)** (el proceso con el cliente). Esto queda como
+> referencia de qué cargar en las tools viejas (UGC, avatar, voz).
+
 Guía interna para vos: qué pedirle a un cliente nuevo para tener su marca 100% cargada en Coevo y poder generar contenido sin fricción.
 
 Está organizado en **tiers**: lo mínimo para arrancar, lo que sube la calidad, y lo que desbloquea features avanzados. Si el cliente solo te da el Tier 1, ya podés generar UGCs decentes — los tiers superiores son para que el contenido se sienta cada vez más "de él".
