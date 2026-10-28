@@ -439,6 +439,24 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         <span className="text-fg-muted">Qué cambiamos: </span>{current.note}
                                     </p>
                                 )}
+                                {(() => {
+                                    // Cambió sólo una parte: decir cuáles, y que se pueda ir directo a cada una.
+                                    const changed = current.items.map((x, i) => ({ x, i })).filter(({ x }) => x.changed === current.round);
+                                    if (current.round < 2 || !changed.length || changed.length === total) return null;
+                                    return (
+                                        <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[12px] text-fg-muted">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-brand)]" />
+                                            {changed.length === 1 ? "Cambió la lámina" : "Cambiaron las láminas"}
+                                            {changed.map(({ i }) => (
+                                                <button key={i} onClick={() => { setSlide(i); setDraft(null); }}
+                                                    className="h-5 px-1.5 rounded-[3px] border border-[var(--color-brand)] text-fg tabular-nums cursor-pointer hover:bg-[var(--color-surface-2)]">
+                                                    {String(i + 1).padStart(2, "0")}
+                                                </button>
+                                            ))}
+                                            <span className="text-fg-faint">· las demás quedaron igual</span>
+                                        </p>
+                                    );
+                                })()}
                                 <p className="text-[11px] text-fg-faint mt-0.5 flex items-center gap-1.5">
                                     <span className={`w-1.5 h-1.5 rounded-full ${current.visibility === "interna" && !client ? "bg-[var(--color-edge-strong)]" : DOT[current.status]}`} />
                                     {stateLabel(current, mode)}
@@ -594,7 +612,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     {/* Celular: láminas que se deslizan. Escritorio: todas en una fila. */}
                                     {/* Cada pieza usa el lugar que hay: alto hasta ~2/3 de la pantalla, ancho repartido. */}
                                     <div className={`w-full flex gap-3 ${total > 3 ? "md:gap-2.5" : "md:gap-5"} items-center overflow-x-auto snap-x px-4 ${zoom ? "md:justify-start md:pb-3" : "md:justify-center md:overflow-visible md:px-0"}`}>
-                                        {current.items.map((it, i) => ({ it, i })).sort((a, b) => Number(!!b.it.rejected) - Number(!!a.it.rejected)).map(({ it, i }, k, arr) => {
+                                        {(() => { const changed = current.items.filter((x) => x.changed === current.round).length; return current.items.map((it, i) => ({ it, i })).sort((a, b) => Number(!!b.it.rejected) - Number(!!a.it.rejected)).map(({ it, i }, k, arr) => {
                                             const pins = comments.filter((c) => c.itemId === it.id && c.round === current.round && c.x != null && !c.resolvedAt);
                                             // El círculo: el cliente eligiendo, o una lámina que ya sacó (el equipo la ve marcada).
                                             const canPick = client && current.status !== "aprobada" && total > 1;
@@ -612,6 +630,14 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                                 <span className="absolute left-2 bottom-2 px-1.5 py-0.5 rounded-[2px] bg-black/60 text-white font-mono text-[9px] uppercase tracking-[0.08em]">Video ▶</span>
                                                             </span>
                                                             : <img src={backendUrl(it.url)} alt={it.label} draggable={false} style={it.rejected ? { maxHeight: "24vh" } : zoom ? ({ "--z": `${zoom}vh` } as React.CSSProperties) : undefined} className={`block w-full md:w-auto md:max-w-full h-auto max-h-[66vh] ${zoom ? "md:max-h-[var(--z)]" : ""} rounded-[var(--radius-xs)] bg-surface-1 shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition-transform group-hover:-translate-y-0.5`} />}
+                                                        {it.changed === current.round && current.round > 1 && changed < total && (
+                                                            <>
+                                                                <span aria-hidden className="lamina-nueva pointer-events-none absolute inset-0 rounded-[var(--radius-xs)] ring-2 ring-[var(--color-brand)]" />
+                                                                <span className="absolute left-2.5 bottom-2.5 px-2 py-0.5 rounded-full bg-[var(--color-brand)] text-white text-[11px] font-medium shadow-[0_2px_8px_rgba(0,0,0,0.35)]">
+                                                                    Nueva · versión {current.round}
+                                                                </span>
+                                                            </>
+                                                        )}
                                                         {pins.map((c) => (
                                                             <span key={c.id} style={{ left: `${c.x! * 100}%`, top: `${c.y! * 100}%`, background: personColor(c.author) }}
                                                                 className="group/pin absolute -translate-x-1/2 -translate-y-1/2 w-4 h-4 hover:scale-125 transition-transform rounded-full flex items-center justify-center text-[9px] font-medium text-white ring-2 ring-white/70 z-10">
@@ -647,11 +673,10 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                         <span className="tabular-nums">{String(i + 1).padStart(2, "0")}</span> {it.label !== String(i + 1).padStart(2, "0") && it.label}
                                                         {pins.length > 0 && <span className="text-[var(--color-brand)]">· {pins.length}</span>}
                                                         {it.rejected && <span className="text-fg-muted">· {client ? "no va" : "el cliente la sacó"}</span>}
-                                                        {it.changed === current.round && current.round > 1 && <span className="text-fg">· nueva</span>}
                                                     </p>
                                                 </div>
                                             );
-                                        })}
+                                        }); })()}
                                         {!client && (
                                             <button disabled={busy} onClick={() => addRef.current?.click()} title="Sumar otra lámina a esta misma versión. Para una corrección, usá «Nueva versión»"
                                                 className="shrink-0 self-stretch w-[110px] md:w-[130px] min-h-[180px] rounded-[var(--radius-xs)] border border-dashed border-[var(--color-edge-strong)] flex flex-col items-center justify-center gap-1.5 text-[12px] text-fg-muted hover:text-fg hover:border-fg cursor-pointer disabled:opacity-50">
@@ -780,6 +805,19 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         <div className="md:flex-1 min-w-0 md:min-h-0 flex flex-col bg-[var(--color-canvas)]">
                                             <div className="px-4 md:px-6 py-3 flex items-center gap-3 text-[12px]">
                                                 <button onClick={() => { setSlide(null); setDraft(null); setSlideZoom(1); }} className="text-fg-muted hover:text-fg cursor-pointer">← Toda la pieza</button>
+                                                {it.changed === current.round && current.round > 1 && it.prev && (() => {
+                                                    // La lámina que reemplazó: la señal y cómo era antes, al lado.
+                                                    const h = current.history?.[current.history.length - 1];
+                                                    const k = h?.items.findIndex((x) => x.id === it.prev) ?? -1;
+                                                    const was = h && k >= 0 ? h.items[k] : null;
+                                                    return (
+                                                        <span className="flex items-center gap-2">
+                                                            <span className="px-2 py-0.5 rounded-full bg-[var(--color-brand)] text-white text-[11px] font-medium">Nueva · versión {current.round}</span>
+                                                            {was && <button onClick={() => setOldSlide({ itemId: was.id, url: was.poster || was.url, kind: was.kind, round: h!.round, n: k + 1 })}
+                                                                className="text-fg-muted hover:text-fg cursor-pointer">Ver cómo era antes</button>}
+                                                        </span>
+                                                    );
+                                                })()}
                                                 {!client && (
                                                     <button disabled={busy} onClick={() => { setVersionItem(it.id); setVersionOpen(true); }}
                                                         title="Las demás láminas quedan como están" className="flex items-center gap-1 text-fg-muted hover:text-fg cursor-pointer">

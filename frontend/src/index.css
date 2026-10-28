@@ -981,3 +981,11 @@ select option {
   background-color: #1a1a1a;
   color: #e8e8e8;
 }
+
+/* Entregas: la lámina que cambió en esta versión late tres veces al abrir (el cliente tiene que darse cuenta). */
+@keyframes lamina-nueva {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-brand) 55%, transparent); }
+  100% { box-shadow: 0 0 0 16px transparent; }
+}
+.lamina-nueva { animation: lamina-nueva 1.4s ease-out 0.4s 3; }
+@media (prefers-reduced-motion: reduce) { .lamina-nueva { animation: none; } }
