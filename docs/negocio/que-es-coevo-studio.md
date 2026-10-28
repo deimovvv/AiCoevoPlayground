@@ -3,6 +3,7 @@
 > Pregunta de Gonzalo con Facu: *"antes de ponerle tiempo-cabeza a la estética, ¿qué es Coevo Studio,
 > qué ofrece concretamente? Ser un Flora más no tiene diferencial."* Facu: *"me gusta la idea de PORTAL
 > para administración de los proyectos junto al cliente: da seriedad y orden."*
+> Cómo se cobra y se vende (pauta, medición por plan, recorrido): [modelo-de-negocio.md](modelo-de-negocio.md).
 > Base: [estrategia-motor.md](estrategia-motor.md) (2026-10-16) y competitive-research.md § Flora y § Curva.
 
 ## En una frase
