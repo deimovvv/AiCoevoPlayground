@@ -134,5 +134,10 @@
 - [ ] 4.5 Drive del cliente: una carpeta general por marca (la pone el cliente, nos da permiso de edición); al aprobar una pieza,
       Studio crea solo `Proyecto / Etapa / vN` y copia el original. Un sentido: Studio → Drive. Verificar antes: API de Drive en el
       proyecto de Google de Coevo (sirve también para M.7) y de quién es el espacio que ocupan los archivos subidos.
+      Decidido con Gonzalo (2026-10-29): **el Drive del cliente** por defecto; un Drive de Coevo sólo para quien no tenga
+      (y se le pasa al terminar). Botón «Pasar a Drive» por proyecto entero (Proyecto / Etapa / vN), además de lo automático.
+- [ ] 4.6 Referencia en un comentario (Gonzalo, 2026-10-29): el cliente adjunta una imagen al comentar una lámina («así, como
+      esta»). Se guarda con el comentario, se ve en «Lo que pidieron» y `ver_entrega` / `ver_notas_cliente` la devuelven, para
+      que la skill la use en la versión siguiente. Es la observación como dato (biblioteca `ideas/la-observacion-es-dato.md`).
 - [ ] 4.1 Entregas por marca: estado, comentarios, aprobación (reusa notas del portal).
 - [ ] 4.2 Migrar clientes del portal por link a cuentas; apagar el portal.
