@@ -29,6 +29,7 @@ El estado de cada doc (vigente, desactualizado, a archivar) está en
 ## Producto y specs
 | Doc | Qué es |
 |---|---|
+| [operacion.md](producto/operacion.md) | **borrador**: formatos que ofrecemos vs skills que los hacen, y el día a día de quien opera una marca |
 | [workspace-template.md](producto/workspace-template.md) | el patrón de pantalla compartido (controles · selector · canvas) |
 | [tools-audit.md](producto/tools-audit.md) | qué tools se justifican, contra el criterio "pipeline con aprobaciones" |
 | [fashion-reel-recipes.md](producto/fashion-reel-recipes.md) | recetas de formato derivadas de video real (propuesta, UI hecha) |
