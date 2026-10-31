@@ -234,7 +234,7 @@ async def _fetch_image_bytes(url: str) -> tuple[bytes, str]:
 # conviene el modelo fuerte aunque cueste mas. El modelo concreto lo decide llm_router
 # via TASK_WRITE_PROMPT y es configurable por env (LLM_WRITE_PROMPT_MODEL).
 # Se mantiene el nombre por compatibilidad; ya no fija proveedor.
-ENHANCE_MODEL = "gemini-3.1-pro-preview"
+ENHANCE_MODEL = "pro"   # marcador: el modelo lo decide llm_router (TASK_WRITE_PROMPT)
 
 
 def _split_interpretation(raw: str) -> tuple[str, str]:

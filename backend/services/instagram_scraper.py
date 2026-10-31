@@ -24,7 +24,7 @@ from typing import Optional
 
 
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
-GEMINI_MODEL = "gemini-2.5-flash"
+# El modelo lo decide llm_router.gemini_model().
 
 
 # ── Local image cache (avoids CORS issues + keeps a copy) ──────
@@ -285,8 +285,8 @@ async def analyze_carousel_for_replication(
 
     async with httpx.AsyncClient(timeout=120) as client:
         res = await client.post(
-            f"{GEMINI_BASE}/{GEMINI_MODEL}:generateContent?key={llm_router.google_key()}",
-            headers={"Content-Type": "application/json"},
+            llm_router.gemini_url(),
+            headers=llm_router.gemini_headers(),
             json=payload,
         )
 

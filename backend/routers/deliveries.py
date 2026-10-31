@@ -638,7 +638,41 @@ async def add_comment(delivery_id: str, req: CommentIn, request: Request, s: Asy
     await s.commit()
     if is_client(request):
         mailer.client_comment(d.id, d.brand_id, d.title, c.author, c.text, await mailer.team_emails(s))
+    if not c.kind:
+        import asyncio
+        asyncio.create_task(_classify_later(c.id, c.text))   # el Aprendizaje cuenta también lo escrito
     return _comment(c)
+
+
+KIND_PROMPT = (
+    "Es un comentario de alguien revisando una pieza de contenido (carrusel, video o imagen) de una marca. "
+    "Clasificá qué tipo de corrección pide, con UNA palabra: texto (el copy), color, encuadre, tono, dato "
+    "(una cifra o hecho), imagen (cambiar la foto o el dibujo) u otro. Si no pide ninguna corrección "
+    "(un elogio, una pregunta), respondé otro. Sólo la palabra.\n\nComentario: "
+)
+
+
+async def _classify_later(comment_id: str, text: str) -> None:
+    """Clasifica un comentario escrito en segundo plano (brand-integrations 4.2), con Gemini de Coevo.
+    Así el Aprendizaje cuenta todo, no sólo las notas de voz. Si falla, queda sin clasificar."""
+    import db
+    from services import llm_router
+    try:
+        raw = await llm_router.call(KIND_PROMPT + text[:1500], task=llm_router.TASK_TEXT, provider="google",
+                                    max_tokens=10, timeout=30)
+        # El primer tipo que aparezca en la respuesta (un modelo de respaldo puede contestar con una frase).
+        m = re.search(r"\b(" + "|".join(sorted(COMMENT_KINDS)) + r")\b", (raw or "").lower())
+        if not m:
+            return
+        kind = m.group(1)
+        db.engine()
+        async with db._sessions() as s:  # type: ignore[misc]
+            c = await s.get(DeliveryComment, comment_id)
+            if c and not c.kind:          # si alguien ya lo clasificó a mano, se respeta
+                c.kind = kind
+                await s.commit()
+    except Exception as e:
+        print(f"[deliveries] no se pudo clasificar {comment_id}: {str(e)[:160]}", flush=True)
 
 
 VOICE_PROMPT = (
@@ -683,6 +717,7 @@ async def add_voice_comment(
         kind = out.get("tipo") if out.get("tipo") in COMMENT_KINDS else None
     except Exception as e:
         print(f"[deliveries] nota de voz sin transcribir ({d.id}): {type(e).__name__}: {str(e)[:200]}")
+    transcribed = text != "(nota de voz sin transcribir)"
     clamp = lambda v: None if v is None else min(1.0, max(0.0, float(v)))
     c = DeliveryComment(delivery_id=d.id, item_id=itemId, x=clamp(x), y=clamp(y), text=text[:4000],
                         author=_who(request), round=d.round, internal=not asClient, kind=kind, audio_url=st["url"])
@@ -693,6 +728,9 @@ async def add_voice_comment(
     await s.commit()
     if is_client(request):
         mailer.client_comment(d.id, d.brand_id, d.title, c.author, c.text, await mailer.team_emails(s))
+    if not c.kind and transcribed:
+        import asyncio
+        asyncio.create_task(_classify_later(c.id, c.text))
     return _comment(c)
 
 

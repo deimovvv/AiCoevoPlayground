@@ -4,7 +4,7 @@
 > Cada sesión lo lee al empezar y lo actualiza al cerrar. Lo completa la próxima sesión de acá.
 
 Temas: plataforma, portal de clientes, créditos, producción de contenido, agentes, marcas
-Ideas leídas: linea-base-antes-de-intervenir, criterio-y-regla
+Ideas leídas: la-observacion-es-dato, linea-base-antes-de-intervenir, criterio-y-regla
 
 ## Ahora (2026-10-25)
 - **Marca** ya tiene: visor de imágenes en grande en todos lados, «Archivos» (links de trabajo de cada
@@ -34,7 +34,35 @@ Ideas leídas: linea-base-antes-de-intervenir, criterio-y-regla
 - Da: el MCP `coevo-studio` (memoria de marca, entregas, archivos) a cualquier Claude del equipo.
 
 ## Avisos de otros proyectos
+- [ ] 2026-10-31 · de alguna-sistema · **ALGÜNA va a correr en el VPS, separado de Studio.** `alguna-sistema` (Next 16 +
+  Postgres 16) va a tener su propio compose en el VPS de Hostinger, con base, usuario, dominio (`panel.algasalguna.com`)
+  y claves propias. No comparte nada con la base de Studio. Necesita dos cosas de acá: (1) **backups fuera del VPS** (el
+  pendiente "urgente" de `decisions-log.md`): conviene resolverlo para los dos sistemas a la vez; (2) un hostname más en
+  el Cloudflare Tunnel y una política de Access "Equipo ALGÜNA". Studio sigue guardando a ALGÜNA sólo como marca
+  cliente (contenido); ventas y plata de ALGÜNA no entran a Studio. Ver `~/cov/alguna-sistema/docs/limites.md`.
 > Se leen primero. Al resolver uno: marcarlo [x] y decir qué se hizo, o borrarlo si no aplica.
+- [ ] 2026-10-30 · de MiSaluteca-app · **Consultoría estratégica integral: Studio como su hogar.** Primera
+  corrida con un cliente de punta a punta: `/auditoria-creativa` hecha (`MiSaluteca-app/docs/auditoria-mi-saluteca.md`),
+  después vienen `/mapa-de-mercado` → `/design-system` → `/spec-campana`. Gonzalo quiere que esto sea una
+  oferta de Coevo que el equipo pueda correr. Lo que pide de Studio: (1) que la ficha de marca guarde la
+  síntesis estratégica (la tensión en una frase, el tipo de brecha, el usuario objetivo, **qué no se toca** y
+  la pregunta abierta al cliente), así carrusel, reel y pipeline-contenido la leen con `ver_marca` en vez de
+  rearmarla en cada skill. Hoy el perfil de Mi Saluteca dice "design system: falta → borrador"; (2) un tipo
+  de entrega "consultoría" (las 6 láminas de la auditoría y después el spec) para que el cliente la apruebe y
+  comente en Entregas; (3) marcar en la ficha si la marca maneja datos sensibles (salud, finanzas): la
+  auditoría encontró un tema de coherencia en privacidad que es primero legal y después creativo (detalle en
+  el doc, no acá). Decide Studio con Gonzalo.
+  **Actualización 2026-10-31:** la cadena está completa en `MiSaluteca-app/docs/`: auditoría, mapa de mercado
+  (hay un gemelo, **Salutia**, lanzado en 09/2026, con 2 personas y 17 seguidores en LinkedIn), spec de
+  campaña (claim «¿Quién ve los estudios de tu familia?») y design system **A · Carpeta**, que eligió
+  Gonzalo: papel cálido `#F6F3EC`, océano `#2F416A`, verde `#7ABB85` solo en formas, `#37703F` para "en
+  orden", Inter por rol y el wordmark real; modo oscuro en carbón cálido. Hoja para aprobar:
+  `docs/design/identidad-y-tokens.html`. Según la decisión de Studio del 21/10 ("el diseño gráfico por
+  marca lo hace Claude Design"), el paso que falta es **publicar este sistema como Design System de la
+  marca en Claude Design** y guardar el link en la ficha. Así `/carrusel` y el resto dejan de marcar
+  "borrador". La ficha de Mi Saluteca tiene que pasar a la paleta Carpeta y sacar el teal. Punto de
+  vuelta del repo: tag `antes-design-system`.
+- [ ] 2026-10-30 · de coevo-web · **Carruseles y Coevo Studio.** Se va a crear la skill «carrusel» en coevo-skills (estudio en `coevo-skills/estudios/carrusel/aprendizaje.md`): marca como datos + salida dinámica (código, imagen generada, Canva, Studio). Pregunta para acá: ¿el Studio comparte la ficha de marca y las plantillas de placa con la skill, o solo recibe las entregas para aprobar? Ver también la skill de NORA en `coevo-skills/estudios/carrusel/fuentes/`.
 - [ ] 2026-10-27 · de coevo-skills · **Informe del mes contra la línea base (aprendizaje IA Partner).** Agustín Medina vende
   "diagnóstico → línea base → priorizar → construir → informe mensual". Si coevo-web suma la línea base a la oferta,
   el portal de Studio es donde se ve: una vista por marca con los números de antes y los del mes. También su
@@ -47,7 +75,7 @@ Ideas leídas: linea-base-antes-de-intervenir, criterio-y-regla
   API + un MCP `alguna` (como `coevo-studio`) para que cada Claude del equipo cargue y consulte; Notion pasa a
   ser vista/documentos, no la fuente. Base separada de la de Studio (datos financieros de otra organización),
   mismo stack. Reemplaza la idea de «alguna-panel sobre Airtable» del aviso de abajo. Decide alguna-web con Gonzalo.
-- [ ] 2026-10-25 · de coevo-skills · `backend/services/instagram_scraper.py`: `GEMINI_MODEL =
+- [x] 2026-10-25 · de coevo-skills · `backend/services/instagram_scraper.py`: `GEMINI_MODEL =
   "gemini-2.5-flash"` escrito a mano (Google ya retiró gemini-2.5-pro para cuentas nuevas) →
   usar el alias `gemini-flash-latest`. Y la key va en la URL (`?key=`): pasarla al header
   `x-goog-api-key`, así no aparece en logs ni en mensajes de error.
@@ -68,7 +96,7 @@ Ideas leídas: linea-base-antes-de-intervenir, criterio-y-regla
   sin ADN. (3) Faltan: Giumati, Lastre; ¿Kooris es "Koxis" (id `koxis`)? Confirmar con Gonzalo.
   (4) La voz de ALGÜNA hoy vive en `alguna-web/.claude/skills/alguna-voice/`: pasarla al ADN de la
   marca en Studio (es dato, no skill).
-- [ ] 2026-10-26 · de coevo-skills · **Modelos de Gemini a un solo lugar.** El chequeo encontró
+- [x] 2026-10-26 · de coevo-skills · **Modelos de Gemini a un solo lugar.** El chequeo encontró
   `gemini-2.5-flash` escrito a mano en `backend/main.py` y 8 archivos más (y `gemini-2.5-pro` en
   otros). Pasar todo a una variable (`GEMINI_MODEL`, vacía = `gemini-flash-latest`) en
   `llm_router.py`. Correr `python3 ~/.claude/skills/chequeo/scripts/chequeo.py` para ver la lista.

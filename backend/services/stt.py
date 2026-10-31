@@ -13,7 +13,7 @@ import httpx
 
 from . import llm_router
 
-GEMINI_MODEL = "gemini-2.5-flash"   # legacy, el modelo real lo decide llm_router
+GEMINI_MODEL = "gemini-flash-latest"   # legacy, el modelo real lo decide llm_router
 
 
 def is_configured() -> bool:

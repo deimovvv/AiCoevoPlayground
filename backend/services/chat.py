@@ -16,7 +16,7 @@ from typing import List, Dict
 
 from services.prompt_builder import build_chat_system_prompt
 
-GEMINI_MODEL = "gemini-2.5-flash"
+# El modelo lo decide llm_router.gemini_model().
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
@@ -26,7 +26,7 @@ def is_configured() -> bool:
 
 
 def _gemini_url() -> str:
-    return f"{GEMINI_BASE}/{GEMINI_MODEL}:generateContent?key={llm_router.google_key()}"
+    return llm_router.gemini_url()
 
 
 def _image_to_part(img: dict) -> dict:
@@ -103,7 +103,7 @@ async def chat(
     async with httpx.AsyncClient(timeout=90) as client:
         res = await client.post(
             _gemini_url(),
-            headers={"Content-Type": "application/json"},
+            headers=llm_router.gemini_headers(),
             json=payload,
         )
 
@@ -175,7 +175,7 @@ async def chat_prompts(brand: dict, messages: List[Dict]) -> dict:
     }
 
     async with httpx.AsyncClient(timeout=90) as client:
-        res = await client.post(_gemini_url(), headers={"Content-Type": "application/json"}, json=payload)
+        res = await client.post(_gemini_url(), headers=llm_router.gemini_headers(), json=payload)
 
     if res.status_code != 200:
         raise Exception(f"Gemini error ({res.status_code}): {res.text[:300]}")
@@ -259,7 +259,7 @@ async def chat_voice(brand: dict, messages: List[Dict]) -> str:
     }
 
     async with httpx.AsyncClient(timeout=60) as client:
-        res = await client.post(_gemini_url(), headers={"Content-Type": "application/json"}, json=payload)
+        res = await client.post(_gemini_url(), headers=llm_router.gemini_headers(), json=payload)
 
     if res.status_code != 200:
         raise Exception(f"Gemini error ({res.status_code}): {res.text[:300]}")

@@ -1591,7 +1591,7 @@ async def generate_copy(brand_id: str, req: GenerateCopyRequest):
         normalized = _normalize_script_response([scenes_raw])
         return {
             "scripts": [normalized] if normalized else [scenes_raw],
-            "model": "gemini-2.5-flash",
+            "model": llm_router.gemini_model(),
             "brief": concept or None,
         }
     except Exception as e:
@@ -1681,7 +1681,7 @@ async def suggest_objective(brand_id: str, req: SuggestObjectiveRequest):
             product_name=req.productName,
             language=req.language,
         )
-        return {"objective": objective, "model": "gemini-2.5-flash"}
+        return {"objective": objective, "model": llm_router.gemini_model()}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -6330,7 +6330,7 @@ async def generate_tool_prompt(req: ToolPromptRequest):
             if isinstance(sample, dict) and script_keys & set(sample.keys()):
                 result = {"scenes": [_normalize_script_response(result)]}
 
-        return {"result": result, "model": "gemini-2.5-flash"}
+        return {"result": result, "model": llm_router.gemini_model()}
     except json.JSONDecodeError as jde:
         # Try to fix truncated JSON arrays
         print(f"[generate-prompt] JSON decode failed: {jde}. Content ends: ...{content[-100:] if content else 'empty'}")
@@ -6344,10 +6344,10 @@ async def generate_tool_prompt(req: ToolPromptRequest):
                     fixed = trimmed[:last_brace + 1] + "]"
                     result = json.loads(fixed)
                     print(f"[generate-prompt] Fixed truncated JSON: {len(result)} items")
-                    return {"result": result, "model": "gemini-2.5-flash"}
+                    return {"result": result, "model": llm_router.gemini_model()}
                 except json.JSONDecodeError:
                     pass
-        return {"result": content, "raw": True, "model": "gemini-2.5-flash"}
+        return {"result": content, "raw": True, "model": llm_router.gemini_model()}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 

@@ -11,7 +11,7 @@ import httpx
 
 from services import llm_router
 
-GEMINI_MODEL = "gemini-2.5-flash"  # reverted from 3-flash — verify exact 3.x name before upgrading
+# El modelo lo decide llm_router.gemini_model() (alias -latest; GEMINI_MODEL en el .env lo pisa).
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
@@ -20,8 +20,8 @@ def is_configured() -> bool:
     return bool(llm_router.google_key())
 
 
-def _gemini_url(model: str = GEMINI_MODEL) -> str:
-    return f"{GEMINI_BASE}/{model}:generateContent?key={llm_router.google_key()}"
+def _gemini_url(model: str = "") -> str:
+    return llm_router.gemini_url(model)
 
 
 async def _call_gemini(system_prompt: str, user_msg: str) -> str:
@@ -65,7 +65,7 @@ async def _call_gemini(system_prompt: str, user_msg: str) -> str:
     async with httpx.AsyncClient(timeout=120) as client:
         res = await client.post(
             _gemini_url(),
-            headers={"Content-Type": "application/json"},
+            headers=llm_router.gemini_headers(),
             json=payload,
         )
 

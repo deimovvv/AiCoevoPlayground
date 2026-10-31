@@ -28,7 +28,7 @@
 ## 4. Retroalimentación
 
 - [x] 4.1 Nota de voz en una pieza o placa (equipo y cliente): audio guardado + transcripción como comentario (2026-10-31, `POST …/comments/audio`, Gemini de Coevo; si falla, queda el audio).
-- [x] 4.2 Tipo de cada comentario (texto, color, encuadre, tono, dato, imagen, otro): la nota de voz llega clasificada; MCP `clasificar_comentario`. «Aplicado» = resuelto (2026-10-31).
+- [x] 4.2 (2026-10-31, segunda parte) Los comentarios **escritos** también se clasifican solos al guardarse (en segundo plano, Gemini de Coevo con respaldo). Tipo de cada comentario (texto, color, encuadre, tono, dato, imagen, otro): la nota de voz llega clasificada; MCP `clasificar_comentario`. «Aplicado» = resuelto (2026-10-31).
 - [x] 4.3 Lo corregido 3 veces en una marca → propuesta de regla aprendida (la aprueba el equipo; va a la ficha, `ver_marca` → `reglas_aprendidas`). Hecho (2026-10-31): Plan → Aprendizaje (correcciones por tipo, candidatos con ejemplos, «Hacer regla», reglas de la marca) y `GET /api/brands/{id}/aprendizaje`.
 - [~] 4.4 Métricas a 7 días por publicación, sumadas por ángulo en el reporte del mes. Hecho: por ángulo, piezas, «a la primera» y vueltas promedio. **Pendiente (Postiz):** alcance, guardados y compartidos (la columna ya está, con «—»).
 

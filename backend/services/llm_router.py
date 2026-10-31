@@ -64,7 +64,7 @@ TASK_TEXT = "text"                  # chat de marca, guiones, copys
 #  text         : conversación y copys.
 _DEFAULTS = {
     TASK_VISION_FAST:  ("fal", "anthropic/claude-sonnet-5"),
-    TASK_VISION_VIDEO: ("google", "gemini-3.1-pro-preview"),
+    TASK_VISION_VIDEO: ("google", ""),   # "" = gemini_pro_model()
     TASK_WRITE_PROMPT: ("fal", "anthropic/claude-opus-5"),
     TASK_TEXT:         ("fal", "anthropic/claude-sonnet-5"),
 }
@@ -73,6 +73,40 @@ _DEFAULTS = {
 _FALLBACK_ORDER = ["fal", "google"]
 
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+
+# ── Modelos de Gemini: UN solo lugar (aviso de coevo-skills, 2026-10-26) ──
+# Google retira versiones seguido: por defecto el alias `-latest`, que sigue solo.
+# Se pisan por env sin tocar código: GEMINI_MODEL, GEMINI_PRO_MODEL.
+def gemini_model() -> str:
+    return _env("GEMINI_MODEL", "gemini-flash-latest")
+
+
+def gemini_pro_model() -> str:
+    """El de video y razonamiento largo (más caro)."""
+    return _env("GEMINI_PRO_MODEL", "gemini-3.1-pro-preview")
+
+
+def gemini_url(model: str = "") -> str:
+    """URL de generateContent SIN la key: la key va en el header (gemini_headers), así no queda en logs."""
+    return f"{GEMINI_BASE}/{model or gemini_model()}:generateContent"
+
+
+def gemini_headers() -> dict:
+    return {"Content-Type": "application/json", "x-goog-api-key": google_key()}
+
+
+async def _post_gemini(client, url: str, payload: dict, tries: int = 3):
+    """POST a Gemini reintentando si está saturado (503) o con cupo (429): Google lo devuelve seguido
+    con los alias -latest y suele pasar en segundos."""
+    import asyncio
+    res = None
+    for i in range(tries):
+        res = await client.post(url, headers=gemini_headers(), json=payload)
+        if res.status_code not in (429, 503):
+            return res
+        await asyncio.sleep(1.5 * (i + 1))
+    return res
 FAL_VISION_URL = "https://fal.run/openrouter/router/vision"
 
 
@@ -91,11 +125,11 @@ def resolve(task: str) -> tuple[str, str]:
 
     Se puede pisar por env sin tocar código:
         LLM_VISION_FAST_PROVIDER=google
-        LLM_VISION_FAST_MODEL=gemini-2.5-flash
+        LLM_VISION_FAST_MODEL=gemini-flash-latest
     """
     provider, model = _DEFAULTS.get(task, _DEFAULTS[TASK_VISION_FAST])
     prefix = f"LLM_{task.upper()}"
-    return _env(f"{prefix}_PROVIDER", provider), _env(f"{prefix}_MODEL", model)
+    return _env(f"{prefix}_PROVIDER", provider), _env(f"{prefix}_MODEL", model or gemini_pro_model())
 
 
 def available_providers() -> list[str]:
@@ -139,8 +173,7 @@ async def _call_google(prompt: str, images, model: str, max_tokens: int, timeout
         "generationConfig": {"temperature": 0.4, "maxOutputTokens": max_tokens},
     }
     async with httpx.AsyncClient(timeout=timeout) as client:
-        res = await client.post(f"{GEMINI_BASE}/{model}:generateContent?key={key}",
-                                headers={"Content-Type": "application/json"}, json=payload)
+        res = await _post_gemini(client, gemini_url(model), payload)
     if res.status_code != 200:
         raise Exception(f"Google ({res.status_code}): {res.text[:300]}")
     cands = res.json().get("candidates", [])
@@ -282,7 +315,7 @@ async def call(
 def _fallback_model(provider: str, task: str) -> str:
     """Modelo equivalente cuando caemos a un proveedor que no es el primario."""
     if provider == "google":
-        return "gemini-3.1-pro-preview" if task == TASK_VISION_VIDEO else "gemini-2.5-flash"
+        return gemini_pro_model() if task == TASK_VISION_VIDEO else gemini_model()
     return "anthropic/claude-sonnet-5"
 
 
@@ -301,7 +334,7 @@ async def call_audio(prompt: str, audio_bytes: bytes, mime: str = "audio/webm",
             "La transcripcion de audio necesita una key de Google "
             "(GEMINI_API_KEY, la de Coevo)."
         )
-    model = _env("LLM_AUDIO_MODEL", "gemini-2.5-flash")
+    model = _env("LLM_AUDIO_MODEL", gemini_model())
     payload = {
         "contents": [{"role": "user", "parts": [
             {"inlineData": {"mimeType": mime, "data": base64.b64encode(audio_bytes).decode("ascii")}},
@@ -310,8 +343,7 @@ async def call_audio(prompt: str, audio_bytes: bytes, mime: str = "audio/webm",
         "generationConfig": {"temperature": 0.0, "maxOutputTokens": max_tokens},
     }
     async with httpx.AsyncClient(timeout=timeout) as client:
-        res = await client.post(f"{GEMINI_BASE}/{model}:generateContent?key={key}",
-                                headers={"Content-Type": "application/json"}, json=payload)
+        res = await _post_gemini(client, gemini_url(model), payload)
     if res.status_code != 200:
         raise Exception(f"Audio ({res.status_code}): {res.text[:300]}")
     cands = res.json().get("candidates", [])

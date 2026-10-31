@@ -19,8 +19,10 @@ from pathlib import Path
 
 from . import llm_router
 
-GEMINI_MODEL = "gemini-2.5-flash"                # legacy: solo para deducir la tarea en _call_vision
-GEMINI_VIDEO_MODEL = "gemini-3.1-pro-preview"    # video analysis (motion, scene manifests, multi-frame reasoning)
+# Modelos: llm_router.gemini_model() / gemini_pro_model(). Estos nombres quedan como marcadores
+# para que _call_vision deduzca la tarea (video o rápida); el modelo real lo decide el router.
+GEMINI_MODEL = "gemini-flash"
+GEMINI_VIDEO_MODEL = "gemini-pro-video"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
@@ -34,9 +36,9 @@ def is_configured() -> bool:
 
 
 def _gemini_url(model: str = GEMINI_MODEL) -> str:
-    # key leida EN CADA LLAMADA: a nivel modulo, cambiar el .env no surtia efecto
-    # hasta reiniciar el proceso.
-    return f"{GEMINI_BASE}/{model}:generateContent?key={llm_router.google_key()}"
+    """Sin la key (va en el header). El marcador se traduce al modelo real del router."""
+    real = llm_router.gemini_pro_model() if model == GEMINI_VIDEO_MODEL else llm_router.gemini_model() if model == GEMINI_MODEL else model
+    return llm_router.gemini_url(real)
 
 
 def _image_to_part(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
@@ -754,7 +756,7 @@ async def _call_vision_with_video(prompt: str, video_bytes: bytes, mime_type: st
     async with httpx.AsyncClient(timeout=300) as client:
         res = await client.post(
             _gemini_url(GEMINI_VIDEO_MODEL),
-            headers={"Content-Type": "application/json"},
+            headers=llm_router.gemini_headers(),
             json=payload,
         )
 
@@ -814,7 +816,7 @@ Respond ONLY with a valid JSON object — no markdown, no extra text. Schema:
         "generationConfig": {"temperature": 0.4, "maxOutputTokens": 800},
     }
 
-    headers = {"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY}
+    headers = llm_router.gemini_headers()
     async with httpx.AsyncClient(timeout=180) as client:
         res = await client.post(_gemini_url(GEMINI_VIDEO_MODEL), headers=headers, json=payload)
         res.raise_for_status()
@@ -852,7 +854,7 @@ async def curate_motion_prompt(user_text: str, scene_context: str = "") -> str:
         glances back over her shoulder toward camera, holding eye contact at the
         end of the turn."
     """
-    if not GEMINI_API_KEY:
+    if not llm_router.google_key():
         return user_text  # fail open: pasar tal cual
     prompt = f"""You are a motion prompt curator for AI video models (Kling V3 Pro).
 
@@ -872,7 +874,7 @@ USER INSTRUCTION:
 {user_text}
 
 CURATED MOTION PROMPT:"""
-    headers = {"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY}
+    headers = llm_router.gemini_headers()
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.3, "maxOutputTokens": 250},
