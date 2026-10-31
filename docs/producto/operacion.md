@@ -38,6 +38,13 @@ Aprendizaje del mes. Claude no usa la pantalla: lee la ficha y sube.
 **Regla para lo que venga:** si no entra en recordar, mostrar o aprender, no va a Studio: va a una skill.
 Producción (las tools) queda por ahora; se revisa después qué se usa de verdad.
 
+## 1c. Dos tipos de trabajo (2026-10-31)
+
+Una marca compra **proyectos** (encargos de la casa creativa: Koxis, Geely, PROMAN) o el **plan mensual**
+(el venture Coevo Studio: Mi Saluteca). Studio le muestra a cada una lo suyo: el calendario, los ángulos
+obligatorios y la publicación son del plan mensual; las entregas y el aprendizaje, de las dos. En
+proyectos, **el ángulo de una pieza es su proyecto o campaña**. Detalle: `decisions-log.md`.
+
 ## 2. Las cuatro piezas
 
 | Pieza | Qué es | Qué hace |

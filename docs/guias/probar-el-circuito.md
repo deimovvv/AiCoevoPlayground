@@ -11,11 +11,21 @@ Anotá al lado de cada paso ✅ o ❌ y qué viste. Lo que falle, pasáselo a Cl
 
 ---
 
+## 0 · El tipo de trabajo y las pestañas
+
+| # | Hacé | Tiene que pasar |
+|---|---|---|
+| 0.1 | Entregas de **Koxis** | Arriba: «Piezas · Aprendizaje» (sin Calendario) y «Trabajo: Proyectos» |
+| 0.2 | Sin abrir ninguna pieza | Una grilla con todas sus piezas grandes, su estado y su proyecto (no «Elegí una entrega») |
+| 0.3 | Entregas de **Mi Saluteca** | «Piezas · Calendario · Aprendizaje» y «Trabajo: Plan mensual» |
+| 0.4 | Marca de Mi Saluteca, abajo | «06 Estrategia y lo aprendido» con el claim, los ángulos y las reglas |
+| 0.5 | Modo oscuro (☀ arriba a la derecha) | Grises fríos, bordes con tinte celeste y la señal en salmón, no rosa |
+
 ## 1 · La estrategia (Marca)
 
 | # | Hacé | Tiene que pasar |
 |---|---|---|
-| 1.1 | Entregas → **Plan** | Arriba: «¿Quién ve los estudios de tu familia? #QuiénLoVe» |
+| 1.1 | Entregas → **Calendario** | Arriba: «¿Quién ve los estudios de tu familia? #QuiénLoVe» |
 | 1.2 | Mirá la línea debajo de la fecha (en octubre) | «Este mes no tiene ángulo. Desde Noviembre: A · Institucional · Puerta abierta…» |
 | 1.3 | Pasá a noviembre con la flecha › | La línea cambia a «A · Institucional · Puerta abierta…» y en Ángulos se resalta A |
 

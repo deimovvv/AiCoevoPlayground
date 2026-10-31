@@ -42,9 +42,30 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Tools / editor / skills | Tool genera · editor monta (uno solo) · skill descubre; lo validado pasa a la app como plantilla o receta | 2026-10-09 |
 | Dónde se trabaja | En `app.coevoagency.com` (servidor = fuente de verdad); lo local es sólo desarrollo | 2026-10-17 |
 | Login | Equipo: Cloudflare Access (PIN por mail) + el backend verifica el JWT | 2026-10-17 · `docs/guias/produccion.md` |
+| Tipo de trabajo | Cada marca es **proyectos** (encargos, sin calendario; ángulo = proyecto) o **plan mensual** (Coevo Studio: ángulos, calendario, publicación). Aprendizaje para las dos | 2026-10-31 |
 | Circuito de una pieza | Ángulo + fase por pieza; Plan (calendario, propuesta hasta confirmar); voz y escritos se clasifican solos; regla = la decide una persona | 2026-10-31 · `changes/brand-integrations` |
 | Cómo funciona Studio | **Recordar** (Marca), **mostrar** (Entregas), **aprender** (Plan). Lo que no entra ahí va a una skill. Producción queda, a revisar. Es descripción, no venta: la frase que vende vive en `coevo-web` | 2026-10-31 · `docs/producto/operacion.md` §1b |
 | Rol de Studio | Casa de la marca + vitrina del cliente; se produce en el taller (Claude). Sin canvas propio (salvo video); la crew es relato, no pantalla | 2026-10-18 · `changes/studio-v2` |
+
+---
+
+## 2026-10-31 — Dos tipos de trabajo: proyectos y plan mensual
+
+**Decisión (Gonzalo):** Coevo vende dos cosas y las dos pasan por Studio. Cada marca dice cuál compró
+(`workType` en la ficha; se cambia en Entregas, arriba a la derecha) y eso decide qué ve.
+
+| | **Proyectos** (casa creativa) | **Plan mensual** (venture Coevo Studio) |
+|---|---|---|
+| Qué compra | piezas y campañas por encargo | sistema mensual: formatos fijos, USD 800/1.600, publicamos |
+| Ejemplos | Koxis, Geely, PROMAN | Mi Saluteca |
+| Entregas | Piezas · Aprendizaje | Piezas · **Calendario** · Aprendizaje |
+| Estrategia | contexto; **el ángulo de una pieza es su proyecto/campaña** | cada pieza responde a **un ángulo** de la estrategia y va al calendario |
+| Publicar | lo hace la marca | Coevo (Postiz), con «Confirmar la semana» |
+
+- **El Aprendizaje vale para las dos:** las correcciones de Koxis mejoran la próxima foto igual que las de un plan.
+- Sin dato, una marca es **proyectos** (no se le pide calendario ni ángulos que no compró).
+- La estrategia y las reglas aprendidas se ven en **Marca → 06 Estrategia y lo aprendido**.
+- Coherente con `coevo-web` (`docs/oferta.md`, `/ventures/studio`): la casa hace obra y encargos; el venture vende el sistema.
 
 ---
 
