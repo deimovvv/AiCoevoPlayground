@@ -22,7 +22,7 @@ const tool = (name, description, schema, fn) =>
         try { return ok(await fn(args)); } catch (e) { return { isError: true, content: [{ type: "text", text: e.message }] }; }
     });
 
-const BLOQUES = ["quien_es", "identidad_grafica", "direccion_foto_video", "caras", "catalogo", "estrategia"];
+const BLOQUES = ["quien_es", "identidad_grafica", "direccion_foto_video", "caras", "catalogo", "estrategia", "reglas_aprendidas"];
 
 tool("listar_marcas",
     "Las marcas de Coevo Studio con qué tiene cargado cada una. Usar primero para saber el id de una marca.",
@@ -33,7 +33,7 @@ tool("listar_marcas",
     });
 
 tool("ver_marca",
-    "La memoria de una marca: quién es, identidad gráfica, dirección de foto y video, caras (avatares y voces), catálogo y estrategia (claim, enemigo, ángulos, calendario). " +
+    "La memoria de una marca: quién es, identidad gráfica, dirección de foto y video, caras (avatares y voces), catálogo, estrategia (claim, enemigo, ángulos, calendario) y reglas aprendidas (lo que la marca corrigió tres veces: respetarlas siempre). " +
     "Leerla ANTES de producir cualquier pieza para esa marca. Los archivos vienen como URL de Studio: para verlos, usar bajar_archivo.",
     {
         marca: z.string().describe("id o nombre de la marca (ej. 'morph-ai', 'Taller Santa Clara')"),

@@ -240,6 +240,13 @@ class BrandStrategy(BaseModel):
     source: Optional[str] = None             # de dónde salió (spec, reunión…)
 
 
+class LearnedRule(BaseModel):
+    """Una regla aprendida de la marca (brand-integrations 4.3): lo que se corrigió tres veces."""
+    text: str
+    kind: Optional[str] = None               # texto, color, encuadre, tono, dato, imagen, otro
+    createdAt: Optional[str] = None
+
+
 class UpdateBrandRequest(BaseModel):
     name: Optional[str] = None
     brandContext: Optional[str] = None
@@ -256,6 +263,8 @@ class UpdateBrandRequest(BaseModel):
     workLinks: Optional[List[WorkLink]] = None
     # Estrategia (change brand-strategy): reemplaza la anterior entera.
     strategy: Optional[BrandStrategy] = None
+    # Reglas aprendidas (brand-integrations 4.3): la lista entera, reemplaza a la anterior.
+    learnedRules: Optional[List[LearnedRule]] = None
 
 
 class GenerateCopyRequest(BaseModel):
@@ -1043,6 +1052,10 @@ def update_brand(brand_id: str, req: UpdateBrandRequest):
             brand["strategy"] = {**st, "updatedAt": _dt.datetime.now(_dt.timezone.utc).isoformat()}
         else:
             brand.pop("strategy", None)   # {} la saca
+    if req.learnedRules is not None:
+        now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+        brand["learnedRules"] = [{**r.model_dump(exclude_none=True), "text": r.text.strip(), "createdAt": r.createdAt or now}
+                                 for r in req.learnedRules if r.text.strip()]
     brands.save_brands(all_brands)
     return brand
 

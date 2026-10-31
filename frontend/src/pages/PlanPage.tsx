@@ -5,6 +5,9 @@ import { useBrand } from "../lib/BrandContext";
 import { CHANNELS, backendUrl, listDeliveries, setDeliveryPlan } from "../lib/api";
 import type { Channel, DeliveryPhase, DeliverySummary } from "../lib/api";
 import { PublishControls } from "../components/workspace/PublishControls";
+import { ConfirmWeekDialog } from "../components/workspace/ConfirmWeekDialog";
+import { LearningView } from "../components/workspace/LearningView";
+import { useConfirm } from "../lib/useConfirm";
 
 /**
  * El plan de una marca (changes/brand-integrations §3): las piezas por fase (tablero), y lo que sale cada
@@ -13,7 +16,7 @@ import { PublishControls } from "../components/workspace/PublishControls";
  * propuesta: no publica nada (confirmar y mandar a Postiz es 3.5).
  */
 
-type View = "tablero" | "semana" | "mes";
+type View = "tablero" | "semana" | "mes" | "aprendizaje";
 const PHASES: { id: DeliveryPhase; label: string }[] = [
     { id: "en_desarrollo", label: "En desarrollo" },
     { id: "por_revisar", label: "Por revisar" },
@@ -34,7 +37,9 @@ function startOfWeek(d: Date) {
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 
 export function PlanPage() {
-    const { activeBrand } = useBrand();
+    const { activeBrand, refreshBrands } = useBrand();
+    const [dialog, ask] = useConfirm();
+    const [confirming, setConfirming] = useState(false);
     const navigate = useNavigate();
     const [view, setView] = useState<View>("semana");
     const [list, setList] = useState<DeliverySummary[]>([]);
@@ -156,7 +161,7 @@ export function PlanPage() {
                         {strategy?.claim ?? "Sin estrategia cargada"}
                         {strategy?.hashtag && <span className="text-fg-muted"> {strategy.hashtag}</span>}
                     </h1>
-                    {view !== "tablero" && (
+                    {(view === "semana" || view === "mes") && (
                         <p className="mt-1 text-[12px] text-fg-muted max-w-[720px]">
                             {moment ? <>Este mes: <span className="text-fg">{moment.angle ?? "—"}</span> · {moment.what}</>
                                 : strategy ? "La estrategia no dice nada para este mes." : <>Cargala en la ficha de la marca (o pedile a Claude el spec de campaña).</>}
@@ -165,7 +170,7 @@ export function PlanPage() {
                 </div>
                 <span className="flex-1" />
                 <div className="flex gap-0.5 p-0.5 bg-[var(--color-surface-2)] rounded-[5px] text-[12px]" role="tablist">
-                    {(["tablero", "semana", "mes"] as View[]).map((v) => (
+                    {(["tablero", "semana", "mes", "aprendizaje"] as View[]).map((v) => (
                         <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)}
                             className={`h-7 px-3 rounded-[4px] capitalize cursor-pointer ${view === v ? "bg-[var(--color-surface-1)] text-fg" : "text-fg-muted"}`}>{v}</button>
                     ))}
@@ -174,7 +179,16 @@ export function PlanPage() {
             </header>
             {error && <p className="px-6 py-2 text-[12px] text-[var(--color-error)]">{error}</p>}
 
-            {view === "tablero" ? (
+            {dialog}
+            {confirming && (
+                <ConfirmWeekDialog brandId={activeBrand.id} label={title}
+                    start={view === "mes" ? monthStart : weekStart}
+                    end={view === "mes" ? new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1) : addDays(weekStart, 7)}
+                    onClose={() => setConfirming(false)} onDone={load} />
+            )}
+            {view === "aprendizaje" ? (
+                <LearningView brand={activeBrand} ask={ask} onBrandChanged={refreshBrands} />
+            ) : view === "tablero" ? (
                 <div className="flex-1 min-h-0 overflow-x-auto">
                     <div className="h-full grid grid-cols-[repeat(5,minmax(200px,1fr))]">
                         {PHASES.map((ph) => {
@@ -207,6 +221,8 @@ export function PlanPage() {
                             {notice && <span className="text-[11px] text-fg-muted">{notice}</span>}
                             <button onClick={distribute} title="Pone lo aprobado sin fecha en los días hábiles libres, primero lo del ángulo del mes"
                                 className="h-7 px-3 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg hover:border-fg cursor-pointer">Distribuir</button>
+                            <button onClick={() => setConfirming(true)} title="Ver lo que sale y programarlo en Postiz"
+                                className="h-7 px-3 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[12px] cursor-pointer">Confirmar {view === "mes" ? "el mes" : "la semana"}</button>
                         </div>
                         {view === "mes" && (
                             <div className="grid grid-cols-7 border-l border-edge">

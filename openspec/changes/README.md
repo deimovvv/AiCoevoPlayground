@@ -12,7 +12,7 @@ carpeta a `archive/AAAA-MM-DD-<change>/`. Actualizar esta tabla al cambiar un es
 | [fashion-reel-from-photo](fashion-reel-from-photo/) | esperando prueba paga | 2.1 probar con foto real (con Gonzalo) → archivar |
 | [fashion-reel-format-recipes](fashion-reel-format-recipes/) | esperando prueba paga | A/B de recetas (~US$1,81, con Gonzalo) → archivar |
 | [studio-v2](studio-v2/) | **propuesto — para revisar** | secciones, navegación arriba, roles equipo/cliente, plantillas, Claude escribe en Studio. P.2–P.4 hechos (MCP + Entregas); siguiente: P.5 recorrido con Carrusel V1 |
-| [brand-integrations](brand-integrations/) | en pausa — **es el siguiente** | Postiz + el circuito: estados, vista semana/mes por ángulo, confirmar antes de publicar, feedback por audio, métricas por ángulo (2026-10-31) |
+| [brand-integrations](brand-integrations/) | **activo** — interfaz hecha | estados, Plan (tablero, semana, mes, hora y redes, Distribuir, Confirmar), notas de voz, Aprendizaje y reglas: hechos 2026-10-31. Falta: Postiz (§5) y las skills (5.4) |
 | [brand-strategy](brand-strategy/) | hecho en código | desplegar y cargar Mi Saluteca → archivar |
 | [campaigns-as-hub](campaigns-as-hub/) | en pausa | — |
 | [casting](casting/) | en pausa | — |

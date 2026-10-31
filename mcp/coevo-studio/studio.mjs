@@ -116,6 +116,8 @@ export function brandBlocks(b) {
         },
         catalogo: { productos: files(b.products), prendas: files(b.clothing) },
         estrategia: strategyBlock(b.strategy),
+        // Lo que la marca corrigió tres veces, aprobado por el equipo (brand-integrations 4.3). Respetarlo siempre.
+        reglas_aprendidas: (b.learnedRules || []).map((r) => ({ regla: r.text, tipo: r.kind || null, desde: r.createdAt || null })),
     };
 }
 

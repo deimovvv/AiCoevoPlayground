@@ -766,3 +766,84 @@ async def set_comment_visibility(delivery_id: str, comment_id: str, req: Comment
         c.kind = req.kind or None
     await s.commit()
     return _comment(c)
+
+
+# ── El plan y lo que se aprende (changes/brand-integrations §3.5 y §4) ─────────────────────
+
+class ConfirmIn(BaseModel):
+    start: datetime
+    end: datetime
+
+
+def _plan_item(d: Delivery) -> dict:
+    problems = []
+    if d.status != "aprobada":
+        problems.append("no está aprobada")
+    if not d.channels:
+        problems.append("sin red")
+    if not d.angle:
+        problems.append("sin ángulo")
+    return {"id": d.id, "title": d.title, "angle": d.angle, "channels": d.channels or [],
+            "scheduledAt": _iso(d.scheduled_at), "phase": _phase(d), "problems": problems}
+
+
+@router.post("/api/brands/{brand_id}/plan/confirm")
+async def confirm_plan(brand_id: str, req: ConfirmIn, request: Request, preview: bool = False,
+                       s: AsyncSession = Depends(get_session)):
+    """Confirmar lo previsto entre `start` y `end` (brand-integrations 3.5): lo listo (aprobado, con red) se
+    programa en Postiz y pasa a «en Postiz». `preview=true` sólo devuelve el resumen.
+    Hasta que Postiz esté conectado (POSTIZ_API_KEY), devuelve el resumen con `pending: "postiz"` y no cambia nada."""
+    import os
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    _require_brand(brand_id)
+    rows = (await s.execute(select(Delivery).where(
+        Delivery.brand_id == brand_id, Delivery.scheduled_at >= req.start, Delivery.scheduled_at < req.end,
+    ).order_by(Delivery.scheduled_at))).scalars().all()
+    items = [_plan_item(d) for d in rows if _phase(d) not in ("en_postiz", "publicada", "pausada", "descartada")]
+    ready = [i for i in items if "no está aprobada" not in i["problems"] and "sin red" not in i["problems"]]
+    out = {"items": items, "ready": len(ready), "scheduled": 0, "pending": None, "postiz": bool(os.getenv("POSTIZ_API_KEY"))}
+    if preview:
+        return out
+    if not out["postiz"]:
+        out["pending"] = "postiz"
+        return out
+    # TODO(brand-integrations 2.1–2.2): subir láminas (POST /upload) y crear los posts (POST /posts, schedule)
+    # en los canales de la marca; guardar el id de Postiz y pasar a en_postiz.
+    out["pending"] = "postiz-sin-construir"
+    return out
+
+
+@router.get("/api/brands/{brand_id}/aprendizaje")
+async def brand_learning(brand_id: str, request: Request, s: AsyncSession = Depends(get_session)):
+    """Lo que dicen las correcciones de una marca (brand-integrations §4): cuántas hay de cada tipo, los tipos
+    que ya se repitieron 3 veces (candidatos a regla, con ejemplos) y, por ángulo, cuántas piezas salieron a
+    la primera. Las métricas de redes llegan con Postiz."""
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    _require_brand(brand_id)
+    dels = (await s.execute(select(Delivery).where(Delivery.brand_id == brand_id))).scalars().all()
+    titles = {d.id: d.title for d in dels}
+    comments = (await s.execute(select(DeliveryComment).where(
+        DeliveryComment.delivery_id.in_(list(titles) or [""])).order_by(DeliveryComment.created_at.desc()))).scalars().all()
+    kinds: dict = {}
+    for c in comments:
+        k = c.kind or "sin_tipo"
+        e = kinds.setdefault(k, {"kind": k, "count": 0, "examples": []})
+        e["count"] += 1
+        if len(e["examples"]) < 5:
+            e["examples"].append({"text": c.text, "delivery": titles.get(c.delivery_id), "byClient": not c.internal})
+    angles: dict = {}
+    for d in dels:
+        a = angles.setdefault(d.angle or "", {"angle": d.angle, "pieces": 0, "approved": 0, "firstTime": 0, "rounds": 0})
+        a["pieces"] += 1
+        a["rounds"] += d.round or 1
+        if d.status == "aprobada":
+            a["approved"] += 1
+            a["firstTime"] += 1 if (d.round or 1) == 1 else 0
+    return {
+        "kinds": sorted(kinds.values(), key=lambda e: -e["count"]),
+        "candidates": [e for e in kinds.values() if e["kind"] != "sin_tipo" and e["count"] >= 3],
+        "angles": sorted(angles.values(), key=lambda a: -a["pieces"]),
+        "metrics": None,   # alcance, guardados, compartidos a 7 días: con Postiz (brand-integrations 4.4)
+    }

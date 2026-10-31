@@ -234,6 +234,7 @@ export interface BrandCompetitor {
 export type WorkLinkKind = "piezas" | "exploracion" | "manual" | "design-system" | "otro";
 export interface WorkLink { id?: string; title: string; kind: WorkLinkKind; url: string; client: boolean }
 
+export interface LearnedRule { text: string; kind?: string | null; createdAt?: string }
 export interface BrandStrategy {
     claim?: string; hashtag?: string; destination?: string; enemy?: string;
     angles?: { name: string; purpose?: string; examples?: string[] }[];
@@ -271,6 +272,8 @@ export interface Brand {
     workLinks?: WorkLink[];
     /** Estrategia (change brand-strategy): de acá salen los ángulos y el calendario del plan. */
     strategy?: BrandStrategy;
+    /** Lo que la marca corrigió tres veces, aprobado por el equipo (brand-integrations 4.3). */
+    learnedRules?: LearnedRule[];
     fonts?: BrandFonts;
     dna?: BrandDNA;
     designSystem?: DesignSystem;
@@ -679,6 +682,10 @@ export interface UpdateBrandPayload {
     designSystemUrl?: string;
     /** La lista entera de archivos de trabajo; reemplaza a la anterior. */
     workLinks?: WorkLink[];
+    /** Estrategia entera; {} la saca. */
+    strategy?: BrandStrategy | Record<string, never>;
+    /** La lista entera de reglas aprendidas; reemplaza a la anterior. */
+    learnedRules?: LearnedRule[];
 }
 
 export async function updateBrand(brandId: string, updates: UpdateBrandPayload): Promise<Brand> {
@@ -3996,6 +4003,25 @@ export async function setDeliveryPlan(id: string, p: { angle?: string; publishSt
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/plan`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p),
     }), "No se pudo guardar el plan");
+}
+
+// ── Plan y aprendizaje (brand-integrations §3.5 y §4) ─────────────────────────
+export interface PlanItem { id: string; title: string; angle: string | null; channels: Channel[]; scheduledAt: string | null; phase: DeliveryPhase; problems: string[] }
+export interface PlanConfirm { items: PlanItem[]; ready: number; scheduled: number; pending: null | "postiz" | "postiz-sin-construir"; postiz: boolean }
+/** `preview`: sólo el resumen. Sin Postiz conectado vuelve `pending: "postiz"` y no cambia nada. */
+export async function confirmPlan(brandId: string, start: Date, end: Date, preview = false): Promise<PlanConfirm> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/plan/confirm${preview ? "?preview=true" : ""}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ start: start.toISOString(), end: end.toISOString() }),
+    }), "No se pudo confirmar");
+}
+export interface BrandLearning {
+    kinds: { kind: string; count: number; examples: { text: string; delivery: string | null; byClient: boolean }[] }[];
+    candidates: BrandLearning["kinds"];
+    angles: { angle: string | null; pieces: number; approved: number; firstTime: number; rounds: number }[];
+    metrics: null;
+}
+export async function getBrandLearning(brandId: string): Promise<BrandLearning> {
+    return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/aprendizaje`), "No se pudo cargar el aprendizaje");
 }
 
 /** Adjuntar imágenes de referencia a un comentario (hasta 4). */
