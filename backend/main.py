@@ -216,6 +216,30 @@ class BrandCompetitor(BaseModel):
     notes: Optional[str] = None                  # What they do well / how the brand differentiates
 
 
+class StrategyAngle(BaseModel):
+    name: str
+    purpose: Optional[str] = None            # para qué sirve este ángulo
+    examples: Optional[List[str]] = None     # piezas tipo
+
+
+class StrategyMoment(BaseModel):
+    when: str                                # "2027-02" o "febrero–marzo"
+    what: str
+    angle: Optional[str] = None              # nombre del ángulo que usa
+
+
+class BrandStrategy(BaseModel):
+    """Estrategia de la marca (change brand-strategy): la leen las skills con ver_marca."""
+    claim: Optional[str] = None
+    hashtag: Optional[str] = None
+    destination: Optional[str] = None        # a dónde lleva la campaña (URL o lugar)
+    enemy: Optional[str] = None
+    angles: Optional[List[StrategyAngle]] = None
+    calendar: Optional[List[StrategyMoment]] = None
+    neverAutomate: Optional[List[str]] = None
+    source: Optional[str] = None             # de dónde salió (spec, reunión…)
+
+
 class UpdateBrandRequest(BaseModel):
     name: Optional[str] = None
     brandContext: Optional[str] = None
@@ -230,6 +254,8 @@ class UpdateBrandRequest(BaseModel):
     designSystemUrl: Optional[str] = None
     # Archivos de trabajo de la marca (studio-v2 M.10): la lista entera, reemplaza a la anterior.
     workLinks: Optional[List[WorkLink]] = None
+    # Estrategia (change brand-strategy): reemplaza la anterior entera.
+    strategy: Optional[BrandStrategy] = None
 
 
 class GenerateCopyRequest(BaseModel):
@@ -1011,6 +1037,9 @@ def update_brand(brand_id: str, req: UpdateBrandRequest):
             links.append({"id": l.id or f"wl_{uuid.uuid4().hex[:10]}", "title": title,
                           "kind": l.kind if l.kind in WORK_LINK_KINDS else "otro", "url": url, "client": bool(l.client)})
         brand["workLinks"] = links
+    if req.strategy is not None:
+        brand["strategy"] = {**req.strategy.model_dump(exclude_none=True),
+                             "updatedAt": _dt.datetime.now(_dt.timezone.utc).isoformat()}
     brands.save_brands(all_brands)
     return brand
 

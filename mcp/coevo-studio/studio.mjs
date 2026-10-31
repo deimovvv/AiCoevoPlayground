@@ -115,6 +115,26 @@ export function brandBlocks(b) {
             voces: (b.voicePresets || []).map((v) => ({ id: v.id, nombre: v.name })),
         },
         catalogo: { productos: files(b.products), prendas: files(b.clothing) },
+        estrategia: strategyBlock(b.strategy),
+    };
+}
+
+/** Claim, enemigo, ángulos y calendario (change brand-strategy). Las piezas salen de un ángulo. */
+function strategyBlock(s) {
+    if (!s || !(s.claim || s.angles?.length)) {
+        return { falta: "Esta marca todavía no tiene estrategia cargada en Studio: pedir el spec de campaña (skill spec-campana) antes de producir en serie." };
+    }
+    return {
+        claim: s.claim || null,
+        hashtag: s.hashtag || null,
+        destino: s.destination || null,
+        enemigo: s.enemy || null,
+        angulos: (s.angles || []).map((a) => ({ nombre: a.name, para_que: a.purpose || null, ejemplos: a.examples || [] })),
+        calendario: (s.calendar || []).map((m) => ({ cuando: m.when, que: m.what, angulo: m.angle || null })),
+        nunca_automatizar: s.neverAutomate || [],
+        fuente: s.source || null,
+        actualizada: s.updatedAt || null,
+        como_usarla: "Cada pieza responde a UN ángulo: elegirlo (o el del calendario de este mes) y decirlo antes del guion.",
     };
 }
 
