@@ -44,6 +44,10 @@ STATUSES = {"en_revision", "cambios", "aprobada"}
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 VIDEO_EXT = {".mp4", ".mov", ".webm"}
 SOURCE_EXT = {".html", ".json", ".zip"}
+AUDIO_EXT = {".webm", ".m4a", ".mp3", ".wav", ".ogg", ".mp4"}
+# Después de aprobada (changes/brand-integrations §3). en_postiz y publicada las pone la integración con Postiz.
+PUBLISH_STATES = {"pausada", "descartada", "en_postiz", "publicada"}
+COMMENT_KINDS = {"texto", "color", "encuadre", "tono", "dato", "imagen", "otro"}
 MAX_FILE = 200 * 1024 * 1024
 
 
@@ -160,6 +164,16 @@ def _items(d: Delivery) -> list:
             for it in (d.items or [])]
 
 
+def _phase(d: Delivery) -> str:
+    """Dónde está la pieza en el circuito: en_desarrollo → por_revisar → lista → en_postiz → publicada
+    (+ pausada, descartada). Sale de visibilidad, estado y estado de publicación."""
+    if d.publish_state in PUBLISH_STATES:
+        return d.publish_state
+    if d.status == "aprobada":
+        return "lista"
+    return "por_revisar" if d.visibility == "cliente" else "en_desarrollo"
+
+
 def _comment(c: DeliveryComment, clients: Optional[set] = None) -> dict:
     """`byClient`: lo escribió alguien del cliente (no Coevo). Sin la lista de clientes, se deduce de `internal`."""
     by_client = (c.author or "").lower() in clients if clients is not None else not c.internal
@@ -167,7 +181,7 @@ def _comment(c: DeliveryComment, clients: Optional[set] = None) -> dict:
         "id": c.id, "itemId": c.item_id, "x": c.x, "y": c.y, "text": c.text, "author": c.author, "internal": c.internal,
         "byClient": by_client and not c.internal,
         "round": c.round, "resolvedAt": _iso(c.resolved_at), "createdAt": _iso(c.created_at),
-        "refs": c.refs or [],
+        "refs": c.refs or [], "kind": c.kind, "audioUrl": c.audio_url,
     }
 
 
@@ -182,6 +196,8 @@ def _summary(d: Delivery, open_comments: int = 0, names: Optional[dict] = None) 
         # Agrupación: mes (de la fecha, en el frontend) › proyecto (opcional) › etapa (opcional).
         "campaignId": d.campaign_id, "campaignName": (names if names is not None else _campaign_names()).get(d.campaign_id) if d.campaign_id else None,
         "stage": d.stage,
+        "angle": d.angle, "phase": _phase(d), "publishState": d.publish_state,
+        "scheduledAt": _iso(d.scheduled_at), "publishedAt": _iso(d.published_at),
         "approvedItems": sum(1 for i in items if not i.get("rejected")) if d.status == "aprobada" else None,
         "visibility": d.visibility, "sentAt": _iso(d.sent_at),
         "round": d.round, "items": len(d.items or []),
@@ -296,6 +312,7 @@ async def create_delivery(
     title: str = Form(...), kind: str = Form("carrusel"), note: Optional[str] = Form(None),
     template: Optional[str] = Form(None), labels: Optional[str] = Form(None, description="etiquetas separadas por |"),
     campaignId: Optional[str] = Form(None), stage: Optional[str] = Form(None),
+    angle: Optional[str] = Form(None, description="ángulo de la estrategia de la marca"),
     files: List[UploadFile] = File(...), source: Optional[UploadFile] = File(None),
     s: AsyncSession = Depends(get_session),
 ):
@@ -308,7 +325,8 @@ async def create_delivery(
         raise HTTPException(status_code=400, detail="Una entrega necesita al menos una lámina")
     d = Delivery(brand_id=brand_id, title=title.strip()[:200], kind=kind, status="en_revision",
                  note=note, template=template, round=1, created_by=_who(request), items=[],
-                 campaign_id=_check_campaign(campaignId, brand_id), stage=(stage or "").strip()[:60] or None)
+                 campaign_id=_check_campaign(campaignId, brand_id), stage=(stage or "").strip()[:60] or None,
+                 angle=(angle or "").strip()[:120] or None)
     d.id = f"dl_{uuid.uuid4().hex[:12]}"
     try:
         d.items = await _store_items(d.id, 1, files, (labels or "").split("|"))
@@ -435,6 +453,36 @@ async def set_group(delivery_id: str, req: GroupIn, request: Request, s: AsyncSe
     return await _full(s, d)
 
 
+class PlanIn(BaseModel):
+    angle: Optional[str] = None          # "" lo saca
+    publishState: Optional[str] = None   # pausada · descartada · "" (vuelve a su fase)
+    scheduledAt: Optional[datetime] = None
+
+
+@router.post("/api/deliveries/{delivery_id}/plan")
+async def set_plan(delivery_id: str, req: PlanIn, request: Request, s: AsyncSession = Depends(get_session)):
+    """Ángulo, pausa/descarte y fecha prevista de una entrega (equipo). Sólo cambia lo que viene.
+    Fijar una fecha NO programa nada en Postiz: eso pasa recién al confirmar la semana (brand-integrations 3.5)."""
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    d = await _get(s, delivery_id)
+    sent = req.model_fields_set
+    if "angle" in sent:
+        d.angle = (req.angle or "").strip()[:120] or None
+    if "publishState" in sent:
+        st = (req.publishState or "").strip() or None
+        if st not in (None, "pausada", "descartada"):
+            raise HTTPException(status_code=400, detail="A mano sólo se puede pausar o descartar")
+        if d.publish_state in ("en_postiz", "publicada"):
+            raise HTTPException(status_code=400, detail="Ya está en Postiz: cambiarla allá")
+        d.publish_state = st
+    if "scheduledAt" in sent:
+        d.scheduled_at = req.scheduledAt
+    await s.commit()
+    await s.refresh(d)
+    return await _full(s, d)
+
+
 @router.post("/api/deliveries/{delivery_id}/items")
 async def add_items(delivery_id: str, request: Request, files: List[UploadFile] = File(...), s: AsyncSession = Depends(get_session)):
     """Sumar láminas a la ronda actual (equipo): otra imagen al lado, o la versión corregida de una
@@ -555,6 +603,7 @@ class CommentIn(BaseModel):
     itemId: Optional[str] = None
     x: Optional[float] = None
     y: Optional[float] = None
+    kind: Optional[str] = None
 
 
 @router.post("/api/deliveries/{delivery_id}/comments")
@@ -573,7 +622,63 @@ async def add_comment(delivery_id: str, req: CommentIn, request: Request, s: Asy
         raise HTTPException(status_code=400, detail="Esa lámina no es de la ronda actual")
     clamp = lambda v: None if v is None else min(1.0, max(0.0, float(v)))
     c = DeliveryComment(delivery_id=d.id, item_id=req.itemId, x=clamp(req.x), y=clamp(req.y),
-                        text=text[:4000], author=_who(request), round=d.round, internal=not req.asClient)
+                        text=text[:4000], author=_who(request), round=d.round, internal=not req.asClient,
+                        kind=req.kind if req.kind in COMMENT_KINDS else None)
+    c.id = f"dc_{uuid.uuid4().hex[:12]}"
+    s.add(c)
+    if d.status == "aprobada":
+        d.status, d.approved_by, d.approved_at = "cambios", None, None
+    await s.commit()
+    if is_client(request):
+        mailer.client_comment(d.id, d.brand_id, d.title, c.author, c.text, await mailer.team_emails(s))
+    return _comment(c)
+
+
+VOICE_PROMPT = (
+    "Es una nota de voz de alguien revisando una pieza de contenido (carrusel, video o imagen) de una marca. "
+    "Transcribila literal, en el idioma en que habla, sin resumir ni corregir. Después clasificá qué tipo de "
+    "corrección pide: texto (el copy), color, encuadre, tono, dato (un dato o cifra), imagen (cambiar la foto o el "
+    "dibujo) u otro. Respondé SÓLO un JSON: {\"texto\": \"...\", \"tipo\": \"...\"}"
+)
+
+
+@router.post("/api/deliveries/{delivery_id}/comments/audio")
+async def add_voice_comment(
+    delivery_id: str, request: Request,
+    audio: UploadFile = File(...), itemId: Optional[str] = Form(None),
+    x: Optional[float] = Form(None), y: Optional[float] = Form(None), asClient: bool = Form(False),
+    s: AsyncSession = Depends(get_session),
+):
+    """Nota de voz sobre la entrega o una lámina (brand-integrations 4.1): se guarda el audio, Gemini lo
+    transcribe y clasifica, y queda como comentario. Si la transcripción falla, el comentario queda igual
+    con el audio, para escucharlo."""
+    import json as _json
+    from services import llm_router
+    d = await _get(s, delivery_id)
+    if is_client(request):
+        if not can_see_brand(request, d.brand_id):
+            raise HTTPException(status_code=404, detail="No existe esa entrega")
+        asClient = True
+    if asClient and d.visibility != "cliente":
+        raise HTTPException(status_code=404, detail="No existe esa entrega")
+    if itemId and itemId not in {i["id"] for i in d.items or []}:
+        raise HTTPException(status_code=400, detail="Esa lámina no es de la ronda actual")
+    st = await _store(d.id, d.round, audio, AUDIO_EXT)
+    path = FILES_DIR / st["url"].split("/static/deliveries/", 1)[1]
+    mime = audio.content_type if (audio.content_type or "").startswith("audio/") else \
+        {".m4a": "audio/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg"}.get(st["ext"], "audio/webm")
+    text, kind = "(nota de voz sin transcribir)", None
+    try:
+        raw = await llm_router.call_audio(VOICE_PROMPT, path.read_bytes(), mime=mime)
+        m = re.search(r"\{.*\}", raw or "", re.S)
+        out = _json.loads(m.group(0)) if m else {"texto": raw}
+        text = (out.get("texto") or "").strip() or text
+        kind = out.get("tipo") if out.get("tipo") in COMMENT_KINDS else None
+    except Exception as e:
+        print(f"[deliveries] nota de voz sin transcribir ({d.id}): {type(e).__name__}: {str(e)[:200]}")
+    clamp = lambda v: None if v is None else min(1.0, max(0.0, float(v)))
+    c = DeliveryComment(delivery_id=d.id, item_id=itemId, x=clamp(x), y=clamp(y), text=text[:4000],
+                        author=_who(request), round=d.round, internal=not asClient, kind=kind, audio_url=st["url"])
     c.id = f"dc_{uuid.uuid4().hex[:12]}"
     s.add(c)
     if d.status == "aprobada":
@@ -633,18 +738,24 @@ async def delete_comment(delivery_id: str, comment_id: str, request: Request, s:
 
 
 class CommentVisibilityIn(BaseModel):
-    internal: bool
+    internal: Optional[bool] = None
+    kind: Optional[str] = None      # tipo de corrección; "" lo saca
 
 
 @router.patch("/api/deliveries/{delivery_id}/comments/{comment_id}")
 async def set_comment_visibility(delivery_id: str, comment_id: str, req: CommentVisibilityIn, request: Request,
                                  s: AsyncSession = Depends(get_session)):
-    """Equipo: pasar un comentario a «lo ve el cliente» o a «sólo el equipo»."""
+    """Equipo: pasar un comentario a «lo ve el cliente» o a «sólo el equipo», y/o fijar su tipo de corrección."""
     if is_client(request):
         raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
     c = await s.get(DeliveryComment, comment_id)
     if not c or c.delivery_id != delivery_id:
         raise HTTPException(status_code=404, detail="No existe ese comentario")
-    c.internal = req.internal
+    if req.internal is not None:
+        c.internal = req.internal
+    if req.kind is not None:
+        if req.kind and req.kind not in COMMENT_KINDS:
+            raise HTTPException(status_code=400, detail=f"tipo debe ser uno de {sorted(COMMENT_KINDS)}")
+        c.kind = req.kind or None
     await s.commit()
     return _comment(c)

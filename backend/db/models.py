@@ -63,6 +63,12 @@ class Delivery(Base):
     note: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
     template: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     round: Mapped[int] = mapped_column(Integer, default=1)
+    # El circuito de publicar (changes/brand-integrations §3): el ángulo de la estrategia al que responde,
+    # y lo que pasa después de aprobada — lista → en_postiz → publicada, o pausada / descartada.
+    angle: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    publish_state: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     approved_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -89,6 +95,11 @@ class DeliveryComment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # Imágenes de referencia que adjuntó quien comentó («así, como esta»): [{url, name}].
     refs: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    # Tipo de corrección (texto, color, encuadre, tono, dato, imagen, otro): lo que se repite 3 veces se
+    # vuelve regla de la marca (changes/brand-integrations §4). Aplicado = resolved_at.
+    kind: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Nota de voz: el comentario es su transcripción y el audio queda para escucharlo.
+    audio_url: Mapped[Optional[str]] = mapped_column(String(400), nullable=True)
 
 
 class User(Base):

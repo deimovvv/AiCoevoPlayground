@@ -127,11 +127,13 @@ const entregaCorta = (d) => ({
     id: d.id, titulo: d.title, tipo: d.kind, estado: d.status, ronda: d.round, laminas: d.items?.length ?? d.items,
     visible_para: d.visibility === "cliente" ? "cliente" : "sólo el equipo",
     campana: d.campaignName ?? null, etapa: d.stage ?? null,
+    // El circuito (brand-integrations §3): en_desarrollo → por_revisar → lista → en_postiz → publicada (+ pausada, descartada).
+    fase: d.phase ?? null, angulo: d.angle ?? null, fecha_prevista: d.scheduledAt ?? null,
     comentarios_abiertos: d.openComments, aprobada_por: d.approvedBy, actualizada: d.updatedAt,
 });
 
 tool("ver_entregas",
-    "Las entregas de una marca (carruseles, videos, imágenes) con su estado: en_revision, cambios o aprobada, y cuántos comentarios abiertos tiene cada una.",
+    "Las entregas de una marca (carruseles, videos, imágenes) con su estado (en_revision, cambios, aprobada), su fase en el circuito, su ángulo y cuántos comentarios abiertos tiene cada una.",
     { marca: z.string() },
     async ({ marca }) => (await api(`/api/brands/${encodeURIComponent((await findBrand(marca)).id)}/deliveries`)).map(entregaCorta));
 
@@ -151,6 +153,8 @@ tool("ver_entrega",
                 punto: c.x != null ? { x: c.x, y: c.y } : null, texto: c.text, autor: c.author, ronda: c.round,
                 de: c.internal ? "equipo" : "cliente",
                 resuelto: !!c.resolvedAt,
+                tipo: c.kind ?? null,
+                ...(c.audioUrl ? { nota_de_voz: c.audioUrl } : {}),
                 // «Así, como esta»: imágenes que adjuntó quien comentó. Bajarlas con bajar_archivo y usarlas de referencia.
                 ...(c.refs?.length ? { referencias: c.refs.map((r) => r.url) } : {}),
             })),
@@ -172,10 +176,11 @@ tool("subir_entrega",
         plantilla: z.string().optional().describe("plantilla y versión usadas, ej. 'carrusel-v1'"),
         campana_id: z.string().optional().describe("id de la campaña (ver_campanas), si la pieza es parte de una"),
         etapa: z.string().optional().describe("etapa dentro de la campaña, ej. '01 Fotos', '02 Video'"),
+        angulo: z.string().optional().describe("el ángulo de la estrategia al que responde (ver_marca → estrategia → angulos[].nombre)"),
     },
-    async ({ marca, titulo, archivos, tipo = "carrusel", etiquetas, fuente, nota, plantilla, campana_id, etapa }) => {
+    async ({ marca, titulo, archivos, tipo = "carrusel", etiquetas, fuente, nota, plantilla, campana_id, etapa, angulo }) => {
         const b = await findBrand(marca);
-        const form = filesForm({ title: titulo, kind: tipo, note: nota, template: plantilla, labels: etiquetas?.join("|"), campaignId: campana_id, stage: etapa }, archivos, fuente);
+        const form = filesForm({ title: titulo, kind: tipo, note: nota, template: plantilla, labels: etiquetas?.join("|"), campaignId: campana_id, stage: etapa, angle: angulo }, archivos, fuente);
         const d = await api(`/api/brands/${encodeURIComponent(b.id)}/deliveries`, { method: "POST", form });
         return { ...entregaCorta(d), ver_en: `${BASE}/dashboard/entregas?id=${d.id}` };
     });
@@ -196,10 +201,36 @@ tool("nueva_ronda",
     });
 
 tool("resolver_comentario",
-    "Marca un comentario de una entrega como resuelto (o lo reabre si ya estaba resuelto).",
+    "Marca un comentario de una entrega como resuelto = aplicado (o lo reabre). Antes de aplicar uno, mirar `resuelto` en ver_entrega: si ya está, no se aplica de nuevo.",
     { entrega_id: z.string(), comentario_id: z.string() },
     async ({ entrega_id, comentario_id }) => api(
         `/api/deliveries/${encodeURIComponent(entrega_id)}/comments/${encodeURIComponent(comentario_id)}/resolve`, { method: "POST", body: {} }));
+
+tool("clasificar_comentario",
+    "Fija el tipo de corrección de un comentario. Lo que en una marca se corrige 3 veces del mismo tipo se propone como regla de la marca. " +
+    "Las notas de voz llegan ya clasificadas; los escritos, clasificarlos al leerlos.",
+    {
+        entrega_id: z.string(), comentario_id: z.string(),
+        tipo: z.enum(["texto", "color", "encuadre", "tono", "dato", "imagen", "otro"]).describe("texto = el copy; dato = una cifra o hecho"),
+    },
+    async ({ entrega_id, comentario_id, tipo }) => api(
+        `/api/deliveries/${encodeURIComponent(entrega_id)}/comments/${encodeURIComponent(comentario_id)}`, { method: "PATCH", body: { kind: tipo } }));
+
+tool("planificar_entrega",
+    "Ángulo, fecha prevista, o pausar/descartar una entrega. Una fecha NO publica ni programa nada: queda como propuesta hasta que una persona confirma la semana en Studio.",
+    {
+        id: z.string(),
+        angulo: z.string().optional().describe("ángulo de la estrategia; \"\" lo saca"),
+        fecha: z.string().optional().describe("ISO con zona, ej. 2026-11-04T13:00:00-03:00"),
+        estado: z.enum(["pausada", "descartada", "activa"]).optional().describe("activa = vuelve a su fase"),
+    },
+    async ({ id, angulo, fecha, estado }) => {
+        const body = {};
+        if (angulo !== undefined) body.angle = angulo;
+        if (fecha !== undefined) body.scheduledAt = fecha;
+        if (estado !== undefined) body.publishState = estado === "activa" ? "" : estado;
+        return entregaCorta(await api(`/api/deliveries/${encodeURIComponent(id)}/plan`, { method: "POST", body }));
+    });
 
 // ── Campañas (studio-v2 §15): la dirección de ESTA pieza; gana en lo suyo sobre la marca ────
 

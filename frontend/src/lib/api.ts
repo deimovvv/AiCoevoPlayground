@@ -3820,7 +3820,14 @@ export interface DeliveryComment {
     byClient?: boolean;
     /** Imágenes de referencia adjuntas («así, como esta»). */
     refs?: { url: string; name: string }[];
+    /** Tipo de corrección: lo que se repite 3 veces se vuelve regla de la marca (brand-integrations §4). */
+    kind?: DeliveryCommentKind | null;
+    /** Nota de voz: el texto es su transcripción. */
+    audioUrl?: string | null;
 }
+export type DeliveryCommentKind = "texto" | "color" | "encuadre" | "tono" | "dato" | "imagen" | "otro";
+/** Dónde está la pieza en el circuito (brand-integrations §3). */
+export type DeliveryPhase = "en_desarrollo" | "por_revisar" | "lista" | "en_postiz" | "publicada" | "pausada" | "descartada";
 export interface DeliverySummary {
     id: string; brandId: string; title: string; kind: string; status: DeliveryStatus; round: number;
     /** interna: sólo el equipo · cliente: ya se le mandó (studio-v2 §11). */
@@ -3831,6 +3838,9 @@ export interface DeliverySummary {
     approvedItems: number | null;
     items: number; cover: string | null; openComments: number; createdBy: string | null;
     approvedBy: string | null; approvedAt: string | null; createdAt: string | null; updatedAt: string | null;
+    /** El ángulo de la estrategia al que responde, y su fase en el circuito. */
+    angle?: string | null; phase?: DeliveryPhase; publishState?: string | null;
+    scheduledAt?: string | null; publishedAt?: string | null;
 }
 export interface Delivery extends Omit<DeliverySummary, "items"> {
     items: DeliveryItem[]; source: { url: string; name: string } | null; note: string | null;
@@ -3951,6 +3961,25 @@ export async function addDeliveryComment(id: string, c: { text: string; itemId?:
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/comments`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c),
     }), "No se pudo guardar el comentario");
+}
+
+/** Nota de voz: el backend la transcribe y la clasifica; vuelve como comentario. */
+export async function addDeliveryVoiceComment(id: string, audio: Blob, c: { itemId?: string | null; x?: number | null; y?: number | null; asClient?: boolean }): Promise<DeliveryComment> {
+    const form = new FormData();
+    const ext = audio.type.includes("mp4") ? "m4a" : audio.type.includes("ogg") ? "ogg" : "webm";
+    form.append("audio", audio, `nota.${ext}`);
+    if (c.itemId) form.append("itemId", c.itemId);
+    if (c.x != null) form.append("x", String(c.x));
+    if (c.y != null) form.append("y", String(c.y));
+    form.append("asClient", c.asClient ? "true" : "false");
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/comments/audio`, { method: "POST", body: form }), "No se pudo guardar la nota de voz");
+}
+
+/** Equipo: ángulo, pausa/descarte y fecha prevista. Sólo cambia lo que viene; una fecha no publica nada. */
+export async function setDeliveryPlan(id: string, p: { angle?: string; publishState?: "" | "pausada" | "descartada"; scheduledAt?: string | null }): Promise<Delivery> {
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/plan`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p),
+    }), "No se pudo guardar el plan");
 }
 
 /** Adjuntar imágenes de referencia a un comentario (hasta 4). */

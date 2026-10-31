@@ -7,8 +7,9 @@ import { useConfirm } from "../lib/useConfirm";
 import { DeliveryGroupPicker } from "../components/workspace/DeliveryGroupPicker";
 import { SlideStage } from "../components/workspace/SlideStage";
 import { NewVersionDialog } from "../components/workspace/NewVersionDialog";
+import { VoiceNoteButton } from "../components/workspace/VoiceNoteButton";
 import {
-    approvedZipUrl, backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryCommentRefs, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound, setDeliveryCommentInternal,
+    approvedZipUrl, backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryCommentRefs, addDeliveryVoiceComment, setDeliveryPlan, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound, setDeliveryCommentInternal,
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
     type Delivery, type DeliveryStatus, type DeliverySummary,
 } from "../lib/api";
@@ -29,6 +30,11 @@ const DOT: Record<DeliveryStatus, string> = {
     en_revision: "bg-[var(--color-warning)]",
     cambios: "bg-[var(--color-brand)]",
     aprobada: "bg-[var(--color-success)]",
+};
+/** La fase en el circuito (brand-integrations §3), como se dice en pantalla. */
+const PHASE: Record<string, string> = {
+    en_desarrollo: "En desarrollo", por_revisar: "Por revisar", lista: "Lista para publicar",
+    en_postiz: "En Postiz", publicada: "Publicada", pausada: "Pausada", descartada: "Descartada",
 };
 /** Cómo se llama el estado según quién mira. */
 /** Mes › proyecto › entregas (ordenadas por etapa). El mes sale de cuándo llegó al cliente o se subió. */
@@ -241,6 +247,16 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
             await reload(current.id);
         });
     };
+    const saveVoice = (itemId: string, audio: Blob) => {
+        if (!current) return;
+        const d = draft?.itemId === itemId ? draft : null;
+        const visible = client || (forClient ?? current.visibility === "cliente");
+        return run(async () => {
+            await addDeliveryVoiceComment(current.id, audio, { itemId, x: d?.x ?? null, y: d?.y ?? null, asClient: visible });
+            setDraft(null);
+            await reload(current.id);
+        });
+    };
     const onUpload = (files: FileList | null) => {
         if (!files?.length || !brandId) return;
         const all = Array.from(files).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
@@ -424,6 +440,20 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         </button>
                                     )}
                                 </h2>
+                                {!client && (
+                                    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-fg-muted">
+                                        <span className="font-mono uppercase tracking-[0.06em] text-[10px]">{PHASE[current.phase ?? ""] ?? "—"}</span>
+                                        <span className="text-fg-faint">·</span>
+                                        <button className="cursor-pointer hover:text-fg" title="El ángulo de la estrategia al que responde"
+                                            onClick={async () => {
+                                                const a = await ask({ title: "Ángulo de la estrategia", input: "Ángulo", placeholder: current.angle ?? "ej. A · Institucional", confirm: "Guardar" });
+                                                if (typeof a === "string") run(async () => { setCurrent(await setDeliveryPlan(current.id, { angle: a })); await refreshList(); });
+                                            }}>
+                                            {current.angle ? `Ángulo: ${current.angle}` : "Sin ángulo"}
+                                        </button>
+                                        {current.scheduledAt && <><span className="text-fg-faint">·</span><span className="tabular-nums">prevista {new Date(current.scheduledAt).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></>}
+                                    </p>
+                                )}
                                 {current.round > 1 && (
                                     <p className="mt-1.5 flex flex-wrap items-center gap-2">
                                         <span className="h-6 px-2 inline-flex items-center rounded-[3px] bg-fg text-[var(--color-canvas)] text-[11px] font-medium">
@@ -783,6 +813,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                                 {i !== undefined ? `Lámina ${String(i + 1).padStart(2, "0")}` : old ? `Lámina ${String(old.n).padStart(2, "0")}` : "Toda la pieza"}
                                                                 {" · "}{client ? (c.byClient ? (sameAuthor(c.author) ? "Vos" : who(c.author)) : "Coevo") : <span className={c.byClient ? "text-[var(--color-brand)]" : ""}>{c.internal ? `${who(c.author)} · interno` : c.byClient ? "cliente" : `${who(c.author)} · para el cliente`}</span>}
                                                                 {c.round < current.round && ` · versión ${c.round}`}
+                                                                {!client && c.kind && <span className="font-mono text-[10px] uppercase tracking-[0.06em]">· {c.kind}</span>}
                                                                 <span className="ml-auto shrink-0 pr-6 tabular-nums">{stamp(c.createdAt)}</span>
                                                             </span>
                                                             <span className="block text-[13px] leading-relaxed text-fg mt-1.5">{c.text}</span>
@@ -794,6 +825,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                             )}
                                                             </span>
                                                         </button>
+                                                        {c.audioUrl && <audio controls preload="none" src={backendUrl(c.audioUrl)} className="ml-3 mb-2 w-[calc(100%-1.5rem)] h-8" />}
                                                     </li>
                                                 );
                                             })}
@@ -898,6 +930,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                             <Paperclip size={11} /> {draftRefs.length ? "Otra" : "Adjuntar referencia"}
                                                         </button>
                                                     )}
+                                                    <VoiceNoteButton disabled={busy} onDone={(audio) => saveVoice(it.id, audio)} />
                                                     <input ref={refInput} type="file" accept="image/*" multiple hidden onChange={(e) => {
                                                         const fs = Array.from(e.target.files || []).filter((f) => f.type.startsWith("image/"));
                                                         e.target.value = "";
@@ -933,6 +966,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                             {client ? (c.byClient ? (sameAuthor(c.author) ? "Vos" : who(c.author)) : "Coevo") : who(c.author)}
                                                             {!client && <span className={c.byClient ? "text-[var(--color-brand)]" : ""}> · {c.internal ? "interno" : c.byClient ? "cliente" : "para el cliente"}</span>}
                                                             {!c.itemId && " · sobre toda la pieza"}{c.round < current.round && ` · versión ${c.round}`}{c.resolvedAt && " · resuelto"}
+                                                            {!client && c.kind && <span className="font-mono text-[10px] uppercase tracking-[0.06em]">· {c.kind}</span>}
                                                             <span className="tabular-nums">· {stamp(c.createdAt)}</span>
                                                             <span className="flex-1" />
                                                             {!client && !c.byClient && (
@@ -955,6 +989,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                             )}
                                                         </div>
                                                         <p className={`text-[12px] text-fg mt-1.5 leading-relaxed ${c.resolvedAt ? "line-through decoration-fg/30" : ""}`}>{c.text}</p>
+                                                        {c.audioUrl && <audio controls preload="none" src={backendUrl(c.audioUrl)} className="mt-1.5 w-full h-8" />}
                                                         {!!c.refs?.length && (
                                                             <span className="mt-1.5 flex gap-1.5">
                                                                 {c.refs.map((r) => (
