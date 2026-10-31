@@ -25,9 +25,28 @@ const PHASES: { id: DeliveryPhase; label: string }[] = [
     { id: "publicada", label: "Publicada" },
 ];
 const DAYS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
-const FIRST_HOUR = 7, LAST_HOUR = 23, ROW = 56;   // la semana: de 7 a 23, 56 px por hora
+const FIRST_HOUR = 7, LAST_HOUR = 23, ROW = 64;   // la semana: de 7 a 23, 64 px por hora
 const DEFAULT_HOUR = 13;                         // al soltar en el mes o al distribuir
-const CARD_H = ROW * 1.75;
+const CARD_H = ROW * 2.25;                       // cada pieza ocupa ~2 h de alto: que la imagen se vea
+
+/** Piezas que se pisan en un día van una al lado de la otra (como un calendario): carril y cuántos hay. */
+function lanes(items: DeliverySummary[]) {
+    const pos = (d: DeliverySummary) => { const t = new Date(d.scheduledAt!); return (t.getHours() + t.getMinutes() / 60 - FIRST_HOUR) * ROW; };
+    const out = new Map<string, { lane: number; of: number }>();
+    let group: { d: DeliverySummary; lane: number }[] = [], groupEnd = -Infinity, ends: number[] = [];
+    const flush = () => { const of = Math.max(1, ...group.map((g) => g.lane + 1)); group.forEach((g) => out.set(g.d.id, { lane: g.lane, of })); };
+    for (const d of items) {
+        const top = pos(d);
+        if (top >= groupEnd) { flush(); group = []; ends = []; }
+        let lane = ends.findIndex((e) => e <= top);
+        if (lane < 0) { lane = ends.length; ends.push(0); }
+        ends[lane] = top + CARD_H;
+        group.push({ d, lane });
+        groupEnd = Math.max(groupEnd, top + CARD_H);
+    }
+    flush();
+    return out;
+}
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const monthKey = (d: Date) => dayKey(d).slice(0, 7);
@@ -127,18 +146,20 @@ export function PlanPage() {
     });
 
     /** La pieza en la semana: la imagen manda; abajo, hora, título y redes. */
-    const WeekCard = ({ d }: { d: DeliverySummary }) => {
+    const WeekCard = ({ d, lane = 0, of = 1 }: { d: DeliverySummary; lane?: number; of?: number }) => {
         const at = new Date(d.scheduledAt!);
         const top = Math.max(0, Math.min((LAST_HOUR - FIRST_HOUR) * ROW - CARD_H, (at.getHours() + at.getMinutes() / 60 - FIRST_HOUR) * ROW));
+        const narrow = of > 1;
         return (
-            <div {...drag(d)} onClick={() => setSel(d.id)} style={{ top, height: CARD_H }}
-                className={`absolute left-1 right-1 z-10 flex gap-2 p-1.5 rounded-[var(--radius-md)] overflow-hidden cursor-pointer bg-surface-1 shadow-[var(--shadow-card)]
+            <div {...drag(d)} onClick={() => setSel(d.id)}
+                style={{ top, height: CARD_H, left: `calc(${(lane / of) * 100}% + 3px)`, width: `calc(${100 / of}% - 6px)` }}
+                className={`absolute z-10 flex ${narrow ? "flex-col" : ""} gap-2 p-1.5 rounded-[var(--radius-md)] overflow-hidden cursor-pointer bg-surface-1 shadow-[var(--shadow-card)]
                     ${sel === d.id ? "ring-2 ring-fg" : "ring-1 ring-edge hover:ring-fg/40"} ${tentative(d) ? "opacity-80 [background-image:repeating-linear-gradient(135deg,transparent_0_6px,var(--color-accent-muted)_6px_7px)]" : ""}`}>
-                {d.cover && <img src={backendUrl(d.cover)} alt="" className="h-full aspect-[4/5] shrink-0 rounded-[4px] object-cover" />}
-                <span className="min-w-0 flex-1 flex flex-col">
+                {d.cover && <img src={backendUrl(d.cover)} alt="" className={narrow ? "w-full min-h-0 flex-1 rounded-[4px] object-cover object-top" : "h-full aspect-[4/5] shrink-0 rounded-[4px] object-cover"} />}
+                <span className={`min-w-0 flex flex-col ${narrow ? "" : "flex-1"}`}>
                     <span className="text-[11px] tabular-nums text-fg-muted">{hhmm(d.scheduledAt!)}{tentative(d) && " · tentativa"}</span>
-                    <span className="mt-0.5 text-[12px] leading-snug text-fg line-clamp-2">{d.title}</span>
-                    <span className="mt-auto text-[10px] text-fg-faint truncate">{d.channels?.length ? channelNames(d.channels) : "sin red"}</span>
+                    <span className={`mt-0.5 text-[12px] leading-snug text-fg ${narrow ? "truncate" : "line-clamp-3"}`}>{d.title}</span>
+                    <span className={`${narrow ? "hidden" : "mt-auto"} text-[10px] text-fg-faint truncate`}>{d.channels?.length ? channelNames(d.channels) : "sin red"}</span>
                 </span>
             </div>
         );
@@ -285,7 +306,7 @@ export function PlanPage() {
                                                         <span style={{ top: (now.getHours() + now.getMinutes() / 60 - FIRST_HOUR) * ROW }}
                                                             className="absolute left-0 right-0 z-20 h-px bg-[var(--color-brand)] before:absolute before:-left-1 before:-top-1 before:w-2 before:h-2 before:rounded-full before:bg-[var(--color-brand)]" />
                                                     )}
-                                                    {(byDay.get(k) ?? []).map((d) => <WeekCard key={d.id} d={d} />)}
+                                                    {(() => { const items = byDay.get(k) ?? []; const L = lanes(items); return items.map((d) => <WeekCard key={d.id} d={d} {...L.get(d.id)} />); })()}
                                                 </div>
                                             );
                                         })}
