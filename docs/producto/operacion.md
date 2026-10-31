@@ -77,7 +77,7 @@ distintas o cuando lo pide un cliente que paga.
           ▼                              ▼                                ▼
   ┌──────────────────── COEVO STUDIO · la memoria de la marca ─────────────────────────┐
   │ quién es y su voz · identidad (colores, letras, logos, link al design system)       │
-  │ ESTRATEGIA: claim, enemigo, ángulos, calendario   (por hacer)                       │
+  │ ESTRATEGIA: claim, enemigo, ángulos, calendario   (ver_marca → estrategia)          │
   │ REGLAS APRENDIDAS: lo que se corrigió tres veces  (por hacer)                       │
   │ Entregas (rondas, comentarios, aprobación) · costo por pieza                        │
   └──────────────────────────────┬───────────────────────────────────▲─────────────────┘
@@ -162,7 +162,7 @@ Regla de `coevo-skills/SISTEMA.md`: **cada cosa tiene un solo hogar; los demás 
 
 | # | Qué | Para qué |
 |---|---|---|
-| 1 | **Bloque «Estrategia» en la ficha de Studio** (claim, enemigo, ángulos, calendario) | que las skills produzcan respondiendo a un ángulo, no piezas sueltas. **Es la palanca** |
+| 1 | ~~Bloque «Estrategia» en la ficha de Studio~~ **hecho 2026-10-30** (`changes/brand-strategy`; falta la pantalla y que `carrusel` elija el ángulo) | que las skills produzcan respondiendo a un ángulo, no piezas sueltas. **Es la palanca** |
 | 2 | **Skill `reunion`** (preparar la agenda y ordenar lo dicho) | que lo que dice la marca vuelva a los ángulos |
 | 3 | **Que el MCP pueda escribir la ficha**, con aprobación | cargar lo aprendido sin hacerlo a mano |
 | 4 | **Studio acepta el link de un repo como design system** (hoy sólo claude.ai) | marcas cuya web es nuestra |
