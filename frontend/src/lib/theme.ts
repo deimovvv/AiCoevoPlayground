@@ -20,9 +20,26 @@ function apply(theme: Theme) {
   else root.removeAttribute("data-theme");
 }
 
+// Vista previa de la paleta «sistema» (la de la web, coevo-web /sistema): ?paleta=sistema la prende
+// y queda guardada; ?paleta=papel la apaga. Sólo cambia el tema claro.
+const PALETA_KEY = "coevo-paleta";
+
+function applyPaleta() {
+  let paleta: string | null = null;
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get("paleta");
+    if (fromUrl === "sistema") localStorage.setItem(PALETA_KEY, "sistema");
+    else if (fromUrl === "papel") localStorage.removeItem(PALETA_KEY);
+    paleta = localStorage.getItem(PALETA_KEY);
+  } catch {}
+  if (paleta === "sistema") document.documentElement.setAttribute("data-paleta", "sistema");
+  else document.documentElement.removeAttribute("data-paleta");
+}
+
 /** Applies the stored theme on first load — call once from app root. */
 export function initTheme() {
   apply(readStored());
+  applyPaleta();
 }
 
 export function useTheme() {

@@ -229,6 +229,73 @@
   --shadow-dropdown: 0 8px 24px rgba(21, 21, 21, 0.12);
 }
 
+/* PALETA «SISTEMA» — vista previa (2026-10-31), se prende con ?paleta=sistema y se apaga con
+   ?paleta=papel. Trae a Studio el design system v3 de la web (coevo-web/docs/design-system.md):
+   grises fríos, celeste para lo fino, salmón como señal, Instrument Sans y títulos livianos.
+   Si se aprueba, reemplaza a «papel»; si no, se borra este bloque. */
+[data-theme="light"][data-paleta="sistema"] {
+  --font-sans: "Instrument Sans", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Instrument Sans", "Geist", ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: #eceeed;
+  --color-surface-0: #f3f4f3;
+  --color-surface-1: #fafafa;
+  --color-surface-2: #e7e9e8;
+  --color-surface-3: #dadddc;
+
+  --color-fg: #131416;
+  --color-fg-secondary: #2a2c2f;
+  --color-fg-muted: #5f6267;
+  --color-fg-faint: #6b6e73;
+
+  --color-edge: #d3dadd;
+  --color-edge-subtle: #e2e7e9;
+  --color-edge-strong: #a9bcc6;
+  --color-edge-focus: rgba(127, 166, 188, 0.6);
+
+  --color-accent: #131416;
+  --color-accent-muted: rgba(19, 20, 22, 0.06);
+
+  --color-warm: #7fa6bc;
+  --color-warm-strong: #5f8aa2;
+  --color-warm-fg: #131416;
+  --color-warm-muted: rgba(127, 166, 188, 0.18);
+  --color-warm-subtle: rgba(127, 166, 188, 0.09);
+
+  --color-action: #131416;
+  --color-action-strong: #000000;
+  --color-action-muted: rgba(19, 20, 22, 0.08);
+  --color-action-subtle: rgba(19, 20, 22, 0.04);
+  --color-action-fg: #fafafa;
+
+  /* El salmón de la web (#e78787) no se lee como texto chico (2,6:1): la señal usa uno más hondo. */
+  --color-brand: #c95f5f;
+  --color-brand-strong: #a94848;
+  --color-brand-muted: rgba(231, 135, 135, 0.18);
+  --color-brand-subtle: rgba(231, 135, 135, 0.08);
+  --color-brand-fg: #131416;
+
+  --color-control-bg: #fafafa;
+  --color-control-border: #c8d2d6;
+
+  --glass-bg: rgba(250, 250, 250, 0.72);
+  --glass-bg-hover: rgba(250, 250, 250, 0.92);
+  --glass-border: rgba(19, 20, 22, 0.08);
+  --glass-border-hover: rgba(19, 20, 22, 0.14);
+
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+
+  --shadow-card: none;
+  --shadow-modal: 0 20px 60px rgba(19, 20, 22, 0.12), 0 4px 12px rgba(19, 20, 22, 0.05);
+  --shadow-dropdown: 0 8px 24px rgba(19, 20, 22, 0.10);
+}
+[data-theme="light"][data-paleta="sistema"] body { letter-spacing: -0.01em; }
+/* Títulos livianos y cerrados, como la web: nada de negritas. */
+[data-theme="light"][data-paleta="sistema"] :is(h1, h2) { font-weight: 400; letter-spacing: -0.035em; }
+[data-theme="light"][data-paleta="sistema"] h3 { font-weight: 500; letter-spacing: -0.02em; }
+
 /* ============================================================
    Base Styles
    ============================================================ */
