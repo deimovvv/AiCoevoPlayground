@@ -1,125 +1,188 @@
-# Cómo se opera Coevo Studio: formatos, skills y el día a día
+# Cómo opera Coevo: de la marca a la pieza publicada
 
-**Estado:** borrador para revisar con Gonzalo (2026-10-30). Nada de esto está decidido todavía.
-**Por qué existe:** *"definamos cuáles son las skills y cuáles son los formatos que ofrecemos, porque
-nos estamos confundiendo. Son muchos formatos"* (Gonzalo, 2026-10-30).
+**Qué es este documento:** el mapa completo de cómo trabaja Coevo con una marca: quién hace qué, en qué
+orden, con qué herramientas y dónde queda cada cosa. Es la base para explicarlo (al equipo, a un cliente,
+en un video). Lo que cambie se cambia acá.
 
-Base: la reunión del 29/10 (modelo uno a uno: una persona opera para una marca mediana), `SISTEMA.md`
-de coevo-skills (dónde vive cada cosa) y el circuito de NORA (`negocio/competitive-research.md`).
+**Estado:** borrador vivo, armado el 2026-10-30 con Gonzalo. Las partes marcadas **por hacer** todavía no existen.
+
+**Caso que lo prueba:** Mi Saluteca (app de historial médico). Su estrategia está en
+`MiSaluteca-app/docs/spec-campana-mi-saluteca.md` y su design system en `MiSaluteca-app/docs/design/`.
 
 ---
 
-## 1. Tres palabras que se estaban mezclando
+## 1. La idea en una frase
 
-| Palabra | Qué es | Quién la ve | Ejemplo |
+**Coevo guarda la memoria de cada marca y la usa para producir su contenido cada semana: las personas
+ponen el criterio, las skills producen y la marca aprueba.**
+
+Tesis de fondo (de `coevo-web`): *lo que es regla lo hace el sistema; lo que es criterio lo hace la casa.*
+
+## 2. Las cuatro piezas
+
+| Pieza | Qué es | Qué hace |
+|---|---|---|
+| **El equipo** | las personas de Coevo | pone el criterio: estrategia, gusto, decisiones |
+| **Las skills** (`coevo-skills`) | recetas que ejecuta Claude | producen: carruseles, reels, fichas, estrategia |
+| **Coevo Studio** (`app.coevoagency.com`) | la casa de cada marca, en la nube | recuerda, muestra y registra |
+| **La marca** (el cliente) | quien contrata | dice, aprueba, firma lo legal |
+
+## 3. Los roles (son funciones, no personas)
+
+Hoy una misma persona cumple varios roles. Mañana pueden ser personas distintas. Coevo es una empresa:
+los roles no dependen de quién esté.
+
+| Rol | Qué decide | Qué hace en el día a día |
+|---|---|---|
+| **Dirección** | la estrategia y los ángulos; aprueba el design system; define qué se ofrece | arma o revisa el spec de campaña; está en la reunión con la marca |
+| **Operación** | qué se produce esta semana y qué se le manda a la marca | dispara las skills, revisa los borradores, sube a Entregas, publica |
+| **Sistema** | nada: ejecuta reglas | produce borradores leyendo la memoria de la marca; registra costo y vueltas |
+| **Marca** | qué aprueba y qué no | comenta en Studio, aprueba, firma lo legal |
+
+**Lo que nunca se automatiza:** mandarle la pieza a la marca, publicar, las frases legales (en salud,
+la privacidad) y usar personas reales (necesitan permiso escrito).
+
+## 4. Las tres palabras que se mezclaban
+
+| Palabra | Qué es | Ejemplo |
+|---|---|---|
+| **Formato** | lo que la marca **compra y recibe** | un carrusel, un reel explicativo |
+| **Skill** | **cómo se hace** (la receta) | `carrusel`, `reels-explicativos` |
+| **Tool de Studio** | una pantalla, sólo si alguien tiene que operar sin terminal | Fashion Reel, Ecommerce Pack |
+
+**Se vende un formato, se produce con una skill.** Hay skills que no son formatos: ordenar archivos,
+filmar una app para usarla adentro de otra pieza (`grabar-web`), leer imágenes.
+
+Los formatos **no están cerrados**: se curan a medida que entran clientes reales. Punto de partida:
+carrusel, reel explicativo dibujado, reel de marca, reel con persona hablando; en moda, fichas de
+e-commerce y video catálogo. Un formato se suma cuando ya se hizo con una skill para tres marcas
+distintas o cuando lo pide un cliente que paga.
+
+## 5. El mapa
+
+```
+                       ┌───────────────── LA MARCA ─────────────────┐
+                       │ dice (reunión) · aprueba · firma lo legal   │
+                       └────────┬──────────────────────▲────────────┘
+                     reunión    │                      │ aprueba o comenta
+                                ▼                      │ (Studio → Entregas)
+  ① ENTRADA (una vez,        ② CADA SEMANA                       ③ CADA MES
+     y cada trimestre)
+  ─────────────────────      ────────────────────────────        ─────────────────────
+  auditoría                  pedidos = calendario de la          comentarios por tipo
+  → mapa de mercado          estrategia + novedades del          + métricas a 7 días
+  → spec de campaña          producto + lo dicho en la reunión   → reglas nuevas
+  + design system                                                → ángulos ajustados
+          │                              │                                │
+          ▼                              ▼                                ▼
+  ┌──────────────────── COEVO STUDIO · la memoria de la marca ─────────────────────────┐
+  │ quién es y su voz · identidad (colores, letras, logos, link al design system)       │
+  │ ESTRATEGIA: claim, enemigo, ángulos, calendario   (por hacer)                       │
+  │ REGLAS APRENDIDAS: lo que se corrigió tres veces  (por hacer)                       │
+  │ Entregas (rondas, comentarios, aprobación) · costo por pieza                        │
+  └──────────────────────────────┬───────────────────────────────────▲─────────────────┘
+                                 │ leen antes de producir             │ suben borradores
+                                 ▼                                    │
+                 LAS SKILLS: /carrusel · /reels-explicativos · /reel-marca · …
+          las dispara Operación (modo persona) o una rutina semanal (modo sistema)
+```
+
+## 6. Ciclo ① — La entrada de una marca
+
+Pasa una vez, y se revisa cada trimestre.
+
+| Paso | Skill | Qué sale | Quién aprueba |
 |---|---|---|---|
-| **Formato** | Lo que la marca **compra y recibe** | el cliente | un carrusel, un reel explicativo |
-| **Skill** | **Cómo se hace** un formato (la receta) | el equipo | `carrusel`, `reels-explicativos` |
-| **Tool de Studio** | Una pantalla, sólo cuando lo opera alguien sin terminal | el equipo | Fashion Reel, Ecommerce Pack |
+| Auditoría desde afuera | `auditoria-creativa` | lo que la marca dice contra lo que hace; la tensión en una frase | Dirección |
+| Mercado | `mapa-de-mercado` | competencia, el hueco, referencias | Dirección |
+| Estrategia | `spec-campana` | claim, enemigo, seis burbujas de contenido, calendario, qué se automatiza | Dirección y la marca |
+| Identidad | `design-system` | colores, letras, logo, reglas de imagen, piezas tipo | la marca |
+| Carga en Studio | (a mano hoy) | la ficha completa | Operación |
 
-Regla: **se vende un formato, se produce con una skill.** Un formato puede usar más de una skill, y hay
-skills que no son ningún formato (ordenar archivos, chequear conexiones, leer imágenes).
+**De dónde sale el design system:** lo generamos nosotros (`design-system`) a partir de lo que la marca ya
+tiene, sea su web, su manual o sus piezas, y **la marca lo aprueba**, porque es su identidad.
+- Si la web es nuestra (Mi Saluteca, ALGÜNA), **vive en el código de la web**: el `DESIGN.md` y los tokens
+  del repo. Si la web cambia, las piezas cambian con ella.
+- Si la web no es nuestra, vive en Claude Design.
+- **Studio no guarda una copia: guarda el link.** Las skills lo leen siempre antes de producir.
 
-## 2. Lo que ofrecemos (propuesta: pocos formatos, bien hechos)
+El design system de Mi Saluteca («Carpeta») ya decidió la estética: interfaz real con datos ficticios,
+papel real (sobres, la carpeta del placard, la mesa de la cocina) y dibujo de cuaderno. Nunca médicos ni
+pacientes generados, candados, escudos ni azul hospital.
 
-### Contenido mensual (Coevo Studio)
+## 7. Ciclo ② — La semana
 
-| Formato | Skill que lo hace | Probado con cliente real |
+| Paso | Rol | Qué pasa | Dónde queda |
+|---|---|---|---|
+| **Reunión** (45 min) | Dirección + la marca | el sistema prepara la agenda (lo entregado, lo pendiente, lo que costó); después ordena lo dicho | la estrategia en Studio (skill `reunion`, **por hacer**) |
+| **Plan** | Operación | qué piezas salen, según el calendario de la estrategia | un proyecto en Studio |
+| **Producir** | Sistema | cada skill lee la ficha, la estrategia y el design system, y arma un borrador | `~/cov/archivos/<marca>/` |
+| **Revisión interna** | Operación | mira, corrige, aprueba el borrador | idem |
+| **Entrega** | Operación | sube la pieza; queda interna hasta que se decide mandarla | Studio → Entregas |
+| **Aprobación** | la marca | aprueba o comenta placa por placa | Studio; el sistema anota vueltas y tipo de corrección |
+| **Publicar** | Operación | programa lo aprobado | Postiz (**por conectar**) |
+
+**Cómo se responde a lo que dice la marca:** lo que dice en la reunión **no se convierte directo en una
+pieza: ajusta un ángulo**, y las piezas salen de los ángulos. Si la marca pide «algo de la vuelta a
+clases», eso se vuelve una burbuja del calendario que produce varias piezas coherentes, no un post suelto.
+
+## 8. Ciclo ③ — El mes
+
+- **Informe:** piezas, vueltas hasta la aprobación, costo, y alcance, guardados y compartidos a los 7 días.
+- **Lo que se corrigió tres veces se vuelve regla** de la marca en Studio. Cada comentario se clasifica por
+  tipo (texto, color, encuadre, tono…). A NORA, el 69 % era texto, y por eso su control empieza por ahí.
+- **Los ángulos se ajustan** con lo que funcionó y lo que no.
+
+## 9. Dos modos de operar una marca
+
+| | **Modo persona** | **Modo sistema** |
 |---|---|---|
-| **Carrusel** | `carrusel` | ✕ (falta el primero) |
-| **Reel explicativo dibujado** | `reels-explicativos` | ◐ |
-| **Reel de marca** (montaje con material que ya existe) | `reel-marca` | ◐ |
-| **Reel con persona hablando** (UGC, avatar) | `pipeline-contenido` + `escena-seedance` | ◐ |
+| Quién dispara una pieza | Operación le pide a Claude («hacé un carrusel para…») | una rutina semanal, desde el calendario y los ángulos |
+| Qué decide el equipo | cada guion y cada gasto | los ángulos y la estrategia; después revisa |
+| Subida a Studio | a mano, con OK | automática, como interna |
+| Para qué marcas | las que recién entran, o donde cada pieza es distinta | las que ya tienen ficha completa, ángulos y formatos probados |
 
-`grabar-web` **no es un formato para redes**: es una skill de apoyo (filma una app o una web para usar
-adentro de otra pieza). Corrección de Gonzalo, 2026-10-30.
+Una marca **empieza** en modo persona y **pasa** a modo sistema cuando su ficha y sus formatos están
+probados (muchas piezas aprobadas a la primera). Se automatiza lo que ya se hizo a mano varias veces.
 
-**La lista no está cerrada:** los formatos se curan a medida que entran clientes reales. Esta tabla es
-el punto de partida, no la oferta final.
+## 10. Dónde vive cada cosa
 
-### Moda (Morph)
-
-| Formato | Skill / tool |
-|---|---|
-| **Fichas de e-commerce** con calce verificado | `ficha-ecommerce` |
-| **Video catálogo / reel de un look** | Fashion Reel + `escena-seedance` |
-
-### Entrada de una marca (una vez, no es un formato mensual)
-
-`auditoria-creativa` → `mapa-de-mercado` → `spec-campana`, y `design-system` si la marca no tiene uno.
-
-**Regla para sumar un formato:** sólo si ya se hizo con una skill para tres marcas distintas, o si lo
-pide un cliente que paga. Hasta entonces es una prueba, no algo que se ofrece.
-
-## 3. Dos modos de operar una marca
-
-Gonzalo, 2026-10-30: *"yo le puedo pedir a Keyla que me haga el carrusel, pero hay marcas, como NORA, donde
-no lo hace manual: lo hace solo el sistema, según las charlas y los ángulos que definieron"*.
-
-| | **Operado por una persona** | **Operado por el sistema** |
+| Cosa | Hogar | Los demás lugares… |
 |---|---|---|
-| Quién dispara una pieza | la persona le pide a Claude ("hacé un carrusel para…") | el sistema, desde el plan del mes y los ángulos de la marca |
-| Qué decide la persona | el guion, el gasto, cada pieza | los ángulos y la estrategia, en la reunión; después revisa |
-| Subida a Studio | a mano, con OK | automática: la pieza entra a Entregas como interna |
-| Lo que nunca se automatiza | mandar al cliente y publicar | mandar al cliente y publicar |
-| Para qué marcas | las que recién entran, o donde cada pieza es distinta | las que ya tienen ficha completa, ángulos definidos y formatos probados |
+| Cómo se hace (recetas) | `coevo-skills` (git) | — |
+| Quién es la marca, su identidad, su estrategia, lo aprendido | **Coevo Studio** | las skills la leen |
+| El design system | el repo de la web, o Claude Design | Studio guarda el link |
+| El trabajo en curso | `~/cov/archivos/<marca>/` | — |
+| Lo terminado y aprobado | Studio → Entregas | — |
+| Lo que escriben personas para personas (actas, calendario) | Notion | — |
 
-Una marca **empieza** operada por una persona y **pasa** al sistema cuando su ficha y sus formatos están
-probados (el «a la primera» alto). Es la misma regla de siempre: se automatiza lo que ya se hizo a mano
-varias veces.
+Regla de `coevo-skills/SISTEMA.md`: **cada cosa tiene un solo hogar; los demás guardan el link.**
 
-**Para que el modo sistema exista falta:** ángulos de la marca guardados como datos en Studio, un plan del
-mes que los use, y que el MCP pueda escribir (crear proyectos y subir sin intervención).
+## 11. Lo que falta, en orden
 
-## 4. El día a día de la persona que opera una marca
-
-Tres ritmos. En cada paso: quién hace qué y dónde queda.
-
-### Una vez, al entrar la marca (≈ 1 día)
-
-1. **Reunión de arranque** con el cliente.
-2. **Cargar la ficha en Studio** (Marca): quién es, colores, letras, logo, design system, caras.
-   *Sin esto ninguna skill entrega bien: con colores y letras sale un borrador, no una entrega.*
-3. **Estrategia**: auditoría → mercado → spec de campaña.
-4. **Elegir 2 o 3 formatos y la frecuencia** (ej. 2 carruseles y 1 reel por semana). Queda en la ficha.
-5. Crear el archivo de **piezas** de la marca y cargar su link en Studio.
-
-### Cada semana
-
-| Paso | Persona | Claude (skills) | Cliente | Dónde queda |
-|---|---|---|---|---|
-| **Reunión** (45 min) | conduce | prepara la agenda con lo entregado y lo pendiente; después ordena la transcripción | pide, decide | decisiones y pedidos (skill `reunion`, **por hacer**) |
-| **Plan de la semana** | elige qué piezas | propone temas desde la estrategia | — | proyecto en Studio |
-| **Producir, de a una** | da el OK al guion y al gasto | arma la pieza leyendo la ficha (`ver_marca`) | — | `~/cov/archivos/<marca>/` |
-| **Revisión interna** | mira y corrige | rehace lo que se marca | — | idem |
-| **Entrega** | decide mandarla | sube la pieza (`subir_entrega`, queda interna) | — | Studio → Entregas |
-| **Aprobación** | — | registra las vueltas y qué se corrigió, por tipo | aprueba o comenta en Studio | `run.json` + aprendizajes |
-| **Publicar** | programa | — | — | Postiz (**por conectar**) |
-
-### Cada mes
-
-- **Informe**: piezas, vueltas hasta la aprobación, costo, y alcance / guardados / compartidos a los 7 días.
-- **Ajustar la ficha** con lo que se repitió (una corrección que aparece tres veces es una regla de la marca).
-
-## 5. Lo que falta para que este día a día funcione
-
-| Hueco | Qué frena | Prioridad |
+| # | Qué | Para qué |
 |---|---|---|
-| **Skill `reunion`** (preparar y ordenar) | la reunión no alimenta nada | alta |
-| **El MCP no escribe la ficha** (sólo la lee) | lo aprendido se carga a mano en Studio | alta |
-| **Un primer carrusel real** | la skill está probada con placas sueltas, no con un cliente | alta |
-| **Publicar y medir** (Postiz) | sin números a los 7 días no hay informe | media |
-| **Vueltas y costo visibles en Studio** | el «a la primera» de NORA no se ve | media |
+| 1 | **Bloque «Estrategia» en la ficha de Studio** (claim, enemigo, ángulos, calendario) | que las skills produzcan respondiendo a un ángulo, no piezas sueltas. **Es la palanca** |
+| 2 | **Skill `reunion`** (preparar la agenda y ordenar lo dicho) | que lo que dice la marca vuelva a los ángulos |
+| 3 | **Que el MCP pueda escribir la ficha**, con aprobación | cargar lo aprendido sin hacerlo a mano |
+| 4 | **Studio acepta el link de un repo como design system** (hoy sólo claude.ai) | marcas cuya web es nuestra |
+| 5 | **Publicar y medir** (Postiz) | sin números a 7 días no hay informe |
+| 6 | **Vueltas y costo visibles en Entregas** | el «a la primera» medido de verdad |
 
-## 6. Preguntas abiertas (del aviso de coevo-skills, 2026-10-30)
+## 12. Cómo contarlo en un video (guion sugerido)
 
-1. **Huecos de la ficha.** Coevo, ALGÜNA (`alkura`), Morph y Mi Saluteca no tienen design system cargado.
-   Mi Saluteca ya tiene colores (de la web en vivo: océano `#2F416A`, verde `#7ABB85`, teal `#0D9488`),
-   letra (Inter) y tres logos, cargados el 2026-10-30.
-2. **Aprendizajes por marca.** Propuesta: lo que se repite tres veces pasa a un bloque de reglas de la
-   ficha en Studio (como las «restricciones duras» de NORA); lo de cada carrusel queda en sus archivos.
-3. **Entregas con PNG y MP4.** El MCP ya los recibe en orden (`archivos` = láminas en orden, acepta mp4).
-   Falta probar que Studio muestre un MP4 de 1080×1350 bien.
-4. **Mostrar vueltas y costo en Studio.** Propuesta: sí, en Entregas.
-5. **Plantillas de placa.** Propuesta: siguen en los archivos de la marca hasta que se repitan;
-   `changes/studio-v2` ya prevé plantillas por marca.
+Siete escenas, cada una con algo real para mostrar. La skill `explicar-herramienta` arma el video con locución
+y una página que se scrollea, usando la app de verdad.
+
+1. **El problema.** Una marca mediana necesita contenido todas las semanas y no tiene un equipo para hacerlo.
+2. **La memoria de la marca.** La ficha de Mi Saluteca en Studio: quién es, su voz, sus colores, su estrategia.
+3. **La estrategia.** El claim, el enemigo y las burbujas, en una sola pantalla.
+4. **La producción.** Una skill arma un carrusel leyendo esa memoria. El costo, a la vista.
+5. **La entrega.** El carrusel en Studio; la marca comenta una placa y aparece la ronda 2.
+6. **El aprendizaje.** Lo que se corrigió vuelve a la ficha; la siguiente pieza sale mejor.
+7. **El cierre.** Las personas ponen el criterio, el sistema produce, la marca aprueba.
+
+---
+
+Fuentes: reunión del 2026-10-29 (modelo uno a uno con marcas medianas), `coevo-skills/SISTEMA.md`, el circuito
+de NORA (`negocio/competitive-research.md`) y el caso Mi Saluteca (2026-10-30).
