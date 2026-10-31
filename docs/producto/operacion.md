@@ -18,6 +18,23 @@ ponen el criterio, las skills producen y la marca aprueba.**
 
 Tesis de fondo (de `coevo-web`): *lo que es regla lo hace el sistema; lo que es criterio lo hace la casa.*
 
+## 1b. Coevo Studio en una frase (2026-10-31)
+
+> **Coevo Studio es la carpeta de cada marca: guarda quién es, le muestra lo que hicimos para que lo
+> apruebe, y aprende de lo que corrige.**
+
+| Verbo | Pestaña | Qué es |
+|---|---|---|
+| **Recordar** | Marca | quién es, cómo se ve, qué quiere decir este mes (estrategia, reglas aprendidas) |
+| **Mostrar** | Entregas | las piezas: se miran, se comentan (también con audio) y se aprueban |
+| **Aprender** | Entregas → Plan | cuándo y dónde sale cada cosa; qué se corrige siempre igual → regla |
+
+**Nadie usa todo.** El cliente, sólo Entregas. Quien opera, el Plan y Entregas. Dirección, Marca y el
+Aprendizaje del mes. Claude no usa la pantalla: lee la ficha y sube.
+
+**Regla para lo que venga:** si no entra en recordar, mostrar o aprender, no va a Studio: va a una skill.
+Producción (las tools) queda por ahora; se revisa después qué se usa de verdad.
+
 ## 2. Las cuatro piezas
 
 | Pieza | Qué es | Qué hace |
