@@ -2,13 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
-import { backendUrl, listDeliveries, setDeliveryPlan } from "../lib/api";
-import type { DeliveryPhase, DeliverySummary } from "../lib/api";
+import { CHANNELS, backendUrl, listDeliveries, setDeliveryPlan } from "../lib/api";
+import type { Channel, DeliveryPhase, DeliverySummary } from "../lib/api";
+import { PublishControls } from "../components/workspace/PublishControls";
 
 /**
  * El plan de una marca (changes/brand-integrations §3): las piezas por fase (tablero), y lo que sale cada
- * semana y cada mes, con el ángulo que toca según la estrategia. Arrastrar una pieza lista a un día le pone
- * fecha prevista: eso es una propuesta, no publica nada (confirmar y mandar a Postiz es 3.5).
+ * semana y cada mes, con el ángulo que toca según la estrategia. Arrastrar una pieza a un día le pone fecha
+ * prevista; tocarla deja elegir hora y redes; «Distribuir» llena los días libres con lo aprobado. Todo es una
+ * propuesta: no publica nada (confirmar y mandar a Postiz es 3.5).
  */
 
 type View = "tablero" | "semana" | "mes";
@@ -39,6 +41,8 @@ export function PlanPage() {
     const [anchor, setAnchor] = useState(() => new Date());
     const [error, setError] = useState<string | null>(null);
     const [over, setOver] = useState<string | null>(null);
+    const [sel, setSel] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(null);
     const brandId = activeBrand?.id;
 
     const load = useCallback(async () => {
@@ -66,6 +70,8 @@ export function PlanPage() {
         const when = new Date(day.getFullYear(), day.getMonth(), day.getDate(), HOUR);
         setDeliveryPlan(id, { scheduledAt: when.toISOString() }).then(load).catch((e) => setError((e as Error).message));
     };
+    const plan = (id: string, p: { scheduledAt?: string | null; channels?: Channel[] }) =>
+        setDeliveryPlan(id, p).then(load).catch((e) => setError((e as Error).message));
     const unschedule = (id: string) => setDeliveryPlan(id, { scheduledAt: null }).then(load).catch((e) => setError((e as Error).message));
 
     if (!activeBrand) return <div className="h-full flex items-center justify-center text-[13px] text-fg-muted">Elegí una marca.</div>;
@@ -73,13 +79,19 @@ export function PlanPage() {
     const Card = ({ d, compact }: { d: DeliverySummary; compact?: boolean }) => (
         <div draggable={d.phase !== "en_postiz" && d.phase !== "publicada"}
             onDragStart={(e) => e.dataTransfer.setData("text/plain", d.id)}
-            onClick={() => navigate(`/dashboard/entregas?id=${d.id}`)}
+            onClick={() => setSel(d.id)}
             title={d.phase === "lista" ? "Arrastrala a un día" : "Todavía no está aprobada: la fecha es tentativa"}
-            className={`group flex gap-2 p-1.5 rounded-[var(--radius-sm)] bg-surface-1 border border-edge hover:border-fg/30 cursor-pointer ${d.phase !== "lista" && d.phase !== "en_postiz" && d.phase !== "publicada" ? "border-dashed" : ""}`}>
+            className={`group flex gap-2 p-1.5 rounded-[var(--radius-sm)] bg-surface-1 border ${sel === d.id ? "border-fg" : "border-edge"} hover:border-fg/30 cursor-pointer ${d.phase !== "lista" && d.phase !== "en_postiz" && d.phase !== "publicada" ? "border-dashed" : ""}`}>
             {d.cover && <img src={backendUrl(d.cover)} alt="" className={`${compact ? "w-6 h-8" : "w-9 h-11"} shrink-0 rounded-[2px] object-cover`} />}
             <span className="min-w-0 flex-1">
                 <span className="block text-[12px] text-fg leading-snug line-clamp-2">{d.title}</span>
                 {!compact && <span className="block mt-0.5 text-[10px] text-fg-faint truncate">{d.angle ?? "sin ángulo"}</span>}
+                {d.scheduledAt && (
+                    <span className="block mt-0.5 text-[10px] text-fg-muted tabular-nums truncate">
+                        {new Date(d.scheduledAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}
+                        {d.channels?.length ? ` · ${d.channels.map((c) => CHANNELS.find((x) => x.id === c)?.label ?? c).join(", ")}` : " · sin red"}
+                    </span>
+                )}
             </span>
             {d.scheduledAt && d.phase !== "en_postiz" && d.phase !== "publicada" && (
                 <button onClick={(e) => { e.stopPropagation(); unschedule(d.id); }} title="Sacarle la fecha"
@@ -105,6 +117,28 @@ export function PlanPage() {
     };
 
     const moment = momentOf(anchor);
+    /** Lo aprobado sin fecha va a los días hábiles libres que se ven, desde mañana; primero lo del ángulo del mes. */
+    const distribute = async () => {
+        const tomorrow = addDays(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()), 1);
+        const days = (view === "semana"
+            ? Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(anchor), i))
+            : Array.from({ length: 31 }, (_, i) => addDays(new Date(anchor.getFullYear(), anchor.getMonth(), 1), i)).filter((d) => d.getMonth() === anchor.getMonth()))
+            .filter((d) => d >= tomorrow && d.getDay() !== 0 && d.getDay() !== 6 && !(byDay.get(dayKey(d))?.length));
+        const ready = list.filter((d) => d.phase === "lista" && !d.scheduledAt)
+            .sort((a, b) => Number(b.angle === moment?.angle) - Number(a.angle === moment?.angle));
+        const n = Math.min(days.length, ready.length);
+        if (!ready.length) { setNotice("No hay piezas aprobadas sin fecha."); return; }
+        if (!n) { setNotice("No quedan días hábiles libres en lo que estás viendo."); return; }
+        try {
+            for (let i = 0; i < n; i++) {
+                const day = days[i];
+                await setDeliveryPlan(ready[i].id, { scheduledAt: new Date(day.getFullYear(), day.getMonth(), day.getDate(), HOUR).toISOString() });
+            }
+            setNotice(`Propuse fecha para ${n} ${n === 1 ? "pieza" : "piezas"}. Revisalas: nada se publica hasta confirmar.`);
+            await load();
+        } catch (e) { setError((e as Error).message); }
+    };
+    const selected = list.find((d) => d.id === sel) ?? null;
     const weekStart = startOfWeek(anchor);
     const monthStart = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
     const gridStart = startOfWeek(monthStart);
@@ -169,6 +203,10 @@ export function PlanPage() {
                             <button onClick={() => step(1)} aria-label="Siguiente" className="w-7 h-7 flex items-center justify-center text-fg-muted hover:text-fg cursor-pointer"><ChevronRight size={14} /></button>
                             <span className="text-[13px] text-fg">{title}</span>
                             <button onClick={() => setAnchor(new Date())} className="ml-2 text-[11px] text-fg-faint hover:text-fg cursor-pointer">Hoy</button>
+                            <span className="flex-1" />
+                            {notice && <span className="text-[11px] text-fg-muted">{notice}</span>}
+                            <button onClick={distribute} title="Pone lo aprobado sin fecha en los días hábiles libres, primero lo del ángulo del mes"
+                                className="h-7 px-3 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg hover:border-fg cursor-pointer">Distribuir</button>
                         </div>
                         {view === "mes" && (
                             <div className="grid grid-cols-7 border-l border-edge">
@@ -183,7 +221,23 @@ export function PlanPage() {
                                     .map((d) => dayCell(d, d.getMonth() === monthStart.getMonth()))}
                         </div>
                     </div>
-                    <aside className="w-[260px] shrink-0 border-l border-edge flex flex-col min-h-0">
+                    <aside className="w-[300px] shrink-0 border-l border-edge flex flex-col min-h-0">
+                        {selected && (
+                            <div className="p-3 border-b border-edge bg-surface-1">
+                                <div className="flex items-start gap-2">
+                                    {selected.cover && <img src={backendUrl(selected.cover)} alt="" className="w-9 h-11 rounded-[2px] object-cover" />}
+                                    <span className="flex-1 min-w-0">
+                                        <span className="block text-[13px] text-fg leading-snug">{selected.title}</span>
+                                        <span className="block text-[10px] text-fg-faint">{selected.angle ?? "sin ángulo"}</span>
+                                    </span>
+                                    <button onClick={() => setSel(null)} aria-label="Cerrar" className="text-fg-faint hover:text-fg cursor-pointer">×</button>
+                                </div>
+                                <div className="mt-3">
+                                    <PublishControls d={selected} onChange={(p) => plan(selected.id, p)} />
+                                </div>
+                                <button onClick={() => navigate(`/dashboard/entregas?id=${selected.id}`)} className="mt-3 text-[11px] text-fg-muted hover:text-fg cursor-pointer">Abrir la entrega →</button>
+                            </div>
+                        )}
                         <p className="px-3 pt-3 font-mono text-[10px] uppercase tracking-[0.08em] text-fg-faint">Sin fecha · {unscheduled.length}</p>
                         <p className="px-3 pt-1 pb-2 text-[11px] text-fg-faint leading-snug">Arrastralas a un día. La fecha es una propuesta: no se publica nada.</p>
                         <div className="flex-1 overflow-y-auto px-2 pb-3 flex flex-col gap-1.5">

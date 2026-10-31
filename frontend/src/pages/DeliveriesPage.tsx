@@ -8,6 +8,7 @@ import { DeliveryGroupPicker } from "../components/workspace/DeliveryGroupPicker
 import { SlideStage } from "../components/workspace/SlideStage";
 import { NewVersionDialog } from "../components/workspace/NewVersionDialog";
 import { VoiceNoteButton } from "../components/workspace/VoiceNoteButton";
+import { PublishControls } from "../components/workspace/PublishControls";
 import {
     approvedZipUrl, backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryCommentRefs, addDeliveryVoiceComment, setDeliveryPlan, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound, setDeliveryCommentInternal,
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
@@ -99,6 +100,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const vista = client ? "cliente" as const : undefined;
     const { activeBrand, setActiveBrandId } = useBrand();
     const brandId = activeBrand?.id;
+    const [showPublish, setShowPublish] = useState(false);
     // Un cliente sin permiso de aprobar sólo comenta (el servidor también lo frena).
     const mayApprove = !client || !me.brands || me.brands.some((b) => b.id === brandId && b.canApprove);
     const [params, setParams] = useSearchParams();
@@ -466,8 +468,20 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                 {current.angle ? `Ángulo: ${current.angle}` : "Sin ángulo"}
                                             </button>
                                         )}
-                                        {current.scheduledAt && <><span className="text-fg-faint">·</span><span className="tabular-nums">prevista {new Date(current.scheduledAt).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></>}
+                                        <span className="text-fg-faint">·</span>
+                                        <button onClick={() => setShowPublish((v) => !v)} className="cursor-pointer hover:text-fg tabular-nums">
+                                            {current.scheduledAt
+                                                ? `Sale ${new Date(current.scheduledAt).toLocaleString("es-AR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}${current.channels?.length ? ` · ${current.channels.length === 1 ? "1 red" : `${current.channels.length} redes`}` : ""}`
+                                                : "Sin fecha ni red"}
+                                        </button>
                                     </p>
+                                )}
+                                {!client && showPublish && (
+                                    <div className="mt-2 p-3 rounded-[var(--radius-md)] border border-edge bg-surface-1 max-w-[460px]">
+                                        <PublishControls d={current} disabled={busy}
+                                            onChange={(p) => run(async () => { setCurrent(await setDeliveryPlan(current.id, p)); await refreshList(); })} />
+                                        <p className="mt-2 text-[10px] text-fg-faint">Es una propuesta: no se publica nada hasta confirmar la semana en el Plan.</p>
+                                    </div>
                                 )}
                                 {current.round > 1 && (
                                     <p className="mt-1.5 flex flex-wrap items-center gap-2">

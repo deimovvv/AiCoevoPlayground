@@ -69,6 +69,8 @@ class Delivery(Base):
     publish_state: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     scheduled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Dónde sale: ["instagram", "tiktok", …]. Con Postiz, cada red es un canal de la marca.
+    channels: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
     created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     approved_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -128,7 +128,7 @@ const entregaCorta = (d) => ({
     visible_para: d.visibility === "cliente" ? "cliente" : "sólo el equipo",
     campana: d.campaignName ?? null, etapa: d.stage ?? null,
     // El circuito (brand-integrations §3): en_desarrollo → por_revisar → lista → en_postiz → publicada (+ pausada, descartada).
-    fase: d.phase ?? null, angulo: d.angle ?? null, fecha_prevista: d.scheduledAt ?? null,
+    fase: d.phase ?? null, angulo: d.angle ?? null, fecha_prevista: d.scheduledAt ?? null, redes: d.channels ?? [],
     comentarios_abiertos: d.openComments, aprobada_por: d.approvedBy, actualizada: d.updatedAt,
 });
 
@@ -217,18 +217,20 @@ tool("clasificar_comentario",
         `/api/deliveries/${encodeURIComponent(entrega_id)}/comments/${encodeURIComponent(comentario_id)}`, { method: "PATCH", body: { kind: tipo } }));
 
 tool("planificar_entrega",
-    "Ángulo, fecha prevista, o pausar/descartar una entrega. Una fecha NO publica ni programa nada: queda como propuesta hasta que una persona confirma la semana en Studio.",
+    "Ángulo, fecha y hora previstas, redes, o pausar/descartar una entrega. Una fecha NO publica ni programa nada: queda como propuesta hasta que una persona confirma la semana en Studio.",
     {
         id: z.string(),
         angulo: z.string().optional().describe("ángulo de la estrategia; \"\" lo saca"),
         fecha: z.string().optional().describe("ISO con zona, ej. 2026-11-04T13:00:00-03:00"),
         estado: z.enum(["pausada", "descartada", "activa"]).optional().describe("activa = vuelve a su fase"),
+        redes: z.array(z.enum(["instagram", "tiktok", "linkedin", "youtube", "facebook", "x", "threads"])).optional().describe("dónde sale; [] las saca"),
     },
-    async ({ id, angulo, fecha, estado }) => {
+    async ({ id, angulo, fecha, estado, redes }) => {
         const body = {};
         if (angulo !== undefined) body.angle = angulo;
         if (fecha !== undefined) body.scheduledAt = fecha;
         if (estado !== undefined) body.publishState = estado === "activa" ? "" : estado;
+        if (redes !== undefined) body.channels = redes;
         return entregaCorta(await api(`/api/deliveries/${encodeURIComponent(id)}/plan`, { method: "POST", body }));
     });
 

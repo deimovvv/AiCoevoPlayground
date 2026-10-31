@@ -3850,7 +3850,14 @@ export interface DeliverySummary {
     /** El ángulo de la estrategia al que responde, y su fase en el circuito. */
     angle?: string | null; phase?: DeliveryPhase; publishState?: string | null;
     scheduledAt?: string | null; publishedAt?: string | null;
+    /** Redes donde sale (con Postiz, cada una es un canal de la marca). */
+    channels?: Channel[];
 }
+export const CHANNELS = [
+    { id: "instagram", label: "Instagram" }, { id: "tiktok", label: "TikTok" }, { id: "linkedin", label: "LinkedIn" },
+    { id: "youtube", label: "YouTube" }, { id: "facebook", label: "Facebook" }, { id: "x", label: "X" }, { id: "threads", label: "Threads" },
+] as const;
+export type Channel = typeof CHANNELS[number]["id"];
 export interface Delivery extends Omit<DeliverySummary, "items"> {
     items: DeliveryItem[]; source: { url: string; name: string } | null; note: string | null;
     template: string | null; comments: DeliveryComment[];
@@ -3985,7 +3992,7 @@ export async function addDeliveryVoiceComment(id: string, audio: Blob, c: { item
 }
 
 /** Equipo: ángulo, pausa/descarte y fecha prevista. Sólo cambia lo que viene; una fecha no publica nada. */
-export async function setDeliveryPlan(id: string, p: { angle?: string; publishState?: "" | "pausada" | "descartada"; scheduledAt?: string | null }): Promise<Delivery> {
+export async function setDeliveryPlan(id: string, p: { angle?: string; publishState?: "" | "pausada" | "descartada"; scheduledAt?: string | null; channels?: Channel[] }): Promise<Delivery> {
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/plan`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p),
     }), "No se pudo guardar el plan");

@@ -47,6 +47,7 @@ SOURCE_EXT = {".html", ".json", ".zip"}
 AUDIO_EXT = {".webm", ".m4a", ".mp3", ".wav", ".ogg", ".mp4"}
 # Después de aprobada (changes/brand-integrations §3). en_postiz y publicada las pone la integración con Postiz.
 PUBLISH_STATES = {"pausada", "descartada", "en_postiz", "publicada"}
+CHANNELS = ["instagram", "tiktok", "linkedin", "youtube", "facebook", "x", "threads"]
 COMMENT_KINDS = {"texto", "color", "encuadre", "tono", "dato", "imagen", "otro"}
 MAX_FILE = 200 * 1024 * 1024
 
@@ -197,7 +198,7 @@ def _summary(d: Delivery, open_comments: int = 0, names: Optional[dict] = None) 
         "campaignId": d.campaign_id, "campaignName": (names if names is not None else _campaign_names()).get(d.campaign_id) if d.campaign_id else None,
         "stage": d.stage,
         "angle": d.angle, "phase": _phase(d), "publishState": d.publish_state,
-        "scheduledAt": _iso(d.scheduled_at), "publishedAt": _iso(d.published_at),
+        "scheduledAt": _iso(d.scheduled_at), "publishedAt": _iso(d.published_at), "channels": d.channels or [],
         "approvedItems": sum(1 for i in items if not i.get("rejected")) if d.status == "aprobada" else None,
         "visibility": d.visibility, "sentAt": _iso(d.sent_at),
         "round": d.round, "items": len(d.items or []),
@@ -457,6 +458,7 @@ class PlanIn(BaseModel):
     angle: Optional[str] = None          # "" lo saca
     publishState: Optional[str] = None   # pausada · descartada · "" (vuelve a su fase)
     scheduledAt: Optional[datetime] = None
+    channels: Optional[List[str]] = None  # redes donde sale; [] las saca
 
 
 @router.post("/api/deliveries/{delivery_id}/plan")
@@ -478,6 +480,11 @@ async def set_plan(delivery_id: str, req: PlanIn, request: Request, s: AsyncSess
         d.publish_state = st
     if "scheduledAt" in sent:
         d.scheduled_at = req.scheduledAt
+    if "channels" in sent:
+        bad = [c for c in (req.channels or []) if c not in CHANNELS]
+        if bad:
+            raise HTTPException(status_code=400, detail=f"Red desconocida: {', '.join(bad)}")
+        d.channels = [c for c in CHANNELS if c in (req.channels or [])] or None
     await s.commit()
     await s.refresh(d)
     return await _full(s, d)
