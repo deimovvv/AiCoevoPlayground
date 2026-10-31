@@ -229,10 +229,10 @@
   --shadow-dropdown: 0 8px 24px rgba(21, 21, 21, 0.12);
 }
 
-/* PALETA «SISTEMA» — vista previa (2026-10-31), se prende con ?paleta=sistema y se apaga con
-   ?paleta=papel. Trae a Studio el design system v3 de la web (coevo-web/docs/design-system.md):
-   grises fríos, celeste para lo fino, salmón como señal, Instrument Sans y títulos livianos.
-   Si se aprueba, reemplaza a «papel»; si no, se borra este bloque. */
+/* PALETA «SISTEMA» — la de Studio desde 2026-10-31 (aprobada por Gonzalo). Es el design system v3
+   de la web (coevo-web/docs/design-system.md): grises fríos, celeste para lo fino, salmón como señal,
+   Instrument Sans y títulos livianos. Se pisa sobre «papel», que queda con ?paleta=papel por un
+   tiempo; cuando nadie lo use, estos valores pasan al bloque [data-theme="light"] y «papel» se borra. */
 [data-theme="light"][data-paleta="sistema"] {
   --font-sans: "Instrument Sans", "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Instrument Sans", "Geist", ui-sans-serif, system-ui, sans-serif;

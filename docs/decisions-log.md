@@ -19,7 +19,7 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Modelo de negocio | Vender output primero; el SaaS es una etapa posterior | 2026-09 "Output primero" |
 | Qué es una tool | Pipeline con pasos que el operador aprueba; lo demás es preset de Campañas | 2026-09-25 · `specs/tool-catalog` |
 | Pantalla | Controles · selector al costado · canvas que no desaparece | 2026-09 "Workspace de 3 columnas" · `specs/workspace-layout` |
-| Visual | **Papel claro por defecto** (gris cálido, tinta, rótulos en mono, rojo `#c8402a` como señal), Geist; menú arriba. El oscuro (rosa) sigue disponible | 2026-10-19 · `changes/studio-v2` (antes: grises fríos + Instrument Serif, 2026-09) |
+| Visual | **Paleta «sistema», la misma de la web** (grises fríos, celeste para lo fino, salmón como señal, Instrument Sans, títulos livianos); menú arriba. `?paleta=papel` vuelve a la anterior. El oscuro (rosa) sigue disponible | 2026-10-31 (antes: papel cálido + rojo, 2026-10-19) |
 | Seedance | Siempre por kie.ai | 2026-10-01 · `specs/video-generation` |
 | Lab | v2 es el único; v1 borrado | 2026-06 "Lab v2 reemplaza a Lab v1" |
 | Portal | Por token, sin cuentas; el cliente no encarga trabajo | 2026-08 "Accesos al portal" |
@@ -43,6 +43,22 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Dónde se trabaja | En `app.coevoagency.com` (servidor = fuente de verdad); lo local es sólo desarrollo | 2026-10-17 |
 | Login | Equipo: Cloudflare Access (PIN por mail) + el backend verifica el JWT | 2026-10-17 · `docs/guias/produccion.md` |
 | Rol de Studio | Casa de la marca + vitrina del cliente; se produce en el taller (Claude). Sin canvas propio (salvo video); la crew es relato, no pantalla | 2026-10-18 · `changes/studio-v2` |
+
+---
+
+## 2026-10-31 — Studio usa la paleta de la web
+
+**Decisión (Gonzalo, «me gusta»):** Studio toma el design system v3 de `coevo-web` (`/es/sistema`,
+`coevo-web/docs/design-system.md`): grises fríos, celeste para líneas y foco, salmón como señal, Instrument
+Sans y títulos sin negrita. Web y Studio pasan a ser la misma casa.
+
+- Se adoptan los **tokens y las reglas, no la escala**: Studio es una herramienta y necesita densidad
+  (nada de títulos de 96 px).
+- El salmón de la web (`#e78787`) no se lee como texto chico (2,6:1): la señal en Studio es `#c95f5f`.
+- Está como capa (`[data-paleta="sistema"]` en `index.css`) sobre «papel», que se puede volver a ver con
+  `?paleta=papel`. Cuando nadie lo use, los valores pasan al tema claro y «papel» se borra.
+- A mirar: Instrument Sans en 12–13 px rinde menos que Geist en listas densas. Si molesta, Instrument
+  en títulos y Geist en el resto.
 
 ---
 

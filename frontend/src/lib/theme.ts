@@ -20,19 +20,19 @@ function apply(theme: Theme) {
   else root.removeAttribute("data-theme");
 }
 
-// Vista previa de la paleta «sistema» (la de la web, coevo-web /sistema): ?paleta=sistema la prende
-// y queda guardada; ?paleta=papel la apaga. Sólo cambia el tema claro.
+// Paleta «sistema» (la de la web, coevo-web /sistema): es la de siempre desde el 2026-10-31.
+// ?paleta=papel vuelve a la anterior y queda guardado; ?paleta=sistema la restituye. Sólo el tema claro.
 const PALETA_KEY = "coevo-paleta";
 
 function applyPaleta() {
   let paleta: string | null = null;
   try {
     const fromUrl = new URLSearchParams(window.location.search).get("paleta");
-    if (fromUrl === "sistema") localStorage.setItem(PALETA_KEY, "sistema");
-    else if (fromUrl === "papel") localStorage.removeItem(PALETA_KEY);
+    if (fromUrl === "papel") localStorage.setItem(PALETA_KEY, "papel");
+    else if (fromUrl === "sistema") localStorage.removeItem(PALETA_KEY);
     paleta = localStorage.getItem(PALETA_KEY);
   } catch {}
-  if (paleta === "sistema") document.documentElement.setAttribute("data-paleta", "sistema");
+  if (paleta !== "papel") document.documentElement.setAttribute("data-paleta", "sistema");
   else document.documentElement.removeAttribute("data-paleta");
 }
 
