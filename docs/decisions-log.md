@@ -42,8 +42,29 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Tools / editor / skills | Tool genera · editor monta (uno solo) · skill descubre; lo validado pasa a la app como plantilla o receta | 2026-10-09 |
 | Dónde se trabaja | En `app.coevoagency.com` (servidor = fuente de verdad); lo local es sólo desarrollo | 2026-10-17 |
 | Login | Equipo: Cloudflare Access (PIN por mail) + el backend verifica el JWT | 2026-10-17 · `docs/guias/produccion.md` |
+| Circuito de una pieza | Ángulo + fase por pieza; Plan (calendario, propuesta hasta confirmar); voz y escritos se clasifican solos; regla = la decide una persona | 2026-10-31 · `changes/brand-integrations` |
 | Cómo funciona Studio | **Recordar** (Marca), **mostrar** (Entregas), **aprender** (Plan). Lo que no entra ahí va a una skill. Producción queda, a revisar. Es descripción, no venta: la frase que vende vive en `coevo-web` | 2026-10-31 · `docs/producto/operacion.md` §1b |
 | Rol de Studio | Casa de la marca + vitrina del cliente; se produce en el taller (Claude). Sin canvas propio (salvo video); la crew es relato, no pantalla | 2026-10-18 · `changes/studio-v2` |
+
+---
+
+## 2026-10-31 — El circuito de una pieza: plan, voz y aprendizaje
+
+**Decisión (Gonzalo):** no instalar el planner de Paul (Morfeo); Studio es el lugar donde la marca revisa,
+y le suma sus ideas. Ver `openspec/changes/brand-integrations` §2–5 y `docs/guias/probar-el-circuito.md`.
+
+- **Cada pieza lleva el ángulo de la estrategia** y una **fase**: en desarrollo → por revisar → lista →
+  en Postiz → publicada (+ pausada, descartada). La fase se deduce; a mano sólo se pausa o descarta.
+- **Plan = calendario**: semana con horas, mes, tablero. Fecha, hora y redes son una **propuesta**; nada
+  llega a Postiz sin «Confirmar la semana». Distribuir: lo aprobado sin fecha a días hábiles libres, primero
+  el ángulo del mes.
+- **Notas de voz** del cliente y del equipo: Gemini las transcribe y clasifica. **Los escritos también se
+  clasifican solos** (texto, color, encuadre, tono, dato, imagen, otro).
+- **Aprender no es automático:** Studio cuenta; lo repetido 3 veces se propone; **una persona** lo hace regla.
+  Las reglas viven en la ficha (`ver_marca` → `reglas_aprendidas`) y Claude las respeta.
+- **Fotos, no sólo gráfico:** el aprendizaje muestra las láminas corregidas y las tapas por ángulo.
+- **Gemini:** la key va en el header (nunca en la URL); los modelos en un solo lugar (`llm_router.gemini_model()`,
+  alias `-latest`), con reintento si Google satura.
 
 ---
 
