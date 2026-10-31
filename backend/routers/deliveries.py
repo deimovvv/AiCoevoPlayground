@@ -822,8 +822,21 @@ async def brand_learning(brand_id: str, request: Request, s: AsyncSession = Depe
     if is_client(request):
         raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
     _require_brand(brand_id)
-    dels = (await s.execute(select(Delivery).where(Delivery.brand_id == brand_id))).scalars().all()
+    dels = (await s.execute(select(Delivery).where(Delivery.brand_id == brand_id).order_by(Delivery.updated_at.desc()))).scalars().all()
     titles = {d.id: d.title for d in dels}
+    by_id = {d.id: d for d in dels}
+
+    def _thumb(it: Optional[dict]) -> Optional[str]:
+        if not it:
+            return None
+        return (it.get("poster") or _poster(it["url"])) if it.get("kind") == "video" else it.get("url")
+
+    def _slide(c: DeliveryComment) -> Optional[str]:
+        """La lámina que se comentó (o la tapa de la pieza, si fue sobre toda)."""
+        d = by_id.get(c.delivery_id)
+        items = (d.items or []) if d else []
+        it = next((i for i in items if i.get("id") == c.item_id), None) or (items[0] if items else None)
+        return _thumb(it)
     comments = (await s.execute(select(DeliveryComment).where(
         DeliveryComment.delivery_id.in_(list(titles) or [""])).order_by(DeliveryComment.created_at.desc()))).scalars().all()
     kinds: dict = {}
@@ -832,11 +845,14 @@ async def brand_learning(brand_id: str, request: Request, s: AsyncSession = Depe
         e = kinds.setdefault(k, {"kind": k, "count": 0, "examples": []})
         e["count"] += 1
         if len(e["examples"]) < 5:
-            e["examples"].append({"text": c.text, "delivery": titles.get(c.delivery_id), "byClient": not c.internal})
+            e["examples"].append({"text": c.text, "delivery": titles.get(c.delivery_id), "byClient": not c.internal,
+                                  "image": _slide(c), "x": c.x, "y": c.y})
     angles: dict = {}
     for d in dels:
-        a = angles.setdefault(d.angle or "", {"angle": d.angle, "pieces": 0, "approved": 0, "firstTime": 0, "rounds": 0})
+        a = angles.setdefault(d.angle or "", {"angle": d.angle, "pieces": 0, "approved": 0, "firstTime": 0, "rounds": 0, "covers": []})
         a["pieces"] += 1
+        if len(a["covers"]) < 6 and d.items and _phase(d) != "descartada":
+            a["covers"].append({"id": d.id, "url": _thumb((d.items or [None])[0]), "title": d.title})
         a["rounds"] += d.round or 1
         if d.status == "aprobada":
             a["approved"] += 1

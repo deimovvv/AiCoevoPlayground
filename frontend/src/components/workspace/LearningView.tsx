@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
-import { getBrandLearning, updateBrand } from "../../lib/api";
+import { useNavigate } from "react-router";
+import { backendUrl, getBrandLearning, updateBrand } from "../../lib/api";
 import type { Brand, BrandLearning } from "../../lib/api";
 
 const KIND: Record<string, string> = {
@@ -17,6 +18,7 @@ export function LearningView({ brand, ask, onBrandChanged }: {
     ask: (a: { title: string; input?: string; placeholder?: string; multiline?: boolean; confirm?: string }) => Promise<string | boolean | null>;
     onBrandChanged: () => Promise<void>;
 }) {
+    const navigate = useNavigate();
     const [data, setData] = useState<BrandLearning | null>(null);
     const [error, setError] = useState<string | null>(null);
     useEffect(() => { getBrandLearning(brand.id).then(setData).catch((e) => setError((e as Error).message)); }, [brand.id]);
@@ -67,9 +69,22 @@ export function LearningView({ brand, ask, onBrandChanged }: {
                                 <span className="flex-1" />
                                 <button onClick={() => makeRule(c.kind, c.examples[0]?.text)} className="h-7 px-2.5 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[11px] cursor-pointer">Hacer regla</button>
                             </div>
-                            <ul className="mt-2 flex flex-col gap-1">
+                            {/* La lámina que se corrigió, con el punto marcado: la regla se entiende mirando. */}
+                            <ul className="mt-3 grid grid-cols-3 gap-2">
                                 {c.examples.slice(0, 3).map((e, i) => (
-                                    <li key={i} className="text-[11px] text-fg-muted leading-snug">«{e.text}» <span className="text-fg-faint">— {e.delivery}{e.byClient ? " · cliente" : ""}</span></li>
+                                    <li key={i} className="min-w-0">
+                                        {e.image && (
+                                            <span className="relative block aspect-[4/5] rounded-[2px] overflow-hidden bg-[var(--color-surface-2)]">
+                                                <img src={backendUrl(e.image)} alt="" className="w-full h-full object-cover" />
+                                                {e.x != null && e.y != null && (
+                                                    <span style={{ left: `${e.x * 100}%`, top: `${e.y * 100}%` }}
+                                                        className="absolute w-3 h-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--color-brand)] ring-2 ring-white" />
+                                                )}
+                                            </span>
+                                        )}
+                                        <span className="mt-1 block text-[11px] text-fg-muted leading-snug line-clamp-3">«{e.text}»</span>
+                                        <span className="block text-[10px] text-fg-faint truncate">{e.delivery}{e.byClient ? " · cliente" : ""}</span>
+                                    </li>
                                 ))}
                             </ul>
                         </li>
@@ -96,27 +111,33 @@ export function LearningView({ brand, ask, onBrandChanged }: {
                 </ol>
             </section>
 
-            <section>
+            <section className="md:col-span-2">
                 <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-fg-faint">Por ángulo</p>
-                <table className="mt-3 w-full text-[12px]">
-                    <thead>
-                        <tr className="text-left text-[10px] font-mono uppercase tracking-[0.06em] text-fg-faint">
-                            <th className="py-1.5 font-normal">Ángulo</th><th className="font-normal text-right">Piezas</th><th className="font-normal text-right">A la primera</th>
-                            <th className="font-normal text-right">Vueltas</th><th className="font-normal text-right" title="Alcance, guardados y compartidos a 7 días: llegan con Postiz">Alcance</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {data?.angles.map((a) => (
-                            <tr key={a.angle ?? "-"} className="border-t border-[var(--color-edge-subtle)]">
-                                <td className="py-1.5 text-fg">{a.angle ?? <span className="text-fg-faint">sin ángulo</span>}</td>
-                                <td className="text-right tabular-nums">{a.pieces}</td>
-                                <td className="text-right tabular-nums">{a.approved ? `${a.firstTime} de ${a.approved}` : "—"}</td>
-                                <td className="text-right tabular-nums">{(a.rounds / Math.max(1, a.pieces)).toFixed(1)}</td>
-                                <td className="text-right text-fg-faint">—</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                {data && data.angles.length === 0 && <p className="mt-2 text-[12px] text-fg-muted">Todavía no hay piezas.</p>}
+                <ul className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {data?.angles.map((a) => (
+                        <li key={a.angle ?? "-"} className="rounded-[var(--radius-md)] border border-edge bg-surface-1 overflow-hidden">
+                            {/* Las piezas del ángulo, como se ven: que no sea todo número. */}
+                            <div className="grid grid-cols-3 gap-px bg-[var(--color-edge-subtle)]">
+                                {Array.from({ length: 3 }, (_, i) => a.covers[i]).map((c, i) => c?.url ? (
+                                    <button key={c.id} onClick={() => navigate(`/dashboard/entregas?id=${c.id}`)} title={c.title}
+                                        className="aspect-[4/5] overflow-hidden bg-[var(--color-surface-2)] cursor-pointer">
+                                        <img src={backendUrl(c.url)} alt={c.title} className="w-full h-full object-cover hover:scale-[1.02] transition-transform" />
+                                    </button>
+                                ) : <span key={i} className="aspect-[4/5] bg-[var(--color-surface-2)]" />)}
+                            </div>
+                            <div className="p-3">
+                                <p className="text-[13px] text-fg">{a.angle ?? <span className="text-fg-faint">Sin ángulo</span>}</p>
+                                <dl className="mt-2 grid grid-cols-4 gap-2 text-[11px]">
+                                    <div><dt className="text-fg-faint">Piezas</dt><dd className="tabular-nums text-fg">{a.pieces}</dd></div>
+                                    <div><dt className="text-fg-faint">A la primera</dt><dd className="tabular-nums text-fg">{a.approved ? `${a.firstTime} de ${a.approved}` : "—"}</dd></div>
+                                    <div><dt className="text-fg-faint">Vueltas</dt><dd className="tabular-nums text-fg">{(a.rounds / Math.max(1, a.pieces)).toFixed(1)}</dd></div>
+                                    <div title="Alcance, guardados y compartidos a 7 días: llegan con Postiz"><dt className="text-fg-faint">Alcance</dt><dd className="text-fg-faint">—</dd></div>
+                                </dl>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
                 <p className="mt-2 text-[11px] text-fg-faint">Alcance, guardados y compartidos a 7 días llegan cuando Postiz esté conectado.</p>
             </section>
         </div>

@@ -4015,9 +4015,9 @@ export async function confirmPlan(brandId: string, start: Date, end: Date, previ
     }), "No se pudo confirmar");
 }
 export interface BrandLearning {
-    kinds: { kind: string; count: number; examples: { text: string; delivery: string | null; byClient: boolean }[] }[];
+    kinds: { kind: string; count: number; examples: { text: string; delivery: string | null; byClient: boolean; image: string | null; x: number | null; y: number | null }[] }[];
     candidates: BrandLearning["kinds"];
-    angles: { angle: string | null; pieces: number; approved: number; firstTime: number; rounds: number }[];
+    angles: { angle: string | null; pieces: number; approved: number; firstTime: number; rounds: number; covers: { id: string; url: string | null; title: string }[] }[];
     metrics: null;
 }
 export async function getBrandLearning(brandId: string): Promise<BrandLearning> {
