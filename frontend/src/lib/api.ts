@@ -3818,6 +3818,8 @@ export interface DeliveryComment {
     author: string | null; internal: boolean; round: number; resolvedAt: string | null; createdAt: string | null;
     /** Lo escribió alguien del cliente (si no, Coevo). */
     byClient?: boolean;
+    /** Imágenes de referencia adjuntas («así, como esta»). */
+    refs?: { url: string; name: string }[];
 }
 export interface DeliverySummary {
     id: string; brandId: string; title: string; kind: string; status: DeliveryStatus; round: number;
@@ -3949,6 +3951,15 @@ export async function addDeliveryComment(id: string, c: { text: string; itemId?:
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/comments`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(c),
     }), "No se pudo guardar el comentario");
+}
+
+/** Adjuntar imágenes de referencia a un comentario (hasta 4). */
+export async function addDeliveryCommentRefs(id: string, commentId: string, files: File[]): Promise<DeliveryComment> {
+    const big = tooBig(files);
+    if (big) throw new Error(`«${big.name}» pesa más de ${MAX_UPLOAD_MB} MB.`);
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f));
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}/refs`, { method: "POST", body: form }), "No se pudo subir la referencia");
 }
 
 export async function toggleDeliveryComment(id: string, commentId: string): Promise<DeliveryComment> {

@@ -151,6 +151,8 @@ tool("ver_entrega",
                 punto: c.x != null ? { x: c.x, y: c.y } : null, texto: c.text, autor: c.author, ronda: c.round,
                 de: c.internal ? "equipo" : "cliente",
                 resuelto: !!c.resolvedAt,
+                // «Así, como esta»: imágenes que adjuntó quien comentó. Bajarlas con bajar_archivo y usarlas de referencia.
+                ...(c.refs?.length ? { referencias: c.refs.map((r) => r.url) } : {}),
             })),
         };
     });

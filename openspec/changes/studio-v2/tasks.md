@@ -136,7 +136,7 @@
       proyecto de Google de Coevo (sirve también para M.7) y de quién es el espacio que ocupan los archivos subidos.
       Propuesta (2026-10-29, a confirmar con Gonzalo): **el Drive del cliente** por defecto; un Drive de Coevo sólo para quien no tenga
       (y se le pasa al terminar). Botón «Pasar a Drive» por proyecto entero (Proyecto / Etapa / vN), además de lo automático.
-- [ ] 4.6 Referencia en un comentario (Gonzalo, 2026-10-29): el cliente adjunta una imagen al comentar una lámina («así, como
+- [x] 4.6 Referencia en un comentario (hecho 2026-10-30: «Adjuntar referencia» en la lámina, hasta 4, `delivery_comments.refs`, MCP `referencias`) (Gonzalo, 2026-10-29): el cliente adjunta una imagen al comentar una lámina («así, como
       esta»). Se guarda con el comentario, se ve en «Lo que pidieron» y `ver_entrega` / `ver_notas_cliente` la devuelven, para
       que la skill la use en la versión siguiente. Es la observación como dato (biblioteca `ideas/la-observacion-es-dato.md`).
 - [ ] 4.1 Entregas por marca: estado, comentarios, aprobación (reusa notas del portal).

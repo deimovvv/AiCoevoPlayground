@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, CornerDownLeft, Download, Eye, ExternalLink, History, Loader2, Minus, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, CornerDownLeft, Download, Eye, ExternalLink, History, Loader2, Minus, Paperclip, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
@@ -8,7 +8,7 @@ import { DeliveryGroupPicker } from "../components/workspace/DeliveryGroupPicker
 import { SlideStage } from "../components/workspace/SlideStage";
 import { NewVersionDialog } from "../components/workspace/NewVersionDialog";
 import {
-    approvedZipUrl, backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound, setDeliveryCommentInternal,
+    approvedZipUrl, backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryCommentRefs, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound, setDeliveryCommentInternal,
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
     type Delivery, type DeliveryStatus, type DeliverySummary,
 } from "../lib/api";
@@ -103,6 +103,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     const [busy, setBusy] = useState(false);
     const [draft, setDraft] = useState<Draft | null>(null);
     const [draftText, setDraftText] = useState("");
+    const [draftRefs, setDraftRefs] = useState<File[]>([]);   // referencias para adjuntar al comentario
+    const refInput = useRef<HTMLInputElement>(null);
     const [focus, setFocus] = useState<string | null>(null);
     const [slide, setSlide] = useState<number | null>(null);   // null = la pieza entera; n = una lámina grande
     const [uploadTitle, setUploadTitle] = useState("");
@@ -149,7 +151,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     }, [client, brandId]);
 
     const open = useCallback((id: string | null) => {
-        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false); setZoom(undefined); setSlideZoom(1); setShowPrev(false); setOldSlide(null); setVersionItem(null);
+        setDraft(null); setDraftText(""); setSlide(null); setAsking(false); setAskText(""); setPicking(false); setZoom(undefined); setSlideZoom(1); setShowPrev(false); setOldSlide(null); setVersionItem(null); setDraftRefs([]);
         setParams(id ? { id } : {}, { replace: true });
     }, [setParams]);
 
@@ -233,8 +235,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
         const d = draft?.itemId === itemId ? draft : null;
         run(async () => {
             const visible = client || (forClient ?? current.visibility === "cliente");
-            await addDeliveryComment(current.id, { text: draftText, itemId, x: d?.x ?? null, y: d?.y ?? null, asClient: visible });
-            setDraft(null); setDraftText("");
+            const c = await addDeliveryComment(current.id, { text: draftText, itemId, x: d?.x ?? null, y: d?.y ?? null, asClient: visible });
+            if (draftRefs.length) await addDeliveryCommentRefs(current.id, c.id, draftRefs);
+            setDraft(null); setDraftText(""); setDraftRefs([]);
             await reload(current.id);
         });
     };
@@ -783,6 +786,12 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                                 <span className="ml-auto shrink-0 pr-6 tabular-nums">{stamp(c.createdAt)}</span>
                                                             </span>
                                                             <span className="block text-[13px] leading-relaxed text-fg mt-1.5">{c.text}</span>
+                                                            {!!c.refs?.length && (
+                                                                <span className="mt-1.5 flex items-center gap-1.5">
+                                                                    {c.refs.map((r) => <img key={r.url} src={backendUrl(r.url)} alt={`Referencia: ${r.name}`} className="w-9 h-9 rounded-[3px] object-cover ring-1 ring-edge" />)}
+                                                                    <span className="text-[11px] text-fg-faint">{c.refs.length === 1 ? "referencia" : `${c.refs.length} referencias`}</span>
+                                                                </span>
+                                                            )}
                                                             </span>
                                                         </button>
                                                     </li>
@@ -875,6 +884,26 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                     onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveDraft(it.id); }}
                                                     placeholder="Qué cambiarías…"
                                                     className="w-full mt-3 bg-surface-1 border border-edge rounded-[var(--radius-sm)] px-2.5 py-2 text-[12px] text-fg placeholder:text-fg-faint outline-none focus:border-fg/40 resize-none" />
+                                                {/* «Así, como esta»: una imagen de referencia junto al comentario. */}
+                                                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                                    {draftRefs.map((f, k) => (
+                                                        <span key={k} className="relative w-11 h-11 rounded-[3px] overflow-hidden bg-[var(--color-surface-2)]">
+                                                            <RefThumb file={f} />
+                                                            <button onClick={() => setDraftRefs(draftRefs.filter((_, j) => j !== k))} aria-label={`Quitar ${f.name}`}
+                                                                className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer"><X size={9} /></button>
+                                                        </span>
+                                                    ))}
+                                                    {draftRefs.length < 4 && (
+                                                        <button onClick={() => refInput.current?.click()} className="h-7 px-2 flex items-center gap-1 rounded-[var(--radius-sm)] border border-dashed border-edge text-[11px] text-fg-muted hover:text-fg hover:border-fg cursor-pointer">
+                                                            <Paperclip size={11} /> {draftRefs.length ? "Otra" : "Adjuntar referencia"}
+                                                        </button>
+                                                    )}
+                                                    <input ref={refInput} type="file" accept="image/*" multiple hidden onChange={(e) => {
+                                                        const fs = Array.from(e.target.files || []).filter((f) => f.type.startsWith("image/"));
+                                                        e.target.value = "";
+                                                        setDraftRefs((cur) => [...cur, ...fs].slice(0, 4));
+                                                    }} />
+                                                </div>
                                                 {!client && (() => {
                                                     const visible = forClient ?? current.visibility === "cliente";
                                                     return (
@@ -926,6 +955,16 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                             )}
                                                         </div>
                                                         <p className={`text-[12px] text-fg mt-1.5 leading-relaxed ${c.resolvedAt ? "line-through decoration-fg/30" : ""}`}>{c.text}</p>
+                                                        {!!c.refs?.length && (
+                                                            <span className="mt-1.5 flex gap-1.5">
+                                                                {c.refs.map((r) => (
+                                                                    <a key={r.url} href={backendUrl(r.url)} target="_blank" rel="noreferrer" title={`Referencia: ${r.name}`}
+                                                                        className="w-12 h-12 rounded-[3px] overflow-hidden bg-[var(--color-surface-2)] ring-1 ring-edge hover:ring-fg">
+                                                                        <img src={backendUrl(r.url)} alt={`Referencia: ${r.name}`} className="w-full h-full object-cover" />
+                                                                    </a>
+                                                                ))}
+                                                            </span>
+                                                        )}
                                                     </li>
                                                 ))}
                                             </ol>
@@ -939,4 +978,11 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
             </main>
         </div>
     );
+}
+
+/** Miniatura de un archivo todavía no subido (la referencia de un comentario). */
+function RefThumb({ file }: { file: File }) {
+    const url = useMemo(() => URL.createObjectURL(file), [file]);
+    useEffect(() => () => URL.revokeObjectURL(url), [url]);
+    return <img src={url} alt="" className="w-full h-full object-cover" />;
 }

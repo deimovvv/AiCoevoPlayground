@@ -167,6 +167,7 @@ def _comment(c: DeliveryComment, clients: Optional[set] = None) -> dict:
         "id": c.id, "itemId": c.item_id, "x": c.x, "y": c.y, "text": c.text, "author": c.author, "internal": c.internal,
         "byClient": by_client and not c.internal,
         "round": c.round, "resolvedAt": _iso(c.resolved_at), "createdAt": _iso(c.created_at),
+        "refs": c.refs or [],
     }
 
 
@@ -580,6 +581,31 @@ async def add_comment(delivery_id: str, req: CommentIn, request: Request, s: Asy
     await s.commit()
     if is_client(request):
         mailer.client_comment(d.id, d.brand_id, d.title, c.author, c.text, await mailer.team_emails(s))
+    return _comment(c)
+
+
+MAX_REFS = 4
+
+
+@router.post("/api/deliveries/{delivery_id}/comments/{comment_id}/refs")
+async def add_comment_refs(delivery_id: str, comment_id: str, request: Request,
+                           files: List[UploadFile] = File(...), s: AsyncSession = Depends(get_session)):
+    """Adjuntar imágenes de referencia a un comentario (studio-v2 4.6). Las sube quien lo escribió
+    (o el equipo); quedan junto a la ronda y las skills las leen con `ver_entrega`."""
+    d = await _get(s, delivery_id)
+    c = await s.get(DeliveryComment, comment_id)
+    if not c or c.delivery_id != d.id:
+        raise HTTPException(status_code=404, detail="No existe ese comentario")
+    if is_client(request) and (not can_see_brand(request, d.brand_id) or (c.author or "").lower() != _who(request).lower()):
+        raise HTTPException(status_code=403, detail="Sólo quien escribió el comentario puede sumarle referencias")
+    refs = list(c.refs or [])
+    if len(refs) + len(files) > MAX_REFS:
+        raise HTTPException(status_code=400, detail=f"Hasta {MAX_REFS} referencias por comentario")
+    for f in files:
+        st = await _store(d.id, c.round, f, IMAGE_EXT)
+        refs.append({"url": st["url"], "name": st["name"]})
+    c.refs = refs
+    await s.commit()
     return _comment(c)
 
 
