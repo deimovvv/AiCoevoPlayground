@@ -14,6 +14,7 @@ const FULL_BLEED_ROUTES: string[] = [
     "/dashboard/lab",
     "/dashboard/lab-v2",
     "/dashboard/entregas",       // láminas en fila + comentarios: usa toda la altura
+    "/dashboard/entregas/plan",  // el calendario usa la pantalla entera
     "/dashboard/marca",          // studio-v2: compuesta para la pantalla entera
     "/dashboard/produccion",
 ];
