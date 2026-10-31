@@ -1038,8 +1038,11 @@ def update_brand(brand_id: str, req: UpdateBrandRequest):
                           "kind": l.kind if l.kind in WORK_LINK_KINDS else "otro", "url": url, "client": bool(l.client)})
         brand["workLinks"] = links
     if req.strategy is not None:
-        brand["strategy"] = {**req.strategy.model_dump(exclude_none=True),
-                             "updatedAt": _dt.datetime.now(_dt.timezone.utc).isoformat()}
+        st = req.strategy.model_dump(exclude_none=True)
+        if st:
+            brand["strategy"] = {**st, "updatedAt": _dt.datetime.now(_dt.timezone.utc).isoformat()}
+        else:
+            brand.pop("strategy", None)   # {} la saca
     brands.save_brands(all_brands)
     return brand
 

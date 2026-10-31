@@ -19,10 +19,10 @@
 
 ## 3. Estados y planificación (2026-10-31)
 
-- [~] 3.1 Estados de pieza en Entregas: en desarrollo, por revisar, lista, en Postiz, publicada, pausada, descartada. Hecho (2026-10-31): la fase (`phase`, sale de visibilidad + estado + `publish_state`), pausar/descartar (`POST /api/deliveries/{id}/plan`), la fase a la vista en la entrega. Falta: el tablero por fases.
-- [x] 3.2 Cada entrega lleva su ángulo (de `strategy.angles`); el MCP `subir_entrega` lo acepta y `planificar_entrega` lo cambia (2026-10-31). Falta elegirlo de una lista en vez de escribirlo.
-- [ ] 3.3 Vista semana y mes por marca, con el ángulo del mes según `strategy.calendar`.
-- [ ] 3.4 Arrastrar lo aprobado a día y hora; «Distribuir» propone huecos; todo queda como propuesta.
+- [x] 3.1 Estados de pieza en Entregas: en desarrollo, por revisar, lista, en Postiz, publicada, pausada, descartada. Hecho (2026-10-31): la fase (`phase`, sale de visibilidad + estado + `publish_state`), pausar/descartar (`POST /api/deliveries/{id}/plan`), la fase a la vista en la entrega. Tablero por fases en `/dashboard/entregas/plan` (2026-10-31).
+- [x] 3.2 Cada entrega lleva su ángulo (de `strategy.angles`); el MCP `subir_entrega` lo acepta y `planificar_entrega` lo cambia (2026-10-31). En la entrega se elige de la lista de ángulos de la estrategia.
+- [x] 3.3 Vista semana y mes por marca, con el ángulo del mes según `strategy.calendar` y cuántas piezas lleva cada ángulo (2026-10-31, `pages/PlanPage.tsx`).
+- [~] 3.4 Arrastrar a un día (13 h; lo no aprobado queda punteado, tentativo) y sacarle la fecha: hecho. Falta: elegir la hora y «Distribuir».
 - [ ] 3.5 Confirmar la propuesta → recién ahí se programa en Postiz (2.2).
 
 ## 4. Retroalimentación

@@ -234,6 +234,13 @@ export interface BrandCompetitor {
 export type WorkLinkKind = "piezas" | "exploracion" | "manual" | "design-system" | "otro";
 export interface WorkLink { id?: string; title: string; kind: WorkLinkKind; url: string; client: boolean }
 
+export interface BrandStrategy {
+    claim?: string; hashtag?: string; destination?: string; enemy?: string;
+    angles?: { name: string; purpose?: string; examples?: string[] }[];
+    /** `when`: "2026-11" (un mes) o texto libre. */
+    calendar?: { when: string; what: string; angle?: string }[];
+    neverAutomate?: string[]; source?: string; updatedAt?: string;
+}
 export interface Brand {
     id: string;
     name: string;
@@ -262,6 +269,8 @@ export interface Brand {
     designSystemUrl?: string;
     /** Archivos de trabajo (studio-v2 M.10): piezas, exploraciones, manual… El cliente recibe sólo los `client`. */
     workLinks?: WorkLink[];
+    /** Estrategia (change brand-strategy): de acá salen los ángulos y el calendario del plan. */
+    strategy?: BrandStrategy;
     fonts?: BrandFonts;
     dna?: BrandDNA;
     designSystem?: DesignSystem;

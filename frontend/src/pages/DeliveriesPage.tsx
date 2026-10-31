@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, CornerDownLeft, Download, Eye, ExternalLink, History, Loader2, Minus, Paperclip, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CornerDownLeft, Download, Eye, ExternalLink, History, Loader2, Minus, Paperclip, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
@@ -310,6 +310,10 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 className="flex items-center gap-1 text-[12px] text-fg-muted hover:text-fg no-underline"><Download size={12} /> Bajar todo</a>
                         )}
                         {!client && (
+                            <Link to="/dashboard/entregas/plan" title="Tablero por fase y semana/mes según la estrategia"
+                                className="flex items-center gap-1 text-[12px] text-fg-muted hover:text-fg no-underline"><CalendarDays size={12} /> Plan</Link>
+                        )}
+                        {!client && (
                             <Link to="/cliente" title="Ver lo que ve el cliente de esta marca"
                                 className="flex items-center gap-1 text-[12px] text-fg-faint hover:text-fg no-underline"><Eye size={12} /> Ver como cliente</Link>
                         )}
@@ -444,13 +448,24 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                     <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-fg-muted">
                                         <span className="font-mono uppercase tracking-[0.06em] text-[10px]">{PHASE[current.phase ?? ""] ?? "—"}</span>
                                         <span className="text-fg-faint">·</span>
-                                        <button className="cursor-pointer hover:text-fg" title="El ángulo de la estrategia al que responde"
-                                            onClick={async () => {
-                                                const a = await ask({ title: "Ángulo de la estrategia", input: "Ángulo", placeholder: current.angle ?? "ej. A · Institucional", confirm: "Guardar" });
-                                                if (typeof a === "string") run(async () => { setCurrent(await setDeliveryPlan(current.id, { angle: a })); await refreshList(); });
-                                            }}>
-                                            {current.angle ? `Ángulo: ${current.angle}` : "Sin ángulo"}
-                                        </button>
+                                        {activeBrand.strategy?.angles?.length ? (
+                                            // Los ángulos salen de la estrategia de la marca (brand-strategy).
+                                            <select value={current.angle ?? ""} title="El ángulo de la estrategia al que responde"
+                                                onChange={(e) => { const a = e.target.value; run(async () => { setCurrent(await setDeliveryPlan(current.id, { angle: a })); await refreshList(); }); }}
+                                                className="bg-transparent text-[11px] text-fg-muted hover:text-fg cursor-pointer outline-none">
+                                                <option value="">Sin ángulo</option>
+                                                {activeBrand.strategy.angles.map((a) => <option key={a.name} value={a.name}>Ángulo: {a.name}</option>)}
+                                                {current.angle && !activeBrand.strategy.angles.some((a) => a.name === current.angle) && <option value={current.angle}>Ángulo: {current.angle}</option>}
+                                            </select>
+                                        ) : (
+                                            <button className="cursor-pointer hover:text-fg" title="El ángulo de la estrategia al que responde"
+                                                onClick={async () => {
+                                                    const a = await ask({ title: "Ángulo de la estrategia", input: "Ángulo", placeholder: current.angle ?? "ej. A · Institucional", confirm: "Guardar" });
+                                                    if (typeof a === "string") run(async () => { setCurrent(await setDeliveryPlan(current.id, { angle: a })); await refreshList(); });
+                                                }}>
+                                                {current.angle ? `Ángulo: ${current.angle}` : "Sin ángulo"}
+                                            </button>
+                                        )}
                                         {current.scheduledAt && <><span className="text-fg-faint">·</span><span className="tabular-nums">prevista {new Date(current.scheduledAt).toLocaleString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></>}
                                     </p>
                                 )}

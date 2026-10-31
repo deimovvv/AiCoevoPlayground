@@ -24,6 +24,7 @@ import { ChatPage } from "./pages/ChatPage";
 // como fallback. Si alguien lo necesita: importar y agregar de vuelta la ruta.
 import { ManualLabV2 } from "./pages/ManualLabV2";
 import { DeliveriesPage } from "./pages/DeliveriesPage";
+import { PlanPage } from "./pages/PlanPage";
 import { ClientLayout } from "./components/layout/ClientLayout";
 import { MeProvider, TeamOnly } from "./lib/MeContext";
 import { AccesosPage } from "./pages/AccesosPage";
@@ -108,6 +109,8 @@ function App() {
         <Route path="content" element={<ContentPage />} />
         {/* Entregas a la marca: láminas, comentarios, aprobación (studio-v2 P.4) */}
         <Route path="entregas" element={<ErrorBoundary><DeliveriesPage /></ErrorBoundary>} />
+        {/* El plan: tablero por fase y semana/mes según la estrategia (brand-integrations §3) */}
+        <Route path="entregas/plan" element={<ErrorBoundary><PlanPage /></ErrorBoundary>} />
         <Route path="brand" element={<BrandSettings />} />
         <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="automations" element={<AutomationsPage />} />
