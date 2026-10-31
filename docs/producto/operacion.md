@@ -18,10 +18,13 @@ ponen el criterio, las skills producen y la marca aprueba.**
 
 Tesis de fondo (de `coevo-web`): *lo que es regla lo hace el sistema; lo que es criterio lo hace la casa.*
 
-## 1b. Coevo Studio en una frase (2026-10-31)
+## 1b. Cómo funciona Coevo Studio (2026-10-31)
 
-> **Coevo Studio es la carpeta de cada marca: guarda quién es, le muestra lo que hicimos para que lo
-> apruebe, y aprende de lo que corrige.**
+Esto **describe** la herramienta; no es la frase de venta. Lo que se vende es el resultado (un sistema de
+marketing que mejora cada mes) y su frase vive en `coevo-web` (`docs/oferta.md`, `docs/posicionamiento-coevo.md`).
+Ojo: «la carpeta» es la metáfora de Mi Saluteca (su design system se llama Carpeta), no de Coevo.
+
+> **Coevo Studio recuerda cada marca, le muestra lo que hicimos y aprende de lo que corrige.**
 
 | Verbo | Pestaña | Qué es |
 |---|---|---|
