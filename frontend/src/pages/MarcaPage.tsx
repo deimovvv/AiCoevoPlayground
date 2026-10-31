@@ -28,18 +28,23 @@ const clip = (t: string | undefined, max: number) => {
 };
 const count = (n: number | undefined, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : "");
 
-function Card({ n, title, missing, children, onEdit, className = "", proposed, onApprove }: {
+function Card({ n, title, hint, missing, children, onEdit, className = "", proposed, onApprove }: {
     n: string; title: string; missing?: string | true | null; children: ReactNode; onEdit?: () => void; className?: string;
+    /** Para qué sirve el bloque, en una línea: que se entienda sin explicarlo. */
+    hint?: string;
     /** Lo propuso el agente y nadie lo revisó todavía. */
     proposed?: boolean; onApprove?: () => void;
 }) {
     return (
-        <section className={`group relative flex flex-col gap-4 p-5 rounded-[4px] border border-edge bg-[var(--color-surface-1)] min-w-0 min-h-0 overflow-hidden ${onEdit ? "hover:border-[var(--color-edge-strong)]" : ""} ${className}`}>
+        <section className={`group relative flex flex-col gap-4 p-5 rounded-[var(--radius-md)] border border-edge bg-[var(--color-surface-1)] min-w-0 min-h-0 overflow-hidden transition-[border-color,box-shadow] duration-200 ${onEdit ? "hover:border-[var(--color-edge-strong)] hover:shadow-[var(--shadow-dropdown)]" : ""} ${className}`}>
             {/* Todo el bloque abre su edición (panel al costado). */}
             {onEdit && <button onClick={onEdit} aria-label={`Editar ${title}`} className="absolute inset-0 z-10 cursor-pointer" />}
             <div className="flex items-baseline gap-3 shrink-0">
                 <span className={`${mono} text-fg-faint`}>{n}</span>
-                <h2 className="text-[15px] tracking-[-0.01em] text-fg">{title}</h2>
+                <span className="min-w-0">
+                    <h2 className="text-[15px] tracking-[-0.01em] text-fg">{title}</h2>
+                    {hint && <p className="mt-0.5 text-[12px] text-fg-faint leading-snug">{hint}</p>}
+                </span>
                 <span className="flex-1" />
                 {proposed ? (
                     <span className="relative z-20 flex items-center gap-2">
@@ -238,8 +243,8 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
             </aside>
 
             {/* ── La memoria, llenando el alto ── */}
-            <div className="p-3 md:p-4 grid gap-3 grid-cols-1 md:grid-cols-2 md:grid-rows-3 md:h-full md:min-h-0">
-                <Card n="01" title="Dirección de foto y video" missing={missing[2]} onEdit={edit("foto")} proposed={proposed("foto")} onApprove={approve("foto")} className="md:row-span-2">
+            <div className="p-3 md:p-4 grid gap-3 grid-cols-1 md:grid-cols-2 md:auto-rows-[minmax(230px,1fr)] md:h-full md:min-h-0 md:overflow-y-auto">
+                <Card n="01" title="Dirección de foto y video" hint="Cómo se ve la marca: lo que Claude toma de referencia en cada foto y video." missing={missing[2]} onEdit={edit("foto")} proposed={proposed("foto")} onApprove={approve("foto")} className="md:row-span-2">
                     {lookGroups.length > 0 ? (
                         <div className="flex-1 min-h-0 flex flex-col gap-3">
                             {lookGroups.map((g) => (
@@ -253,14 +258,14 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                     {ds.photoStyle ? <Note>{clip(ds.photoStyle, 200)}</Note> : <Empty>Sin reglas de foto: Claude no sabe cómo se ve la marca.</Empty>}
                 </Card>
 
-                <Card n="02" title="Quién es" missing={missing[0]} onEdit={edit("quien")} proposed={proposed("quien")} onApprove={approve("quien")}>
+                <Card n="02" title="Quién es" hint="Qué hace, a quién le habla y cómo habla." missing={missing[0]} onEdit={edit("quien")} proposed={proposed("quien")} onApprove={approve("quien")}>
                     {b.brandContext || b.business?.value_prop
                         ? <p className="text-[15px] leading-[1.5] tracking-[-0.005em] text-fg">{clip(b.business?.value_prop || b.brandContext, 170)}</p>
                         : <Empty>Todavía no sabemos quién es la marca.</Empty>}
                     {dna.forbidden_words?.length ? <Note>Nunca dice {dna.forbidden_words.slice(0, 3).map((w) => `«${w.toLowerCase()}»`).join(", ")}.</Note> : null}
                 </Card>
 
-                <Card n="03" title="Caras" missing={missing[3]} onEdit={edit("caras")}>
+                <Card n="03" title="Caras" hint="Las personas que pueden aparecer en las piezas, con su permiso." missing={missing[3]} onEdit={edit("caras")}>
                     {faces.length > 0 ? (
                         <>
                             <Fill urls={faces.slice(0, 4).map((a) => a.imageUrl!)} all={faces.map((a) => a.imageUrl!)} faces />
@@ -269,7 +274,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                     ) : <Empty>Sin avatares ni modelos. Sin caras, no hay video con personas.</Empty>}
                 </Card>
 
-                <Card n="04" title="Catálogo" missing={missing[4]} onEdit={edit("catalogo")}>
+                <Card n="04" title="Catálogo" hint="Lo que la marca vende: productos y prendas para fichas y piezas." missing={missing[4]} onEdit={edit("catalogo")}>
                     {catalog.length > 0 ? (
                         <>
                             <Fill urls={catalog.slice(0, 4)} all={catalog} />
@@ -279,7 +284,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                 </Card>
 
                 {!readOnly ? (
-                    <Card n="05" title="Plantillas" missing={missing[5]} onEdit={edit("plantillas")}>
+                    <Card n="05" title="Plantillas" hint="Formatos ya aprobados, para repetirlos igual." missing={missing[5]} onEdit={edit("plantillas")}>
                         {b.carouselRefs?.length ? (
                             <>
                                 <Fill urls={b.carouselRefs.slice(0, 4).map((x) => x.imageUrl)} all={b.carouselRefs.map((x) => x.imageUrl)} small />
@@ -288,6 +293,37 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                         ) : <Empty>Se guardan cuando una pieza se aprueba, para repetir el formato. Las referencias de carrusel de un PDF de marca también llegan acá.</Empty>}
                     </Card>
                 ) : <div className="hidden md:block" />}
+
+                {/* Estrategia y lo aprendido: qué dice la marca este mes y qué ya no hay que corregirle. */}
+                <Card n="06" title="Estrategia y lo aprendido" className="md:col-span-2"
+                    hint={b.workType === "plan" ? "Plan mensual: cada pieza responde a un ángulo y va al calendario." : "Por proyectos: la estrategia es contexto; cada proyecto es su propio ángulo."}
+                    missing={!b.strategy?.claim && !(b.learnedRules?.length) ? true : null}>
+                    <div className="grid gap-5 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                        <div className="min-w-0">
+                            {b.strategy?.claim ? (
+                                <>
+                                    <p className="text-[20px] leading-tight tracking-[-0.02em] text-fg">{b.strategy.claim}{b.strategy.hashtag && <span className="text-fg-muted"> {b.strategy.hashtag}</span>}</p>
+                                    {b.strategy.enemy && <Note>Contra: {clip(b.strategy.enemy, 140)}</Note>}
+                                    {!!b.strategy.angles?.length && (
+                                        <div className="mt-3 flex flex-wrap gap-1.5">
+                                            {b.strategy.angles.map((a) => (
+                                                <span key={a.name} title={a.purpose} className="h-6 px-2 inline-flex items-center rounded-full border border-edge text-[11px] text-fg-muted">{a.name}</span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </>
+                            ) : <Empty>Sin estrategia cargada. La arma Dirección (auditoría → mercado → spec de campaña) y Claude la carga en la ficha.</Empty>}
+                        </div>
+                        <div className="min-w-0">
+                            <p className={`${mono} text-fg-faint`}>Reglas aprendidas · {b.learnedRules?.length ?? 0}</p>
+                            {b.learnedRules?.length ? (
+                                <ul className="mt-2 flex flex-col gap-1.5">
+                                    {b.learnedRules.slice(0, 4).map((r, i) => <li key={i} className="text-[13px] text-fg leading-snug">— {r.text}</li>)}
+                                </ul>
+                            ) : <p className="mt-2 text-[13px] text-fg-faint leading-relaxed">Lo que la marca corrige tres veces se vuelve regla. Se ve en Entregas → Aprendizaje.</p>}
+                        </div>
+                    </div>
+                </Card>
             </div>
             {agentOpen && <BrandAgentPanel brand={b} onClose={() => setAgentOpen(false)} onChanged={refreshBrands} />}
             {editing && <BrandBlockEditor brand={b} block={editing} onClose={() => setEditing(null)} onChanged={refreshBrands} />}

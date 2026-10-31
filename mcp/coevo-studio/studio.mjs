@@ -83,6 +83,9 @@ export function brandBlocks(b) {
     return {
         id: b.id,
         nombre: b.name,
+        // Qué compró la marca: "proyectos" = encargos (piezas y campañas, sin calendario ni ángulos obligatorios);
+        // "plan" = Coevo Studio mensual (cada pieza responde a un ángulo, va al calendario y se publica).
+        tipo_de_trabajo: b.workType || "proyectos",
         quien_es: {
             contexto: b.brandContext || null,
             negocio: b.business || null,
@@ -136,7 +139,7 @@ function strategyBlock(s) {
         nunca_automatizar: s.neverAutomate || [],
         fuente: s.source || null,
         actualizada: s.updatedAt || null,
-        como_usarla: "Cada pieza responde a UN ángulo: elegirlo (o el del calendario de este mes) y decirlo antes del guion.",
+        como_usarla: "Plan mensual: cada pieza responde a UN ángulo (el del calendario de este mes, o elegirlo) y se dice antes del guion. Proyectos: la estrategia es contexto; el ángulo de una pieza es su proyecto/campaña.",
     };
 }
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
+import { EntregasTabs } from "../components/workspace/EntregasTabs";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { CHANNELS, backendUrl, listDeliveries, setDeliveryPlan } from "../lib/api";
@@ -66,7 +67,10 @@ export function PlanPage() {
     const { activeBrand, refreshBrands } = useBrand();
     const navigate = useNavigate();
     const [dialog, ask] = useConfirm();
-    const [view, setView] = useState<View>("semana");
+    const [params] = useSearchParams();
+    const [calView, setView] = useState<View>("semana");
+    // Aprendizaje se abre desde la pestaña de Entregas (?v=aprendizaje). Una marca por proyectos no tiene calendario.
+    const view: View = params.get("v") === "aprendizaje" || activeBrand?.workType !== "plan" ? "aprendizaje" : calView;
     const [list, setList] = useState<DeliverySummary[]>([]);
     const [anchor, setAnchor] = useState(() => new Date());
     const [error, setError] = useState<string | null>(null);
@@ -183,6 +187,7 @@ export function PlanPage() {
 
     return (
         <div className="h-full flex flex-col min-h-0">
+            <EntregasTabs />
             {dialog}
             {confirming && (
                 <ConfirmWeekDialog brandId={activeBrand.id} label={title}
@@ -195,19 +200,18 @@ export function PlanPage() {
             <header className="px-5 md:px-8 pt-5 pb-4 border-b border-edge">
                 <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
                     <div className="min-w-0 flex-1">
-                        <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-fg-faint">Plan · {activeBrand.name}</p>
+                        <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-fg-faint">{view === "aprendizaje" ? "Aprendizaje" : "Calendario"} · {activeBrand.name}</p>
                         <h1 className="mt-1 text-[26px] leading-tight text-fg">
-                            {strategy?.claim ?? "Sin estrategia cargada"}
-                            {strategy?.hashtag && <span className="text-fg-muted"> {strategy.hashtag}</span>}
+                            {view === "aprendizaje" ? "Lo que se corrige, se vuelve regla." : strategy?.claim ?? "Sin estrategia cargada"}
+                            {view !== "aprendizaje" && strategy?.hashtag && <span className="text-fg-muted"> {strategy.hashtag}</span>}
                         </h1>
                     </div>
-                    <div className="flex gap-0.5 p-0.5 bg-[var(--color-surface-2)] rounded-[6px] text-[12px]" role="tablist">
-                        {(["semana", "mes", "tablero", "aprendizaje"] as View[]).map((v) => (
+                    {view !== "aprendizaje" && <div className="flex gap-0.5 p-0.5 bg-[var(--color-surface-2)] rounded-[6px] text-[12px]" role="tablist">
+                        {(["semana", "mes", "tablero"] as View[]).map((v) => (
                             <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)}
                                 className={`h-8 px-3.5 rounded-[5px] cursor-pointer ${view === v ? "bg-[var(--color-surface-1)] text-fg shadow-[var(--shadow-card)]" : "text-fg-muted hover:text-fg"}`}>{cap(v)}</button>
                         ))}
-                    </div>
-                    <Link to="/dashboard/entregas" className="h-8 flex items-center text-[12px] text-fg-muted hover:text-fg no-underline">Entregas →</Link>
+                    </div>}
                 </div>
                 {(view === "semana" || view === "mes") && (
                     <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">

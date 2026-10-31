@@ -233,9 +233,15 @@
    de la web (coevo-web/docs/design-system.md): grises fríos, celeste para lo fino, salmón como señal,
    Instrument Sans y títulos livianos. Se pisa sobre «papel», que queda con ?paleta=papel por un
    tiempo; cuando nadie lo use, estos valores pasan al bloque [data-theme="light"] y «papel» se borra. */
-[data-theme="light"][data-paleta="sistema"] {
+/* La letra y los títulos de «sistema» valen en los dos temas. */
+[data-paleta="sistema"] {
   --font-sans: "Instrument Sans", "Geist", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Instrument Sans", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+}
+[data-theme="light"][data-paleta="sistema"] {
 
   --color-canvas: #eceeed;
   --color-surface-0: #f3f4f3;
@@ -283,18 +289,71 @@
   --glass-border: rgba(19, 20, 22, 0.08);
   --glass-border-hover: rgba(19, 20, 22, 0.14);
 
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-
   --shadow-card: none;
   --shadow-modal: 0 20px 60px rgba(19, 20, 22, 0.12), 0 4px 12px rgba(19, 20, 22, 0.05);
   --shadow-dropdown: 0 8px 24px rgba(19, 20, 22, 0.10);
 }
-[data-theme="light"][data-paleta="sistema"] body { letter-spacing: -0.01em; }
+[data-paleta="sistema"] body { letter-spacing: -0.01em; }
 /* Títulos livianos y cerrados, como la web: nada de negritas. */
-[data-theme="light"][data-paleta="sistema"] :is(h1, h2) { font-weight: 400; letter-spacing: -0.035em; }
-[data-theme="light"][data-paleta="sistema"] h3 { font-weight: 500; letter-spacing: -0.02em; }
+[data-paleta="sistema"] :is(h1, h2) { font-weight: 400; letter-spacing: -0.035em; }
+[data-paleta="sistema"] h3 { font-weight: 500; letter-spacing: -0.02em; }
+
+/* «Sistema» en oscuro (2026-10-31): el carbón de las secciones oscuras de la web (#252526, tinta #131416),
+   líneas con tinte celeste y el salmón como señal (en oscuro se lee: ~6:1). */
+:root[data-paleta="sistema"]:not([data-theme="light"]) {
+  --color-canvas: #121314;
+  --color-surface-0: #17181a;
+  --color-surface-1: #1e1f22;
+  --color-surface-2: #26282b;
+  --color-surface-3: #303236;
+
+  --color-fg: #f3f4f3;
+  --color-fg-secondary: #d9dbdc;
+  --color-fg-muted: #a4a8ad;
+  --color-fg-faint: #8b9096;
+
+  --color-edge: #2e3236;
+  --color-edge-subtle: #24272a;
+  --color-edge-strong: #4c5c66;
+  --color-edge-focus: rgba(127, 166, 188, 0.6);
+
+  --color-accent: #f3f4f3;
+  --color-accent-muted: rgba(243, 244, 243, 0.06);
+
+  --color-warm: #7fa6bc;
+  --color-warm-strong: #9dbccd;
+  --color-warm-fg: #131416;
+  --color-warm-muted: rgba(127, 166, 188, 0.2);
+  --color-warm-subtle: rgba(127, 166, 188, 0.1);
+
+  --color-action: #f3f4f3;
+  --color-action-strong: #ffffff;
+  --color-action-muted: rgba(243, 244, 243, 0.1);
+  --color-action-subtle: rgba(243, 244, 243, 0.05);
+  --color-action-fg: #131416;
+
+  --color-brand: #e78787;
+  --color-brand-strong: #f0a3a3;
+  --color-brand-muted: rgba(231, 135, 135, 0.18);
+  --color-brand-subtle: rgba(231, 135, 135, 0.09);
+  --color-brand-fg: #131416;
+
+  --color-control-bg: #1e1f22;
+  --color-control-border: #3a3e43;
+
+  --glass-bg: rgba(30, 31, 34, 0.72);
+  --glass-bg-hover: rgba(30, 31, 34, 0.92);
+  --glass-border: rgba(243, 244, 243, 0.08);
+  --glass-border-hover: rgba(243, 244, 243, 0.14);
+
+  --bg-hotspot-1: transparent;
+  --bg-hotspot-2: transparent;
+  --bg-hotspot-3: transparent;
+
+  --shadow-card: none;
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-dropdown: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
 
 /* ============================================================
    Base Styles

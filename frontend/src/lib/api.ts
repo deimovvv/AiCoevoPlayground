@@ -234,6 +234,7 @@ export interface BrandCompetitor {
 export type WorkLinkKind = "piezas" | "exploracion" | "manual" | "design-system" | "otro";
 export interface WorkLink { id?: string; title: string; kind: WorkLinkKind; url: string; client: boolean }
 
+export type WorkType = "proyectos" | "plan";
 export interface LearnedRule { text: string; kind?: string | null; createdAt?: string }
 export interface BrandStrategy {
     claim?: string; hashtag?: string; destination?: string; enemy?: string;
@@ -274,6 +275,8 @@ export interface Brand {
     strategy?: BrandStrategy;
     /** Lo que la marca corrigió tres veces, aprobado por el equipo (brand-integrations 4.3). */
     learnedRules?: LearnedRule[];
+    /** Qué le compra a Coevo: encargos (proyectos) o el sistema mensual de Coevo Studio (plan). Sin dato = proyectos. */
+    workType?: WorkType;
     fonts?: BrandFonts;
     dna?: BrandDNA;
     designSystem?: DesignSystem;
@@ -686,6 +689,7 @@ export interface UpdateBrandPayload {
     strategy?: BrandStrategy | Record<string, never>;
     /** La lista entera de reglas aprendidas; reemplaza a la anterior. */
     learnedRules?: LearnedRule[];
+    workType?: WorkType;
 }
 
 export async function updateBrand(brandId: string, updates: UpdateBrandPayload): Promise<Brand> {

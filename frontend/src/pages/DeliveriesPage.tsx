@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ArrowRight, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CornerDownLeft, Download, Eye, ExternalLink, History, Loader2, Minus, Paperclip, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, CornerDownLeft, Download, Eye, ExternalLink, History, Loader2, Minus, Paperclip, Pencil, Plus, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
 import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
@@ -9,6 +9,7 @@ import { SlideStage } from "../components/workspace/SlideStage";
 import { NewVersionDialog } from "../components/workspace/NewVersionDialog";
 import { VoiceNoteButton } from "../components/workspace/VoiceNoteButton";
 import { PublishControls } from "../components/workspace/PublishControls";
+import { EntregasTabs } from "../components/workspace/EntregasTabs";
 import {
     approvedZipUrl, backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryCommentRefs, addDeliveryVoiceComment, setDeliveryPlan, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound, setDeliveryCommentInternal,
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
@@ -275,7 +276,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
     };
 
     return (
-        <div className="h-full flex min-h-0">
+        <div className="h-full flex flex-col min-h-0">
+        {!client && <EntregasTabs />}
+        <div className="flex-1 flex min-h-0">
             {dialog}
             {oldSlide && current && (
                 <div className="fixed inset-0 z-[80] flex flex-col bg-black/85" role="dialog" aria-label={`Versión ${oldSlide.round}`} onClick={() => setOldSlide(null)}>
@@ -310,10 +313,6 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                         {client && tab === "aprobadas" && shown.length > 0 && (
                             <a href={approvedZipUrl(activeBrand.id)} download title="Todo lo aprobado, en un zip, ordenado por proyecto y etapa"
                                 className="flex items-center gap-1 text-[12px] text-fg-muted hover:text-fg no-underline"><Download size={12} /> Bajar todo</a>
-                        )}
-                        {!client && (
-                            <Link to="/dashboard/entregas/plan" title="Tablero por fase y semana/mes según la estrategia"
-                                className="flex items-center gap-1 text-[12px] text-fg-muted hover:text-fg no-underline"><CalendarDays size={12} /> Plan</Link>
                         )}
                         {!client && (
                             <Link to="/cliente" title="Ver lo que ve el cliente de esta marca"
@@ -426,9 +425,42 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                     </p>
                 )}
                 {!current ? (
-                    <div className="flex-1 flex items-center justify-center text-[13px] text-fg-faint">
-                        {selectedId ? <Loader2 size={16} className="animate-spin" /> : "Elegí una entrega."}
-                    </div>
+                    selectedId ? (
+                        <div className="flex-1 flex items-center justify-center text-fg-faint"><Loader2 size={16} className="animate-spin" /></div>
+                    ) : shown.length === 0 ? (
+                        <div className="flex-1 flex items-center justify-center text-[13px] text-fg-faint">Todavía no hay piezas para mostrar.</div>
+                    ) : (
+                        /* Sin una pieza abierta: todas, grandes, con su estado. Que se entienda de un vistazo qué hay. */
+                        <div className="flex-1 min-h-0 overflow-y-auto px-4 md:px-8 py-6">
+                            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+                                <h2 className="text-[22px] text-fg">{client ? "Tus piezas" : `Piezas de ${activeBrand.name}`}</h2>
+                                <p className="text-[12px] text-fg-muted tabular-nums">
+                                    {shown.length} en total · {shown.filter((d) => d.status === "aprobada").length} aprobadas · {shown.filter((d) => d.status !== "aprobada" && d.visibility === "cliente").length} con el cliente{!client && ` · ${shown.filter((d) => d.visibility === "interna").length} internas`}
+                                </p>
+                            </div>
+                            <div className="mt-5 grid gap-4 grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
+                                {shown.map((d) => (
+                                    <button key={d.id} onClick={() => open(d.id)}
+                                        className="group text-left rounded-[var(--radius-md)] overflow-hidden bg-surface-1 border border-edge hover:border-fg/40 hover:-translate-y-0.5 hover:shadow-[var(--shadow-dropdown)] transition-all cursor-pointer">
+                                        <span className="block relative aspect-[4/5] bg-[var(--color-surface-2)] overflow-hidden">
+                                            {d.cover && <img src={backendUrl(d.cover)} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300" />}
+                                            {d.items > 1 && <span className="absolute top-2 right-2 h-5 px-1.5 rounded-[3px] bg-black/60 text-white text-[10px] tabular-nums flex items-center">{d.items}</span>}
+                                            {d.openComments > 0 && <span className="absolute top-2 left-2 h-5 px-1.5 rounded-[3px] bg-[var(--color-brand)] text-[var(--color-brand-fg)] text-[10px] tabular-nums flex items-center">{d.openComments} {d.openComments === 1 ? "comentario" : "comentarios"}</span>}
+                                        </span>
+                                        <span className="block p-3">
+                                            <span className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.06em] text-fg-muted">
+                                                <span className={`w-1.5 h-1.5 rounded-full ${DOT[d.status]}`} />{stateLabel(d, mode)}
+                                            </span>
+                                            <span className="block mt-1.5 text-[13px] text-fg leading-snug line-clamp-2">{d.title}</span>
+                                            <span className="block mt-1 text-[11px] text-fg-faint truncate">
+                                                {[d.campaignName, d.stage].filter(Boolean).join(" · ") || "Sin proyecto"} · {when(d.sentAt ?? d.createdAt)}
+                                            </span>
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )
                 ) : (
                     <>
                         <header className="px-4 md:px-6 py-3 md:py-4 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-edge">
@@ -1040,6 +1072,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                     </>
                 )}
             </main>
+        </div>
         </div>
     );
 }

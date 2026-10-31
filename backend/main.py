@@ -265,6 +265,9 @@ class UpdateBrandRequest(BaseModel):
     strategy: Optional[BrandStrategy] = None
     # Reglas aprendidas (brand-integrations 4.3): la lista entera, reemplaza a la anterior.
     learnedRules: Optional[List[LearnedRule]] = None
+    # Qué le compra la marca a Coevo (2026-10-31): "proyectos" (encargos de la casa creativa: piezas y
+    # campañas, sin calendario) o "plan" (el venture Coevo Studio: sistema mensual con calendario y publicación).
+    workType: Optional[str] = None
 
 
 class GenerateCopyRequest(BaseModel):
@@ -1052,6 +1055,10 @@ def update_brand(brand_id: str, req: UpdateBrandRequest):
             brand["strategy"] = {**st, "updatedAt": _dt.datetime.now(_dt.timezone.utc).isoformat()}
         else:
             brand.pop("strategy", None)   # {} la saca
+    if req.workType is not None:
+        if req.workType not in ("proyectos", "plan"):
+            raise HTTPException(status_code=400, detail="workType: proyectos o plan")
+        brand["workType"] = req.workType
     if req.learnedRules is not None:
         now = _dt.datetime.now(_dt.timezone.utc).isoformat()
         brand["learnedRules"] = [{**r.model_dump(exclude_none=True), "text": r.text.strip(), "createdAt": r.createdAt or now}
