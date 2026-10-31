@@ -70,7 +70,7 @@
 - [ ] O.4 Tiempo por pieza, junto al costo de IA → margen por pack.
 - [ ] O.5 Material masivo: agrupar, archivo de la marca, tope del bloque activo (design.md §13).
 
-- [ ] O.6 Postiz (pendiente, 2026-10-21: nube, plan Team; primera prueba con la marca Coevo, después el primer cliente que publique con Coevo). API verificada:
+- [ ] O.6 Postiz → se diseña en `brand-integrations` §2–4 (2026-10-31: estados, semana/mes por ángulo, audio, retroalimentación). (pendiente, 2026-10-21: nube, plan Team; primera prueba con la marca Coevo, después el primer cliente que publique con Coevo). API verificada:
       `api.postiz.com/public/v1` — `GET /integrations`, `POST /upload`, `POST /posts` (now/schedule), `GET /analytics/{id}?date=7|30|90`.
       Canales por marca en Marca; «Publicar» en una entrega aprobada (sólo las láminas aprobadas); métricas del mes → reporte.
 

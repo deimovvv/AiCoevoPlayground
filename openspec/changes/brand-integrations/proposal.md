@@ -49,3 +49,38 @@ o del editor se ve después con sus números, y lo que funciona vuelve como rece
   marca y "que otras personas lo usen": usuarios, permisos y almacenamiento real.
 - Verificar antes de construir (regla del repo): permisos y revisión de app de Meta (Graph API,
   Marketing API) y la API de Postiz (si es la versión alojada o propia).
+
+## El circuito completo (2026-10-31)
+
+Gonzalo, después de estudiar el planner de contenido de Paul (Morfeo; ficha en
+`~/cov/biblioteca/fuentes/morfeo-academy/publica-automaticamente-automatizando-la-fabrica.md`):
+*«los estados están buenos, una vista por semana y por mes, que se define en base a los ángulos;
+recordemos la parte sistémica de retroalimentación; feedback por audio está buenísimo»*.
+
+**No se instala el planner** (corre en una compu, una sola persona, una cuenta). Studio ya es el
+lugar donde la marca revisa; se le suman sus ideas:
+
+1. **Estados de una pieza:** en desarrollo → por revisar → lista → en Postiz → publicada
+   (+ pausada, descartada). Hoy Entregas sólo distingue interna / mandada / aprobada.
+2. **Vista semana y mes**, armada desde la estrategia de la marca (`brand-strategy`): el calendario
+   dice qué ángulo toca cada mes, y cada pieza lleva **su ángulo**. Lo aprobado se arrastra a un día
+   y hora; «Distribuir» propone los huecos según el calendario.
+3. **Confirmar antes de mandar:** mover cosas arma una propuesta; recién al confirmarla se programa
+   en Postiz. Nada se publica solo.
+4. **Feedback por audio:** la marca (o el equipo) graba una nota sobre la pieza o una placa; se
+   transcribe (`llm_router.call_audio`, Gemini de Coevo) y queda como comentario, con el audio.
+   Cada corrección guarda si ya se aplicó, para no aplicarla dos veces.
+
+**La retroalimentación (lo sistémico):** el circuito no termina en «publicada».
+
+```
+ángulo → pieza → comentario (texto o audio, con su tipo) → ronda → aprobada → Postiz → métricas a 7 días
+   ▲                         │                                                        │
+   │                         └── lo corregido 3 veces → regla de la marca             │
+   └──────────── informe del mes: qué ángulo rindió (alcance, guardados, compartidos) ◄┘
+```
+
+- Cada comentario se clasifica por tipo (texto, color, encuadre, tono, dato…). Lo que se repite tres
+  veces se propone como **regla aprendida** de la marca, que el equipo aprueba.
+- Cada publicación guarda su ángulo, así el informe mensual compara **ángulos**, no posts sueltos,
+  y la reunión mensual ajusta la estrategia con números.

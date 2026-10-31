@@ -166,7 +166,7 @@ Regla de `coevo-skills/SISTEMA.md`: **cada cosa tiene un solo hogar; los demás 
 | 2 | **Skill `reunion`** (preparar la agenda y ordenar lo dicho) | que lo que dice la marca vuelva a los ángulos |
 | 3 | **Que el MCP pueda escribir la ficha**, con aprobación | cargar lo aprendido sin hacerlo a mano |
 | 4 | **Studio acepta el link de un repo como design system** (hoy sólo claude.ai) | marcas cuya web es nuestra |
-| 5 | **Publicar y medir** (Postiz) | sin números a 7 días no hay informe |
+| 5 | **Publicar y medir** (Postiz): estados, vista semana/mes por ángulo, confirmar antes de publicar, feedback por audio, métricas por ángulo → `changes/brand-integrations` §2–4 | sin números a 7 días no hay informe ni ángulos que ajustar |
 | 6 | **Vueltas y costo visibles en Entregas** | el «a la primera» medido de verdad |
 
 ## 12. Cómo contarlo en un video (guion sugerido)
