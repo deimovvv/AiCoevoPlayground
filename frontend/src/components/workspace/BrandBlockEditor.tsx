@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { MiniMarkdown } from "./MiniMarkdown";
 import { useConfirm } from "../../lib/useConfirm";
 import { Lightbox } from "../Lightbox";
 import { Check, ExternalLink, Loader2, Trash2, Upload, X } from "lucide-react";
@@ -316,6 +316,10 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
     const dna = brand.dna || {};
     const ds = brand.designSystem || {};
     const [context, setContext] = useState(brand.brandContext || "");
+    const [oneLine, setOneLine] = useState(brand.business?.value_prop || "");
+    const [audience, setAudience] = useState(dna.audience || "");
+    // El texto largo se lee formateado; se edita crudo sólo si se pide (o si está vacío).
+    const [rawContext, setRawContext] = useState(!brand.brandContext);
     const [tone, setTone] = useState((dna.tone || []).join(", "));
     const [never, setNever] = useState((dna.forbidden_words || []).join(", "));
     const [colors, setColors] = useState(dna.colors || []);
@@ -347,7 +351,10 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
 
     const textBlock = block === "quien" || block === "identidad" || block === "foto" || block === "archivos";
     const onSave = () => {
-        if (block === "quien") return save({ brandContext: context, dna: { ...dna, tone: fromLines(tone), forbidden_words: fromLines(never) } });
+        if (block === "quien") return save({
+            brandContext: context, business: { ...brand.business, value_prop: oneLine.trim() || undefined },
+            dna: { ...dna, audience: audience.trim() || undefined, tone: fromLines(tone), forbidden_words: fromLines(never) },
+        });
         if (block === "identidad") return save({ fonts: { ...brand.fonts, headline: headline || undefined, body: body || undefined }, dna: { ...dna, colors: colors.filter((c) => /^#[0-9a-f]{6}$/i.test(c.hex)) }, designSystemUrl: dsUrl.trim() });
         if (block === "archivos") return save({ designSystemUrl: dsUrl.trim(), workLinks: links.filter((l) => l.url.trim() || l.title.trim()) });
         if (block === "foto") return save({ designSystem: { ...ds, photoStyle: style, visualDos: fromLines(dos), visualDonts: fromLines(donts) } });
@@ -407,15 +414,30 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
 
                     {block === "quien" && (
                         <>
-                            <Section title="Quién es la marca">
-                                <textarea value={context} onChange={(e) => setContext(e.target.value)} rows={9} className={input + " resize-y leading-relaxed"}
-                                    placeholder="Qué hace, para quién, qué la hace distinta. Lo que Claude tiene que saber antes de escribir o producir." />
+                            <Section title="En una frase">
+                                <textarea value={oneLine} onChange={(e) => setOneLine(e.target.value)} rows={2} className={input + " resize-none leading-relaxed"}
+                                    placeholder="Qué hace y qué la hace distinta. Es lo primero que se lee en la ficha." />
                             </Section>
-                            <Section title="Tono (separado por comas)">
-                                <input value={tone} onChange={(e) => setTone(e.target.value)} className={input} placeholder="ej. seco, frontal, con humor" />
+                            <Section title="A quién le habla">
+                                <input value={audience} onChange={(e) => setAudience(e.target.value)} className={input} placeholder="ej. familias que cuidan a un padre mayor" />
+                            </Section>
+                            <Section title="Tono">
+                                <input value={tone} onChange={(e) => setTone(e.target.value)} className={input} placeholder="ej. seco, frontal, con humor (separado por comas)" />
                             </Section>
                             <Section title="Palabras que nunca usa">
-                                <input value={never} onChange={(e) => setNever(e.target.value)} className={input} placeholder="ej. premium, innovador, experiencia única" />
+                                <input value={never} onChange={(e) => setNever(e.target.value)} className={input} placeholder="ej. premium, innovador (separado por comas)" />
+                            </Section>
+                            <Section title="La marca, completa">
+                                <div className="flex items-center justify-between -mt-1 mb-2">
+                                    <p className="text-[12px] text-fg-faint">Lo que Claude lee antes de escribir o producir.</p>
+                                    {context && <button type="button" onClick={() => setRawContext((v) => !v)} className="h-7 px-2.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg hover:border-[var(--color-edge-strong)] cursor-pointer">
+                                        {rawContext ? "Ver" : "Editar"}
+                                    </button>}
+                                </div>
+                                {rawContext
+                                    ? <textarea value={context} onChange={(e) => setContext(e.target.value)} rows={14} className={input + " resize-y leading-relaxed font-mono text-[12.5px]"}
+                                        placeholder="Qué hace, para quién, qué la hace distinta, cómo habla." />
+                                    : <MiniMarkdown text={context} className="text-[14px] leading-relaxed text-fg-muted" />}
                             </Section>
                         </>
                     )}
@@ -538,18 +560,17 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                 </div>
 
                 <footer className="h-16 shrink-0 flex items-center gap-3 px-6 border-t border-edge">
-                    <Link to={`/dashboard/brands/${id}`} className="text-[12px] text-fg-faint hover:text-fg no-underline">Configuración completa</Link>
                     <span className="flex-1" />
                     {textBlock ? (
                         <>
                             <button onClick={onClose} className="h-9 px-3 text-[13px] text-fg-muted cursor-pointer">Cancelar</button>
                             <button onClick={onSave} disabled={saving}
-                                className="h-9 px-4 rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] cursor-pointer disabled:opacity-50">
+                                className="h-9 px-4 rounded-[var(--radius-md)] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] cursor-pointer disabled:opacity-50">
                                 {saving ? "Guardando…" : "Guardar"}
                             </button>
                         </>
                     ) : (
-                        <button onClick={onClose} className="h-9 px-4 rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] cursor-pointer">Listo</button>
+                        <button onClick={onClose} className="h-9 px-4 rounded-[var(--radius-md)] bg-[var(--color-action)] text-[var(--color-action-fg)] text-[13px] cursor-pointer">Listo</button>
                     )}
                 </footer>
             </aside>

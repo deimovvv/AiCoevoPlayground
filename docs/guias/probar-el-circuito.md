@@ -30,6 +30,15 @@ Anotá al lado de cada paso ✅ o ❌ y qué viste. Lo que falle, pasáselo a Cl
 | 0a.3 | Más abajo | «Plan mensual» (Mi Saluteca, con Calendario), «Proyectos» (Koxis…) con fotos, y «Por cargar» como chips punteados |
 | 0a.4 | En una tarjeta, «Entregas» | Cambia a esa marca y abre sus entregas |
 
+## 0c · La ficha de marca (Marca)
+
+| # | Hacé | Tiene que pasar |
+|---|---|---|
+| 0c.1 | Marca de **ALGÜNA** | Arriba «Quién es» en grande y «Cómo habla» (tono, nunca dice); después «Cómo se ve», «Estrategia» y abajo «Productos o servicios · Personas · Formatos aprobados» |
+| 0c.2 | Columna izquierda, abajo | «Para completar»: lo que falta (ej. Logo y colores) con botones con borde; nada de «2 de 6» |
+| 0c.3 | Tocá «Quién es» | Campos: En una frase · A quién le habla · Tono · Nunca usa; «La marca, completa» se lee formateado, sin asteriscos. No hay «Configuración completa» |
+| 0c.4 | «Ver como cliente» → Mi marca | Sin «FALTA» ni bloques vacíos |
+
 ## 0b · La vista del cliente y el selector de marca
 
 | # | Hacé | Tiene que pasar |

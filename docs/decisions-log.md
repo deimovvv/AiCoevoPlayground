@@ -43,11 +43,31 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Dónde se trabaja | En `app.coevoagency.com` (servidor = fuente de verdad); lo local es sólo desarrollo | 2026-10-17 |
 | Login | Equipo: Cloudflare Access (PIN por mail) + el backend verifica el JWT | 2026-10-17 · `docs/guias/produccion.md` |
 | Tipo de trabajo | Cada marca es **proyectos** (encargos, sin calendario; ángulo = proyecto) o **plan mensual** (Coevo Studio: ángulos, calendario, publicación). Aprendizaje para las dos | 2026-10-31 |
+| Ficha de marca | **Primero lo que la marca es** (Quién es · Cómo habla), después Cómo se ve, Estrategia y, abajo y chico, Productos o servicios · Personas · Formatos aprobados. «Para completar» con su acción reemplaza el «2 de 6» y los 4 botones. Sin «FALTA» para lo que no aplica; el cliente no ve alarmas | 2026-10-31 · M.14 |
 | Al entrar | **Inicio** (`/dashboard`, el logo): «Te toca» de todas las marcas + las marcas con sus fotos, por tipo de trabajo. Sin plata (eso sigue en Resumen, admin) | 2026-10-31 |
 | Lo que ve el cliente | Calendario **de sólo lectura** si tiene plan mensual (las fechas las arma Coevo; si algo no va, lo dice en la pieza). «Mandar material» → **«Mandar algo»**: qué es + para qué + archivos, con el circuito a la vista. Selector de marca por tipo de trabajo | 2026-10-31 |
 | Circuito de una pieza | Ángulo + fase por pieza; Plan (calendario, propuesta hasta confirmar); voz y escritos se clasifican solos; regla = la decide una persona | 2026-10-31 · `changes/brand-integrations` |
 | Cómo funciona Studio | **Recordar** (Marca), **mostrar** (Entregas), **aprender** (Plan). Lo que no entra ahí va a una skill. Producción queda, a revisar. Es descripción, no venta: la frase que vende vive en `coevo-web` | 2026-10-31 · `docs/producto/operacion.md` §1b |
 | Rol de Studio | Casa de la marca + vitrina del cliente; se produce en el taller (Claude). Sin canvas propio (salvo video); la crew es relato, no pantalla | 2026-10-18 · `changes/studio-v2` |
+
+---
+
+## 2026-10-31 — La ficha de marca: primero lo que es (M.14)
+
+**Contexto:** Gonzalo, mirando ALGÜNA: los botones sin borde, «Quién es» que al editarlo es un textarea con
+`**` y `---`, «Configuración completa» que lleva a otra pantalla, y Catálogo / Caras / Plantillas en rojo
+para una marca que no los usa: «hay algo que no me cierra». La ficha estaba hecha para moda (M.14, 28/10).
+
+**Decisión:**
+- **Orden:** Quién es (una frase grande + a quién le habla + «Leer todo» formateado) y Cómo habla (tono,
+  nunca dice) arriba; Cómo se ve (reglas de foto + una tira de referencias); Estrategia y lo aprendido;
+  abajo, chico, **Productos o servicios · Personas · Formatos aprobados** (antes Catálogo, Caras, Plantillas).
+- **«Para completar»** en la columna izquierda: sólo lo que toda marca necesita (quién es, cómo habla, logo y
+  colores, cómo se ve; estrategia sólo si es plan mensual), cada cosa con sus botones. Reemplaza el «2 de 6»
+  y los cuatro botones sueltos. Lo opcional nunca dice «FALTA»: dice qué es y «+ Sumar».
+- **Editar «Quién es»:** campos separados (en una frase, a quién le habla, tono, nunca usa) y el texto largo se
+  **lee formateado** (`MiniMarkdown`); «Editar» lo abre crudo. Se fue «Configuración completa».
+- **El cliente** ve sólo lo que hay: sin «FALTA», sin bloques vacíos ni frases para el equipo.
 
 ---
 

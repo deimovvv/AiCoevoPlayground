@@ -42,7 +42,7 @@
       leen antes de generar. Chequeo en dos tiempos: (1) antes de gastar, el pedido/prompt contra las reglas (texto, gratis); (2) después,
       el texto de la pieza (OCR con Gemini) contra las reglas, como aviso en Entregas, no bloqueo. Arrancar con 2–3 marcas reales.
   circuito completo + videos cortos (skill explicar-herramienta) cuando las pantallas estén quietas.
-- [ ] M.14 Marca: primero lo que **es** la marca, después las imágenes (Gonzalo, 2026-10-28: «ves como pura otras imágenes»).
+- [~] M.14 **Hecho en la ficha (2026-10-31):** orden nuevo, «Para completar» con acciones, nombres genéricos, editor de «Quién es» en campos, sin alarmas para el cliente. **Falta:** Reglas (M.13) y Objetivos/línea base arriba; la lista del arranque completa (quién aprueba, accesos, pilotos). Original: Marca: primero lo que **es** la marca, después las imágenes (Gonzalo, 2026-10-28: «ves como pura otras imágenes»).
       Hoy 4 de 5 bloques de la derecha son grillas de fotos y «Quién es» queda en un cuadro chico; con una concesionaria o una
       clínica se ve peor, y los nombres son de moda («prendas», «Poses de catálogo»). Propuesta: (1) arriba, en texto, Quién es ·
       Cómo habla (tono, siempre/nunca) · Reglas (M.13) · Objetivos y línea base; (2) las imágenes juntas en un bloque «Cómo se ve»
