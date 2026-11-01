@@ -25,6 +25,7 @@ Todo entra por **«Mandar material»** en el portal o por un link que les mandam
 |---|---|---|
 | **Logo** (vectorial o PNG sin fondo) y **tipografías** | Que cada pieza sea de la marca | Lo armamos (se cotiza aparte) |
 | **Manual o PDF de marca**, piezas que les gustaron y que no | Identidad, siempre y nunca | Sale de la auditoría |
+| **Referencias:** un link (Pinterest o Drive, el que ya usen) con 10 a 20 imágenes y una línea de qué les gusta de cada una. Se pide una vez | Que no adivinemos el gusto de la marca | Seguimos igual: no frena el arranque |
 | **Productos o servicios:** fotos, datos, precios si se publican | Las piezas de catálogo | Guía de fotos por rubro (`pipeline-contenido/rubros/`, `ficha-ecommerce` para moda) |
 | **La persona a cámara:** alguien del equipo (con permiso escrito) o elegimos una creada | Los videos con presentador | Creamos una (`avatar-sheet`) |
 | **Lugar:** fotos del local, la oficina, el showroom | Que se vea que es real | Usamos material de la marca |
@@ -70,5 +71,5 @@ En Studio, la lista de Marca (M.14) muestra esto con su estado; el cliente ve lo
 ## Pendiente
 
 - Precio de la auditoría y si se descuenta (ver modelo-de-negocio.md).
-- Probar el recorrido entero con la primera concesionaria *design partner* y corregir este doc con lo que pase.
+- Probar el recorrido entero con ALGÜNA y Cocucci Automotores (y con la primera concesionaria *design partner*) y corregir este doc con lo que pase.
 - Pasar los mensajes y la lista a la skill `onboarding-marca` cuando se haya hecho dos veces.
