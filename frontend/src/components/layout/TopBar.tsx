@@ -38,7 +38,7 @@ export function TopBar() {
         // Escritorio: una fila. Celular: marca arriba y las secciones abajo, con desplazamiento lateral.
         <header className="shrink-0 border-b border-edge bg-[var(--color-canvas)] flex flex-wrap items-center gap-x-6 px-4 md:px-6 md:h-14 md:flex-nowrap">
             <div className="h-14 flex items-center gap-4 md:gap-6 flex-1 md:flex-none min-w-0">
-                <Link to="/dashboard/marca" className="text-[19px] font-semibold tracking-[-0.045em] text-fg no-underline">coevo</Link>
+                <Link to="/dashboard" title="Inicio" className="text-[19px] font-semibold tracking-[-0.045em] text-fg no-underline">coevo</Link>
                 <BrandPicker top />
             </div>
             <div className="h-14 flex items-center gap-4 md:order-last md:ml-auto">

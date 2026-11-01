@@ -32,6 +32,7 @@ import { SemaforoPage } from "./pages/SemaforoPage";
 import { ReportePage } from "./pages/ReportePage";
 import { TableroPage } from "./pages/TableroPage";
 import { BandejaPage } from "./pages/BandejaPage";
+import { InicioPage } from "./pages/InicioPage";
 import { ClienteCalendarioPage } from "./pages/ClienteCalendarioPage";
 import { ClienteMaterialPage } from "./pages/ClienteMaterialPage";
 import { ClientePersonasPage } from "./pages/ClientePersonasPage";
@@ -94,7 +95,7 @@ function App() {
         }
       >
         {/* studio-v2: la entrada es Marca; el "¿Qué hacemos hoy?" (DashboardHome) se reemplazó por Producción. */}
-        <Route index element={<Navigate to="/dashboard/marca" replace />} />
+        <Route index element={<InicioPage />} />
         <Route path="marca" element={<MarcaPage />} />
         <Route path="produccion" element={<ProduccionPage />} />
         <Route path="accesos" element={<AccesosPage />} />

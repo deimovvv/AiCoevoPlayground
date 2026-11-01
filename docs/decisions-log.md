@@ -43,10 +43,30 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Dónde se trabaja | En `app.coevoagency.com` (servidor = fuente de verdad); lo local es sólo desarrollo | 2026-10-17 |
 | Login | Equipo: Cloudflare Access (PIN por mail) + el backend verifica el JWT | 2026-10-17 · `docs/guias/produccion.md` |
 | Tipo de trabajo | Cada marca es **proyectos** (encargos, sin calendario; ángulo = proyecto) o **plan mensual** (Coevo Studio: ángulos, calendario, publicación). Aprendizaje para las dos | 2026-10-31 |
+| Al entrar | **Inicio** (`/dashboard`, el logo): «Te toca» de todas las marcas + las marcas con sus fotos, por tipo de trabajo. Sin plata (eso sigue en Resumen, admin) | 2026-10-31 |
 | Lo que ve el cliente | Calendario **de sólo lectura** si tiene plan mensual (las fechas las arma Coevo; si algo no va, lo dice en la pieza). «Mandar material» → **«Mandar algo»**: qué es + para qué + archivos, con el circuito a la vista. Selector de marca por tipo de trabajo | 2026-10-31 |
 | Circuito de una pieza | Ángulo + fase por pieza; Plan (calendario, propuesta hasta confirmar); voz y escritos se clasifican solos; regla = la decide una persona | 2026-10-31 · `changes/brand-integrations` |
 | Cómo funciona Studio | **Recordar** (Marca), **mostrar** (Entregas), **aprender** (Plan). Lo que no entra ahí va a una skill. Producción queda, a revisar. Es descripción, no venta: la frase que vende vive en `coevo-web` | 2026-10-31 · `docs/producto/operacion.md` §1b |
 | Rol de Studio | Casa de la marca + vitrina del cliente; se produce en el taller (Claude). Sin canvas propio (salvo video); la crew es relato, no pantalla | 2026-10-18 · `changes/studio-v2` |
+
+---
+
+## 2026-10-31 — Al entrar, un Inicio (no la ficha de la última marca)
+
+**Contexto:** Gonzalo: «la estética del dashboard cuando apenas entrás, ¿qué onda?». Se entraba a la Marca
+de la última marca abierta (una ficha llena de «FALTA»); lo que pasaba entre marcas estaba en el Resumen
+(chiquito, sólo admin, con plata); y Marcas, el selector y el Resumen agrupaban con tres criterios distintos.
+Las pantallas del cliente (Mandar algo, Equipo, Calendario) eran una columna de 620px centrada.
+
+**Decisión:**
+- **Inicio** en `/dashboard` (y en el logo «coevo»), para todo el equipo: saludo, **Te toca** (cambios pedidos,
+  material del cliente sin ordenar, piezas sin mandar, piezas esperando al cliente; lo urgente primero, con la
+  tapa) y **las marcas con sus fotos** (tapas de las últimas piezas; si no hay, su moodboard o catálogo),
+  agrupadas como el selector: Plan mensual · Proyectos · Por cargar. Cada tarjeta: Marca · Entregas · (Calendario).
+- Mismos criterios que el semáforo (`GET /api/inicio` reusa sus funciones). Sin fee ni margen: eso es del Resumen.
+- **Pantallas del cliente en dos columnas**, como su Inicio: a la izquierda qué es y para qué; a la derecha lo que se hace.
+
+**Sigue:** el arranque de una marca nueva como lista guiada (M.14) y pasar la pantalla Marcas a los mismos grupos.
 
 ---
 

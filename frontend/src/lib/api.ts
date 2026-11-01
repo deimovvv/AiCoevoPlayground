@@ -4256,3 +4256,18 @@ export async function addServerVideoClip(brandId: string, id: string, file: File
     form.append("file", file);
     await uploadWithProgress(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/videos/${encodeURIComponent(id)}/clips`, form, "No se pudo subir el clip", onProgress);
 }
+
+// ── Inicio del equipo (backend/routers/inicio.py) ─────────────────────────────
+export interface InicioTask {
+    kind: "cambios" | "material" | "esperando" | "sin_mandar"; urgency: number;
+    brandId: string; brandName: string; title: string; detail: string; href: string; cover: string | null;
+}
+export interface InicioBrand {
+    id: string; name: string; logo: string | null; group: "plan" | "proyectos" | "cargar"; covers: string[];
+    pieces: number; approvedThisMonth: number; waiting: number; changes: number; newMaterial: number;
+    next: { title: string; at: string } | null; lastActivity: string | null;
+}
+export interface Inicio { today: InicioTask[]; todayTotal: number; brands: InicioBrand[] }
+export async function getInicio(): Promise<Inicio> {
+    return editorJson(await fetch(`${API_BASE}/api/inicio`), "No se pudo cargar el inicio");
+}

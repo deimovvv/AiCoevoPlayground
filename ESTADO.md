@@ -11,6 +11,8 @@ Ideas leídas: la-observacion-es-dato, linea-base-antes-de-intervenir, criterio-
   clasifican solos) → Aprendizaje (reglas). Cada marca es **proyectos** (Koxis) o **plan mensual** (Mi Saluteca).
 - **Vista de cliente curada:** calendario de sólo lectura (plan), «Mandar algo» con el circuito a la vista, selector de
   marca por tipo de trabajo, claro/oscuro. Guía para Gonzalo: `docs/guias/probar-el-circuito.md` (bloques 0 y 0b).
+- **Inicio del equipo** en `/dashboard` (Te toca + marcas con fotos por tipo de trabajo). Sigue: arranque guiado de
+  una marca nueva (M.14) y Marcas con los mismos grupos. Postiz en pausa (Gonzalo no lo paga hasta saber dónde aplicarlo).
 - Pendiente grande: Postiz (`changes/brand-integrations` §5) y que las skills usen ángulo y reglas (5.4, aviso en coevo-skills).
 
 ## Antes (2026-10-25)

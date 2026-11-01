@@ -21,6 +21,15 @@ Anotá al lado de cada paso ✅ o ❌ y qué viste. Lo que falle, pasáselo a Cl
 | 0.4 | Marca de Mi Saluteca, abajo | «06 Estrategia y lo aprendido» con el claim, los ángulos y las reglas |
 | 0.5 | Modo oscuro (☀ arriba a la derecha) | Grises fríos, bordes con tinte celeste y la señal en salmón, no rosa |
 
+## 0a · El Inicio
+
+| # | Hacé | Tiene que pasar |
+|---|---|---|
+| 0a.1 | Entrá a `app.coevoagency.com` (o tocá «coevo» arriba a la izquierda) | «Buen día/Buenas tardes, …» y no la ficha de una marca |
+| 0a.2 | «Te toca» | Lo pendiente de todas las marcas con su tapa; tocar uno abre esa pieza **en su marca** |
+| 0a.3 | Más abajo | «Plan mensual» (Mi Saluteca, con Calendario), «Proyectos» (Koxis…) con fotos, y «Por cargar» como chips punteados |
+| 0a.4 | En una tarjeta, «Entregas» | Cambia a esa marca y abre sus entregas |
+
 ## 0b · La vista del cliente y el selector de marca
 
 | # | Hacé | Tiene que pasar |
@@ -31,7 +40,7 @@ Anotá al lado de cada paso ✅ o ❌ y qué viste. Lo que falle, pasáselo a Cl
 | 0b.4 | Vista de cliente de **Mi Saluteca** | Pestañas: Inicio · Entregas · **Calendario** · Mandar algo · Mi marca · Equipo |
 | 0b.5 | Calendario | «Lo que sale y cuándo.»: por semana, el día, la hora, la tapa, el ángulo y las redes. No se arrastra nada. Tocar una pieza abre la entrega |
 | 0b.6 | Vista de cliente de **Koxis** | Sin la pestaña Calendario |
-| 0b.7 | Mandar algo | «¿Qué hay de nuevo?», los tres pasos (nos llega · lo sumamos · ves en qué quedó), «¿Qué es?» con opciones, «Contanos», archivos y link |
+| 0b.7 | Mandar algo (en la compu) | Dos columnas, no una columna centrada: «¿Qué hay de nuevo?» y los tres pasos a la izquierda (nos llega · lo sumamos · ves en qué quedó), «¿Qué es?» con opciones, «Contanos», archivos y link |
 | 0b.8 | Elegí «Producto nuevo», escribí una línea y Mandar | Abajo aparece «Recibido · lo estamos viendo»; al equipo le llega el mail y está en la **Bandeja** (Producción → Bandeja) con «Producto nuevo — …» |
 
 ## 1 · La estrategia (Marca)
