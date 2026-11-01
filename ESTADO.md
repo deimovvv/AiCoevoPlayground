@@ -6,7 +6,14 @@
 Temas: plataforma, portal de clientes, créditos, producción de contenido, agentes, marcas
 Ideas leídas: la-observacion-es-dato, linea-base-antes-de-intervenir, criterio-y-regla
 
-## Ahora (2026-10-25)
+## Ahora (2026-10-31)
+- **Circuito de una pieza** en producción: estrategia → ángulo → Plan (calendario) → Entregas (voz, comentarios que se
+  clasifican solos) → Aprendizaje (reglas). Cada marca es **proyectos** (Koxis) o **plan mensual** (Mi Saluteca).
+- **Vista de cliente curada:** calendario de sólo lectura (plan), «Mandar algo» con el circuito a la vista, selector de
+  marca por tipo de trabajo, claro/oscuro. Guía para Gonzalo: `docs/guias/probar-el-circuito.md` (bloques 0 y 0b).
+- Pendiente grande: Postiz (`changes/brand-integrations` §5) y que las skills usen ángulo y reglas (5.4, aviso en coevo-skills).
+
+## Antes (2026-10-25)
 - **Marca** ya tiene: visor de imágenes en grande en todos lados, «Archivos» (links de trabajo de cada
   marca con «lo ve el cliente»; el MCP los da) y design system por marca en Claude Design
   (Morph y ALGÜNA hechos; Studio guarda sólo el link).
@@ -41,6 +48,12 @@ Ideas leídas: la-observacion-es-dato, linea-base-antes-de-intervenir, criterio-
   el Cloudflare Tunnel y una política de Access "Equipo ALGÜNA". Studio sigue guardando a ALGÜNA sólo como marca
   cliente (contenido); ventas y plata de ALGÜNA no entran a Studio. Ver `~/cov/alguna-sistema/docs/limites.md`.
 > Se leen primero. Al resolver uno: marcarlo [x] y decir qué se hizo, o borrarlo si no aplica.
+- [ ] 2026-10-31 · de MiSaluteca-app · **Ficha de Mi Saluteca: revisar la regla «no interpretar resultados».** Gonzalo
+  decidió que interpretar con responsabilidad (qué mide cada valor y cuáles quedan fuera del rango del propio
+  laboratorio, sin diagnóstico, con preguntas para el médico) pasa a ser parte del producto, como hace Salutia. La
+  ficha dice «Evitar: interpretar resultados» y «No se toca: interpretación de valores»: hay que preguntarle al
+  cliente por qué está esa regla y, si cambia, validarlo con un abogado antes de que el contenido lo diga. Mientras,
+  el contenido no promete interpretación. Además: Mi Saluteca **no tiene Instagram** todavía (lo crea el cliente).
 - [ ] 2026-10-30 · de MiSaluteca-app · **Consultoría estratégica integral: Studio como su hogar.** Primera
   corrida con un cliente de punta a punta: `/auditoria-creativa` hecha (`MiSaluteca-app/docs/auditoria-mi-saluteca.md`),
   después vienen `/mapa-de-mercado` → `/design-system` → `/spec-campana`. Gonzalo quiere que esto sea una

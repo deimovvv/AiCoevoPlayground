@@ -32,6 +32,7 @@ import { SemaforoPage } from "./pages/SemaforoPage";
 import { ReportePage } from "./pages/ReportePage";
 import { TableroPage } from "./pages/TableroPage";
 import { BandejaPage } from "./pages/BandejaPage";
+import { ClienteCalendarioPage } from "./pages/ClienteCalendarioPage";
 import { ClienteMaterialPage } from "./pages/ClienteMaterialPage";
 import { ClientePersonasPage } from "./pages/ClientePersonasPage";
 import { ClienteInicioPage } from "./pages/ClienteInicioPage";
@@ -75,6 +76,7 @@ function App() {
         <Route index element={<ClienteInicioPage />} />
         <Route path="entregas" element={<ErrorBoundary><DeliveriesPage mode="cliente" /></ErrorBoundary>} />
         <Route path="marca" element={<div className="h-full overflow-y-auto md:overflow-hidden"><MarcaPage readOnly /></div>} />
+        <Route path="calendario" element={<ClienteCalendarioPage />} />
         <Route path="material" element={<ClienteMaterialPage />} />
         <Route path="personas" element={<ClientePersonasPage />} />
         <Route path="reporte" element={<ReportePage mode="cliente" />} />

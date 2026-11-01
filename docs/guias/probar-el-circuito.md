@@ -21,6 +21,19 @@ Anotá al lado de cada paso ✅ o ❌ y qué viste. Lo que falle, pasáselo a Cl
 | 0.4 | Marca de Mi Saluteca, abajo | «06 Estrategia y lo aprendido» con el claim, los ángulos y las reglas |
 | 0.5 | Modo oscuro (☀ arriba a la derecha) | Grises fríos, bordes con tinte celeste y la señal en salmón, no rosa |
 
+## 0b · La vista del cliente y el selector de marca
+
+| # | Hacé | Tiene que pasar |
+|---|---|---|
+| 0b.1 | Tocá el chip **MARCA** arriba a la izquierda | Se abre una lista ancha: «Plan mensual» (Mi Saluteca), «Proyectos» y, atenuadas, «Por cargar». Se busca escribiendo y se elige con ↑↓ y Enter |
+| 0b.2 | Entregas → «Ver como cliente» | Arriba, el mismo selector: se cambia de marca **sin volver a Studio** |
+| 0b.3 | En la vista de cliente, ☾/☀ arriba a la derecha | Pasa de claro a oscuro (es la misma preferencia que en Studio) |
+| 0b.4 | Vista de cliente de **Mi Saluteca** | Pestañas: Inicio · Entregas · **Calendario** · Mandar algo · Mi marca · Equipo |
+| 0b.5 | Calendario | «Lo que sale y cuándo.»: por semana, el día, la hora, la tapa, el ángulo y las redes. No se arrastra nada. Tocar una pieza abre la entrega |
+| 0b.6 | Vista de cliente de **Koxis** | Sin la pestaña Calendario |
+| 0b.7 | Mandar algo | «¿Qué hay de nuevo?», los tres pasos (nos llega · lo sumamos · ves en qué quedó), «¿Qué es?» con opciones, «Contanos», archivos y link |
+| 0b.8 | Elegí «Producto nuevo», escribí una línea y Mandar | Abajo aparece «Recibido · lo estamos viendo»; al equipo le llega el mail y está en la **Bandeja** (Producción → Bandeja) con «Producto nuevo — …» |
+
 ## 1 · La estrategia (Marca)
 
 | # | Hacé | Tiene que pasar |

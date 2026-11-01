@@ -82,8 +82,8 @@ export function ClienteInicioPage() {
                         <ArrowRight size={14} className="text-fg-faint group-hover:text-fg" />
                     </Link>
                     <Link to="/cliente/material" className="group flex items-baseline gap-3 py-4 border-b border-edge no-underline">
-                        <span className={`${mono} text-fg-faint w-24 shrink-0`}>Material</span>
-                        <span className="flex-1 text-[15px] text-fg">Mandanos lo que tengas{pendingMaterial ? <span className="text-fg-faint"> · {pendingMaterial} en revisión</span> : null}</span>
+                        <span className={`${mono} text-fg-faint w-24 shrink-0`}>Lo nuevo</span>
+                        <span className="flex-1 text-[15px] text-fg">Contanos qué hay de nuevo en la marca{pendingMaterial ? <span className="text-fg-faint"> · {pendingMaterial} recibido{pendingMaterial === 1 ? "" : "s"}</span> : null}</span>
                         <ArrowUpRight size={14} className="text-fg-faint group-hover:text-fg" />
                     </Link>
                     <Link to="/cliente/marca" className="group flex items-baseline gap-3 py-4 border-b border-edge no-underline">

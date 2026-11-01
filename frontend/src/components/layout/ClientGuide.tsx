@@ -14,7 +14,8 @@ const STEPS: Array<[string, string]> = [
     ["Revisá", "En Entregas está lo que te mandamos. Tocá una lámina para verla grande y tocá un punto de la imagen para dejar un comentario justo ahí."],
     ["Aprobá", "«Aprobar todo» si va todo. Si alguna no va: «Elegir cuáles», sacá las que no y «Aprobar 3 de 4». Si te arrepentís, «Cambiar mi elección»."],
     ["Pedí cambios", "«Pedir cambios» y escribí qué cambiarías. Te avisamos por mail cuando esté la versión nueva."],
-    ["Mandanos material", "En «Mandar material»: fotos, un PDF, un link de Drive o Pinterest, o una nota. Lo ordenamos nosotros."],
+    ["Contanos lo nuevo", "En «Mandar algo»: un producto que sale, una fecha, fotos para usar. Lo sumamos a tu marca y ahí mismo ves en qué quedó."],
+    ["Mirá qué sale", "Si tenés el plan mensual, en «Calendario» ves qué se publica, cuándo y en qué red. Si un día no te sirve, decilo en la pieza."],
     ["Tu marca y tu equipo", "En «Mi marca» ves cómo la entendemos. En «Equipo» ves quién tiene acceso (y, si sos el contacto principal, sumás gente)."],
 ];
 

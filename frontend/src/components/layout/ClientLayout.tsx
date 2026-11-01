@@ -1,8 +1,10 @@
 import { Link, Outlet, useLocation } from "react-router";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Moon, Sun } from "lucide-react";
 import { useBrand } from "../../lib/BrandContext";
+import { useTheme } from "../../lib/theme";
 import { useMe } from "../../lib/useMe";
 import { cn } from "../../lib/utils";
+import { BrandPicker } from "./BrandPicker";
 import { ClientGuide } from "./ClientGuide";
 
 /**
@@ -11,16 +13,20 @@ import { ClientGuide } from "./ClientGuide";
  * una vista previa (franja negra arriba) con la marca activa.
  */
 
+// «Calendario» sólo si la marca tiene el plan mensual (operacion.md §1c): a una marca de proyectos
+// no se le programa nada, así que no tiene qué ver ahí.
 const TABS = [
     { label: "Inicio", to: "/cliente", exact: true },
     { label: "Entregas", to: "/cliente/entregas", exact: false },
-    { label: "Mandar material", to: "/cliente/material", exact: false },
+    { label: "Calendario", to: "/cliente/calendario", exact: false, plan: true },
+    { label: "Mandar algo", to: "/cliente/material", exact: false },
     { label: "Mi marca", to: "/cliente/marca", exact: false },
     { label: "Equipo", to: "/cliente/personas", exact: false },
 ];
 
 export function ClientLayout() {
-    const { activeBrand, brands, setActiveBrandId } = useBrand();
+    const { activeBrand, brands } = useBrand();
+    const { theme, toggle } = useTheme();
     const me = useMe();
     const preview = me.role !== "cliente";
     const { pathname } = useLocation();
@@ -33,18 +39,14 @@ export function ClientLayout() {
                 </Link>
             </div>}
             <header className="h-14 shrink-0 flex items-center gap-3 md:gap-7 px-4 md:px-6 border-b border-edge bg-[var(--color-canvas)]">
-                <span className="shrink-0 whitespace-nowrap text-[15px] tracking-[-0.02em] text-fg">
+                <span className="shrink-0 flex items-center gap-2 whitespace-nowrap text-[15px] tracking-[-0.02em] text-fg">
                     <span className="text-[19px] font-semibold tracking-[-0.045em]">coevo</span>
-                    <span className="text-fg-faint"> × </span>
-                    {!preview && brands.length > 1 ? (
-                        <select value={activeBrand?.id ?? ""} onChange={(e) => setActiveBrandId(e.target.value)} aria-label="Marca"
-                            className="bg-transparent text-fg text-[15px] outline-none cursor-pointer">
-                            {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                        </select>
-                    ) : activeBrand?.name ?? ""}
+                    <span className="text-fg-faint">×</span>
+                    {/* El equipo, en la vista previa, cambia de marca sin volver a Studio; un cliente con una sola marca ve su nombre. */}
+                    {preview || brands.length > 1 ? <BrandPicker top client /> : activeBrand?.name ?? ""}
                 </span>
                 <nav className="flex-1 min-w-0 flex items-center gap-1 h-full overflow-x-auto" aria-label="Secciones">
-                    {TABS.map((t) => {
+                    {TABS.filter((t) => !t.plan || activeBrand?.workType === "plan").map((t) => {
                         const on = t.exact ? pathname === t.to : pathname.startsWith(t.to);
                         return (
                             <Link key={t.to} to={t.to} aria-current={on ? "page" : undefined}
@@ -56,6 +58,10 @@ export function ClientLayout() {
                     })}
                 </nav>
                 <ClientGuide auto={!preview} />
+                <button onClick={toggle} aria-label={theme === "light" ? "Pasar a modo oscuro" : "Pasar a modo claro"}
+                    className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-fg-faint hover:text-fg hover:bg-[var(--color-surface-2)] cursor-pointer">
+                    {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
+                </button>
                 {!preview && <span className="hidden md:block shrink-0 text-[12px] text-fg-faint">{me.email}</span>}
             </header>
             <main className="flex-1 min-h-0 overflow-hidden">

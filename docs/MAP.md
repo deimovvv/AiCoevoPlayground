@@ -48,6 +48,7 @@ Contrato: `openspec/specs/video-editor/` (con la referencia de `timeline.json` y
 | **Campañas** | `/dashboard/campanas` | el pedido de un cliente: brief → plan de tomas → piezas. Contenedor de entregables, imagen y video |
 | **Entregas** | `/dashboard/entregas` | lo que se le entrega a la marca: láminas en fila, comentarios anclados, rondas, aprobación. Claude sube y corrige por el MCP |
 | **Plan** | `/dashboard/entregas/plan` | el calendario de la marca (semana con horas, mes, tablero por fase): cuándo y en qué redes sale cada pieza, «Distribuir», «Confirmar la semana» (Postiz pendiente). Arriba, el claim y el ángulo del mes de la estrategia |
+| **Vista de cliente** | `/cliente` (equipo: «Ver como cliente») | Inicio · Entregas · **Calendario** (sólo plan mensual, para mirar) · **Mandar algo** (qué hay de nuevo → Bandeja del equipo) · Mi marca · Equipo. Selector de marca y claro/oscuro arriba |
 | **Aprendizaje** | `/dashboard/entregas/plan` → Aprendizaje | correcciones por tipo (se clasifican solas), candidatos a regla (lo repetido 3 veces, con la lámina), reglas de la marca (las lee Claude en `ver_marca`), y por ángulo: piezas, a la primera, vueltas |
 | **Marcas** | `/dashboard/brands` | Brand Kit: assets, DNA, voces, logos, looks |
 | **Generar** | `/dashboard/generate` | catálogo de tools con pipeline |

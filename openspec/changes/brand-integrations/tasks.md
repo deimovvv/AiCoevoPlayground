@@ -24,6 +24,7 @@
 - [x] 3.3 Vista semana y mes por marca, con el ángulo del mes según `strategy.calendar` y cuántas piezas lleva cada ángulo (2026-10-31, `pages/PlanPage.tsx`).
 - [x] 3.4 Arrastrar a un día (lo no aprobado queda punteado, tentativo), elegir hora y **redes** (Instagram, TikTok, LinkedIn, YouTube, Facebook, X, Threads) en el Plan o en la entrega, y «Distribuir»: lo aprobado sin fecha a los días hábiles libres, primero lo del ángulo del mes (2026-10-31).
 - [~] 3.5 Confirmar la propuesta → recién ahí se programa en Postiz (2.2). **Interfaz hecha (2026-10-31):** «Confirmar la semana / el mes» en el Plan, con el resumen (qué sale, cuándo, dónde, y qué no está listo: sin aprobar, sin red, sin ángulo) y `POST /api/brands/{id}/plan/confirm`. **Pendiente:** sin `POSTIZ_API_KEY` responde `pending: "postiz"` y no cambia nada; falta mandar los posts (2.1–2.2).
+- [x] 3.6 El cliente ve el calendario **sin editar** (sólo plan mensual): `/cliente/calendario`, por semana, con tapa, ángulo y redes; «Ya salió» abajo (2026-10-31, `pages/ClienteCalendarioPage.tsx`).
 
 ## 4. Retroalimentación
 

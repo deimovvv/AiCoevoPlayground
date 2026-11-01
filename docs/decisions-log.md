@@ -43,9 +43,36 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Dónde se trabaja | En `app.coevoagency.com` (servidor = fuente de verdad); lo local es sólo desarrollo | 2026-10-17 |
 | Login | Equipo: Cloudflare Access (PIN por mail) + el backend verifica el JWT | 2026-10-17 · `docs/guias/produccion.md` |
 | Tipo de trabajo | Cada marca es **proyectos** (encargos, sin calendario; ángulo = proyecto) o **plan mensual** (Coevo Studio: ángulos, calendario, publicación). Aprendizaje para las dos | 2026-10-31 |
+| Lo que ve el cliente | Calendario **de sólo lectura** si tiene plan mensual (las fechas las arma Coevo; si algo no va, lo dice en la pieza). «Mandar material» → **«Mandar algo»**: qué es + para qué + archivos, con el circuito a la vista. Selector de marca por tipo de trabajo | 2026-10-31 |
 | Circuito de una pieza | Ángulo + fase por pieza; Plan (calendario, propuesta hasta confirmar); voz y escritos se clasifican solos; regla = la decide una persona | 2026-10-31 · `changes/brand-integrations` |
 | Cómo funciona Studio | **Recordar** (Marca), **mostrar** (Entregas), **aprender** (Plan). Lo que no entra ahí va a una skill. Producción queda, a revisar. Es descripción, no venta: la frase que vende vive en `coevo-web` | 2026-10-31 · `docs/producto/operacion.md` §1b |
 | Rol de Studio | Casa de la marca + vitrina del cliente; se produce en el taller (Claude). Sin canvas propio (salvo video); la crew es relato, no pantalla | 2026-10-18 · `changes/studio-v2` |
+
+---
+
+## 2026-10-31 — Lo que ve el cliente: calendario para mirar, «Mandar algo» y el selector
+
+**Contexto:** Gonzalo, mirando la vista de cliente: «¿tiene sentido que el cliente vea el calendario?»;
+«Mandar material es raro, no se entiende: ¿cómo lo recibiríamos? ¿para qué?»; «no sé cómo
+seleccionar la marca»; en la vista de cliente no había modo claro/oscuro.
+
+**Decisión:**
+- **Calendario: sí, para mirar.** Sólo las marcas con plan mensual (a una de proyectos no se le programa
+  nada). Ve qué sale, cuándo, dónde y con qué ángulo; no arrastra ni cambia fechas. Si algo no le
+  sirve lo dice en la pieza (el comentario ya es dato). Es lo que hace NORA/Morfeus: el cliente ve
+  «Publicaciones (cola por red)» y aprueba piezas; el armado del calendario es de la agencia.
+- **«Mandar material» → «Mandar algo».** El circuito ya existía (mail al equipo → Bandeja → se suma a
+  la marca o a un proyecto → el cliente ve el estado), pero la pantalla no lo contaba. Ahora: «¿Qué hay
+  de nuevo?», los tres pasos a la vista, **qué es** (producto nuevo, fecha, fotos para usar, referencia,
+  algo que cambiar) y **para qué**; archivos y link acompañan. Es el «Requerimientos» de NORA, sin
+  convertirlo en un sistema de tickets.
+- **Selector de marca:** agrupado por **tipo de trabajo** (Plan mensual · Proyectos · Por cargar) en lugar
+  de «tiene caras/prendas» (criterio de moda que dejaba a Mi Saluteca como «sin configurar»). Rótulo
+  «MARCA» en el chip, lista más ancha, búsqueda siempre y teclado. Está también en la vista de cliente.
+- **Modo claro/oscuro** también en la vista de cliente.
+
+**Descartado:** que el cliente mueva fechas (dos personas editando el mismo calendario = nadie sabe cuál
+vale); un formulario de pedidos con prioridades y plazos (más fricción de la que el cliente acepta).
 
 ---
 
