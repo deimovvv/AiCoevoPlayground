@@ -2,16 +2,19 @@ import { Link, useLocation } from "react-router";
 import { useBrand } from "../../lib/BrandContext";
 import { updateBrand } from "../../lib/api";
 import type { WorkType } from "../../lib/api";
+import { useConfirm } from "../../lib/useConfirm";
 
 /**
  * Las pestañas de Entregas para el equipo (2026-10-31): Piezas · Calendario · Aprendizaje.
  * El calendario aparece sólo si la marca compró el **plan mensual** (venture Coevo Studio); una marca
  * por **proyectos** (encargos de la casa creativa, ej. Koxis) ve sus piezas y lo que se aprende.
- * A la derecha, el tipo de trabajo de la marca, para cambiarlo sin ir a otra pantalla.
+ * A la derecha, el tipo de trabajo de la marca, para cambiarlo sin ir a otra pantalla. Pide confirmación:
+ * cambia lo que ve el cliente (su Calendario) y el 2026-10-31 se dio vuelta sin querer con un clic.
  */
 export function EntregasTabs() {
     const { activeBrand, refreshBrands } = useBrand();
     const { pathname, search } = useLocation();
+    const [dialog, ask] = useConfirm();
     if (!activeBrand) return null;
     const work: WorkType = activeBrand.workType ?? "proyectos";
     const tab = pathname.endsWith("/plan") ? (new URLSearchParams(search).get("v") === "aprendizaje" ? "aprendizaje" : "calendario") : "piezas";
@@ -20,9 +23,21 @@ export function EntregasTabs() {
         ...(work === "plan" ? [{ id: "calendario", label: "Calendario", to: "/dashboard/entregas/plan" }] : []),
         { id: "aprendizaje", label: "Aprendizaje", to: "/dashboard/entregas/plan?v=aprendizaje" },
     ];
-    const setWork = async (w: WorkType) => { await updateBrand(activeBrand.id, { workType: w }); await refreshBrands(); };
+    const setWork = async (w: WorkType) => {
+        const ok = await ask({
+            title: w === "plan" ? `¿Pasar ${activeBrand.name} a plan mensual?` : `¿Pasar ${activeBrand.name} a proyectos?`,
+            body: w === "plan"
+                ? "Compra el sistema mensual: sus piezas van a un ángulo y al calendario, y el cliente ve su Calendario."
+                : "Compra encargos: sin calendario. El cliente deja de ver su Calendario; las fechas cargadas quedan guardadas.",
+            confirm: w === "plan" ? "Pasar a plan mensual" : "Pasar a proyectos",
+        });
+        if (!ok) return;
+        await updateBrand(activeBrand.id, { workType: w }); await refreshBrands();
+    };
 
     return (
+        <>
+        {dialog}
         <nav className="h-12 shrink-0 px-4 md:px-6 flex items-center gap-1 border-b border-edge" aria-label="Entregas">
             {tabs.map((t) => (
                 <Link key={t.id} to={t.to}
@@ -41,5 +56,6 @@ export function EntregasTabs() {
                 ))}
             </div>
         </nav>
+        </>
     );
 }
