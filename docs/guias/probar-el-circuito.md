@@ -52,6 +52,12 @@ Anotá al lado de cada paso ✅ o ❌ y qué viste. Lo que falle, pasáselo a Cl
 | 0b.7 | Mandar algo (en la compu) | Dos columnas, no una columna centrada: «¿Qué hay de nuevo?» y los tres pasos a la izquierda (nos llega · lo sumamos · ves en qué quedó), «¿Qué es?» con opciones, «Contanos», archivos y link |
 | 0b.8 | Elegí «Producto nuevo», escribí una línea y Mandar | Abajo aparece «Recibido · lo estamos viendo»; al equipo le llega el mail y está en la **Bandeja** (Producción → Bandeja) con «Producto nuevo — …» |
 
+## 0d · La portada
+
+1. Abrí `app.coevoagency.com` en una ventana privada: se ven las dos fotos de Koxis, sin oscurecer, y el botón «Entrar».
+2. «Entrar» lleva al login. Con sesión iniciada, la portada no aparece y entrás directo a Studio.
+3. Miralo en el celular: las fotos arriba, el texto abajo y sin scroll hacia los costados.
+
 ## 1 · La estrategia (Marca)
 
 | # | Hacé | Tiene que pasar |

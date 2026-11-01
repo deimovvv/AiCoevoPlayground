@@ -52,6 +52,14 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 
 ---
 
+## 2026-11-01 — La puerta muestra trabajo real, sin filtros
+
+**Contexto.** La portada (`frontend/public/puerta/`) era una pared de imágenes genéricas, oscurecidas e inclinadas, con reloj, «En línea» y una lista de secciones que no eran links. Gonzalo: tiene que verse más pro, fino y curado, con moda y producto.
+**Decisión.** Fondo claro (como la app), dos piezas reales de Koxis aprobadas (una de moda, una de producto) a toda altura y sin filtros, un titular, un botón y un pie mínimo. Díptico porque las piezas son verticales: una sola a pantalla completa se recortaba demasiado. El titular deja «Producción con IA»: Studio recuerda, muestra y aprende, y la producción pasa en las skills (decisión del 18/10).
+**Antes de cambiarlo.** La portada es pública: usar sólo piezas aprobadas y con permiso de la marca para mostrarlas.
+
+---
+
 ## 2026-10-31 — La ficha de marca: primero lo que es (M.14)
 
 **Contexto:** Gonzalo, mirando ALGÜNA: los botones sin borde, «Quién es» que al editarlo es un textarea con
