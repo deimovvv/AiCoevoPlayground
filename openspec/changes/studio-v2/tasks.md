@@ -30,6 +30,7 @@
       (PyMuPDF, `services/pdf_pages.py`, hasta 40) y el agente clasifica cada una (tipos nuevos «manual» y «carrusel») y lee la
       identidad (colores, tipografías, tono, siempre/nunca). «Pasar a Marca como propuesta» sólo llena lo vacío y marca «propuesto».
       Páginas del manual en Identidad; referencias de carrusel en Dirección de foto y Plantillas; el MCP las devuelve.
+- [x] Referencias de marca (2026-11-01): tipo «Referencias» en Archivos, fila opcional en «Para completar» (M.14), explicación en «Mandar algo»; lo traído de Pinterest (M.6) no lo ve el cliente.
 - [x] M.10 Archivos de trabajo (2026-10-25): Marca → «Archivos» guarda los links de cada marca (piezas, exploraciones,
   manual, design system) con «lo ve el cliente»; el cliente recibe sólo los marcados (`_brand_for` en main.py); el MCP los
   da en `identidad_grafica.archivos_de_trabajo` con la regla de sumar piezas al archivo «piezas», no abrir uno nuevo.

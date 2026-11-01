@@ -52,6 +52,15 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 
 ---
 
+## 2026-11-01 — Referencias de marca: un link al arrancar; lo de Pinterest no lo ve el cliente
+
+**Contexto.** Cada marca arrancaba sin saber de dónde sacar lo que le gusta. Se evaluó un «Banco» por marca que guardara pruebas en Studio, pero contradice `coevo-skills/SISTEMA.md`: las pruebas viven en `~/cov/archivos`, y Studio guarda lo terminado.
+**Decisión.** La ficha de Studio es el master y `docs/negocio/onboarding-cliente.md` es la lista de lo que se pide. Las referencias se piden una vez: un link con 10 a 20 imágenes y una línea de qué gusta de cada una. Se guarda en Archivos con el tipo «Referencias» y lo da `ver_marca`. Es opcional: aparece en «Para completar», pero no cuenta ni frena nada.
+**Lo que se corrigió.** Lo importado de Pinterest aparecía en «Cómo se ve» del cliente. Son fotos de otros: el servidor se las saca (`_brand_for`) y la vista previa también las oculta.
+**Antes de cambiarlo.** Marcar piezas como «elegidas» para las skills queda para cuando el link no alcance.
+
+---
+
 ## 2026-11-01 — La puerta muestra trabajo real, sin filtros
 
 **Contexto.** La portada (`frontend/public/puerta/`) era una pared de imágenes genéricas, oscurecidas e inclinadas, con reloj, «En línea» y una lista de secciones que no eran links. Gonzalo: tiene que verse más pro, fino y curado, con moda y producto.

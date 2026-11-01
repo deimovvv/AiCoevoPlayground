@@ -24,7 +24,7 @@ const TITLES: Record<BlockKey, string> = {
 };
 
 const LINK_KINDS: [WorkLinkKind, string][] = [
-    ["piezas", "Piezas"], ["exploracion", "Exploración"], ["manual", "Manual"], ["design-system", "Design system"], ["otro", "Otro"],
+    ["piezas", "Piezas"], ["exploracion", "Exploración"], ["manual", "Manual"], ["design-system", "Design system"], ["referencias", "Referencias"], ["otro", "Otro"],
 ];
 
 /** Los links de trabajo de la marca: uno por archivo, no uno por pedido (las piezas nuevas se suman al de «Piezas»). */

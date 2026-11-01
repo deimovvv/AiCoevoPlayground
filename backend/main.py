@@ -143,21 +143,28 @@ class WorkLink(BaseModel):
     un artifact de Claude Design. `client` = lo ve el cliente en su Marca."""
     id: Optional[str] = None
     title: str
-    kind: str = "otro"          # piezas | exploracion | manual | design-system | otro
+    kind: str = "otro"          # piezas | exploracion | manual | design-system | referencias | otro
     url: str
     client: bool = False
 
 
-WORK_LINK_KINDS = {"piezas", "exploracion", "manual", "design-system", "otro"}
+WORK_LINK_KINDS = {"piezas", "exploracion", "manual", "design-system", "referencias", "otro"}
+
+
+def _from_pinterest(item: dict) -> bool:
+    source = (item.get("source") or "").lower()
+    return "pinterest." in source or "pin.it/" in source
 
 
 def _brand_for(request: Request, brand: dict) -> dict:
-    """Lo que ve quien pide la marca: un cliente no ve el design system ni los archivos de trabajo
-    que no se le marcaron como visibles."""
+    """Lo que ve quien pide la marca: un cliente no ve el design system, los archivos de trabajo que
+    no se le marcaron como visibles ni lo traído de Pinterest (son fotos de otros, para el equipo)."""
     if not is_client(request):
         return brand
     out = {k: v for k, v in brand.items() if k != "designSystemUrl"}
     out["workLinks"] = [l for l in brand.get("workLinks") or [] if l.get("client")]
+    for k in ("moodboards", "lookAndFeel", "backgrounds"):
+        out[k] = [x for x in brand.get(k) or [] if not _from_pinterest(x)]
     return out
 
 

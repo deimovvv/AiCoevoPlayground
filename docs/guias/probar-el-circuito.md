@@ -58,6 +58,13 @@ Anotá al lado de cada paso ✅ o ❌ y qué viste. Lo que falle, pasáselo a Cl
 2. «Entrar» lleva al login. Con sesión iniciada, la portada no aparece y entrás directo a Studio.
 3. Miralo en el celular: las fotos arriba, el texto abajo y sin scroll hacia los costados.
 
+## 0e · Las referencias
+
+1. En una marca sin referencias, en Marca → «Para completar» aparece «Referencias · opcional», y no cambia el «n de n».
+2. «Guardar link»: sumá un link y elegí el tipo «Referencias». Al guardar, la fila desaparece.
+3. En una marca con un tablero traído de Pinterest, entrá como equipo (lo ves en «Cómo se ve») y después en la vista del cliente (no lo ves).
+4. En la vista del cliente, «Mandar algo» → «Una referencia»: aparece la explicación de qué mandar.
+
 ## 1 · La estrategia (Marca)
 
 | # | Hacé | Tiene que pasar |

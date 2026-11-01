@@ -83,11 +83,16 @@ export function ClienteMaterialPage() {
                         ))}
                     </div>
                 </fieldset>
+                {what === "Una referencia" && (
+                    <p className="mt-3 max-w-[56ch] text-[13px] leading-relaxed text-fg-muted">
+                        Lo que más nos sirve es un link con 10 a 20 imágenes y una línea de qué te gusta de cada una. Si es de Pinterest, que el tablero sea público.
+                    </p>
+                )}
 
                 <label className="mt-6 flex flex-col gap-1 py-3 border-t border-edge">
                     <span className={`${mono} text-fg-faint`}>Contanos</span>
                     <textarea value={note} onChange={(e) => setNote(e.target.value)} disabled={busy} rows={3}
-                        placeholder="Ej: sale la colección de otoño el 15, estas son las prendas; queremos esta luz"
+                        placeholder={what === "Una referencia" ? "Ej: la 1 por la luz, la 4 por el encuadre" : "Ej: sale la colección de otoño el 15, estas son las prendas; queremos esta luz"}
                         className="bg-transparent text-[15px] leading-relaxed text-fg placeholder:text-fg-faint outline-none resize-none" />
                 </label>
 

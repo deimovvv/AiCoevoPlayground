@@ -86,22 +86,27 @@ function Fill({ urls, all, faces, small }: { urls: string[]; all?: string[]; fac
     );
 }
 
-function data(b: Brand) {
+const fromPinterest = (x: { source?: string }) => /pinterest\.|pin\.it\//i.test(x.source ?? "");
+
+function data(b: Brand, readOnly: boolean) {
     const dna = b.dna || {};
     const ds = b.designSystem || {};
+    // Lo traído de Pinterest es materia prima del equipo. El servidor ya se lo saca al cliente; esto es para la vista previa.
+    const own = <T extends { source?: string }>(list?: T[]) => (list || []).filter((x) => !readOnly || !fromPinterest(x));
+    const moodboards = own(b.moodboards), lookAndFeel = own(b.lookAndFeel), backgrounds = own(b.backgrounds);
     return {
         dna, ds,
         logo: b.logo?.imageUrl || b.logos?.[0]?.imageUrl,
         colors: dna.colors || [],
         fonts: [...new Set([b.fonts?.headline, b.fonts?.body].filter(Boolean) as string[])],
-        looks: [...(b.moodboards || []), ...(b.lookAndFeel || []), ...(b.backgrounds || []), ...(b.poses || []), ...(b.shotRefs || [])].map((x) => x.imageUrl).filter((u, i, a) => u && a.indexOf(u) === i),
+        looks: [...moodboards, ...lookAndFeel, ...backgrounds, ...(b.poses || []), ...(b.shotRefs || [])].map((x) => x.imageUrl).filter((u, i, a) => u && a.indexOf(u) === i),
         // Separado como en un tablero de dirección: moodboard · luz · locación.
         lookGroups: [
             // Un moodboard por tablero (ej. uno traído de Pinterest); las sueltas, juntas.
-            ...[...new Set((b.moodboards || []).map((x) => x.board ?? ""))].sort((x, y) => (x === "" ? 1 : y === "" ? -1 : x.localeCompare(y)))
-                .map((k) => ({ label: k ? `Moodboard · ${k}` : "Moodboard", urls: (b.moodboards || []).filter((x) => (x.board ?? "") === k).map((x) => x.imageUrl) })),
-            { label: "Luz / look", urls: (b.lookAndFeel || []).map((x) => x.imageUrl) },
-            { label: "Locación", urls: (b.backgrounds || []).map((x) => x.imageUrl) },
+            ...[...new Set(moodboards.map((x) => x.board ?? ""))].sort((x, y) => (x === "" ? 1 : y === "" ? -1 : x.localeCompare(y)))
+                .map((k) => ({ label: k ? `Moodboard · ${k}` : "Moodboard", urls: moodboards.filter((x) => (x.board ?? "") === k).map((x) => x.imageUrl) })),
+            { label: "Luz / look", urls: lookAndFeel.map((x) => x.imageUrl) },
+            { label: "Locación", urls: backgrounds.map((x) => x.imageUrl) },
             { label: "Planos", urls: (b.shotRefs || []).map((x) => x.imageUrl) },
             // Las poses son para copiar postura en fichas (Ecommerce Pack), no la estética: van al final.
             { label: "Poses de catálogo", urls: (b.poses || []).map((x) => x.imageUrl) },
@@ -134,7 +139,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
 
     if (!activeBrand) return <p className="p-8 text-[14px] text-fg-muted">Elegí una marca arriba para ver su memoria.</p>;
     const b = activeBrand;
-    const { dna, ds, logo, colors, fonts: fontNames, looks, lookGroups, faces, catalog } = data(b);
+    const { dna, ds, logo, colors, fonts: fontNames, looks, lookGroups, faces, catalog } = data(b, !!readOnly);
     const edit = (k: BlockKey) => (readOnly ? undefined : () => setEditing(k));
     const brandFont = b.fonts?.headline ? `"${b.fonts.headline}", ui-serif, serif` : undefined;
     const proposed = (k: string) => !readOnly && b.agent?.blocks?.[k] === "propuesto";
@@ -163,6 +168,8 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
             actions: [] as { label: string; run: () => void }[] }] : []),
     ];
     const pending = todo.filter((t) => !t.done);
+    // Referencias: se piden una vez y son opcionales; no cuentan para «Para completar» ni frenan nada.
+    const hasRefs = !!b.workLinks?.some((l) => l.kind === "referencias") || !!b.moodboards?.some(fromPinterest);
     const btn = "h-8 px-3 inline-flex items-center rounded-[var(--radius-md)] border border-edge text-[12.5px] text-fg bg-[var(--color-surface-1)] hover:border-[var(--color-edge-strong)] hover:bg-[var(--color-surface-2)] cursor-pointer transition-colors disabled:opacity-60";
 
     return (
@@ -233,6 +240,15 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                                     : <p className="text-[12px] text-fg-faint">La arma Dirección (auditoría → mercado → spec) y Claude la carga.</p>}
                             </div>
                         ))}
+                        {!hasRefs && (
+                            <div className="py-3 border-b border-edge flex flex-col gap-2">
+                                <p className="text-[13.5px] text-fg">Referencias <span className="text-fg-faint">· opcional · 10 a 20 imágenes y qué gusta de cada una</span></p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    <button onClick={() => setEditing("archivos")} className={btn}>Guardar link</button>
+                                    <button onClick={() => setEditing("material")} className={btn}>Traer tablero</button>
+                                </div>
+                            </div>
+                        )}
                         {todo.length - pending.length > 0 && pending.length > 0 && (
                             <p className="pt-2.5 text-[12px] text-fg-faint">Listo: {todo.filter((t) => t.done).map((t) => t.label.toLowerCase()).join(", ")}.</p>
                         )}

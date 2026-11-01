@@ -231,7 +231,7 @@ export interface BrandCompetitor {
     notes?: string;
 }
 
-export type WorkLinkKind = "piezas" | "exploracion" | "manual" | "design-system" | "otro";
+export type WorkLinkKind = "piezas" | "exploracion" | "manual" | "design-system" | "referencias" | "otro";
 export interface WorkLink { id?: string; title: string; kind: WorkLinkKind; url: string; client: boolean }
 
 export type WorkType = "proyectos" | "plan";
