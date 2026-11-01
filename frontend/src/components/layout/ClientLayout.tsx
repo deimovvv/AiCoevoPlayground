@@ -38,14 +38,15 @@ export function ClientLayout() {
                     <ArrowLeft size={12} /> Volver a Studio
                 </Link>
             </div>}
-            <header className="h-14 shrink-0 flex items-center gap-3 md:gap-7 px-4 md:px-6 border-b border-edge bg-[var(--color-canvas)]">
-                <span className="shrink-0 flex items-center gap-2 whitespace-nowrap text-[15px] tracking-[-0.02em] text-fg">
+            {/* Escritorio: una fila. Celular: marca arriba y las secciones abajo, con desplazamiento lateral (como TopBar). */}
+            <header className="shrink-0 flex flex-wrap md:flex-nowrap items-center gap-x-3 md:gap-x-7 px-4 md:px-6 md:h-14 border-b border-edge bg-[var(--color-canvas)]">
+                <span className="h-14 flex-1 md:flex-none shrink-0 flex items-center gap-2 whitespace-nowrap text-[15px] tracking-[-0.02em] text-fg">
                     <span className="text-[19px] font-semibold tracking-[-0.045em]">coevo</span>
                     <span className="text-fg-faint">×</span>
                     {/* El equipo, en la vista previa, cambia de marca sin volver a Studio; un cliente con una sola marca ve su nombre. */}
                     {preview || brands.length > 1 ? <BrandPicker top client /> : activeBrand?.name ?? ""}
                 </span>
-                <nav className="flex-1 min-w-0 flex items-center gap-1 h-full overflow-x-auto" aria-label="Secciones">
+                <nav className="order-last md:order-none w-full md:w-auto md:flex-1 min-w-0 flex items-center gap-1 h-11 md:h-full overflow-x-auto -mx-1 md:mx-0 border-t border-edge md:border-0" aria-label="Secciones">
                     {TABS.filter((t) => !t.plan || activeBrand?.workType === "plan").map((t) => {
                         const on = t.exact ? pathname === t.to : pathname.startsWith(t.to);
                         return (

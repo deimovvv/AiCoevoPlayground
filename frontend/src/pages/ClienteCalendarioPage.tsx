@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { useBrand } from "../lib/BrandContext";
+import { ClientPageShell } from "../components/layout/ClientPageShell";
 import { CHANNELS, backendUrl, listDeliveries, type DeliverySummary } from "../lib/api";
 
 /**
@@ -76,20 +77,20 @@ export function ClienteCalendarioPage() {
     };
 
     return (
-        <div className="h-full overflow-y-auto">
-            <div className="max-w-[720px] mx-auto px-5 py-10 md:py-16 flex flex-col">
-                <p className={`${mono} text-fg-faint`}>Calendario · {activeBrand?.name}</p>
-                <h1 className="mt-3 text-[30px] md:text-[36px] leading-[1.05] font-light tracking-[-0.035em] text-fg">Lo que sale y cuándo.</h1>
-                <p className="mt-3 text-[14px] leading-relaxed text-fg-muted max-w-[52ch]">
-                    Las fechas las armamos nosotros según la estrategia. Si un día no te sirve o una pieza todavía no la aprobaste, decilo en la pieza y la movemos.
+        <ClientPageShell kicker={`Calendario · ${activeBrand?.name ?? ""}`} title="Lo que sale y cuándo."
+            lead="Las fechas las armamos nosotros según la estrategia. Si un día no te sirve o una pieza todavía no la aprobaste, decilo en la pieza y la movemos."
+            aside={list && list.length > 0 ? (
+                <p className="text-[13px] text-fg-faint border-t border-edge pt-3">
+                    {weeks.reduce((n, w) => n + w.items.length, 0)} con fecha · {done.length ? `${done.length} ya salieron` : "nada publicado todavía"}
                 </p>
-
-                {list === null && <p className="mt-12 text-[13px] text-fg-faint">Cargando…</p>}
+            ) : undefined}>
+            <div className="max-w-[860px] flex flex-col">
+                {list === null && <p className="text-[13px] text-fg-faint">Cargando…</p>}
                 {list && weeks.length === 0 && (
-                    <p className="mt-12 py-4 border-t border-edge text-[13px] text-fg-faint">Todavía no hay nada con fecha. Cuando armemos la semana, aparece acá.</p>
+                    <p className="py-4 border-t border-edge text-[13px] text-fg-faint">Todavía no hay nada con fecha. Cuando armemos la semana, aparece acá.</p>
                 )}
                 {weeks.map((w) => (
-                    <section key={w.start.getTime()} className="mt-12">
+                    <section key={w.start.getTime()} className="mt-12 first:mt-0">
                         <div className="flex items-baseline justify-between pb-2">
                             <h2 className="text-[17px] text-fg">{weekTitle(w.start, now)}</h2>
                             <span className={`${mono} text-fg-faint`}>{w.items.length} {w.items.length === 1 ? "pieza" : "piezas"}</span>
@@ -105,6 +106,6 @@ export function ClienteCalendarioPage() {
                     </section>
                 )}
             </div>
-        </div>
+        </ClientPageShell>
     );
 }

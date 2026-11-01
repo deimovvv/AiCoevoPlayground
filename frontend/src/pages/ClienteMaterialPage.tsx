@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, FileText, Film, Link2, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
+import { ClientPageShell } from "../components/layout/ClientPageShell";
 import { MAX_UPLOAD_MB, backendUrl, listInbox, sendMaterial, type InboxItem } from "../lib/api";
 
 /**
@@ -15,7 +16,7 @@ const mono = "font-mono text-[10px] uppercase tracking-[0.09em]";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("es-AR", { day: "numeric", month: "short" }) : "");
 // Lo que más manda una marca. Ayuda a arrancar y le dice al equipo qué es sin leer todo.
 const WHAT = ["Producto nuevo", "Fecha o lanzamiento", "Fotos para usar", "Una referencia", "Algo que cambiar", "Otra cosa"];
-const STEPS = ["Nos llega en el momento.", "Lo sumamos a tu marca o al proyecto que corresponde.", "Acá abajo ves en qué quedó."];
+const STEPS = ["Nos llega en el momento.", "Lo sumamos a tu marca o al proyecto que corresponde.", "En «Lo que mandaste» ves en qué quedó."];
 const statusText = (h: InboxItem) => h.status === "nuevo" ? "Recibido · lo estamos viendo" : h.status === "incorporado" ? `Sumado · ${h.result ?? ""}` : h.result ?? "Archivado";
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(n > 10 * 1024 * 1024 ? 0 : 1)} MB`;
 
@@ -55,24 +56,21 @@ export function ClienteMaterialPage() {
     const total = files.reduce((n, f) => n + f.size, 0);
 
     return (
-        <div className="h-full overflow-y-auto">
-            <div className="max-w-[620px] mx-auto px-5 py-10 md:py-16 flex flex-col">
-                <p className={`${mono} text-fg-faint`}>Mandar algo · {activeBrand?.name}</p>
-                <h1 className="mt-3 text-[30px] md:text-[36px] leading-[1.05] font-light tracking-[-0.035em] text-fg">¿Qué hay de nuevo?</h1>
-                <p className="mt-3 text-[14px] leading-relaxed text-fg-muted">
-                    Lo que tu marca tiene y nosotros todavía no. Lo sumamos a tu marca y todo lo que hagamos de acá en adelante lo tiene en cuenta.
-                </p>
-
-                <ol className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-px rounded-[var(--radius-md)] overflow-hidden border border-edge bg-[var(--color-edge)]">
+        <ClientPageShell kicker={`Mandar algo · ${activeBrand?.name ?? ""}`} title="¿Qué hay de nuevo?"
+            lead="Lo que tu marca tiene y nosotros todavía no. Lo sumamos a tu marca y todo lo que hagamos de acá en adelante lo tiene en cuenta."
+            aside={
+                <ol className="flex flex-col border-t border-edge">
                     {STEPS.map((t, i) => (
-                        <li key={i} className="bg-[var(--color-surface-1)] px-3.5 py-3 flex gap-2.5">
-                            <span className="font-mono text-[11px] text-[var(--color-brand)]">0{i + 1}</span>
-                            <span className="text-[12.5px] leading-snug text-fg-muted">{t}</span>
+                        <li key={i} className="flex gap-3 py-3 border-b border-edge">
+                            <span className="font-mono text-[11px] text-[var(--color-brand)] pt-px">0{i + 1}</span>
+                            <span className="text-[13.5px] leading-snug text-fg-muted">{t}</span>
                         </li>
                     ))}
                 </ol>
-
-                <fieldset className="mt-10">
+            }>
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] gap-x-14 gap-y-16">
+            <div className="flex flex-col min-w-0">
+                <fieldset>
                     <legend className={`${mono} text-fg-faint`}>¿Qué es?</legend>
                     <div className="mt-3 flex flex-wrap gap-1.5">
                         {WHAT.map((w) => (
@@ -145,7 +143,8 @@ export function ClienteMaterialPage() {
                     </button>
                 </div>
 
-                <section className="mt-16">
+            </div>
+                <section>
                     <p className={`${mono} text-fg-faint pb-3`}>Lo que mandaste · en qué quedó</p>
                     {history.length === 0 && <p className="py-4 border-t border-edge text-[13px] text-fg-faint">Todavía nada.</p>}
                     {history.map((h) => {
@@ -168,6 +167,6 @@ export function ClienteMaterialPage() {
                     })}
                 </section>
             </div>
-        </div>
+        </ClientPageShell>
     );
 }

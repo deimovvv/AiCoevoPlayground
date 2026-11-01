@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowUpRight, X } from "lucide-react";
 import { useBrand } from "../lib/BrandContext";
+import { ClientPageShell } from "../components/layout/ClientPageShell";
 import { useMe } from "../lib/useMe";
 import { useConfirm } from "../lib/useConfirm";
 import { addBrandPerson, listBrandPeople, removeBrandPerson, type BrandPerson } from "../lib/api";
@@ -56,17 +57,23 @@ export function ClientePersonasPage() {
     const main = people?.find((p) => p.canInvite && !p.isMe);
 
     return (
-        <div className="h-full overflow-y-auto">
-            {dialog}
-            <div className="max-w-[620px] mx-auto px-5 py-10 md:py-16 flex flex-col">
-                <p className={`${mono} text-fg-faint`}>Equipo · {activeBrand?.name}</p>
-                <h1 className="mt-3 text-[30px] md:text-[36px] leading-[1.05] font-light tracking-[-0.035em] text-fg">Quién ve tu marca.</h1>
-                <p className="mt-3 text-[14px] leading-relaxed text-fg-muted">
-                    {mayInvite ? "Sumá a tu equipo: le llega un mail y entra con ese mail, con Google o con un código."
-                        : `Para sumar a alguien, pedíselo a ${main ? main.name || main.email : "tu contacto principal"}.`}
-                </p>
-
-                <section className="mt-10">
+        <>
+        {dialog}
+        <ClientPageShell kicker={`Equipo · ${activeBrand?.name ?? ""}`} title="Quién ve tu marca."
+            lead={mayInvite ? "Sumá a tu equipo: le llega un mail y entra con ese mail, con Google o con un código."
+                : `Para sumar a alguien, pedíselo a ${main ? main.name || main.email : "tu contacto principal"}.`}
+            aside={
+                <dl className="flex flex-col border-t border-edge text-[13.5px]">
+                    {[["Principal", "Aprueba, comenta y suma gente."], ["Aprueba", "Aprueba y comenta las piezas."], ["Comenta", "Ve todo y deja comentarios."]].map(([k, v]) => (
+                        <div key={k} className="flex gap-3 py-3 border-b border-edge">
+                            <dt className={`${mono} w-20 shrink-0 pt-0.5 text-fg-faint`}>{k}</dt>
+                            <dd className="text-fg-muted">{v}</dd>
+                        </div>
+                    ))}
+                </dl>
+            }>
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] gap-x-14 gap-y-12">
+                <section className="min-w-0">
                     {people === null && <p className="py-4 border-t border-edge text-[13px] text-fg-faint">Cargando…</p>}
                     {people?.length === 0 && <p className="py-4 border-t border-edge text-[13px] text-fg-faint">Todavía no hay nadie.</p>}
                     {people?.map((p) => (
@@ -85,7 +92,7 @@ export function ClientePersonasPage() {
                 </section>
 
                 {mayInvite && (
-                    <section className="mt-12 flex flex-col">
+                    <section className="flex flex-col">
                         <p className={`${mono} text-fg-faint pb-3`}>Sumar a alguien</p>
                         <label className="flex flex-col gap-1 py-3 border-t border-edge">
                             <span className={`${mono} text-fg-faint`}>Mail</span>
@@ -117,6 +124,7 @@ export function ClientePersonasPage() {
                     </section>
                 )}
             </div>
-        </div>
+        </ClientPageShell>
+        </>
     );
 }
