@@ -5,7 +5,7 @@
 
 ## 1. Formulario inicial (antes de la charla, 5 minutos)
 
-**Texto de arriba:** «Contanos lo básico antes de hablar. Con esto llegamos a la charla habiendo mirado tu marca. Si algo no lo sabés, dejalo vacío.»
+**Texto de arriba:** «Contanos lo básico antes de hablar. Con esto llegamos a la charla habiendo mirado tu marca, y te llevás lo que vimos. Si algo no lo sabés, dejalo vacío.»
 
 1. ¿Cómo se llama la marca y a qué se dedica, en una frase?
 2. Web y redes (links).
@@ -16,9 +16,23 @@
 7. ¿Qué marcas mirás, de tu rubro o de otro? ¿Por qué?
 8. ¿Qué es lo que más te cuesta hoy?
 9. ¿Qué probaste y cómo te fue?
-10. Si esto sale bien, ¿qué cambia en 6 meses?
-11. ¿Qué parte querés mirar? Estrategia · Marca · Contenido · Web · Tecnología y operación · No sé todavía
-12. ¿Quién decide, y para cuándo lo necesitás?
+10. ¿Qué tiene tu marca que hoy casi nadie sabe?
+11. Si esto sale bien, ¿qué cambia en 6 meses?
+12. ¿Qué parte querés mirar? Estrategia · Marca · Contenido · Web · Tecnología y operación · No sé todavía
+13. ¿Quién decide, y para cuándo lo necesitás?
+
+**Cómo se conectan (uso interno, skill `mirada`; al cliente no se le nombra):**
+
+| Mirada | Preguntas | Qué le devolvemos en «Así los entendemos» |
+|---|---|---|
+| Entendí | 1, 3, 11 | Qué buscan de verdad |
+| La red | 2, 4, 5, 7, 13 | Con quién y con qué se relaciona la marca |
+| Los ciclos | 8, 9 | Qué se repite y qué se traba |
+| La raíz | 6, 8, 9 | De dónde viene lo que les cuesta |
+| El valor | 6, 10 | Lo valioso que ya tienen y no se ve |
+| La palanca | 12 + lo anterior | Lo primero que haríamos y por qué |
+
+**Para que valgan más:** el cliente tiene que salir de la charla con algo que no sabía de su marca, aunque no contrate nada.
 
 No se pregunta acá: colores, tipografías ni gustos. Eso lo leemos nosotros y se valida en la presentación.
 
