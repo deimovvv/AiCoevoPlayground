@@ -6,7 +6,7 @@
 <title>Coevo Studio</title>
 <meta name="description" content="El espacio de trabajo de Coevo. Acceso por invitación.">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#f3f4f3">
+<meta name="theme-color" content="#111214">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
@@ -14,76 +14,164 @@
   La puerta de app.coevoagency.com (openspec/changes/studio-v2): la única página abierta, sin datos.
   No carga nada de Studio. «Entrar» lleva al login de Cloudflare Access (Google o PIN por mail) y,
   adentro, cada uno va a lo suyo. Si ya hay sesión, el servidor redirige directo a Studio.
-  Imágenes propias de Coevo, sin marcas de clientes y sin filtros encima (moodboard, 2026-11).
+  Piezas propias de Coevo y Morph, sin marcas de clientes: chicas, de muchos rubros y en movimiento,
+  como copias de archivo con su ficha. No volver a dos fotos gigantes (rechazado, 2026-11).
 -->
 <style>
-  :root { --ink: #131416; --mute: #6b6e73; --faint: #8e9195; --line: #d9dbda; --bg: #f3f4f3; }
+  :root { --bg: #111214; --ink: #f3f4f3; --mute: #a0a3a8; --faint: #71747a; --line: #2b2c2f; --dot: #2a2c30; --u: min(1vw, 1.6vh); color-scheme: dark; }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   a { color: inherit; }
   .mono { font-family: "Geist Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .06em; }
 
-  .stage { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-columns: minmax(420px, 38%) minmax(0, 1fr); }
+  .stage { position: relative; height: 100vh; height: 100dvh; min-height: 600px; overflow: hidden; display: grid; place-items: center;
+    background-image: radial-gradient(var(--dot) 1px, transparent 1.4px); background-size: 26px 26px; }
+  .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 46% 52% at 50% 52%, var(--bg) 35%, transparent 100%); z-index: 0; }
 
-  .text { display: flex; flex-direction: column; padding: clamp(24px, 2.6vw, 40px); }
-  header { display: flex; align-items: baseline; gap: 10px; }
+  header { position: absolute; z-index: 3; top: 22px; left: 28px; right: 28px; display: flex; align-items: baseline; justify-content: space-between; pointer-events: none; }
+  header > * { pointer-events: auto; }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
   .word { font-size: 20px; font-weight: 500; letter-spacing: -.04em; }
-  .tag { color: var(--faint); }
+  .tag, .site { color: var(--faint); }
+  .site { text-decoration: none; transition: color .2s ease; }
+  .site:hover { color: var(--ink); }
 
-  main { margin-top: auto; }
-  h1 { margin: 0; font-weight: 400; font-size: clamp(36px, 3.7vw, 62px); line-height: 1.02; letter-spacing: -.035em; }
+  main { position: relative; z-index: 2; text-align: center; padding: 0 20px; display: grid; justify-items: center; }
+  h1 { margin: 0; font-weight: 400; font-size: clamp(36px, calc(var(--u) * 4.5), 76px); line-height: 1.02; letter-spacing: -.04em; text-wrap: balance; }
   h1 em { font-style: normal; color: var(--faint); }
-  .lead { margin: 20px 0 0; max-width: 36ch; font-size: 15px; line-height: 1.5; color: var(--mute); }
-
-  .enter { display: inline-flex; align-items: center; justify-content: space-between; gap: 40px; height: 46px; margin-top: 32px; padding: 0 16px 0 18px; background: var(--ink); color: var(--bg); text-decoration: none; font-size: 14px; font-weight: 500; transition: background .2s ease; }
-  .enter:hover { background: #38393b; }
+  .lead { margin: 22px 0 0; max-width: 40ch; font-size: 16px; line-height: 1.5; color: var(--mute); text-wrap: balance; }
+  .enter { display: inline-flex; align-items: center; gap: 28px; height: 46px; margin-top: 30px; padding: 0 16px 0 20px; background: var(--ink); color: var(--bg); text-decoration: none; font-size: 14px; font-weight: 500; transition: background .2s ease; }
+  .enter:hover { background: #cfd2d4; }
   .enter svg { transition: transform .2s ease; }
   .enter:hover svg { transform: translateX(3px); }
-  .enter:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .enter:focus-visible, .site:focus-visible { outline: 2px solid #9dbfd1; outline-offset: 3px; }
+  .invite { margin-top: 18px; color: var(--faint); }
+  main > * { opacity: 0; animation: rise 1s cubic-bezier(.2, .7, .2, 1) forwards; }
+  main > :nth-child(2) { animation-delay: .1s; } main > :nth-child(3) { animation-delay: .2s; } main > :nth-child(4) { animation-delay: .3s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
-  footer { display: flex; justify-content: space-between; gap: 16px; margin-top: clamp(40px, 9vh, 96px); padding-top: 14px; border-top: 1px solid var(--line); color: var(--faint); }
-  footer a { text-decoration: none; }
-  footer a:hover { color: var(--ink); }
+  /* Cada pieza es una copia con su ficha. Posición en % de pantalla; tamaño atado a la unidad --u, para no pisar el título. */
+  .field { position: absolute; inset: 0; z-index: 1; }
+  .card { position: absolute; left: calc(var(--x) * 1%); top: calc(var(--y) * 1%); width: calc(var(--w) * var(--u)); will-change: transform; }
+  .card-in { opacity: 0; animation: arrive 1.2s cubic-bezier(.2, .7, .2, 1) forwards; animation-delay: var(--delay); transition: scale .5s cubic-bezier(.2, .7, .2, 1); }
+  @keyframes arrive { from { opacity: 0; transform: translateY(26px) scale(.95); } to { opacity: 1; transform: none; } }
+  .card:hover .card-in { scale: 1.04; }
+  .media { display: block; width: 100%; aspect-ratio: var(--ar); object-fit: cover; border-radius: 2px; background: #1c1d20; }
+  .ficha { display: flex; justify-content: space-between; gap: 8px; margin-top: 7px; color: var(--mute); white-space: nowrap; font-size: 10px; transition: color .25s ease; }
+  .card:hover .ficha { color: var(--ink); }
 
-  .work { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr); gap: 2px; min-height: 0; height: 100vh; height: 100dvh; position: sticky; top: 0; }
-  .work img { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: cover; opacity: 0; animation: in .9s ease forwards; }
-  .work img + img { animation-delay: .12s; object-position: 100% 50%; }
-  @keyframes in { to { opacity: 1; } }
+  .strip { display: none; }
 
   @media (max-width: 860px) {
-    .stage { grid-template-columns: 1fr; }
-    .work { order: -1; height: 52vh; height: 52dvh; position: static; }
-    .text { padding: 20px; min-height: 48vh; min-height: 48dvh; }
-    main { margin-top: 28px; }
-    h1 { font-size: 34px; }
-    .enter { display: flex; width: 100%; margin-top: 24px; }
-    footer { margin-top: 32px; }
-    footer a { display: none; }
+    .stage { height: auto; min-height: 100dvh; display: flex; flex-direction: column; justify-content: space-between; gap: 28px; padding: 64px 0 28px; }
+    .stage::after { display: none; }
+    .field { display: none; }
+    header { top: 18px; left: 20px; right: 20px; }
+    main { order: 2; }
+    h1 { font-size: 38px; }
+    .lead { margin-top: 16px; font-size: 15px; }
+    .enter { margin-top: 24px; }
+    .strip { display: flex; gap: 10px; width: max-content; animation: slide 46s linear infinite; }
+    .strip.one { order: 1; } .strip.two { order: 3; animation-direction: reverse; }
+    .strip .card { position: static; width: 34vw; flex: none; }
+    .strip .card-in { animation-delay: 0s; }
+    .strip .media { aspect-ratio: 4 / 5; }
   }
-  @media (prefers-reduced-motion: reduce) { .work img { animation: none; opacity: 1; } .enter svg { transition: none; } }
+  @keyframes slide { to { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) {
+    main > *, .card-in { animation: none; opacity: 1; }
+    .strip { animation: none; }
+    .enter svg, .card-in, .ficha { transition: none; }
+  }
 </style>
 </head>
 <body>
-<div class="stage">
-  <div class="text">
-    <header><span class="word">coevo</span><span class="mono tag">Studio</span></header>
-    <main>
-      <h1>Tu marca,<br><em>con alguien que elige.</em></h1>
-      <p class="lead">Lo que la marca es, las piezas en revisión y lo que ya salió. En un solo lugar.</p>
-      <a class="enter" href="/dashboard">Entrar
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
-      </a>
-    </main>
-    <footer class="mono">
-      <span>Acceso por invitación</span>
-      <span>Imágenes: Coevo</span>
-      <a href="https://coevoagency.com">coevoagency.com</a>
-    </footer>
-  </div>
-  <div class="work">
-    <img src="/puerta/img/pelota.webp" alt="Un zapato de taco apoyado sobre una pelota con el isotipo de Coevo, en una cancha de noche." width="1856" height="2304">
-    <img src="/puerta/img/faro.webp" alt="Detalle del faro encendido de una camioneta negra." width="1080" height="1330">
-  </div>
+<div class="stage" id="stage">
+  <header>
+    <div class="brand"><span class="word">coevo</span><span class="mono tag">Studio</span></div>
+    <a class="mono site" href="https://coevoagency.com">coevoagency.com</a>
+  </header>
+  <div class="field" id="field"></div>
+  <main>
+    <h1>Tu marca,<br><em>con alguien que elige.</em></h1>
+    <p class="lead">Lo que la marca es, las piezas en revisión y lo que ya salió. En un solo lugar.</p>
+    <a class="enter" href="/dashboard">Entrar
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+    </a>
+    <div class="mono invite">Acceso por invitación</div>
+  </main>
 </div>
+<script>
+  const IMG = "/puerta/img/";
+  // n: archivo · r: rubro · alt · v: tiene video · x, y: % de pantalla · w: ancho en --u · ar: proporción · d: profundidad
+  const PIEZAS = [
+    { n: "afiche",   r: "Vía pública", alt: "Afiche de Coevo con tiras para arrancar, pegado en un poste.", v: 1, x: -2.5, y: 11, w: 16, ar: "4/5", d: .9 },
+    { n: "dientes",  r: "Belleza",     alt: "Boca en primer plano con joyas en los dientes.",               x: 16,   y: 6,  w: 9,  ar: "1/1", d: .4 },
+    { n: "silla",    r: "Mueble",      alt: "Una silla que va cambiando de color.",                  v: 1, x: 20,   y: 33, w: 8.5, ar: "3/4", d: .55 },
+    { n: "gaia",     r: "Retrato",     alt: "Retrato de Gaia, identidad digital de Morph.",          v: 1, x: 6,    y: 50, w: 13, ar: "4/5", d: .75 },
+    { n: "pelo",     r: "Moda",        alt: "Modelo a contraluz con el pelo al viento.",             v: 1, x: 22,   y: 69, w: 9.5, ar: "4/5", d: .5 },
+    { n: "film",     r: "Film",        alt: "Dos mujeres trenzándose el pelo en un campo.",          v: 1, x: -1,   y: 84, w: 12, ar: "4/5", d: .35 },
+    { n: "promedio", r: "Journal",     alt: "Una mujer frente a una pared cubierta por la misma foto.", x: 38,   y: 3,  w: 15, ar: "3/2", d: .25 },
+    { n: "fosforo",  r: "Editorial",   alt: "Una mujer prende una vela con forma de sillón.",           x: 75,   y: 9,  w: 28, ar: "16/9", d: .9 },
+    { n: "faro",     r: "Auto",        alt: "Detalle del faro encendido de una camioneta negra.",       x: 72,   y: 41, w: 9,  ar: "4/5", d: .5 },
+    { n: "pelota",   r: "Campaña",     alt: "Zapato de taco sobre una pelota con el isotipo de Coevo.", x: 84,   y: 40, w: 14, ar: "4/5", d: .8 },
+    { n: "cielo",    r: "Marca",       alt: "El logo de Coevo en el cielo, visto desde un patio.",   v: 1, x: 70,   y: 68, w: 13, ar: "4/5", d: .65 },
+    { n: "sesion",   r: "Sesión",      alt: "Modelo de negro que se acerca a cámara sobre fondo blanco.", v: 1, x: 87, y: 77, w: 11, ar: "4/5", d: .4 }
+  ];
+  const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const celular = matchMedia("(max-width: 860px)").matches;
+
+  function pieza(p, i) {
+    const card = document.createElement("figure");
+    card.className = "card"; card.style.margin = "0";
+    card.style.setProperty("--x", p.x); card.style.setProperty("--y", p.y); card.style.setProperty("--w", p.w); card.style.setProperty("--ar", p.ar);
+    const adentro = document.createElement("div"); adentro.className = "card-in"; adentro.style.setProperty("--delay", (.15 + i * .07) + "s");
+    let media;
+    if (p.v && !quieto) {
+      media = document.createElement("video");
+      media.muted = true; media.loop = true; media.autoplay = true; media.playsInline = true;
+      media.setAttribute("muted", ""); media.setAttribute("playsinline", ""); media.setAttribute("aria-label", p.alt);
+      media.poster = IMG + p.n + ".webp";
+      // Por blob, no por src directo: el servidor no responde pedidos parciales y Safari los exige para reproducir video.
+      fetch(IMG + p.n + ".mp4").then(r => r.blob()).then(b => { media.src = URL.createObjectURL(b); return media.play(); }).catch(() => {});
+    } else {
+      media = document.createElement("img");
+      media.src = IMG + p.n + ".webp"; media.alt = p.alt;
+    }
+    media.className = "media";
+    const ficha = document.createElement("figcaption"); ficha.className = "ficha mono"; ficha.textContent = p.r;
+    if (p.x < 0 && !celular) ficha.style.paddingLeft = `calc(${-p.x}vw + 8px)`;   // la pieza sale de pantalla; la ficha no
+    adentro.append(media, ficha); card.append(adentro);
+    return card;
+  }
+
+  const stage = document.getElementById("stage");
+  if (celular) {
+    // Dos tiras que corren en sentidos opuestos. Cada una va duplicada para que el bucle no se note.
+    [["one", 0], ["two", 1]].forEach(([clase, resto]) => {
+      const tira = document.createElement("div"); tira.className = "strip " + clase;
+      const elegidas = PIEZAS.filter((_, i) => i % 2 === resto);
+      [...elegidas, ...elegidas].forEach((p, i) => tira.append(pieza(p, i)));
+      stage.append(tira);
+    });
+  } else {
+    const field = document.getElementById("field");
+    const cartas = PIEZAS.map((p, i) => { const c = pieza(p, i); field.append(c); return { el: c, d: p.d, fase: i * 1.7 }; });
+    if (!quieto) {
+      // Cada pieza flota despacio y sigue al mouse según su profundidad.
+      let mx = 0, my = 0, cx = 0, cy = 0;
+      addEventListener("pointermove", e => { mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5; }, { passive: true });
+      const frame = t => {
+        cx += (mx - cx) * .05; cy += (my - cy) * .05;
+        for (const c of cartas) {
+          const fx = Math.sin(t / 3400 + c.fase) * 5 * c.d, fy = Math.cos(t / 2800 + c.fase) * 7 * c.d;
+          c.el.style.transform = `translate3d(${(-cx * 46 * c.d + fx).toFixed(2)}px, ${(-cy * 34 * c.d + fy).toFixed(2)}px, 0)`;
+        }
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    }
+  }
+</script>
 </body>
 </html>
