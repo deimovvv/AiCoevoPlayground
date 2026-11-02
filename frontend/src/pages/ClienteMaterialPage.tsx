@@ -16,7 +16,6 @@ const mono = "font-mono text-[10px] uppercase tracking-[0.09em]";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("es-AR", { day: "numeric", month: "short" }) : "");
 // Lo que más manda una marca. Ayuda a arrancar y le dice al equipo qué es sin leer todo.
 const WHAT = ["Producto nuevo", "Fecha o lanzamiento", "Fotos para usar", "Una referencia", "Algo que cambiar", "Otra cosa"];
-const STEPS = ["Nos llega en el momento.", "Lo sumamos a tu marca o al proyecto que corresponde.", "En «Lo que mandaste» ves en qué quedó."];
 const statusText = (h: InboxItem) => h.status === "nuevo" ? "Recibido · lo estamos viendo" : h.status === "incorporado" ? `Sumado · ${h.result ?? ""}` : h.result ?? "Archivado";
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(n > 10 * 1024 * 1024 ? 0 : 1)} MB`;
 
@@ -56,18 +55,8 @@ export function ClienteMaterialPage() {
     const total = files.reduce((n, f) => n + f.size, 0);
 
     return (
-        <ClientPageShell kicker={`Mandar algo · ${activeBrand?.name ?? ""}`} title="¿Qué hay de nuevo?"
-            lead="Lo que tu marca tiene y nosotros todavía no. Lo sumamos a tu marca y todo lo que hagamos de acá en adelante lo tiene en cuenta."
-            aside={
-                <ol className="flex flex-col border-t border-edge">
-                    {STEPS.map((t, i) => (
-                        <li key={i} className="flex gap-3 py-3 border-b border-edge">
-                            <span className="font-mono text-[11px] text-[var(--color-brand)] pt-px">0{i + 1}</span>
-                            <span className="text-[13.5px] leading-snug text-fg-muted">{t}</span>
-                        </li>
-                    ))}
-                </ol>
-            }>
+        <ClientPageShell title="¿Qué hay de nuevo?"
+            lead="Un producto, una fecha, una foto, algo para cambiar. Contanos y lo tenemos en cuenta de acá en adelante.">
             <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] gap-x-14 gap-y-16">
             <div className="flex flex-col min-w-0">
                 <fieldset>
@@ -92,7 +81,7 @@ export function ClienteMaterialPage() {
                 <label className="mt-6 flex flex-col gap-1 py-3 border-t border-edge">
                     <span className={`${mono} text-fg-faint`}>Contanos</span>
                     <textarea value={note} onChange={(e) => setNote(e.target.value)} disabled={busy} rows={3}
-                        placeholder={what === "Una referencia" ? "Ej: la 1 por la luz, la 4 por el encuadre" : "Ej: sale la colección de otoño el 15, estas son las prendas; queremos esta luz"}
+                        placeholder={what === "Una referencia" ? "Ej: la 1 por la luz, la 4 por el encuadre" : "Ej: el 15 sale algo nuevo y estas son las fotos"}
                         className="bg-transparent text-[15px] leading-relaxed text-fg placeholder:text-fg-faint outline-none resize-none" />
                 </label>
 

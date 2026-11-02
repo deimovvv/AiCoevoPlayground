@@ -52,6 +52,14 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 
 ---
 
+## 2026-11-01 — Cómo le hablamos al cliente: sin «marca» en cada línea
+
+**Contexto.** Gonzalo: la vista del cliente repetía «marca» y lo mismo en varios lugares (rótulo, pestaña, selector, título y pasos).
+**Decisión.** La pestaña «Mi marca» pasa a «Perfil» y el selector del cliente no lleva rótulo. Se sacan los rótulos que repetían la pestaña y los pasos de «Mandar algo». En el panel de material, cada tipo dice en una línea para qué es.
+**Antes de cambiarlo.** Al cliente se le habla de lo suyo («te entendemos»), no de «tu marca»; «marca» queda para el equipo.
+
+---
+
 ## 2026-11-01 — Referencias de marca: un link al arrancar; lo de Pinterest no lo ve el cliente
 
 **Contexto.** Cada marca arrancaba sin saber de dónde sacar lo que le gusta. Se evaluó un «Banco» por marca que guardara pruebas en Studio, pero contradice `coevo-skills/SISTEMA.md`: las pruebas viven en `~/cov/archivos`, y Studio guarda lo terminado.

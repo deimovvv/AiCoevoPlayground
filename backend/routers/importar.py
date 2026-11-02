@@ -65,7 +65,7 @@ async def import_pinterest(brand_id: str, req: PinterestIn, request: Request):
     async with httpx.AsyncClient(timeout=30, follow_redirects=True, headers=UA) as c:
         r = await c.get(feed)
         if r.status_code != 200:
-            raise HTTPException(status_code=400, detail="No pude leer ese tablero: ¿es público?")
+            raise HTTPException(status_code=400, detail="Pinterest no deja leer ese tablero. Abrí el link en una ventana privada: si no ves las imágenes, sigue en secreto. También podés subirlas acá arriba.")
         xml = r.text
         title = html.unescape((re.search(r"<channel>\s*<title>(.*?)</title>", xml, re.S) or [None, ""])[1]).strip()
         urls = []

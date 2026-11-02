@@ -59,7 +59,7 @@ export function ClientePersonasPage() {
     return (
         <>
         {dialog}
-        <ClientPageShell kicker={`Equipo · ${activeBrand?.name ?? ""}`} title="Quién ve tu marca."
+        <ClientPageShell title="Quién tiene acceso."
             lead={mayInvite ? "Sumá a tu equipo: le llega un mail y entra con ese mail, con Google o con un código."
                 : `Para sumar a alguien, pedíselo a ${main ? main.name || main.email : "tu contacto principal"}.`}
             aside={

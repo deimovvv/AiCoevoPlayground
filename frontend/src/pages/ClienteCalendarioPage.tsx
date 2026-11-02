@@ -77,7 +77,7 @@ export function ClienteCalendarioPage() {
     };
 
     return (
-        <ClientPageShell kicker={`Calendario · ${activeBrand?.name ?? ""}`} title="Lo que sale y cuándo."
+        <ClientPageShell title="Lo que sale y cuándo."
             lead="Las fechas las armamos nosotros según la estrategia. Si un día no te sirve o una pieza todavía no la aprobaste, decilo en la pieza y la movemos."
             aside={list && list.length > 0 ? (
                 <p className="text-[13px] text-fg-faint border-t border-edge pt-3">

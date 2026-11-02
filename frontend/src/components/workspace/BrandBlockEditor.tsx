@@ -68,6 +68,12 @@ const DEST_LABEL: Record<Dest, string> = {
     moodboard: "Moodboard", luz: "Luz / look", fondo: "Locación / fondo", pose: "Pose", plano: "Plano / cámara", cara: "Cara (modelo)",
     prenda: "Prenda", producto: "Producto", logo: "Logo", carrusel: "Referencia de carrusel", manual: "Página del manual",
 };
+const DEST_HELP: Record<Dest, string> = {
+    moodboard: "La onda general: lo que la marca quiere transmitir.", luz: "Cómo está iluminada la imagen y qué color tiene.",
+    fondo: "Lugares donde puede pasar una foto.", pose: "Cómo está parada una persona.", plano: "Encuadre y movimiento de cámara.",
+    cara: "Personas que aparecen, con su permiso.", prenda: "La ropa que vende la marca.", producto: "Lo que vende la marca.",
+    logo: "El logo, de preferencia sin fondo.", carrusel: "Un carrusel que sirva de ejemplo.", manual: "Una página del manual de marca.",
+};
 const nameOf = (f: File) => f.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").slice(0, 60);
 
 async function uploadTo(dest: Dest, brandId: string, f: File) {
@@ -166,7 +172,7 @@ function Drop({ dests, brandId, onDone, hint, dest: destIn, onDest, campaignId }
                 onDrop={(e) => { e.preventDefault(); setOver(false); send(e.dataTransfer.files); }}
                 className={`h-28 rounded-[4px] border border-dashed flex flex-col items-center justify-center gap-1.5 text-[13px] cursor-pointer transition-colors ${over ? "border-fg bg-[var(--color-surface-2)]" : "border-[var(--color-edge-strong)] text-fg-muted hover:text-fg"}`}>
                 {busy ? <><Loader2 size={16} className="animate-spin" /> {busy}</> : <><Upload size={16} /> Soltá imágenes acá o tocá para elegir</>}
-                <span className="text-[11px] text-fg-faint">{hint ?? `Van a: ${DEST_LABEL[dest]}`}</span>
+                <span className="text-[11px] text-fg-faint">{hint ?? DEST_HELP[dest]}</span>
             </button>
             <input ref={ref} type="file" multiple accept="image/*" hidden onChange={(e) => { send(e.target.files); e.target.value = ""; }} />
             {err && <p className="text-[12px] text-[var(--color-error)]">{err}</p>}
@@ -271,9 +277,9 @@ function PinterestImport({ brandId, dest, campaignId, onDone }: {
                     {busy ? <><Loader2 size={12} className="animate-spin" /> Trayendo…</> : "Traer"}
                 </button>
             </div>
-            {url.trim() && <input value={board} onChange={(e) => setBoard(e.target.value)} disabled={busy} placeholder="Nombre del tablero (si no, el de Pinterest)" className={input} />}
+            {url.trim() && <input value={board} onChange={(e) => setBoard(e.target.value)} disabled={busy} placeholder="Cómo llamarlo en Studio (opcional)" className={input} />}
             <p className={`text-[11px] ${msg ? (msg.ok ? "text-fg" : "text-[var(--color-error)]") : "text-fg-faint"}`}>
-                {msg?.text ?? "Trae los últimos 25 pines de un tablero público y los guarda juntos, con su nombre."}
+                {msg?.text ?? "Copia a Studio hasta 25 imágenes, las últimas que guardaste. El tablero tiene que ser público."}
             </p>
         </div>
     );

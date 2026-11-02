@@ -20,7 +20,7 @@ const TABS = [
     { label: "Entregas", to: "/cliente/entregas", exact: false },
     { label: "Calendario", to: "/cliente/calendario", exact: false, plan: true },
     { label: "Mandar algo", to: "/cliente/material", exact: false },
-    { label: "Mi marca", to: "/cliente/marca", exact: false },
+    { label: "Perfil", to: "/cliente/marca", exact: false },
     { label: "Equipo", to: "/cliente/personas", exact: false },
 ];
 

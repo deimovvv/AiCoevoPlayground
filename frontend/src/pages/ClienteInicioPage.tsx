@@ -83,12 +83,12 @@ export function ClienteInicioPage() {
                     </Link>
                     <Link to="/cliente/material" className="group flex items-baseline gap-3 py-4 border-b border-edge no-underline">
                         <span className={`${mono} text-fg-faint w-24 shrink-0`}>Lo nuevo</span>
-                        <span className="flex-1 text-[15px] text-fg">Contanos qué hay de nuevo en la marca{pendingMaterial ? <span className="text-fg-faint"> · {pendingMaterial} recibido{pendingMaterial === 1 ? "" : "s"}</span> : null}</span>
+                        <span className="flex-1 text-[15px] text-fg">Contanos qué hay de nuevo{pendingMaterial ? <span className="text-fg-faint"> · {pendingMaterial} recibido{pendingMaterial === 1 ? "" : "s"}</span> : null}</span>
                         <ArrowUpRight size={14} className="text-fg-faint group-hover:text-fg" />
                     </Link>
                     <Link to="/cliente/marca" className="group flex items-baseline gap-3 py-4 border-b border-edge no-underline">
-                        <span className={`${mono} text-fg-faint w-24 shrink-0`}>Tu marca</span>
-                        <span className="flex-1 text-[15px] text-fg">Así la entendemos</span>
+                        <span className={`${mono} text-fg-faint w-24 shrink-0`}>Perfil</span>
+                        <span className="flex-1 text-[15px] text-fg">Así te entendemos</span>
                         <ArrowRight size={14} className="text-fg-faint group-hover:text-fg" />
                     </Link>
                 </nav>
@@ -122,8 +122,7 @@ export function ClienteInicioPage() {
                         </div>
                         <span className="absolute inset-0 bg-black/35" />
                         <span className="absolute left-6 bottom-6 right-6 text-white">
-                            <span className={`${mono} text-white/70`}>Tu marca</span>
-                            <span className="block mt-1 text-[20px] font-light tracking-[-0.02em]">Acá van a aparecer las piezas que hagamos para vos.</span>
+                            <span className="block text-[20px] font-light tracking-[-0.02em]">Acá van a aparecer las piezas que hagamos para vos.</span>
                         </span>
                     </>
                 ) : null}

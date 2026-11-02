@@ -162,21 +162,21 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
             actions: [{ label: "Completar", run: () => setEditing("quien") }] },
         { label: "Logo y colores", why: "para que cada pieza sea de la marca", done: !!logo && colors.length > 0,
             actions: [{ label: pdfLabel, run: () => pdfRef.current?.click() }, { label: "Cargar", run: () => setEditing("identidad") }] },
-        { label: "Cómo se ve", why: "referencias y reglas de foto", done: !!ds.photoStyle && looks.length > 0,
-            actions: [{ label: "Sumar referencias", run: () => setEditing("material") }, { label: "Reglas", run: () => setEditing("foto") }] },
+        { label: "Cómo se ve", why: "reglas de foto", done: !!ds.photoStyle,
+            actions: [{ label: "Escribir reglas", run: () => setEditing("foto") }] },
         ...(plan ? [{ label: "Estrategia", why: "ángulos y calendario del plan", done: !!b.strategy?.claim,
             actions: [] as { label: string; run: () => void }[] }] : []),
     ];
     const pending = todo.filter((t) => !t.done);
     // Referencias: se piden una vez y son opcionales; no cuentan para «Para completar» ni frenan nada.
-    const hasRefs = !!b.workLinks?.some((l) => l.kind === "referencias") || !!b.moodboards?.some(fromPinterest);
+    const hasRefs = !!b.workLinks?.some((l) => l.kind === "referencias") || looks.length > 0;
     const btn = "h-8 px-3 inline-flex items-center rounded-[var(--radius-md)] border border-edge text-[12.5px] text-fg bg-[var(--color-surface-1)] hover:border-[var(--color-edge-strong)] hover:bg-[var(--color-surface-2)] cursor-pointer transition-colors disabled:opacity-60";
 
     return (
         <div className="md:h-full md:grid md:grid-cols-[minmax(320px,30%)_minmax(0,1fr)]">
             {/* ── La marca como portada ── */}
             <aside className="flex flex-col gap-8 p-6 md:p-10 border-b md:border-b-0 md:border-r border-edge md:min-h-0 md:overflow-y-auto">
-                <p className={`${mono} text-fg-faint`}>{readOnly ? "Así entendemos tu marca" : `Memoria de la marca · ${plan ? "plan mensual" : "proyectos"}`}</p>
+                <p className={`${mono} text-fg-faint`}>{readOnly ? "Así te entendemos" : `Memoria de la marca · ${plan ? "plan mensual" : "proyectos"}`}</p>
 
                 <div className="flex flex-col gap-6">
                     {logo && <img src={backendUrl(logo)} alt={`Logo de ${b.name}`} className="h-16 w-auto max-w-[240px] object-contain self-start" />}
@@ -242,10 +242,11 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                         ))}
                         {!hasRefs && (
                             <div className="py-3 border-b border-edge flex flex-col gap-2">
-                                <p className="text-[13.5px] text-fg">Referencias <span className="text-fg-faint">· opcional · 10 a 20 imágenes y qué gusta de cada una</span></p>
+                                <p className="text-[13.5px] text-fg">Referencias <span className="text-fg-faint">· opcional · imágenes que les gustan</span></p>
+                                <p className="text-[12px] text-fg-faint">«Traer imágenes» las copia a Studio. «Guardar link» deja sólo el link, para Drive u otro lugar.</p>
                                 <div className="flex flex-wrap gap-1.5">
+                                    <button onClick={() => setEditing("material")} className={btn}>Traer imágenes</button>
                                     <button onClick={() => setEditing("archivos")} className={btn}>Guardar link</button>
-                                    <button onClick={() => setEditing("material")} className={btn}>Traer tablero</button>
                                 </div>
                             </div>
                         )}
