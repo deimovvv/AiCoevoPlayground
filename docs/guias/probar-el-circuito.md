@@ -54,7 +54,7 @@ Anotá al lado de cada paso ✅ o ❌ y qué viste. Lo que falle, pasáselo a Cl
 
 ## 0d · La portada
 
-1. Abrí `app.coevoagency.com` en una ventana privada: fondo oscuro, el título al centro y doce piezas chicas alrededor que flotan y siguen al mouse (varias son video), y el botón «Entrar».
+1. Abrí `app.coevoagency.com` en una ventana privada: fondo papel gris claro, el título al centro y doce piezas chicas alrededor que flotan y siguen al mouse (varias son video), y el botón «Entrar».
 2. «Entrar» lleva al login. Con sesión iniciada, la portada no aparece y entrás directo a Studio.
 3. Miralo en el celular: dos tiras de piezas que corren, el texto en el medio y sin scroll hacia los costados.
 

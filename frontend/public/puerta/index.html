@@ -6,7 +6,7 @@
 <title>Coevo Studio</title>
 <meta name="description" content="El espacio de trabajo de Coevo. Acceso por invitación.">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#111214">
+<meta name="theme-color" content="#f3f4f3">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
@@ -15,18 +15,17 @@
   No carga nada de Studio. «Entrar» lleva al login de Cloudflare Access (Google o PIN por mail) y,
   adentro, cada uno va a lo suyo. Si ya hay sesión, el servidor redirige directo a Studio.
   Piezas propias de Coevo y Morph, sin marcas de clientes: chicas, de muchos rubros y en movimiento,
-  como copias de archivo con su ficha. No volver a dos fotos gigantes (rechazado, 2026-11).
+  como copias de archivo con su ficha. No volver a dos fotos gigantes ni a fondos de puntitos (rechazados, 2026-11).
+  Colores y letra: design system de Coevo (coevo-web/docs/design-system.md), base papel.
 -->
 <style>
-  :root { --bg: #111214; --ink: #f3f4f3; --mute: #a0a3a8; --faint: #71747a; --line: #2b2c2f; --dot: #2a2c30; --u: min(1vw, 1.6vh); color-scheme: dark; }
+  :root { --bg: #f3f4f3; --ink: #131416; --mute: #6b6e73; --faint: #6b6e73; --second: #6b6e73; --celeste: #7fa6bc; --u: min(1vw, 1.6vh); }
   * { box-sizing: border-box; }
   html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   a { color: inherit; }
-  .mono { font-family: "Geist Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .06em; }
+  .mono { font-family: "Geist Mono", ui-monospace, monospace; font-size: 11px; line-height: 1; letter-spacing: .12em; text-transform: uppercase; }
 
-  .stage { position: relative; height: 100vh; height: 100dvh; min-height: 600px; overflow: hidden; display: grid; place-items: center;
-    background-image: radial-gradient(var(--dot) 1px, transparent 1.4px); background-size: 26px 26px; }
-  .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 46% 52% at 50% 52%, var(--bg) 35%, transparent 100%); z-index: 0; }
+  .stage { position: relative; height: 100vh; height: 100dvh; min-height: 600px; overflow: hidden; display: grid; place-items: center; }
 
   header { position: absolute; z-index: 3; top: 22px; left: 28px; right: 28px; display: flex; align-items: baseline; justify-content: space-between; pointer-events: none; }
   header > * { pointer-events: auto; }
@@ -37,15 +36,16 @@
   .site:hover { color: var(--ink); }
 
   main { position: relative; z-index: 2; text-align: center; padding: 0 20px; display: grid; justify-items: center; }
-  h1 { margin: 0; font-weight: 400; font-size: clamp(36px, calc(var(--u) * 4.5), 76px); line-height: 1.02; letter-spacing: -.04em; text-wrap: balance; }
-  h1 em { font-style: normal; color: var(--faint); }
+  h1 { margin: 0; font-weight: 400; font-size: clamp(36px, calc(var(--u) * 4.5), 76px); line-height: 1.02; letter-spacing: -.045em; text-wrap: balance; }
+  h1 em { font-style: normal; color: var(--second); }
   .lead { margin: 22px 0 0; max-width: 40ch; font-size: 16px; line-height: 1.5; color: var(--mute); text-wrap: balance; }
-  .enter { display: inline-flex; align-items: center; gap: 28px; height: 46px; margin-top: 30px; padding: 0 16px 0 20px; background: var(--ink); color: var(--bg); text-decoration: none; font-size: 14px; font-weight: 500; transition: background .2s ease; }
-  .enter:hover { background: #cfd2d4; }
+  .enter { display: inline-flex; align-items: center; gap: 28px; height: 46px; margin-top: 30px; padding: 0 16px 0 20px; border-radius: 2px; background: var(--ink); color: var(--bg); text-decoration: none; font-size: 14px; font-weight: 500; transition: background .2s ease; }
+  .enter:hover { background: #2c2e31; }
   .enter svg { transition: transform .2s ease; }
   .enter:hover svg { transform: translateX(3px); }
-  .enter:focus-visible, .site:focus-visible { outline: 2px solid #9dbfd1; outline-offset: 3px; }
-  .invite { margin-top: 18px; color: var(--faint); }
+  .enter:focus-visible, .site:focus-visible { outline: 2px solid var(--celeste); outline-offset: 3px; }
+  .invite { margin-top: 20px; color: var(--mute); display: inline-flex; align-items: center; gap: 8px; }
+  .invite::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--celeste); }
   main > * { opacity: 0; animation: rise 1s cubic-bezier(.2, .7, .2, 1) forwards; }
   main > :nth-child(2) { animation-delay: .1s; } main > :nth-child(3) { animation-delay: .2s; } main > :nth-child(4) { animation-delay: .3s; }
   @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
@@ -56,18 +56,17 @@
   .card-in { opacity: 0; animation: arrive 1.2s cubic-bezier(.2, .7, .2, 1) forwards; animation-delay: var(--delay); transition: scale .5s cubic-bezier(.2, .7, .2, 1); }
   @keyframes arrive { from { opacity: 0; transform: translateY(26px) scale(.95); } to { opacity: 1; transform: none; } }
   .card:hover .card-in { scale: 1.04; }
-  .media { display: block; width: 100%; aspect-ratio: var(--ar); object-fit: cover; border-radius: 2px; background: #1c1d20; }
-  .ficha { display: flex; justify-content: space-between; gap: 8px; margin-top: 7px; color: var(--mute); white-space: nowrap; font-size: 10px; transition: color .25s ease; }
+  .media { display: block; width: 100%; aspect-ratio: var(--ar); object-fit: cover; border-radius: 2px; background: #dddee1; }
+  .ficha { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--mute); white-space: nowrap; font-size: 10px; transition: color .25s ease; }
   .card:hover .ficha { color: var(--ink); }
 
   .strip { display: none; }
 
   @media (max-width: 860px) {
-    .stage { height: auto; min-height: 100dvh; display: flex; flex-direction: column; justify-content: space-between; gap: 28px; padding: 64px 0 28px; }
-    .stage::after { display: none; }
+    .stage { height: auto; min-height: 100dvh; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 28px; padding: 64px 0 28px; }
     .field { display: none; }
     header { top: 18px; left: 20px; right: 20px; }
-    main { order: 2; }
+    main { order: 2; align-self: center; }
     h1 { font-size: 38px; }
     .lead { margin-top: 16px; font-size: 15px; }
     .enter { margin-top: 24px; }
@@ -116,7 +115,7 @@
     { n: "faro",     r: "Auto",        alt: "Detalle del faro encendido de una camioneta negra.",       x: 72,   y: 41, w: 9,  ar: "4/5", d: .5 },
     { n: "pelota",   r: "Campaña",     alt: "Zapato de taco sobre una pelota con el isotipo de Coevo.", x: 84,   y: 40, w: 14, ar: "4/5", d: .8 },
     { n: "cielo",    r: "Marca",       alt: "El logo de Coevo en el cielo, visto desde un patio.",   v: 1, x: 70,   y: 68, w: 13, ar: "4/5", d: .65 },
-    { n: "sesion",   r: "Sesión",      alt: "Modelo de negro que se acerca a cámara sobre fondo blanco.", v: 1, x: 87, y: 77, w: 11, ar: "4/5", d: .4 }
+    { n: "sesion",   r: "Sesión",      alt: "Modelo de negro que se acerca a cámara sobre fondo blanco.", v: 1, x: 87, y: 71, w: 11, ar: "4/5", d: .4 }
   ];
   const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const celular = matchMedia("(max-width: 860px)").matches;
