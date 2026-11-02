@@ -126,8 +126,8 @@ Ideas leídas: la-observacion-es-dato, linea-base-antes-de-intervenir, criterio-
   el mismo flujo. Detalle y fuentes: `~/cov/biblioteca/preguntas/que-hace-genera-space-que-studio-no.md`.
   Decidir cuáles entran al backlog de Studio (escenas guardadas y brief en partes parecen las más
   baratas y de más impacto).
-- [x] 2026-10-27 · de coevo-skills · **ALGÜNA (`alkura`) tiene identidad vieja en Studio.** «identidad_grafica» → Hecho el 1/11: colores, tipografías, regla de foto, logo y texto de marca cargados (copia en `~/cov/archivos/alguna/_studio-backups/`).
+- [x] 2026-10-27 · de coevo-skills · **ALGÜNA (`alkura`) tiene identidad vieja en Studio.** «identidad_grafica»
   dice Merriweather/Inter y otra paleta; lo vigente es el design system de Claude Design
   (https://claude.ai/artifact/2MFXakLjjF3e992iLZJitq: papel, tinta, verde; Creato Display, IBM Plex Mono, Courier;
   reels con cortes secos a 24 fps) y la skill `alguna-web/.claude/skills/alguna-design-system`. Que la marca en
-  Studio apunte ahí en vez de copiar valores (una copia envejece). De paso: id `alkura` → `alguna`.
+  Studio apunte ahí en vez de copiar valores (una copia envejece). De paso: id `alkura` → `alguna`. → Identidad corregida el 1/11 (copia en `~/cov/archivos/alguna/_studio-backups/`). No se hizo: el cambio de id; se copiaron valores además del link.
