@@ -25,6 +25,7 @@ const SECTIONS: Section[] = [
             "/dashboard/chat", "/dashboard/tools", "/dashboard/pipeline"],
     },
     { label: "Entregas", href: "/dashboard/entregas", match: ["/dashboard/entregas"] },
+    { label: "Bandeja", href: "/dashboard/bandeja", match: ["/dashboard/bandeja"] },
     { label: "Reportes", href: "/dashboard/reporte", match: ["/dashboard/reporte", "/dashboard/performance", "/dashboard/integrations", "/dashboard/automations"] },
 ];
 

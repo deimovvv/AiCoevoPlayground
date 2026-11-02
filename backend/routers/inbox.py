@@ -82,6 +82,8 @@ async def send_material(
     if not brands.find_brand(brands.load_brands(), brand_id) or not can_see_brand(request, brand_id):
         raise HTTPException(status_code=404, detail="No existe esa marca")
     files = [f for f in files if f and f.filename]
+    if (link or "").strip() and not re.match(r"^https?://\S+$", link.strip()):
+        raise HTTPException(status_code=400, detail="Eso no parece un link: tiene que empezar con https://.")
     if not files and not (link or "").strip() and not (note or "").strip():
         raise HTTPException(status_code=400, detail="Mandá al menos un archivo, un link o una nota.")
     if len(files) > MAX_FILES:
@@ -261,6 +263,29 @@ async def apply_identity(item_id: str, request: Request, s: AsyncSession = Depen
     item.proposal = {**(item.proposal or {}), "identityApplied": sorted(touched)}
     await s.commit()
     return {"touched": sorted(touched)}
+
+
+@router.post("/api/inbox/{item_id}/guardar-link")
+async def save_link(item_id: str, request: Request, s: AsyncSession = Depends(get_session)):
+    """El link recibido queda en Archivos de la marca como referencia (lo da `ver_marca`)."""
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    item = await s.get(InboxItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="No existe")
+    url = (item.link or "").strip()
+    if not re.match(r"^https://\S+$", url):
+        raise HTTPException(status_code=400, detail="Sólo se guardan links que empiezan con https://.")
+    all_b = brands.load_brands()
+    b = brands.find_brand(all_b, item.brand_id)
+    if not b:
+        raise HTTPException(status_code=404, detail="No existe esa marca")
+    title = re.sub(r"^Una referencia( — )?", "", item.note or "").strip()[:80] or "Referencias"
+    b["workLinks"] = (b.get("workLinks") or []) + [{"id": f"wl_{uuid.uuid4().hex[:10]}", "title": title, "kind": "referencias", "url": url, "client": False}]
+    brands.save_brands(all_b)
+    item.status, item.result = "incorporado", "Lo sumamos a las referencias"
+    await s.commit()
+    return _out(item)
 
 
 @router.post("/api/inbox/{item_id}/descartar")

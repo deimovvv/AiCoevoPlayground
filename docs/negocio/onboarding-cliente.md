@@ -19,7 +19,25 @@ Sin la auditoría no hay arranque; sin los pilotos aprobados no hay plan. Cada e
 
 **Auditoría propia:** si la marca ya tiene una, vale si trae diagnóstico, mercado y estrategia. Se carga en Studio y no se rehace.
 
-## Qué les pedimos (en el arranque)
+## Cómo corre: nosotros proponemos, el cliente corrige (2026-11-01)
+
+El cliente no recibe una lista de tareas. Leemos su marca, proponemos y sólo nos corrige.
+
+| # | Paso | Quién | Qué hace el cliente |
+|---|---|---|---|
+| 1 | Charla de 30 min: qué les cuesta y quién decide | Gonzalo | Conversa |
+| 2 | Leer lo que ya existe: web, Instagram (capturas), manual, piezas | Agente + Keila | Nada |
+| 3 | Armar «Así los entendemos»: quién es, cómo habla, cómo se ve, qué falta | Gonzalo + agente | Nada |
+| 4 | Buscar 15 referencias a partir de esa lectura, con el motivo de cada una | Keila (a confirmar) | Nada |
+| 5 | Revisión de 15 minutos: qué está mal, y sí o no a cada referencia | Gonzalo | Corrige |
+| 6 | Pedir sólo lo que no se puede resolver | Gonzalo | Responde |
+| 7 | Cargar la ficha en Studio con lo corregido | Keila (a confirmar) | Nada |
+| 8 | Piloto de cada formato | Equipo | Aprueba |
+| 9 | Arranca el plan o el proyecto | Equipo | Aprueba las piezas |
+
+Primera prueba: ALGÜNA, con su equipo como clientas.
+
+## Qué les pedimos (paso 6, sólo lo que falte)
 
 **Antes de armar la lista, revisar qué material ya tenemos** y pedir sólo lo que falta.
 
@@ -29,7 +47,7 @@ Todo entra por **«Mandar algo»** en el portal o por un link que les mandamos; 
 |---|---|---|
 | **Logo** (vectorial o PNG sin fondo) y **tipografías** | Que cada pieza sea de la marca | Lo armamos (se cotiza aparte) |
 | **Manual o PDF de marca**, piezas que les gustaron y que no | Identidad, siempre y nunca | Sale de la auditoría |
-| **Referencias:** un link (Pinterest o Drive, el que ya usen) con 10 a 20 imágenes y una línea de qué les gusta de cada una. Se pide una vez | Que no adivinemos el gusto de la marca | Seguimos igual: no frena el arranque |
+| **Referencias:** las proponemos nosotros (paso 4) y dicen sí o no. Si ya tienen un tablero, lo sumamos | Que no adivinemos el gusto de la marca | Seguimos igual: no frena el arranque |
 | **Productos o servicios:** fotos, datos, precios si se publican | Las piezas de catálogo | Guía de fotos por rubro (`pipeline-contenido/rubros/`, `ficha-ecommerce` para moda) |
 | **La persona a cámara:** alguien del equipo (con permiso escrito de esa persona, también para su voz) o elegimos una creada | Los videos con presentador | Creamos una (`avatar-sheet`) |
 | **Lugar:** fotos del local, la oficina, el showroom | Que se vea que es real | Usamos material de la marca |
@@ -49,8 +67,10 @@ Los mandamos siempre igual; cambian el nombre y los datos. Van a vivir en la ski
 1. **Después de la llamada:** «Gracias por la charla. Te resumo lo que entendimos: [3 líneas]. El próximo paso
    es la auditoría: en [n] días te mostramos cómo se ve tu marca de afuera, qué hace tu competencia y qué
    haríamos los próximos tres meses. Cuesta [precio] y se descuenta del arranque si seguimos.»
-2. **Al arrancar:** «Bienvenidos. En estas dos semanas armamos el sistema de tu marca. Necesitamos esto: [lista
-   corta, sólo lo que falta]. Lo podés subir acá: [link]. Si algo no lo tenés, no pasa nada: lo resolvemos nosotros.»
+2. **Revisión (paso 5):** «Armamos cómo los entendemos y unas referencias para la próxima etapa. ¿Nos juntamos 15
+   minutos esta semana? Ustedes sólo nos dicen qué está mal.»
+   **Después de la revisión (paso 6):** «Para seguir nos falta esto: [sólo lo que falta]. Lo podés subir acá: [link].
+   Si algo no lo tenés, no pasa nada: lo resolvemos nosotros.»
 3. **Accesos:** «Para publicar y medir necesitamos que nos sumes como socio en Meta Business. Te dejamos los
    pasos: [3 pasos]. Nunca te pedimos contraseñas.»
 4. **Pilotos listos:** «Ya podés ver los primeros pilotos en tu portal: [link]. Tocá la pieza para comentar en el

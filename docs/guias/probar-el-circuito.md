@@ -65,6 +65,13 @@ Anotá al lado de cada paso ✅ o ❌ y qué viste. Lo que falle, pasáselo a Cl
 3. En una marca con un tablero traído de Pinterest, entrá como equipo (lo ves en «Cómo se ve») y después en la vista del cliente (no lo ves).
 4. En la vista del cliente, «Mandar algo» → «Una referencia»: aparece la explicación de qué mandar.
 
+## 0f · Lo que manda el cliente
+
+1. En la vista del cliente, «Mandar algo»: escribí un texto en «Link» y tocá Mandar. Te tiene que frenar.
+2. Mandá un link real de Pinterest con la opción «Una referencia».
+3. Volvé a Studio, entrá a **Bandeja** en el menú de arriba: está lo que mandaste. También aparece en Inicio.
+4. Tocá «Guardar como referencia»: pasa a Archivos de la marca y el cliente lo ve como sumado.
+
 ## 1 · La estrategia (Marca)
 
 | # | Hacé | Tiene que pasar |

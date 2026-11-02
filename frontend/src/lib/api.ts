@@ -4223,6 +4223,11 @@ export async function incorporateInbox(id: string, body: { target: string; type:
 export async function proposeInbox(id: string): Promise<InboxItem> {
     return editorJson(await fetch(`${API_BASE}/api/inbox/${encodeURIComponent(id)}/proponer`, { method: "POST" }), "El agente no pudo proponer");
 }
+/** Guarda el link de lo recibido como referencia de la marca (Archivos) y lo da por resuelto. */
+export async function saveInboxLink(id: string): Promise<InboxItem> {
+    return editorJson(await fetch(`${API_BASE}/api/inbox/${encodeURIComponent(id)}/guardar-link`, { method: "POST" }), "No se pudo guardar el link");
+}
+
 export async function discardInbox(id: string): Promise<InboxItem> {
     return editorJson(await fetch(`${API_BASE}/api/inbox/${encodeURIComponent(id)}/descartar`, { method: "POST" }), "No se pudo descartar");
 }

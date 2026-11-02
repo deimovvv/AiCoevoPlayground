@@ -43,7 +43,9 @@ export function ClienteMaterialPage() {
     const add = (list: FileList | null) => { if (list) { setFiles((f) => [...f, ...Array.from(list)].slice(0, 100)); setSent(false); setErr(null); } };
     const send = async () => {
         if (!brandId) return;
-        setErr(null); setProgress(0);
+        setErr(null);
+        if (link.trim() && !/^https?:\/\/\S+$/.test(link.trim())) { setErr("Eso no parece un link: tiene que empezar con https://. Si es un texto, va en «Contanos»."); return; }
+        setProgress(0);
         try {
             const item = await sendMaterial(brandId, { files, link: link.trim(), note: [what, note.trim()].filter(Boolean).join(" — ") }, setProgress);
             setHistory((h) => [item, ...h]);

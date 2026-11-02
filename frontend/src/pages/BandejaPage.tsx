@@ -4,7 +4,7 @@ import { ExternalLink, FileText, Film, Loader2, Maximize2, Sparkles, Upload } fr
 import { Lightbox } from "../components/Lightbox";
 import { useBrand } from "../lib/BrandContext";
 import {
-    applyInboxIdentity, backendUrl, discardInbox, incorporateInbox, listCampaigns, listInbox, proposeInbox, sendMaterial,
+    applyInboxIdentity, backendUrl, discardInbox, incorporateInbox, listCampaigns, listInbox, proposeInbox, saveInboxLink, sendMaterial,
     type Campaign, type InboxDest, type InboxItem, type PdfIdentity,
 } from "../lib/api";
 
@@ -68,7 +68,10 @@ const mono = "font-mono text-[10px] uppercase tracking-[0.09em]";
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("es-AR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
 const who = (a: string | null) => (!a ? "—" : a.startsWith("servicio:") ? "Claude" : a.split("@")[0]);
 
+const isLink = (x: string) => /^https?:\/\/\S+$/.test(x);
+
 function Item({ it, campaigns, onDone }: { it: InboxItem; campaigns: Campaign[]; onDone: (x: InboxItem) => void }) {
+    const { refreshBrands } = useBrand();
     const images = it.files.filter((f) => f.kind === "image");
     const others = it.files.filter((f) => f.kind !== "image");
     const [big, setBig] = useState<number | null>(null);
@@ -119,7 +122,13 @@ function Item({ it, campaigns, onDone }: { it: InboxItem; campaigns: Campaign[];
             {p?.identity && <IdentityRead itemId={it.id} ident={p.identity} applied={applied} onApplied={setApplied} />}
             {(it.link || others.length > 0) && (
                 <div className="flex flex-wrap gap-3 mt-3 text-[12px]">
-                    {it.link && <a href={it.link} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-fg underline underline-offset-2">Link del cliente <ExternalLink size={11} /></a>}
+                    {it.link && (isLink(it.link) ? <>
+                        <a href={it.link} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-fg underline underline-offset-2">Link del cliente <ExternalLink size={11} /></a>
+                        {!done && it.link.startsWith("https://") && (
+                            <button disabled={busy} onClick={() => run(async () => { const x = await saveInboxLink(it.id); await refreshBrands(); return x; })}
+                                className="h-7 px-2.5 -mt-1 rounded-[4px] border border-edge text-fg cursor-pointer hover:border-[var(--color-edge-strong)]">Guardar como referencia</button>
+                        )}
+                    </> : <span className="text-fg-muted">Esto no es un link: «{it.link.slice(0, 80)}{it.link.length > 80 ? "…" : ""}»</span>)}
                     {others.map((f) => (
                         <a key={f.url} href={backendUrl(f.url)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-fg-muted hover:text-fg">
                             {f.kind === "video" ? <Film size={12} /> : <FileText size={12} />} {f.name}
@@ -230,8 +239,7 @@ export function BandejaPage() {
     const past = (items || []).filter((i) => i.status !== "nuevo");
     return (
         <div className="max-w-[1200px] mx-auto px-4 md:px-10 py-8 pb-20">
-            <Link to="/dashboard/produccion" className="text-[12px] text-fg-muted hover:text-fg no-underline">← Producción</Link>
-            <p className={`${mono} text-fg-faint mt-8`}>{activeBrand?.name}</p>
+            <p className={`${mono} text-fg-faint`}>{activeBrand?.name}</p>
             <h1 className="mt-2 text-[40px] leading-none tracking-[-0.035em] text-fg">Material del cliente</h1>
             <p className="mt-3 text-[13px] text-fg-muted max-w-[560px]">Lo que mandó el cliente. El agente propone si va a la marca o a un proyecto y qué es cada imagen; vos revisás y lo sumás. El cliente ve que lo incorporaste.</p>
             <div className="mt-5 flex flex-wrap items-center gap-3">

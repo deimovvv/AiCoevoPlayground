@@ -47,7 +47,7 @@ las herramientas los heredan.
 - **Color y tipo:** la fuente de verdad es `frontend/src/index.css`. Tema por defecto **claro, paleta «sistema»**
   (la de la web: grises fríos, celeste fino, Instrument Sans + Geist Mono); `--color-brand` es la señal
   (salmón en claro, rosa en oscuro), nunca relleno de CTA. `?paleta=papel` vuelve a la anterior.
-- **Navegación (studio-v2):** barra arriba (`TopBar.tsx`): marca · Marca · Producción · Entregas · Reportes.
+- **Navegación (studio-v2):** barra arriba (`TopBar.tsx`): marca · Marca · Producción · Entregas · Bandeja · Reportes.
 
 ## Reglas duras
 
