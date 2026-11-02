@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { ExternalLink, FileText, Film, Loader2, Maximize2, Sparkles, Upload } from "lucide-react";
 import { Lightbox } from "../components/Lightbox";
 import { useBrand } from "../lib/BrandContext";
