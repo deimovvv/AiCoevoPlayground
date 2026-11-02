@@ -17,9 +17,13 @@
 
 Sin la auditoría no hay arranque; sin los pilotos aprobados no hay plan. Cada etapa se cobra antes de empezarla.
 
+**Auditoría propia:** si la marca ya tiene una, vale si trae diagnóstico, mercado y estrategia. Se carga en Studio y no se rehace.
+
 ## Qué les pedimos (en el arranque)
 
-Todo entra por **«Mandar material»** en el portal o por un link que les mandamos; nada por WhatsApp suelto.
+**Antes de armar la lista, revisar qué material ya tenemos** y pedir sólo lo que falta.
+
+Todo entra por **«Mandar algo»** en el portal o por un link que les mandamos; nada por WhatsApp suelto. Antes de pasar el link del portal, invitar al cliente desde Accesos.
 
 | Qué | Para qué | Si no lo tienen |
 |---|---|---|
@@ -27,12 +31,12 @@ Todo entra por **«Mandar material»** en el portal o por un link que les mandam
 | **Manual o PDF de marca**, piezas que les gustaron y que no | Identidad, siempre y nunca | Sale de la auditoría |
 | **Referencias:** un link (Pinterest o Drive, el que ya usen) con 10 a 20 imágenes y una línea de qué les gusta de cada una. Se pide una vez | Que no adivinemos el gusto de la marca | Seguimos igual: no frena el arranque |
 | **Productos o servicios:** fotos, datos, precios si se publican | Las piezas de catálogo | Guía de fotos por rubro (`pipeline-contenido/rubros/`, `ficha-ecommerce` para moda) |
-| **La persona a cámara:** alguien del equipo (con permiso escrito) o elegimos una creada | Los videos con presentador | Creamos una (`avatar-sheet`) |
+| **La persona a cámara:** alguien del equipo (con permiso escrito de esa persona, también para su voz) o elegimos una creada | Los videos con presentador | Creamos una (`avatar-sheet`) |
 | **Lugar:** fotos del local, la oficina, el showroom | Que se vea que es real | Usamos material de la marca |
 | **Reglas:** palabras que no usan, temas que no tocan, competidores que no se nombran, lo legal | Que no se repita un error (M.13) | Las proponemos y las aprueban |
-| **Quién aprueba** y en cuánto tiempo responde | Que las piezas no se traben | Por defecto, una persona y 48 h |
+| **Quién aprueba**, su suplente y en cuánto tiempo responde | Que las piezas no se traben | Por defecto, una persona y 48 h |
 | **Accesos:** Meta Business (para publicar) · GA4 si tienen web · cuenta publicitaria si suman pauta | Publicar y medir | Los creamos con ellos en la llamada |
-| **Los números de hoy:** 2 o 3, según el rubro (consultas por mes, ventas, visitas) | La línea base del reporte | Los medimos el primer mes y se avisa |
+| **Los números de hoy:** 2 o 3 acordados con el cliente, según el rubro (consultas por mes, ventas, visitas). Si su operación vive en otro sistema, sus datos no entran a Studio: sólo estos números | La línea base del reporte | Los medimos el primer mes y se avisa |
 | **Competidores** que miran | La auditoría y la estrategia | Los buscamos nosotros |
 
 **Lo que no les pedimos:** que escriban textos, que piensen ideas, que aprendan una herramienta, que manden
@@ -67,6 +71,20 @@ En Studio, la lista de Marca (M.14) muestra esto con su estado; el cliente ve lo
 - [ ] Accesos: Meta Business (y GA4 / Ads si aplica)
 - [ ] Línea base: los 2 o 3 números de hoy
 - [ ] Un piloto aprobado de cada formato
+
+## Prueba con Cocucci Automotores: lo que no sirvió (2026-11-01)
+
+Marca nueva, sin presencia pública y con Gonzalo como socio. Sólo se hizo hasta las direcciones visuales.
+
+- **Falta el camino de marca nueva.** Las etapas suponen una marca que ya existe. Acá fue: mapa de mercado y posicionamiento → 2 o 3 direcciones → design system. Sin eso, la lista del arranque no se puede empezar.
+- **Auditoría (etapa 2):** no hay qué auditar sin marca pública. El paso `auditoria-creativa` no aplica; `mapa-de-mercado` sí, pero la skill dice que va «después» de la auditoría.
+- **Llamada, precios y cobro por etapa:** no aplican a un socio. Hace falta otra forma de decidir y aprobar, porque el que encarga también es parte.
+- **«Logo: lo armamos, se cotiza aparte»:** en una marca nueva el logo no es un extra. El design system lo deja «a definir», así que hay que decir quién lo hace y cuándo.
+- **«Lugar: fotos del local»:** el galpón está en obra. Hay que pedir plano, medidas y orientación mientras todavía se pueden cambiar la pintura y la luz, y filmar la obra.
+- **«Referencias» se pide en el arranque y «no frena»:** en una marca nueva define las direcciones, así que debería venir antes. Acá las direcciones salieron antes de recibir el tablero de Pinterest.
+- **«Línea base: los números de hoy»:** un negocio sin abrir no tiene números. Conviene medir al competidor (ej.: consultas de un aviso igual en portal) o arrancar la cuenta el primer día.
+- **Accesos y portal:** no hay Meta Business ni marca en Studio todavía; las etapas 3 y 4 no se probaron.
+- **Conflicto entre clientes:** no está previsto. Cocucci Automotores compite con Giumati, cliente de Coevo en Mendoza. Hace falta una pregunta fija al abrir una marca: ¿compite con otro cliente?
 
 ## Pendiente
 
