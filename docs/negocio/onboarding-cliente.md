@@ -37,6 +37,27 @@ El cliente no recibe una lista de tareas. Leemos su marca, proponemos y sólo no
 
 Primera prueba: ALGÜNA, con su equipo como clientas.
 
+### Dos integraciones
+
+- **Antes del servicio (pasos 0 a 5):** un formulario de 5 minutos (web, Instagram, qué hace, qué le cuesta, quién decide), la charla, la auditoría integral paga y la presentación. Termina cuando el cliente elige qué áreas contrata.
+- **Al empezar el servicio (pasos 6 a 9):** pedir lo que falta, invitar al portal, cargar la marca en Studio, definir los formatos y hacer los pilotos.
+
+### Las cinco áreas: la misma narrativa en toda marca (propuesta)
+
+Toda marca se cuenta en el mismo orden: **quién es → qué miramos en cada área → qué haríamos primero → qué contrató → cómo viene**.
+
+| Área | Qué miramos | Qué puede seguir |
+|---|---|---|
+| Estrategia | Visión, a quién le vende, en qué se diferencia | Plan y prioridades |
+| Marca | Identidad, voz, coherencia | Design system |
+| Contenido | Redes y piezas | Plan mensual o proyectos |
+| Web | Si explica y si vende | Web nueva o mejoras |
+| Tecnología y operación | Ventas, stock, logística, tareas repetidas | Sistemas a medida |
+
+Studio guarda esta memoria y los links; la operación de cada negocio vive en su sistema.
+
+**Sin desarrollar todavía:** cómo se le dice al cliente qué nos da y qué no, el formulario, la definición de formatos y cómo se ven las áreas en Studio. Las skills se deciden en coevo-skills y la oferta en coevo-web.
+
 ## Qué les pedimos (paso 6, sólo lo que falte)
 
 **Antes de armar la lista, revisar qué material ya tenemos** y pedir sólo lo que falta.
