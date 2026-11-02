@@ -37,6 +37,8 @@ El cliente no recibe una lista de tareas. Leemos su marca, proponemos y sólo no
 
 Primera prueba: ALGÜNA, con su equipo como clientas.
 
+Formulario y lista de material: [formulario-inicial.md](formulario-inicial.md).
+
 ### Dos integraciones
 
 - **Antes del servicio (pasos 0 a 5):** un formulario de 5 minutos (web, Instagram, qué hace, qué le cuesta, quién decide), la charla, la auditoría integral paga y la presentación. Termina cuando el cliente elige qué áreas contrata.
