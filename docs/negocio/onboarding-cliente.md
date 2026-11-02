@@ -58,6 +58,14 @@ Studio guarda esta memoria y los links; la operación de cada negocio vive en su
 
 **Sin desarrollar todavía:** cómo se le dice al cliente qué nos da y qué no, el formulario, la definición de formatos y cómo se ven las áreas en Studio. Las skills se deciden en coevo-skills y la oferta en coevo-web.
 
+### Cómo validamos al cargar una marca (Gonzalo y Claude)
+
+1. **Gonzalo pasa las fuentes:** link de la web, capturas o exportación de Instagram (nunca una sesión), documentos.
+2. **Claude lee y muestra una propuesta,** campo por campo: qué cargaría, de dónde salió y qué tan seguro está.
+3. **Gonzalo responde sí, no o cambiá esto.** Nada se carga antes de ese sí.
+4. **Lo dudoso no se carga como hecho:** queda como pregunta para el cliente.
+5. **Claude carga y Gonzalo lo mira en «Perfil»,** como lo ve el cliente. La marca está lista cuando Gonzalo lo da por bueno.
+
 ## Qué les pedimos (paso 6, sólo lo que falte)
 
 **Antes de armar la lista, revisar qué material ya tenemos** y pedir sólo lo que falta.

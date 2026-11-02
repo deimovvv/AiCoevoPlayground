@@ -24,6 +24,8 @@ Ideas y features **sin trabajar todavía**. Cuando una se empieza, pasa a
 
 ## Pendiente
 
+- **Analizar Wireflow** (wireflow.ai, 2026-11-01): plataforma de ads, fotos de producto y video «run by Claude», con brand kit desde la web, canvas por pasos, comentarios que la IA lee y responde, y publicación. Es competencia y referencia para Studio. Sin analizar todavía.
+
 | # | Qué | Nota |
 |---|---|---|
 | 1 | **Persistencia completa de generaciones** | parcial: `data/pipeline_states/`. Falta guardar escenas, audio y subtítulos — lo necesita el editor |
