@@ -4,28 +4,33 @@
 > les pediríamos"*. Sirve para **cualquier marca** (empresa mediana, cualquier rubro); moda es un caso más.
 > Reemplaza a [client_onboarding.md](client_onboarding.md), que es la guía vieja para cargar una marca en las tools.
 > Cobro y planes: [modelo-de-negocio.md](modelo-de-negocio.md). En la app: tareas M.3 y M.14 de `studio-v2`.
+> **El orden del recorrido y las dos puertas se deciden en `coevo-web/docs/recorrido-cliente.md`, que manda.** Acá va el detalle de cada paso.
 
 ## El recorrido: nosotros proponemos, el cliente corrige (2026-11-01)
 
 El cliente no recibe una lista de tareas. Leemos su marca, proponemos y sólo nos corrige. **Esta es la única numeración.**
 
+En la charla (paso 2) se define la puerta. **Studio:** pasos 1, 2, 8, 9, 10 y 11, sin auditoría obligatoria. **Consultoría:** pasos 1 a 7, y del 8 en adelante sólo si contrata algo más.
+
 | # | Paso | Dueño | Qué hace el cliente | Se cobra |
 |---|---|---|---|---|
-| **Antes del servicio** | | | | |
-| 1 | Formulario de 5 minutos ([formulario-inicial.md](formulario-inicial.md)) | Gonzalo | Responde | |
-| 2 | Lectura corta y charla de 30 min: sale sabiendo algo nuevo de su marca | Gonzalo + agente | Conversa | Gratis |
+| **Para todos** | | | | |
+| 1 | Formulario, sólo si llega solo ([formulario-inicial.md](formulario-inicial.md)). Si lo buscamos, lo leemos nosotros | Gonzalo | Responde | |
+| 2 | Lectura corta y charla de 30 min: sale sabiendo algo nuevo de su marca y se define la puerta | Gonzalo + agente | Conversa | Gratis |
+| **Puerta Consultoría** | | | | |
 | 3 | Contrata la auditoría integral | Gonzalo | Decide | **Precio fijo, antes de empezar** |
 | 4 | Auditar lo que existe, área por área. Skills: `auditoria-creativa` → `mapa-de-mercado` → `spec-campana` | Agente + Keila (a confirmar) | Nada | |
 | 5 | Armar «Así los entendemos» y qué haríamos primero | Gonzalo + agente | Nada | |
 | 6 | Buscar 15 referencias, con el motivo de cada una | Keila (a confirmar) | Nada | |
 | 7 | Presentación: corrige, dice sí o no a cada referencia y elige qué áreas contrata | Gonzalo | Corrige y elige | |
-| **Al empezar el servicio** | | | | |
+| **Puerta Studio** (o lo que contrate después de la auditoría) | | | | |
 | 8 | Pedir sólo lo que falta e invitar al portal | Gonzalo | Responde | **Arranque (USD 300), antes de empezar** |
 | 9 | Cargar la ficha en Studio, con el sí de Gonzalo | Claude; valida Gonzalo | Nada | |
 | 10 | Definir formatos y hacer un piloto de cada uno | Equipo | Aprueba | |
 | 11 | Arranca el plan o el proyecto, con reunión semanal y primer reporte a las 4 semanas | Equipo | Aprueba las piezas | Plan o proyecto |
 
-- **Lo gratis es la lectura corta del paso 2.** La auditoría completa se cobra (decidido por Gonzalo, 2026-11-01).
+- **Lo gratis es la lectura corta del paso 2.** La auditoría completa se cobra, pero no es requisito para un plan de Studio. No se hacen pilotos sin pagar el arranque (decidido por Gonzalo, 2026-11-01).
+- **En la puerta Studio,** «Así los entendemos» y las referencias se hacen dentro del arranque (pasos 8 y 9).
 - **Auditoría propia:** si la marca ya tiene una, vale si trae diagnóstico, mercado y estrategia. Se carga en Studio y no se rehace.
 - **Marca nueva, sin nada público:** no hay qué auditar. El paso 4 pasa a ser mapa de mercado y posicionamiento. Ver la prueba con Cocucci más abajo.
 - **Socios o proyectos propios:** no aplican llamada, precios ni cobro.

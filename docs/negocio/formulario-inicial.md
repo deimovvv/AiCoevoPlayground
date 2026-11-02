@@ -5,6 +5,8 @@
 
 ## 1. Formulario inicial (antes de la charla, 5 minutos)
 
+**Sólo para quien llega solo.** La versión que se publica (6 obligatorias, más nombre, WhatsApp, origen y rango de inversión) se decide en `coevo-web/docs/recorrido-cliente.md` y está en `coevo-web/app/[locale]/empezar/`. Estas preguntas son la base; lo que no sea obligatorio se pregunta en la charla.
+
 **Texto de arriba:** «Contanos lo básico antes de hablar. Con esto llegamos a la charla habiendo mirado tu marca, y te llevás lo que vimos. Si algo no lo sabés, dejalo vacío.»
 
 1. ¿Cómo se llama la marca y a qué se dedica, en una frase?
