@@ -98,7 +98,7 @@ function data(b: Brand, readOnly: boolean) {
         dna, ds,
         logo: b.logo?.imageUrl || b.logos?.[0]?.imageUrl,
         colors: dna.colors || [],
-        fonts: [...new Set([b.fonts?.headline, b.fonts?.body].filter(Boolean) as string[])],
+        fonts: [...new Set([b.fonts?.headline, b.fonts?.body, b.fonts?.accent].filter(Boolean) as string[])],
         looks: [...moodboards, ...lookAndFeel, ...backgrounds, ...(b.poses || []), ...(b.shotRefs || [])].map((x) => x.imageUrl).filter((u, i, a) => u && a.indexOf(u) === i),
         // Separado como en un tablero de dirección: moodboard · luz · locación.
         lookGroups: [
@@ -168,6 +168,8 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
             actions: [] as { label: string; run: () => void }[] }] : []),
     ];
     const pending = todo.filter((t) => !t.done);
+    // El servidor ya filtra para el cliente; esto hace que la vista previa muestre lo mismo.
+    const links = (b.workLinks || []).filter((l) => !readOnly || l.client);
     // Referencias: se piden una vez y son opcionales; no cuentan para «Para completar» ni frenan nada.
     const hasRefs = !!b.workLinks?.some((l) => l.kind === "referencias") || looks.length > 0;
     const btn = "h-8 px-3 inline-flex items-center rounded-[var(--radius-md)] border border-edge text-[12.5px] text-fg bg-[var(--color-surface-1)] hover:border-[var(--color-edge-strong)] hover:bg-[var(--color-surface-2)] cursor-pointer transition-colors disabled:opacity-60";
@@ -179,7 +181,7 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                 <p className={`${mono} text-fg-faint`}>{readOnly ? "Así te entendemos" : `Memoria de la marca · ${plan ? "plan mensual" : "proyectos"}`}</p>
 
                 <div className="flex flex-col gap-6">
-                    {logo && <img src={backendUrl(logo)} alt={`Logo de ${b.name}`} className="h-16 w-auto max-w-[240px] object-contain self-start" />}
+                    {logo && <img src={backendUrl(logo)} alt={`Logo de ${b.name}`} className="h-16 w-auto max-w-[240px] object-contain self-start p-2 rounded-[3px] bg-[#f4f3f0]" />}
                     <h1 className="text-[44px] md:text-[clamp(40px,4.2vw,64px)] leading-[0.98] tracking-[-0.03em] text-fg" style={{ fontFamily: brandFont }}>
                         {b.name}
                     </h1>
@@ -208,9 +210,9 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
                                 ? <a href={b.designSystemUrl} target="_blank" rel="noreferrer" className="text-fg underline underline-offset-2">abrir en Claude ↗</a>
                                 : <span className="text-fg-faint">sin armar</span>}</dd></>}
                         {/* Archivos de trabajo: el cliente recibe sólo los que se le marcaron (backend). */}
-                        {(b.workLinks?.length || !readOnly) ? <><dt className="text-fg-faint">Archivos</dt>
+                        {(links.length || !readOnly) ? <><dt className="text-fg-faint">Archivos</dt>
                             <dd className="flex flex-col gap-1 min-w-0">
-                                {(b.workLinks || []).map((l) => (
+                                {links.map((l) => (
                                     <a key={l.id || l.url} href={l.url} target="_blank" rel="noreferrer" className="text-fg underline underline-offset-2 truncate">
                                         {l.title} ↗{!readOnly && !l.client && <span className="no-underline text-fg-faint"> · sólo equipo</span>}
                                     </a>

@@ -159,7 +159,7 @@ export function BrandPicker({ collapsed = false, top = false, client = false }: 
           <>
             <span className="flex flex-col items-start leading-none">
               {!client && <span className="font-mono text-[8.5px] uppercase tracking-[0.1em] text-fg-faint">Marca</span>}
-              <span className="mt-[3px] text-[13px] text-fg max-w-[170px] truncate">{activeBrand?.name ?? "Elegí una marca"}</span>
+              <span className="mt-[1px] text-[13px] leading-[1.3] text-fg max-w-[170px] truncate">{activeBrand?.name ?? "Elegí una marca"}</span>
             </span>
             <ChevronsUpDown size={13} className="ml-1 text-fg-faint group-hover:text-fg shrink-0" />
           </>
