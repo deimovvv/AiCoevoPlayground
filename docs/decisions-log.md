@@ -55,7 +55,7 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 ## 2026-11-01 — Onboarding: nosotros proponemos, el cliente corrige
 
 **Contexto.** La primera prueba con ALGÜNA terminó en un mensaje con tareas para el cliente. Gonzalo: eso no puede ser el onboarding; el servicio es interpretar la marca y sugerir.
-**Decisión.** Nueve pasos en `docs/negocio/onboarding-cliente.md`: se lee lo que existe, se propone «Así los entendemos» con 15 referencias, el cliente corrige en 15 minutos y recién después se pide lo que falta. Reemplaza la idea de pedirle las referencias al cliente.
+**Decisión.** Once pasos, con una sola numeración, en `docs/negocio/onboarding-cliente.md`; la lectura corta es gratis y la auditoría completa se cobra: se lee lo que existe, se propone «Así los entendemos» con 15 referencias, el cliente corrige en 15 minutos y recién después se pide lo que falta. Reemplaza la idea de pedirle las referencias al cliente.
 **También.** Lo que manda el cliente tenía la Bandeja escondida: pasa al menú. Un link se valida al mandarlo y se puede guardar como referencia con un botón.
 **Antes de cambiarlo.** La parte agéntica y visual se construye después de correrlo con ALGÜNA y Cocucci. Falta confirmar con Keila los pasos 4 y 7.
 

@@ -1,6 +1,6 @@
 # Formulario inicial y lista de material (2026-11-01, propuesta)
 
-> Pasos 0 y 6 de [onboarding-cliente.md](onboarding-cliente.md). Referencias: plantillas de estudios y consultoras;
+> Pasos 1 y 8 de [onboarding-cliente.md](onboarding-cliente.md). Referencias: plantillas de estudios y consultoras;
 > son convenciones del oficio, no un estándar. Se ajusta con lo que pase con ALGÜNA y Cocucci.
 
 ## 1. Formulario inicial (antes de la charla, 5 minutos)
