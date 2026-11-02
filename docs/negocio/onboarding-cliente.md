@@ -15,8 +15,8 @@ En la charla (paso 2) se define la puerta. **Studio:** pasos 1, 2, 8, 9, 10 y 11
 | # | Paso | Dueño | Qué hace el cliente | Se cobra |
 |---|---|---|---|---|
 | **Para todos** | | | | |
-| 1 | Formulario, sólo si llega solo ([formulario-inicial.md](formulario-inicial.md)). Si lo buscamos, lo leemos nosotros | Gonzalo | Responde | |
-| 2 | Lectura corta y charla de 30 min: sale sabiendo algo nuevo de su marca y se define la puerta | Gonzalo + agente | Conversa | Gratis |
+| 1 | Formulario corto, sólo si llega solo (`coevo-web/docs/recorrido-cliente.md`). Si lo buscamos, lo leemos nosotros | Gonzalo | Responde | |
+| 2 | Lectura corta y charla de 30 min: sale sabiendo algo nuevo de su marca y se define la puerta (guía: [formulario-inicial.md](formulario-inicial.md)) | Gonzalo + agente | Conversa | Gratis |
 | **Puerta Consultoría** | | | | |
 | 3 | Contrata la auditoría integral | Gonzalo | Decide | **Precio fijo, antes de empezar** |
 | 4 | Auditar lo que existe, área por área. Skills: `auditoria-creativa` → `mapa-de-mercado` → `spec-campana` | Agente + Keila (a confirmar) | Nada | |

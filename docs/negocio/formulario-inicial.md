@@ -1,13 +1,11 @@
-# Formulario inicial y lista de material (2026-11-01, propuesta)
+# Guía de la charla y lista de material (2026-11-01, propuesta)
 
-> Pasos 1 y 8 de [onboarding-cliente.md](onboarding-cliente.md). Referencias: plantillas de estudios y consultoras;
+> Pasos 2 y 8 de [onboarding-cliente.md](onboarding-cliente.md). Referencias: plantillas de estudios y consultoras;
 > son convenciones del oficio, no un estándar. Se ajusta con lo que pase con ALGÜNA y Cocucci.
 
-## 1. Formulario inicial (antes de la charla, 5 minutos)
+## 1. Guía de la charla (ya no es el formulario)
 
-**Sólo para quien llega solo.** La versión que se publica (6 obligatorias, más nombre, WhatsApp, origen y rango de inversión) se decide en `coevo-web/docs/recorrido-cliente.md` y está en `coevo-web/app/[locale]/empezar/`. Estas preguntas son la base; lo que no sea obligatorio se pregunta en la charla.
-
-**Texto de arriba:** «Contanos lo básico antes de hablar. Con esto llegamos a la charla habiendo mirado tu marca, y te llevás lo que vimos. Si algo no lo sabés, dejalo vacío.»
+**El formulario quedó corto (Gonzalo, 02/11: rápido y sin espantar).** Pide nombre, WhatsApp, marca, web o Instagram y, opcional, áreas, referencias y un mensaje. Se decide en `coevo-web/docs/recorrido-cliente.md` y está en `coevo-web/app/[locale]/empezar/`. Estas preguntas pasan a ser la guía de la charla: las hace Gonzalo, no las completa el cliente.
 
 1. ¿Cómo se llama la marca y a qué se dedica, en una frase?
 2. Web y redes (links).
