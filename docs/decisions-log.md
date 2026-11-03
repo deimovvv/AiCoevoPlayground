@@ -27,6 +27,7 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Fashion Editorial | Convertida en preset de Campañas (hecho) | 2026-09-25 |
 | Campañas | Centro del pedido: imagen adentro, video lanzando la tool | 2026-10-03 · `changes/campaigns-as-hub` |
 | Diseño gráfico por marca | Lo hace **Claude Design** con un Design System por marca que arma y controla Coevo (el cliente no lo ve). Studio no diseña: guarda el link y la memoria que no es gráfica (foto, caras, catálogo, aprobaciones) | 2026-10-21 · `changes/studio-v2` M.5 (pendiente) |
+| Archivos de Claude Design por marca | Tres, siempre con el mismo nombre: **«Marca · Design system»** (manual aprobado, un solo responsable), **«Marca · Aplicaciones»** (formatos y pruebas por aprobar, diseño; reemplaza a «Exploraciones») y **«Marca · Piezas»** (trabajo real, equipo) | 2026-11-03 · `producto/operacion.md` §10 |
 | Marca, no cliente | En Studio la unidad es siempre la **marca**; el cliente (empresa o persona que paga) sólo aparece en la ficha comercial. La vista de todas las marcas se llama «Resumen» | 2026-10-21 · `changes/studio-v2` O.7 |
 | Nombre «Proyecto» | En pantalla se dice **Proyecto**, no «Campaña»: sirve para moda, concesionarias e inmobiliarias. En código, base y MCP sigue siendo `campaign`; el editor dice «video», no «proyecto» | 2026-10-20 · `changes/studio-v2` |
 | Referencias de Campañas | Un dueño por dominio; el moodboard se lee (texto), el fondo se usa literal | 2026-10-12 · `specs/campaigns` |

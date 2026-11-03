@@ -24,7 +24,7 @@ const TITLES: Record<BlockKey, string> = {
 };
 
 const LINK_KINDS: [WorkLinkKind, string][] = [
-    ["piezas", "Piezas"], ["exploracion", "Exploración"], ["manual", "Manual"], ["design-system", "Design system"], ["referencias", "Referencias"], ["otro", "Otro"],
+    ["design-system", "Design system"], ["exploracion", "Aplicaciones"], ["piezas", "Piezas"], ["manual", "Manual"], ["referencias", "Referencias"], ["otro", "Otro"],
 ];
 
 /** Los links de trabajo de la marca: uno por archivo, no uno por pedido (las piezas nuevas se suman al de «Piezas»). */
@@ -35,7 +35,7 @@ function WorkLinksEditor({ links, setLinks }: { links: WorkLink[]; setLinks: (l:
             {links.map((l, i) => (
                 <div key={l.id || i} className="flex flex-col gap-1.5 p-3 rounded-[4px] border border-edge">
                     <div className="flex gap-1.5">
-                        <input value={l.title} onChange={(e) => set(i, { title: e.target.value })} className={input} placeholder="Nombre (ej. Exploraciones gráficas)" />
+                        <input value={l.title} onChange={(e) => set(i, { title: e.target.value })} className={input} placeholder="Nombre (ej. ALGÜNA · Aplicaciones)" />
                         <select value={l.kind} onChange={(e) => set(i, { kind: e.target.value as WorkLinkKind })} aria-label="Tipo"
                             className="shrink-0 px-2 rounded-[4px] border border-edge bg-[var(--color-surface-1)] text-[12px] text-fg cursor-pointer">
                             {LINK_KINDS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
@@ -55,7 +55,8 @@ function WorkLinksEditor({ links, setLinks }: { links: WorkLink[]; setLinks: (l:
             <button onClick={() => setLinks([...links, { title: "", kind: "piezas", url: "", client: false }])}
                 className="self-start h-8 px-3 rounded-[4px] border border-edge text-[12px] text-fg hover:border-fg cursor-pointer">+ Sumar link</button>
             <p className="text-[11px] leading-relaxed text-fg-faint">
-                Un link por archivo, no uno por pedido: cada carrusel o pieza nueva se suma dentro del de «Piezas».
+                Tres archivos por marca, siempre con estos nombres: «Marca · Design system» (el manual aprobado), «Marca · Aplicaciones» (formatos y pruebas por aprobar) y «Marca · Piezas» (el trabajo real).
+                Cada carrusel o pieza nueva se suma dentro del de «Piezas», no en un archivo nuevo.
                 Claude los encuentra por el MCP. Si el cliente tiene que editar uno en Claude, además hay que compartírselo desde «Share» en Claude.
             </p>
         </div>

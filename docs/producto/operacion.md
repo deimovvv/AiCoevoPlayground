@@ -185,6 +185,16 @@ probados (muchas piezas aprobadas a la primera). Se automatiza lo que ya se hizo
 
 Regla de `coevo-skills/SISTEMA.md`: **cada cosa tiene un solo hogar; los demás guardan el link.**
 
+**Archivos de Claude Design (regla de Gonzalo, 2026-11-03).** Tres por marca, siempre con el mismo nombre:
+
+| Archivo | Qué tiene | Quién lo toca |
+|---|---|---|
+| **«Marca · Design system»** | El manual: colores, letras, logo y reglas ya aprobadas | Un solo responsable |
+| **«Marca · Aplicaciones»** | Formatos, logo aplicado y pruebas por aprobar (lo que antes se llamaba «Exploraciones») | Diseño |
+| **«Marca · Piezas»** | Los carruseles y posts reales | Todo el equipo |
+
+Si la web de la marca es nuestra, el design system vive en su repo y «Marca · Design system» es el link a su página. Un manual suelto (ej. «Foundation») se pasa al Design system. Lo que se generó con una skill va a `~/cov/archivos/<marca>/` y a Entregas; entra a «Piezas» sólo si un diseñador tiene que afinarlo.
+
 ## 11. Lo que falta, en orden
 
 | # | Qué | Para qué |

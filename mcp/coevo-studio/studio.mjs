@@ -101,8 +101,8 @@ export function brandBlocks(b) {
             ...(b.designSystemUrl
                 ? { como_usarlo: "Para piezas gráficas (carruseles, posts, láminas, webs) usar este Design System de Claude Design: leer su README (project/README.md) antes de diseñar; tiene tokens, fuentes, logos y piezas tipo." }
                 : { falta: "Esta marca todavía no tiene Design System de Claude Design: pedirlo a Gonzalo antes de hacer piezas gráficas." }),
-            archivos_de_trabajo: (b.workLinks || []).map((l) => ({ titulo: l.title, tipo: l.kind, url: l.url, lo_ve_el_cliente: !!l.client })),
-            regla_archivos: "Una pieza nueva (carrusel, post, story) se suma DENTRO del archivo de tipo «piezas» de la marca, no en un artifact nuevo. Si la marca no tiene uno, crearlo una vez y cargar su link en Studio (Marca → Archivos).",
+            archivos_de_trabajo: (b.workLinks || []).map((l) => ({ titulo: l.title, tipo: l.kind === "exploracion" ? "aplicaciones" : l.kind, url: l.url, lo_ve_el_cliente: !!l.client })),
+            regla_archivos: "Cada marca tiene tres archivos, siempre con estos nombres: «<Marca> · Design system» (manual aprobado; lo edita un solo responsable), «<Marca> · Aplicaciones» (formatos, logo aplicado y pruebas por aprobar; lo toca diseño) y «<Marca> · Piezas» (el trabajo real). No crear otros ni usar otros nombres. Una pieza nueva (carrusel, post, story) se suma DENTRO del archivo de tipo «piezas» de la marca, no en un artifact nuevo. Si la marca no tiene uno, crearlo una vez y cargar su link en Studio (Marca → Archivos).",
         },
         direccion_foto_video: {
             reglas: b.designSystem || null,

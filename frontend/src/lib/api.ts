@@ -231,6 +231,7 @@ export interface BrandCompetitor {
     notes?: string;
 }
 
+/** `exploracion` es el id guardado de «Aplicaciones» (2026-11-03): en pantalla no se dice «exploración». */
 export type WorkLinkKind = "piezas" | "exploracion" | "manual" | "design-system" | "referencias" | "otro";
 export interface WorkLink { id?: string; title: string; kind: WorkLinkKind; url: string; client: boolean }
 
@@ -269,7 +270,7 @@ export interface Brand {
     logos?: LogoItem[];
     /** Design System de la marca en Claude Design (studio-v2 M.5): carruseles, posts y webs se diseñan con él. */
     designSystemUrl?: string;
-    /** Archivos de trabajo (studio-v2 M.10): piezas, exploraciones, manual… El cliente recibe sólo los `client`. */
+    /** Archivos de trabajo (studio-v2 M.10): design system, aplicaciones, piezas… El cliente recibe sólo los `client`. */
     workLinks?: WorkLink[];
     /** Estrategia (change brand-strategy): de acá salen los ángulos y el calendario del plan. */
     strategy?: BrandStrategy;
