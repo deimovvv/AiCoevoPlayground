@@ -24,7 +24,7 @@ const TITLES: Record<BlockKey, string> = {
 };
 
 const LINK_KINDS: [WorkLinkKind, string][] = [
-    ["design-system", "Design system"], ["exploracion", "Aplicaciones"], ["piezas", "Piezas"], ["manual", "Manual"], ["referencias", "Referencias"], ["otro", "Otro"],
+    ["exploracion", "Aplicaciones"], ["piezas", "Piezas"], ["manual", "Manual"], ["referencias", "Referencias"], ["otro", "Otro"],
 ];
 
 /** Los links de trabajo de la marca: uno por archivo, no uno por pedido (las piezas nuevas se suman al de «Piezas»). */
@@ -55,7 +55,7 @@ function WorkLinksEditor({ links, setLinks }: { links: WorkLink[]; setLinks: (l:
             <button onClick={() => setLinks([...links, { title: "", kind: "piezas", url: "", client: false }])}
                 className="self-start h-8 px-3 rounded-[4px] border border-edge text-[12px] text-fg hover:border-fg cursor-pointer">+ Sumar link</button>
             <p className="text-[11px] leading-relaxed text-fg-faint">
-                Tres archivos por marca, siempre con estos nombres: «Marca · Design system» (el manual aprobado), «Marca · Aplicaciones» (formatos y pruebas por aprobar) y «Marca · Piezas» (el trabajo real).
+                El Design system va en su campo, arriba. Acá van los otros dos, siempre con estos nombres: «Marca · Aplicaciones» (formatos y pruebas por aprobar) y «Marca · Piezas» (el trabajo real).
                 Cada carrusel o pieza nueva se suma dentro del de «Piezas», no en un archivo nuevo.
                 Claude los encuentra por el MCP. Si el cliente tiene que editar uno en Claude, además hay que compartírselo desde «Share» en Claude.
             </p>
@@ -333,7 +333,8 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
     const [headline, setHeadline] = useState(brand.fonts?.headline || "");
     const [body, setBody] = useState(brand.fonts?.body || "");
     const [dsUrl, setDsUrl] = useState(brand.designSystemUrl || "");
-    const [links, setLinks] = useState<WorkLink[]>(brand.workLinks || []);
+    // El design system tiene su campo propio: un link repetido en Archivos se va al guardar.
+    const [links, setLinks] = useState<WorkLink[]>((brand.workLinks || []).filter((l) => l.kind !== "design-system"));
     const [style, setStyle] = useState(ds.photoStyle || "");
     const [dos, setDos] = useState(lines(ds.visualDos));
     const [donts, setDonts] = useState(lines(ds.visualDonts));

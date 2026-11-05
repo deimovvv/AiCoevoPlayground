@@ -169,7 +169,8 @@ export function MarcaPage({ readOnly = false }: { readOnly?: boolean }) {
     ];
     const pending = todo.filter((t) => !t.done);
     // El servidor ya filtra para el cliente; esto hace que la vista previa muestre lo mismo.
-    const links = (b.workLinks || []).filter((l) => !readOnly || l.client);
+    // El design system tiene su propia fila: no se repite en Archivos, y el cliente no lo ve.
+    const links = (b.workLinks || []).filter((l) => l.kind !== "design-system" && (!readOnly || l.client));
     // Referencias: se piden una vez y son opcionales; no cuentan para «Para completar» ni frenan nada.
     const hasRefs = !!b.workLinks?.some((l) => l.kind === "referencias") || looks.length > 0;
     const btn = "h-8 px-3 inline-flex items-center rounded-[var(--radius-md)] border border-edge text-[12.5px] text-fg bg-[var(--color-surface-1)] hover:border-[var(--color-edge-strong)] hover:bg-[var(--color-surface-2)] cursor-pointer transition-colors disabled:opacity-60";

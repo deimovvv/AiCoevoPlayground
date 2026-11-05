@@ -195,6 +195,10 @@ Regla de `coevo-skills/SISTEMA.md`: **cada cosa tiene un solo hogar; los demás 
 
 Si la web de la marca es nuestra, el design system vive en su repo y «Marca · Design system» es el link a su página. Un manual suelto (ej. «Foundation») se pasa al Design system. Lo que se generó con una skill va a `~/cov/archivos/<marca>/` y a Entregas; entra a «Piezas» sólo si un diseñador tiene que afinarlo.
 
+En Studio, el Design system se carga una sola vez, en su campo: no se repite en Archivos, que queda para Aplicaciones, Piezas y lo demás (2026-11-05).
+
+**El recorrido de una pieza:** se prueba en Aplicaciones (lo que no sirve se borra) → el formato aprobado pasa al Design system → la pieza real se hace en Piezas → lo terminado va a Entregas. Studio guarda los links y una copia de colores y letras, que se actualiza cuando cambia el Design system. «Read-only» en un archivo de Claude quiere decir que esa sesión no tiene permiso de edición: se da desde «Share», persona por persona.
+
 ## 11. Lo que falta, en orden
 
 | # | Qué | Para qué |
