@@ -49,6 +49,16 @@ un equipo entero»*.
 
 *(Endless Studio, Magnific y Krea: sin verificar hoy. Weavy → Figma: biblioteca `figma-weave`.)*
 
+**Corrección 2026-11-06: NORA es competencia directa, no sólo indirecta.** Su video comercial
+(biblioteca `fuentes/morfeo/nora-tu-marketing-en-piloto-automatico.md`) vende el circuito entero hecho
+por ellos, en español: ficha de marca → posts que rindieron 10–15 veces el promedio en el nicho →
+producción con varios modelos → aprobación deslizando en el celular → publicación → WhatsApp y ManyChat
+→ anuncios (aparte) → reporte mensual. US$ 990/mes por 20 publicaciones y US$ 1.500 por 30 (dicho en el
+video). Lo mostrado son maquetas: no se ve la plataforma real ni los bots funcionando. Consecuencia: el
+hueco «servicio hecho por nosotros, en español» no está vacío. Lo que sigue siendo nuestro: calce y
+fidelidad verificados, el design system de cada marca, rubros con oficio (autos, moda, propiedades),
+la memoria abierta al cliente y a su equipo (Studio + MCP) y los sistemas a medida.
+
 **El patrón del rubro:** todos venden **una** de cuatro cosas: el lienzo, la herramienta del rubro, las
 horas o el método. Ninguno junta las cuatro con la memoria de la marca en el medio.
 
