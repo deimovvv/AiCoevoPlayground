@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { Trash2 } from "lucide-react";
 import { useConfirm } from "../lib/useConfirm";
 import { useBrand } from "../lib/BrandContext";
-import { backendUrl, createCampaign, deleteProject, fetchGenerations, fetchToolPreviews, listCampaigns, listDeliveries, listInbox, type Campaign, type DeliverySummary, type Generation, type InboxItem, type ToolPreview } from "../lib/api";
+import { backendUrl, createCampaign, deleteProject, deliverGeneration, fetchGenerations, fetchToolPreviews, listCampaigns, listDeliveries, listInbox, type Campaign, type DeliverySummary, type Generation, type InboxItem, type ToolPreview } from "../lib/api";
 
 /**
  * Producción (openspec/changes/studio-v2 §1): hacer algo nuevo para la marca y ver qué espera
@@ -115,15 +115,26 @@ const ago = (iso: string) => {
 };
 const usd = (n: number) => `US$ ${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-interface Summary { open: Generation[]; monthCost: number; monthCount: number }
+interface Summary { open: Generation[]; ready: Generation[]; monthCost: number; monthCount: number }
 
-/** Corridas abiertas recientes y gasto del mes (se calcula al llegar los datos, no en cada render). */
+/** Una corrida terminada que tiene algo para mostrar y todavía no fue a Entregas. */
+const readyToDeliver = (g: Generation) =>
+    g.status === "completed" && g.type !== "copy" && !g.metadata?.deliveryId
+    && !!(g.outputUrl || g.scenes?.some((s) => s.imageUrl || s.videoUrl) || g.thumbnailUrl);
+
+/** La portada de una corrida para la lista (las de base64 son pesadas: se usa la primera escena con link). */
+const genCover = (g: Generation) =>
+    [g.thumbnailUrl, ...(g.scenes || []).map((s) => s.imageUrl)].find((u) => u && !u.startsWith("data:"));
+
+/** Corridas recientes (abiertas y listas para entregar) y gasto del mes, calculado al llegar los datos. */
 function summarize(list: Generation[]): Summary {
     const since = Date.now() - RECENT_DAYS * 86400000;
+    const recent = list.filter((g) => new Date(g.createdAt).getTime() >= since);
     const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
     const thisMonth = list.filter((g) => new Date(g.createdAt) >= month);
     return {
-        open: list.filter((g) => g.status === "in_progress" && new Date(g.createdAt).getTime() >= since).slice(0, 8),
+        open: recent.filter((g) => g.status === "in_progress").slice(0, 8),
+        ready: recent.filter(readyToDeliver).slice(0, 8),
         monthCost: thisMonth.reduce((s, g) => s + (g.cost?.usd ?? 0), 0),
         monthCount: thisMonth.length,
     };
@@ -151,7 +162,18 @@ export function ProduccionPage() {
         return () => { alive = false; };
     }, [brandId]);
 
-    const { open = [], monthCost = 0, monthCount = 0 } = summary ?? {};
+    const { open = [], ready = [], monthCost = 0, monthCount = 0 } = summary ?? {};
+    const [sending, setSending] = useState<string | null>(null);
+    const [sendError, setSendError] = useState<string | null>(null);
+    const deliver = async (g: Generation) => {
+        setSending(g.id); setSendError(null);
+        try {
+            const r = await deliverGeneration(g.id);
+            setSummary((sm) => sm && { ...sm, ready: sm.ready.filter((x) => x.id !== g.id) });
+            if (brandId) setDeliveries(await listDeliveries(brandId));
+            navigate(`/dashboard/entregas?id=${r.deliveryId}`);
+        } catch (e) { setSendError((e as Error).message); } finally { setSending(null); }
+    };
     const waiting = deliveries.filter((d) => d.status !== "aprobada");
 
     if (!activeBrand) return <p className="p-8 text-[14px] text-fg-muted">Elegí una marca arriba.</p>;
@@ -248,6 +270,34 @@ export function ProduccionPage() {
                 </section>
 
                 <section className="flex flex-col md:min-h-0 md:overflow-y-auto">
+                    {ready.length > 0 && (
+                        <>
+                            <div className="flex items-baseline gap-2.5 pb-2.5 border-b border-edge">
+                                <h2 className="text-[20px] text-fg">Listo para Entregas</h2>
+                                <span className="font-mono text-[11px] text-fg-faint">{ready.length}</span>
+                            </div>
+                            {sendError && <p className="py-2 text-[12px] text-[var(--color-error)]">{sendError}</p>}
+                            {ready.map((g) => {
+                                const cover = genCover(g);
+                                return (
+                                    <div key={g.id} className="flex items-center gap-4 py-3 border-b border-[var(--color-edge-subtle)]">
+                                        <Link to={`/dashboard/generate/${g.toolId}?gen=${g.id}`} className="w-12 h-[60px] shrink-0 rounded-[var(--radius-xs)] bg-[var(--color-surface-2)] overflow-hidden">
+                                            {cover && <img src={backendUrl(cover)} alt="" className="w-full h-full object-cover" />}
+                                        </Link>
+                                        <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+                                            <span className="text-[14px] text-fg truncate">{g.title}</span>
+                                            <span className="text-[12px] text-fg-faint">{TOOL_NAME[g.toolId] ?? g.toolId} · {ago(g.createdAt)}</span>
+                                        </span>
+                                        <button onClick={() => deliver(g)} disabled={sending !== null}
+                                            className="text-[12px] text-fg hover:underline cursor-pointer disabled:opacity-40">
+                                            {sending === g.id ? "Mandando…" : "Mandar a Entregas →"}
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                            <div className="h-8 shrink-0" />
+                        </>
+                    )}
                     <div className="flex flex-wrap items-baseline gap-2.5 pb-2.5 border-b border-edge">
                         <h2 className="text-[20px] text-fg">Sin terminar</h2>
                         <span className="font-mono text-[11px] text-fg-faint">{open.length || ""}</span>

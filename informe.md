@@ -28,6 +28,7 @@ actualizado: 2026-11-09
 
 ## Decisiones
 <!-- AAAA-MM-DD · quién · qué se decidió · (reemplaza: …) — la más nueva arriba -->
+- 2026-11-09 · Gonzalo · Aprobado el change `modulos`. Fase 1 hecha: lo producido va a Entregas desde Producción y las reglas aprendidas entran al prompt de las tools.
 - 2026-11-09 · Gonzalo · La herramienta es como Genera (brief, inputs al costado, resultados); los nodos son la vista del equipo. El tablero de Pinterest es clave, sobre todo para Campaña: se importa pegando el link de un tablero público (comprobado: feed .rss, 25 pines, imágenes en original) y queda en Marca. PDP carga una carpeta entera y genera de a una prenda.
 - 2026-11-09 · Gonzalo · Las pantallas usan el design system de Coevo (coevo-web/docs/design-system.md) y no muestran nombres de herramientas: se ven módulos. Se llaman playbooks: PDP, Campaña, Motion, Casting, Talking, Retail Kit, Material Lab (a confirmar). Cada uno se ve en nodos con fotos. Sin amarillo.
 - 2026-11-09 · Claude (propuesta) · Change `openspec/changes/modulos`: un motor (skill + modulo.json, corre igual desde Studio y desde el chat), todo a Entregas, el rechazo se vuelve regla, pipeline en nodos. Trae el roadmap de Studio en cuatro fases.
@@ -42,15 +43,15 @@ actualizado: 2026-11-09
 - **Tablero de Pinterest, listo en Marca (2026-11-09):** se pega el link de un tablero público; imágenes en buena calidad, sin duplicados, y «Actualizar» trae sólo los pines nuevos. Probado con un tablero real y desplegado en app.coevoagency.com. De paso se borró código muerto en Video Ad Creator (7 imports y una función sin uso): los errores de TypeScript bajaron de 14 a 7, todos viejos.
 - **Lo que está conectado y lo que no (revisado en el código, 2026-11-09):**
   - Marca → Producción: **sí.** Las 17 herramientas con pantalla leen la marca activa.
-  - Producción → Entregas: **casi no.** Sólo 2 de 19 herramientas mandan a Entregas (UGC Creator y Ecommerce Pack). Lo demás se aprueba dentro de la herramienta y ahí queda.
-  - Rechazo → regla de la marca: **a medias.** Está la vista de aprendizaje y el MCP clasifica comentarios, pero el motivo de rechazo no se vuelve regla solo.
+  - Producción → Entregas: **ahora sí** (2026-11-09). Antes ninguna tool mandaba (el «2 de 19» de la primera revisión estaba mal); ahora Producción lista lo terminado y se manda con un botón.
+  - Rechazo → regla de la marca: **sí**, en Entregas (tipo de comentario, candidato a la tercera, «Hacer regla»). Desde 2026-11-09 las reglas también entran al prompt de las tools.
   - Skills → Studio: **por un solo lado.** Por el MCP, una skill lee la marca, sube entregas y anota costos, pero no puede correr un módulo. Las herramientas de Studio y las skills de coevo-skills hacen el mismo trabajo con código distinto: hay **dos motores**.
   - Tamaño: `backend/main.py` tiene 7.017 líneas y 198 rutas; `ToolRunPage.tsx` unas 15.300.
 - **Mapa de mercado (2026-11-09):** video de moda en español ya no es hueco (8 de 12 lo tienen; Curva y Estudio Atlas cobran en pesos). Ninguno de los 12 de moda aprende de los resultados. El más peligroso: Delfi (servicio, cobra por foto aprobada, Falabella/Ripley/Liverpool, app en Tiendanube).
 - Maquetas de Marca y de Producción (Koxis) publicadas; Genera.space estudiado módulo por módulo.
 
 ## Próximo
-- Revisar con Gonzalo el change `openspec/changes/modulos` (nombres, motivos de rechazo, roadmap) y aprobarlo.
+- Fase 2 del change `modulos`: pantalla de tres columnas empezando por PDP (carpeta, una prenda por vez, reglas en su prompt).
 - Que todo módulo termine en Entregas, y que tres rechazos con el mismo motivo propongan una regla en Marca.
 - Revisar el mapa de mercado: el diferencial pasa de «video en español» (ya lo tienen 8 de 12) a «la memoria que aprende». Mirar Delfi de cerca.
 - Ordenar el catálogo de Koxis (52 fotos subidas, catálogo vacío).

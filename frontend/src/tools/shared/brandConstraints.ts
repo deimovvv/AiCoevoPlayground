@@ -81,6 +81,8 @@ interface BrandContextBrand {
     product_presentation?: string;
     motion_rules?: string;
   };
+  /** Lo que la marca corrigió tres veces y el equipo confirmó (Entregas → Aprendizaje). */
+  learnedRules?: Array<{ text: string }>;
 }
 
 export type BrandFieldKey =
@@ -203,7 +205,14 @@ export function buildBrandContext(
     }
   }
 
-  if (lines.length === 0) return "";
-  return `\n\nBRAND CONTEXT (apply throughout):\n${lines.map((l) => `- ${l}`).join("\n")}`;
+  const context = lines.length ? `\n\nBRAND CONTEXT (apply throughout):\n${lines.map((l) => `- ${l}`).join("\n")}` : "";
+  return context + learnedRulesBlock(brand);
+}
+
+/** Las reglas aprendidas valen en todas las tools: son correcciones que la marca ya hizo tres veces. */
+function learnedRulesBlock(brand: BrandContextBrand): string {
+  const rules = (brand.learnedRules || []).map((r) => r.text.trim()).filter(Boolean);
+  if (rules.length === 0) return "";
+  return `\n\nBRAND RULES LEARNED FROM PAST CORRECTIONS (must follow):\n${rules.map((r) => `- ${r}`).join("\n")}`;
 }
 

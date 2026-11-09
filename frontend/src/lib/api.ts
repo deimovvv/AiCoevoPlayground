@@ -4044,6 +4044,12 @@ export async function toggleDeliveryComment(id: string, commentId: string): Prom
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}/resolve`, { method: "POST" }), "No se pudo actualizar el comentario");
 }
 
+/** Una corrida terminada de una tool → entrega interna para revisar (changes/modulos 1.1).
+ *  Mandarla dos veces devuelve la misma entrega (`already`). */
+export async function deliverGeneration(genId: string): Promise<{ deliveryId: string; already: boolean }> {
+    return editorJson(await fetch(`${API_BASE}/api/generations/${encodeURIComponent(genId)}/deliver`, { method: "POST" }),
+        "No se pudo mandar a Entregas");
+}
 export async function deleteDelivery(id: string): Promise<void> {
     await editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}`, { method: "DELETE" }), "No se pudo borrar la entrega");
 }

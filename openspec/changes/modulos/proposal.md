@@ -1,15 +1,14 @@
 # modulos — un motor, módulos que aprenden
 
-**Estado:** propuesto (2026-11-09), para revisar con Gonzalo. No se construye nada hasta aprobarlo.
-Entra al tablero cuando se libere un lugar (regla: hasta 3 activos).
+**Estado:** aprobado por Gonzalo (2026-11-09). Fase 1 en curso.
 Maqueta: https://claude.ai/artifact/TmwZbNqejZNEVMqCxi3pb6 · Mercado: `docs/negocio/mapa-de-mercado-coevo-studio.md`.
 
 ## Por qué
 
 1. **Hay dos motores.** Las 19 herramientas de Studio (`frontend/src/tools/`, `backend/tools/`) y las skills
    de `coevo-skills` hacen el mismo trabajo con código distinto. Lo que se mejora en uno no llega al otro.
-2. **Lo producido no llega a Entregas.** Sólo 2 de 19 herramientas mandan a Entregas (UGC Creator y
-   Ecommerce Pack). El resto se aprueba adentro de la herramienta y ahí queda (revisado 2026-11-09).
+2. **Lo producido no llega a Entregas.** Ninguna herramienta manda a Entregas: lo que sale queda en la
+   corrida (revisado 2026-11-09; un primer conteo de «2 de 19» estaba mal).
 3. **El rechazo no enseña.** Se anota, pero no se vuelve regla de la marca.
 4. **El mercado confirma que eso es lo que vale.** Video de moda en español ya lo tienen 8 de 12
    competidores; ninguno aprende de los rechazos ni de los resultados. El hueco es la memoria que aprende,

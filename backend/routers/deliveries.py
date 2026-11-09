@@ -901,3 +901,120 @@ async def brand_learning(brand_id: str, request: Request, s: AsyncSession = Depe
         "angles": sorted(angles.values(), key=lambda a: -a["pieces"]),
         "metrics": None,   # alcance, guardados, compartidos a 7 días: con Postiz (brand-integrations 4.4)
     }
+
+
+# ── De una corrida a Entregas (openspec/changes/modulos 1.1) ───────────────────────────────
+# Las tools guardan cada corrida como generación. Mandarla a Entregas copia sus piezas a la entrega
+# (para que no dependan de un link de Fal que vence) y anota en la generación a qué entrega fue:
+# mandar dos veces la misma corrida devuelve la misma entrega.
+
+MAX_PIECES = 20
+
+
+def _generation_media(gen: dict) -> List[str]:
+    """Qué se entrega de una corrida: el video final si hay; si no, cada escena (su video o su imagen)."""
+    if gen.get("outputUrl"):
+        return [gen["outputUrl"]]
+    media = [s.get("videoUrl") or s.get("imageUrl") for s in gen.get("scenes") or []]
+    media = [m for m in media if m]
+    if not media and gen.get("thumbnailUrl"):
+        media = [gen["thumbnailUrl"]]
+    return media[:MAX_PIECES]
+
+
+def _local_static(request: Request, url: str) -> Optional[Path]:
+    """`/static/<carpeta>/…` → el archivo en disco, buscando entre los StaticFiles montados en la app."""
+    from starlette.routing import Mount
+    for route in request.app.routes:
+        if isinstance(route, Mount) and url.startswith(route.path + "/") and hasattr(route.app, "directory"):
+            base = Path(route.app.directory).resolve()
+            path = (base / url[len(route.path) + 1:].split("?", 1)[0]).resolve()
+            return path if base in path.parents and path.is_file() else None
+    return None
+
+
+async def _fetch_piece(request: Request, url: str) -> tuple:
+    """Bytes y extensión de una pieza: archivo local, data: URI o link remoto (Fal)."""
+    import base64
+    import httpx
+    if url.startswith("data:"):
+        head, _, b64 = url.partition(",")
+        ext = "." + (re.search(r"data:\w+/(\w+)", head) or [None, "png"])[1].replace("jpeg", "jpg")
+        return base64.b64decode(b64), ext
+    if url.startswith("/static/"):
+        path = _local_static(request, url)
+        if not path:
+            raise HTTPException(status_code=404, detail=f"No encuentro la pieza {url}")
+        return path.read_bytes(), path.suffix.lower()
+    async with httpx.AsyncClient(timeout=120, follow_redirects=True) as c:
+        r = await c.get(url)
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail="Una pieza ya no está disponible (los links de Fal vencen): abrí la corrida y regenerala.")
+    ext = Path(url.split("?", 1)[0]).suffix.lower()
+    if ext not in IMAGE_EXT | VIDEO_EXT:
+        ctype = r.headers.get("content-type", "")
+        ext = ".mp4" if "video" in ctype else ".jpg" if "jpeg" in ctype else ".webp" if "webp" in ctype else ".png"
+    return r.content, ext
+
+
+def _campaign_if_exists(campaign_id: Optional[str], brand_id: str) -> Optional[str]:
+    """El proyecto de la corrida, si sigue existiendo y es de la marca; si no, la entrega queda suelta."""
+    try:
+        return _check_campaign(campaign_id, brand_id)
+    except HTTPException:
+        return None
+
+
+@router.post("/api/generations/{gen_id}/deliver")
+async def deliver_generation(gen_id: str, request: Request, s: AsyncSession = Depends(get_session)):
+    """Una corrida terminada → entrega interna para revisar, con sus piezas copiadas."""
+    import asyncio
+    from services import generations as gens_service
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    gen = next((g for g in gens_service.load_generations() if g.get("id") == gen_id), None)
+    if not gen:
+        raise HTTPException(status_code=404, detail="No existe esa corrida")
+    if not gen.get("brandId"):
+        raise HTTPException(status_code=400, detail="Esa corrida no es de ninguna marca (Lab suelto): no va a Entregas.")
+    done = (gen.get("metadata") or {}).get("deliveryId")
+    if done and await s.get(Delivery, done):
+        return {"deliveryId": done, "already": True}
+    _require_brand(gen["brandId"])
+    media = _generation_media(gen)
+    if not media:
+        raise HTTPException(status_code=400, detail="Esa corrida no tiene piezas para entregar.")
+
+    pieces = [await _fetch_piece(request, u) for u in media]
+    d = Delivery(brand_id=gen["brandId"], title=(gen.get("title") or "Pieza")[:200],
+                 kind="video" if any(ext in VIDEO_EXT for _, ext in pieces) else "imagenes",
+                 status="en_revision", round=1, created_by=_who(request), items=[],
+                 campaign_id=_campaign_if_exists(gen.get("campaignId"), gen["brandId"]),
+                 note=f"Salió de {gen.get('toolId')} · corrida {gen_id}")
+    d.id = f"dl_{uuid.uuid4().hex[:12]}"
+    folder = FILES_DIR / d.id / "r1"
+    folder.mkdir(parents=True, exist_ok=True)
+    try:
+        labels = [(sc.get("title") or "") for sc in gen.get("scenes") or []] if not gen.get("outputUrl") else []
+        items = []
+        for i, (data, ext) in enumerate(pieces):
+            if ext not in IMAGE_EXT | VIDEO_EXT:
+                raise HTTPException(status_code=400, detail=f"Tipo de pieza no admitido ({ext})")
+            out = folder / f"{uuid.uuid4().hex[:6]}_{i + 1:02d}{ext}"
+            out.write_bytes(data)
+            if ext in VIDEO_EXT:
+                await asyncio.to_thread(_make_preview, out)
+            items.append({"id": uuid.uuid4().hex[:8], "url": f"/static/deliveries/{out.relative_to(FILES_DIR).as_posix()}",
+                          "kind": "video" if ext in VIDEO_EXT else "image",
+                          "label": (labels[i] if i < len(labels) and labels[i] else f"{i + 1:02d}")[:80]})
+        d.items = items
+        s.add(d)
+        await s.commit()
+    except Exception:
+        shutil.rmtree(FILES_DIR / d.id, ignore_errors=True)
+        raise
+    with gens_service.mutate() as all_gens:
+        for g in all_gens:
+            if g.get("id") == gen_id:
+                g["metadata"] = {**(g.get("metadata") or {}), "deliveryId": d.id}
+    return {"deliveryId": d.id, "already": False}
