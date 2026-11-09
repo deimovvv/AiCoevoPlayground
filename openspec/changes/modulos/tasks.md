@@ -6,7 +6,7 @@
 - [ ] 0.3 Visto bueno a la maqueta con el design system de Coevo
 
 ## 1 · Cerrar el circuito
-- [ ] 1.0 Tablero de Pinterest en Marca › Cómo se ve: pegar el link de un tablero público → `GET /api/brands/{id}/pinterest?url=` lee el `.rss`, baja las imágenes en original y las guarda como referencias de la marca (router propio, todo HTTP por `lib/api.ts`)
+- [x] 1.0 Tablero de Pinterest en Marca (2026-11-09). Ya existía (`backend/routers/importar.py`, studio-v2 M.6); se sumó: imágenes en original achicadas a 2048 px, descarga en paralelo, sin duplicados (cada imagen guarda su `pin`), «Actualizar» por tablero que trae sólo los pines nuevos, destino pose, y la marca se relee después de bajar (no pisa cambios hechos mientras tanto). Probado con un tablero público real.
 - [ ] 1.0b Pedir la app de Pinterest (acceso de prueba, lectura) para conectar cuentas; no bloquea 1.0
 - [ ] 1.1 Todas las herramientas visibles mandan lo aprobado a Entregas (hoy: 2 de 19)
 - [ ] 1.2 Rechazo con motivo fijo, guardado en la marca

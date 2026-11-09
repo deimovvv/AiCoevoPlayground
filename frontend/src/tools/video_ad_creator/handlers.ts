@@ -9,16 +9,12 @@ import type { StepHandler } from "../types";
 import {
   generateToolPrompt, createImageEdit, createTextToImage, pollImageGen,
   generateTTSAndUpload, pollKlingVideo, createKlingVideo,
-  createVeoVideo, pollVeoVideo,
-  createSeedanceReferenceToVideo, pollSeedanceVideo,
-  createFalLipSync, pollFalLipSync,
   createTalkingVideo, pollTalkingVideo,
   createMusic, pollMusic,
   concatVideos, overlayAudio,
 } from "../../lib/api";
 import { buildBrandConstraints, buildBrandContext } from "../shared/brandConstraints";
 
-import { API_BASE } from "../../lib/config";
 // ── Visual styles available ─────────────────────────────
 
 // `prompt` = descripción rica del estilo que se inyecta en la generación (no solo el label),
@@ -636,31 +632,3 @@ export const handleRender: StepHandler = async (ctx) => {
     },
   };
 };
-
-// ── Helper: Kling with start + end frame ────────────────
-
-async function createKlingFrameToFrame(
-  startImageUrl: string,
-  endImageUrl: string,
-  prompt: string,
-  duration: string = "5",
-  aspectRatio: string = "9:16",
-): Promise<string> {
-    const res = await fetch(`${API_BASE}/api/kling/frame-to-frame`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      start_image_url: startImageUrl,
-      end_image_url: endImageUrl,
-      prompt,
-      duration,
-      aspect_ratio: aspectRatio,
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Unknown error" }));
-    throw new Error(err.detail || `Kling frame-to-frame failed (${res.status})`);
-  }
-  const data = await res.json();
-  return data.request_id;
-}

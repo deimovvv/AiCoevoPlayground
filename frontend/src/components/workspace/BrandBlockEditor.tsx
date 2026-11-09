@@ -2,12 +2,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MiniMarkdown } from "./MiniMarkdown";
 import { useConfirm } from "../../lib/useConfirm";
 import { Lightbox } from "../Lightbox";
-import { Check, ExternalLink, Loader2, Trash2, Upload, X } from "lucide-react";
+import { Check, ExternalLink, Loader2, RefreshCw, Trash2, Upload, X } from "lucide-react";
 import {
     backendUrl, updateBrand, uploadAvatar, deleteAvatar, uploadProduct, deleteProduct, uploadClothing, deleteClothing,
     uploadBackground, deleteBackground, uploadMoodboard, deleteMoodboard, uploadLookAndFeel, deleteLookAndFeel,
     uploadBrandLogo, deleteBrandLogo, uploadPose, deletePose, uploadShotRef, deleteShotRef, deleteManualPage, deleteCarouselRef, uploadManualPage, uploadCarouselRef, type Brand,
-    listCampaigns, uploadCampaignInputs, deleteCampaignInput, importPinterest, type Campaign, type CampaignInput, type WorkLink, type WorkLinkKind,
+    listCampaigns, uploadCampaignInputs, deleteCampaignInput, importPinterest, type PinterestDest, type Campaign, type CampaignInput, type WorkLink, type WorkLinkKind,
 } from "../../lib/api";
 
 /**
@@ -251,9 +251,14 @@ function Grid({ items, onDelete }: { items: GridItem[]; onDelete: (id: string) =
     );
 }
 
-/** Pegar el link de un tablero de Pinterest → moodboard (o luz, o locación) con nombre. */
+/** Qué pasó al traer un tablero, en una línea. */
+const pinterestResult = (r: { board: string; added: number; skipped: number; failed: number }) =>
+    [r.added ? `${r.added} imágenes nuevas en «${r.board}»` : `«${r.board}» ya estaba al día`,
+     r.skipped ? `${r.skipped} ya estaban` : "", r.failed ? `${r.failed} no se pudieron bajar` : ""].filter(Boolean).join(" · ") + ".";
+
+/** Pegar el link de un tablero de Pinterest → moodboard (o luz, locación o pose) con nombre. */
 function PinterestImport({ brandId, dest, campaignId, onDone }: {
-    brandId: string; dest: "moodboard" | "luz" | "locacion"; campaignId?: string | null; onDone: () => Promise<void>;
+    brandId: string; dest: PinterestDest; campaignId?: string | null; onDone: () => Promise<void>;
 }) {
     const [url, setUrl] = useState("");
     const [board, setBoard] = useState("");
@@ -263,7 +268,7 @@ function PinterestImport({ brandId, dest, campaignId, onDone }: {
         setBusy(true); setMsg(null);
         try {
             const r = await importPinterest(brandId, { url, board: board.trim() || undefined, dest, campaignId });
-            setMsg({ ok: true, text: `Listo: ${r.count} imágenes en «${r.board}».` });
+            setMsg({ ok: true, text: pinterestResult(r) });
             setUrl(""); setBoard("");
             await onDone();
         } catch (e) { setMsg({ ok: false, text: (e as Error).message }); } finally { setBusy(false); }
@@ -280,16 +285,27 @@ function PinterestImport({ brandId, dest, campaignId, onDone }: {
             </div>
             {url.trim() && <input value={board} onChange={(e) => setBoard(e.target.value)} disabled={busy} placeholder="Cómo llamarlo en Studio (opcional)" className={input} />}
             <p className={`text-[11px] ${msg ? (msg.ok ? "text-fg" : "text-[var(--color-error)]") : "text-fg-faint"}`}>
-                {msg?.text ?? "Copia a Studio hasta 25 imágenes, las últimas que guardaste. El tablero tiene que ser público."}
+                {msg?.text ?? "Copia a Studio las últimas 25 imágenes del tablero, en buena calidad. Tiene que ser público. Si lo traés de nuevo, suma sólo las nuevas."}
             </p>
         </div>
     );
 }
 
-/** Imágenes agrupadas por tablero: primero los tableros con nombre, después las sueltas. */
-function Boards({ kind, items, onDelete }: {
+/** Imágenes agrupadas por tablero: primero los tableros con nombre, después las sueltas.
+ *  Un tablero que vino de Pinterest se puede actualizar: trae sólo los pines nuevos. */
+function Boards({ kind, items, onDelete, onRefresh }: {
     kind: string; items: Array<{ id: string; imageUrl: string; board?: string; source?: string }>; onDelete: (id: string) => Promise<void>;
+    onRefresh?: (board: string, source: string) => Promise<string>;
 }) {
+    const [busy, setBusy] = useState<string | null>(null);
+    const [note, setNote] = useState<{ board: string; text: string } | null>(null);
+    const refresh = async (board: string, source: string) => {
+        if (!onRefresh) return;
+        setBusy(board); setNote(null);
+        try { setNote({ board, text: await onRefresh(board, source) }); }
+        catch (e) { setNote({ board, text: (e as Error).message }); }
+        finally { setBusy(null); }
+    };
     const groups = new Map<string, typeof items>();
     for (const it of items) groups.set(it.board ?? "", [...(groups.get(it.board ?? "") ?? []), it]);
     const keys = [...groups.keys()].sort((a, b) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)));
@@ -304,7 +320,14 @@ function Boards({ kind, items, onDelete }: {
                             {kind}{k ? <> · <span className="font-medium">{k}</span></> : keys.length > 1 ? " · sueltas" : ""}
                             <span className="text-fg-faint">{xs.length}</span>
                             {src && <a href={src} target="_blank" rel="noreferrer" title="Ver el tablero original" className="text-fg-faint hover:text-fg"><ExternalLink size={11} /></a>}
+                            {src && k && onRefresh && (
+                                <button type="button" onClick={() => refresh(k, src)} disabled={busy !== null} title="Traer los pines nuevos del tablero"
+                                    className="ml-auto flex items-center gap-1 text-[11px] text-fg-faint hover:text-fg cursor-pointer disabled:opacity-40">
+                                    {busy === k ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Actualizar
+                                </button>
+                            )}
                         </p>
+                        {note?.board === k && <p className="text-[11px] text-fg-faint">{note.text}</p>}
                         <Grid items={xs.map((x) => ({ id: x.id, url: x.imageUrl }))} onDelete={onDelete} />
                     </div>
                 );
@@ -356,6 +379,12 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
         try { await updateBrand(id, payload); await onChanged(); onClose(); } catch (e) { setErr((e as Error).message); } finally { setSaving(false); }
     };
     const del = (fn: (b: string, i: string) => Promise<unknown>) => async (itemId: string) => { await fn(id, itemId); await onChanged(); };
+    /** Vuelve a leer un tablero de Pinterest ya traído: suma sólo los pines nuevos. */
+    const refreshBoard = (dest: PinterestDest) => async (board: string, source: string) => {
+        const r = await importPinterest(id, { url: source, board, dest });
+        if (r.added) await onChanged();
+        return pinterestResult(r);
+    };
 
     const textBlock = block === "quien" || block === "identidad" || block === "foto" || block === "archivos";
     const onSave = () => {
@@ -402,7 +431,7 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                                 <Section title="Subir imágenes">
                                     <Drop dests={dests} brandId={id} onDone={async () => { await onChanged(); await reloadCampaigns(); }} dest={matDest} onDest={setMatDest} campaignId={camp?.id ?? null} />
                                 </Section>
-                                {(matDest === "moodboard" || matDest === "luz" || matDest === "fondo") && (
+                                {(matDest === "moodboard" || matDest === "luz" || matDest === "fondo" || matDest === "pose") && (
                                     <Section title={`O traer un tablero de Pinterest como ${DEST_LABEL[matDest].toLowerCase()}`}>
                                         <PinterestImport brandId={id} dest={matDest === "fondo" ? "locacion" : matDest} campaignId={camp?.id ?? null}
                                             onDone={async () => { await onChanged(); await reloadCampaigns(); }} />
@@ -506,10 +535,10 @@ export function BrandBlockEditor({ brand, block, onClose, onChanged }: {
                             <Section title="Imágenes de referencia">
                                 {!(brand.moodboards?.length || brand.lookAndFeel?.length || brand.backgrounds?.length || brand.poses?.length || brand.shotRefs?.length)
                                     && <p className="text-[13px] text-fg-faint">Todavía no hay referencias.</p>}
-                                <Boards kind="Moodboard" items={brand.moodboards || []} onDelete={del(deleteMoodboard)} />
-                                <Boards kind="Luz" items={brand.lookAndFeel || []} onDelete={del(deleteLookAndFeel)} />
-                                <Boards kind="Locación" items={brand.backgrounds || []} onDelete={del(deleteBackground)} />
-                                <Boards kind="Pose" items={(brand.poses || []).filter((x) => x.imageUrl).map((x) => ({ id: x.id, imageUrl: x.imageUrl! }))} onDelete={del(deletePose)} />
+                                <Boards kind="Moodboard" items={brand.moodboards || []} onDelete={del(deleteMoodboard)} onRefresh={refreshBoard("moodboard")} />
+                                <Boards kind="Luz" items={brand.lookAndFeel || []} onDelete={del(deleteLookAndFeel)} onRefresh={refreshBoard("luz")} />
+                                <Boards kind="Locación" items={brand.backgrounds || []} onDelete={del(deleteBackground)} onRefresh={refreshBoard("locacion")} />
+                                <Boards kind="Pose" items={(brand.poses || []).filter((x) => x.imageUrl).map((x) => ({ id: x.id, imageUrl: x.imageUrl!, board: x.board, source: x.source }))} onDelete={del(deletePose)} onRefresh={refreshBoard("pose")} />
                                 <Boards kind="Plano" items={(brand.shotRefs || []).filter((x) => x.imageUrl).map((x) => ({ id: x.id, imageUrl: x.imageUrl! }))} onDelete={del(deleteShotRef)} />
                                 <Boards kind="Carrusel" items={brand.carouselRefs || []} onDelete={del(deleteCarouselRef)} />
                             </Section>

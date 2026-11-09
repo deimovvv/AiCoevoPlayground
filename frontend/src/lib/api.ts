@@ -1416,6 +1416,8 @@ export interface PoseItem {
     name: string;
     filename: string;
     imageUrl: string;
+    board?: string;   // si vino de un tablero de Pinterest
+    source?: string;
 }
 
 export async function uploadPose(brandId: string, name: string, imageFile: File): Promise<PoseItem> {
@@ -4121,8 +4123,11 @@ export async function saveReport(brandId: string, month: string, body: { reading
 
 // ── Importar referencias (backend/routers/importar.py · studio-v2 M.6) ─────────
 
-/** Un tablero de Pinterest → moodboard (o luz, o locación) con nombre, en la marca o en un proyecto. */
-export async function importPinterest(brandId: string, body: { url: string; board?: string; dest: "moodboard" | "luz" | "locacion"; campaignId?: string | null }): Promise<{ board: string; count: number; of: number }> {
+export type PinterestDest = "moodboard" | "luz" | "locacion" | "pose";
+
+/** Un tablero de Pinterest → moodboard (o luz, locación o pose) con nombre, en la marca o en un proyecto.
+ *  Volver a traer el mismo tablero suma sólo los pines nuevos. */
+export async function importPinterest(brandId: string, body: { url: string; board?: string; dest: PinterestDest; campaignId?: string | null }): Promise<{ board: string; added: number; skipped: number; failed: number }> {
     return editorJson(await fetch(`${API_BASE}/api/brands/${encodeURIComponent(brandId)}/import/pinterest`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     }), "No se pudo traer el tablero");

@@ -39,6 +39,7 @@ actualizado: 2026-11-09
 - 2026-11-09 · Gonzalo · La Bandeja pide lo que falta en vez de hacer clasificar cada imagen a mano. Marca se lee entera y se edita en el lugar: https://claude.ai/artifact/4EeBQpPVJcCdS9M862ZvKS
 
 ## Esta semana
+- **Tablero de Pinterest, listo en Marca (2026-11-09):** se pega el link de un tablero público; imágenes en buena calidad, sin duplicados, y «Actualizar» trae sólo los pines nuevos. Probado con un tablero real. De paso se borró código muerto en Video Ad Creator (7 imports y una función sin uso): los errores de TypeScript bajaron de 14 a 7, todos viejos.
 - **Lo que está conectado y lo que no (revisado en el código, 2026-11-09):**
   - Marca → Producción: **sí.** Las 17 herramientas con pantalla leen la marca activa.
   - Producción → Entregas: **casi no.** Sólo 2 de 19 herramientas mandan a Entregas (UGC Creator y Ecommerce Pack). Lo demás se aprueba dentro de la herramienta y ahí queda.
