@@ -39,17 +39,29 @@ Maqueta: https://claude.ai/artifact/TmwZbNqejZNEVMqCxi3pb6 · Mercado: `docs/neg
 - **Los nombres de las herramientas no se ven.** El equipo y el cliente ven módulos; «Ecommerce Pack» o
   «Fashion Reel» quedan como detalle interno.
 
-### Los módulos (nombres a confirmar con Gonzalo)
+### Los playbooks (así se llaman en pantalla; nombres a confirmar)
 
 | Módulo | Qué hace | Skill | Herramientas que junta | Estado |
 |---|---|---|---|---|
-| **Vitrina** | Fichas para la tienda: prenda real, puesta, encuadres con nombre | `fotos-de-tienda` | Ecommerce Pack, Ecommerce Batch, Product Sheet | hay |
-| **Capítulo** | La pieza editorial del mes: una escena, una luz, varias tomas | `persona-en-escena` | Fashion Editorial, Static Ad | hay |
-| **Pasarela** | La foto aprobada se mueve: reel vertical | `editar-reel` | Fashion Reel, Product Clip, Video Ad Creator | hay |
+| **PDP** | Fichas para la tienda: prenda real, puesta, encuadres con nombre | `fotos-de-tienda` | Ecommerce Pack, Ecommerce Batch, Product Sheet | hay |
+| **Lookbook** | La pieza editorial del mes: una escena, una luz, varias tomas | `persona-en-escena` | Fashion Editorial, Static Ad | hay |
+| **Motion** | La foto aprobada se mueve: reel vertical | `editar-reel` | Fashion Reel, Product Clip, Video Ad Creator | hay |
 | **Casting** | Caras fijas de la marca, en cuatro vistas | `doble-digital` | Avatar Sheet | hay |
-| **Portavoz** | Una cara de la marca que habla, con voz real y permiso | `contenido-de-marca` | UGC Creator | hay |
-| **Kit** | Piezas para locales y franquicias, en código | `carrusel` | Carousel Creator, Static Ad | hay |
-| **Muestrario** | Cambiar color o tela por partes de la prenda | — | — | **falta** |
+| **Talking** | Una cara de la marca que habla, con voz real y permiso | `contenido-de-marca` | UGC Creator | hay |
+| **Retail Kit** | Piezas para locales y franquicias, en código | `carrusel` | Carousel Creator, Static Ad | hay |
+| **Material Lab** | Cambiar color o tela por partes de la prenda | — | — | **falta** |
+
+### Reglas de oficio de cada pipeline
+
+Detalle en la biblioteca: `ideas/prenda-fiel-en-imagen-generada.md` y `ideas/pipeline-en-nodos-con-fotos.md`.
+- Cada pipeline se dibuja en nodos con seis tipos fijos (entrada · IA · herramienta · chequeo · persona ·
+  salida) y una foto real por paso, desde los datos del `modulo.json`.
+- Sin fotos de la prenda no se genera; si no se pudieron leer, frena con error (nunca en silencio).
+- La prenda entra primero y sin nombre comercial; varias fotos, como imágenes.
+- La visión hace preguntas puntuales y aconseja; aprueba una persona. Si la prenda no coincide, se corrige
+  sólo la prenda; si sigue mal, la toma sale marcada.
+- Una persona elige antes del paso caro (prenda fiel, animar). Se anima desde un solo cuadro.
+- La hoja de casting no lleva prendas de la marca y las manos van vacías.
 
 ## Qué NO cambia
 

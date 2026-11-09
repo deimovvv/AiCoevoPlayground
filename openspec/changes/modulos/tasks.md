@@ -1,7 +1,7 @@
 # Tareas — modulos
 
 ## 0 · Acordar (con Gonzalo)
-- [ ] 0.1 Nombres de los módulos (Vitrina, Capítulo, Pasarela, Casting, Portavoz, Kit, Muestrario)
+- [ ] 0.1 Nombres: «playbook» para el concepto; PDP, Lookbook, Motion, Casting, Talking, Retail Kit, Material Lab
 - [ ] 0.2 Lista fija de motivos de rechazo
 - [ ] 0.3 Visto bueno a la maqueta con el design system de Coevo
 
