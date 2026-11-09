@@ -11,6 +11,7 @@ carpeta a `archive/AAAA-MM-DD-<change>/`. Actualizar esta tabla al cambiar un es
 | [catalog-poses-quality](catalog-poses-quality/) | **activo** | Morph |
 | [fashion-reel-from-photo](fashion-reel-from-photo/) | esperando prueba paga | 2.1 probar con foto real (con Gonzalo) → archivar |
 | [fashion-reel-format-recipes](fashion-reel-format-recipes/) | esperando prueba paga | A/B de recetas (~US$1,81, con Gonzalo) → archivar |
+| [modulos](modulos/) | **propuesto — para revisar** | un motor (skill + `modulo.json`), todo a Entregas, el rechazo se vuelve regla, tres columnas. Roadmap de Studio adentro |
 | [studio-v2](studio-v2/) | **propuesto — para revisar** | secciones, navegación arriba, roles equipo/cliente, plantillas, Claude escribe en Studio. P.2–P.4 hechos (MCP + Entregas); siguiente: P.5 recorrido con Carrusel V1 |
 | [brand-integrations](brand-integrations/) | **activo** — interfaz hecha | estados, Plan (tablero, semana, mes, hora y redes, Distribuir, Confirmar), notas de voz, Aprendizaje y reglas: hechos 2026-10-31. Falta: Postiz (§5) y las skills (5.4) |
 | [brand-strategy](brand-strategy/) | desplegado 2026-10-31 | editar en Marca y que `carrusel` elija el ángulo → archivar |

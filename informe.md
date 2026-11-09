@@ -28,6 +28,8 @@ actualizado: 2026-11-09
 
 ## Decisiones
 <!-- AAAA-MM-DD · quién · qué se decidió · (reemplaza: …) — la más nueva arriba -->
+- 2026-11-09 · Gonzalo · Las pantallas usan el design system de Coevo (coevo-web/docs/design-system.md) y no muestran nombres de herramientas: se ven módulos. Nombres propuestos: Vitrina, Capítulo, Pasarela, Casting, Portavoz, Kit, Muestrario (a confirmar).
+- 2026-11-09 · Claude (propuesta) · Change `openspec/changes/modulos`: un motor (skill + modulo.json, corre igual desde Studio y desde el chat), todo a Entregas, el rechazo se vuelve regla, pipeline en nodos. Trae el roadmap de Studio en cuatro fases.
 - 2026-11-09 · Gonzalo · Producción se ordena en módulos de tres columnas (brief con lo de Marca · lienzo · estilos de la marca), tomando la estructura de Genera.space, no su marca. Maqueta: https://claude.ai/artifact/TmwZbNqejZNEVMqCxi3pb6
 - 2026-11-09 · Gonzalo · Los módulos no se construyen de cero: juntan las 19 herramientas que Studio ya tiene (15 escondidas). Lo único que falta es Colores y materiales.
 - 2026-11-09 · Gonzalo · Un motor, varias puertas: Coevo Studio es la central; un estudio de moda con nombre propio sería otra puerta al mismo motor, sólo cuando haya marcas pagando por usarlo solas. Morph necesita otro nombre (Morph Studio existe).
@@ -46,7 +48,7 @@ actualizado: 2026-11-09
 - Maquetas de Marca y de Producción (Koxis) publicadas; Genera.space estudiado módulo por módulo.
 
 ## Próximo
-- **Un solo motor:** que un módulo sea una skill con contrato (entra marca + brief, sale tomas a Entregas) y que Studio y el chat la llamen igual. Escribirlo como change en openspec antes de tocar código.
+- Revisar con Gonzalo el change `openspec/changes/modulos` (nombres, motivos de rechazo, roadmap) y aprobarlo.
 - Que todo módulo termine en Entregas, y que tres rechazos con el mismo motivo propongan una regla en Marca.
 - Revisar el mapa de mercado: el diferencial pasa de «video en español» (ya lo tienen 8 de 12) a «la memoria que aprende». Mirar Delfi de cerca.
 - Ordenar el catálogo de Koxis (52 fotos subidas, catálogo vacío).
