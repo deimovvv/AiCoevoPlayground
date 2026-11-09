@@ -12,7 +12,7 @@ actualizado: 2026-11-09
 - Foundation System | a medias | docs/negocio/que-es-coevo-studio.md | 2026-11-09 | qué es Studio; falta el porqué escrito como foundation
 - Brand Audit | a medias | docs/negocio/auditoria-coevo-studio.md | 2026-11-09 | hecha desde adentro: vale como hipótesis
 - Industry Study | falta |  |  | 
-- Market System | a medias | docs/negocio/market-positioning.md | 2026-09-02 | se está rehaciendo: docs/negocio/mapa-de-mercado-coevo-studio.md
+- Market System | a medias | docs/negocio/mapa-de-mercado-coevo-studio.md | 2026-11-09 | 27 jugadores verificados; falta que Gonzalo lo apruebe
 - Audience System | falta |  |  | 
 - Brand System | falta |  |  | 
 - Voice System | falta |  |  | 
@@ -42,12 +42,13 @@ actualizado: 2026-11-09
   - Rechazo → regla de la marca: **a medias.** Está la vista de aprendizaje y el MCP clasifica comentarios, pero el motivo de rechazo no se vuelve regla solo.
   - Skills → Studio: **por un solo lado.** Por el MCP, una skill lee la marca, sube entregas y anota costos, pero no puede correr un módulo. Las herramientas de Studio y las skills de coevo-skills hacen el mismo trabajo con código distinto: hay **dos motores**.
   - Tamaño: `backend/main.py` tiene 7.017 líneas y 198 rutas; `ToolRunPage.tsx` unas 15.300.
+- **Mapa de mercado (2026-11-09):** video de moda en español ya no es hueco (8 de 12 lo tienen; Curva y Estudio Atlas cobran en pesos). Ninguno de los 12 de moda aprende de los resultados. El más peligroso: Delfi (servicio, cobra por foto aprobada, Falabella/Ripley/Liverpool, app en Tiendanube).
 - Maquetas de Marca y de Producción (Koxis) publicadas; Genera.space estudiado módulo por módulo.
 
 ## Próximo
 - **Un solo motor:** que un módulo sea una skill con contrato (entra marca + brief, sale tomas a Entregas) y que Studio y el chat la llamen igual. Escribirlo como change en openspec antes de tocar código.
 - Que todo módulo termine en Entregas, y que tres rechazos con el mismo motivo propongan una regla en Marca.
-- Mapa de mercado de Studio (en curso): docs/negocio/mapa-de-mercado-coevo-studio.md.
+- Revisar el mapa de mercado: el diferencial pasa de «video en español» (ya lo tienen 8 de 12) a «la memoria que aprende». Mirar Delfi de cerca.
 - Ordenar el catálogo de Koxis (52 fotos subidas, catálogo vacío).
 
 ## Historial
