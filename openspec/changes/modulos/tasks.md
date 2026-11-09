@@ -1,11 +1,13 @@
 # Tareas — modulos
 
 ## 0 · Acordar (con Gonzalo)
-- [ ] 0.1 Nombres: «playbook» para el concepto; PDP, Lookbook, Motion, Casting, Talking, Retail Kit, Material Lab
+- [ ] 0.1 Nombres: «playbook» para el concepto; PDP, Campaña, Motion, Casting, Talking, Retail Kit, Material Lab
 - [ ] 0.2 Lista fija de motivos de rechazo
 - [ ] 0.3 Visto bueno a la maqueta con el design system de Coevo
 
 ## 1 · Cerrar el circuito
+- [ ] 1.0 Tablero de Pinterest en Marca › Cómo se ve: pegar el link de un tablero público → `GET /api/brands/{id}/pinterest?url=` lee el `.rss`, baja las imágenes en original y las guarda como referencias de la marca (router propio, todo HTTP por `lib/api.ts`)
+- [ ] 1.0b Pedir la app de Pinterest (acceso de prueba, lectura) para conectar cuentas; no bloquea 1.0
 - [ ] 1.1 Todas las herramientas visibles mandan lo aprobado a Entregas (hoy: 2 de 19)
 - [ ] 1.2 Rechazo con motivo fijo, guardado en la marca
 - [ ] 1.3 Tres rechazos con el mismo motivo proponen una regla en Marca › Lo aprendido; una persona la confirma

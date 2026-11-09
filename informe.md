@@ -28,7 +28,8 @@ actualizado: 2026-11-09
 
 ## Decisiones
 <!-- AAAA-MM-DD · quién · qué se decidió · (reemplaza: …) — la más nueva arriba -->
-- 2026-11-09 · Gonzalo · Las pantallas usan el design system de Coevo (coevo-web/docs/design-system.md) y no muestran nombres de herramientas: se ven módulos. Se llaman playbooks: PDP, Lookbook, Motion, Casting, Talking, Retail Kit, Material Lab (a confirmar). Cada uno se ve en nodos con fotos. Sin amarillo.
+- 2026-11-09 · Gonzalo · La herramienta es como Genera (brief, inputs al costado, resultados); los nodos son la vista del equipo. El tablero de Pinterest es clave, sobre todo para Campaña: se importa pegando el link de un tablero público (comprobado: feed .rss, 25 pines, imágenes en original) y queda en Marca. PDP carga una carpeta entera y genera de a una prenda.
+- 2026-11-09 · Gonzalo · Las pantallas usan el design system de Coevo (coevo-web/docs/design-system.md) y no muestran nombres de herramientas: se ven módulos. Se llaman playbooks: PDP, Campaña, Motion, Casting, Talking, Retail Kit, Material Lab (a confirmar). Cada uno se ve en nodos con fotos. Sin amarillo.
 - 2026-11-09 · Claude (propuesta) · Change `openspec/changes/modulos`: un motor (skill + modulo.json, corre igual desde Studio y desde el chat), todo a Entregas, el rechazo se vuelve regla, pipeline en nodos. Trae el roadmap de Studio en cuatro fases.
 - 2026-11-09 · Gonzalo · Producción se ordena en módulos de tres columnas (brief con lo de Marca · lienzo · estilos de la marca), tomando la estructura de Genera.space, no su marca. Maqueta: https://claude.ai/artifact/TmwZbNqejZNEVMqCxi3pb6
 - 2026-11-09 · Gonzalo · Los módulos no se construyen de cero: juntan las 19 herramientas que Studio ya tiene (15 escondidas). Lo único que falta es Colores y materiales.
