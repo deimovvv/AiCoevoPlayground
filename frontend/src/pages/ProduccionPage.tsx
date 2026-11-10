@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { Trash2 } from "lucide-react";
 import { useConfirm } from "../lib/useConfirm";
 import { useBrand } from "../lib/BrandContext";
-import { backendUrl, createCampaign, deleteProject, deliverGeneration, fetchGenerations, fetchToolPreviews, listCampaigns, listDeliveries, listInbox, type Campaign, type DeliverySummary, type Generation, type InboxItem, type ToolPreview } from "../lib/api";
+import { backendUrl, createCampaign, deleteProject, deliverGeneration, fetchGenerations, fetchToolPreviews, listCampaigns, listDeliveries, listInbox, type Brand, type Campaign, type DeliverySummary, type Generation, type InboxItem, type ToolPreview } from "../lib/api";
 
 /**
  * Producción (openspec/changes/studio-v2 §1): hacer algo nuevo para la marca y ver qué espera
@@ -20,7 +20,34 @@ const ACTIONS = [
     { id: "video_ad_creator", title: "Aviso con guion", tool: "Video Ad Creator", to: "/dashboard/generate/video_ad_creator" },
     { id: "manual_lab", title: "Probar suelto", tool: "Lab · sin marca", to: "/dashboard/lab" },
 ];
-const TOOL_NAME: Record<string, string> = { ...Object.fromEntries(ACTIONS.map((a) => [a.id, a.tool])), skill: "Claude (skill)" };
+// En las listas, una corrida del Lab con marca no es «sin marca»: se nombra sólo «Lab».
+const TOOL_NAME: Record<string, string> = { ...Object.fromEntries(ACTIONS.map((a) => [a.id, a.tool])), manual_lab: "Lab", skill: "Claude (skill)" };
+
+/** «Campaña» (changes/modulos): la pieza editorial con el tablero de la marca. La tarjeta muestra
+ *  ese tablero —las imágenes de Pinterest que trajo la marca— y no una pieza generada. */
+function CampaignCard({ brand }: { brand: Brand }) {
+    const pins = (brand.moodboards || []).filter((m) => m.source);
+    const board = pins[0]?.board;
+    const imgs = (board ? pins.filter((m) => m.board === board) : brand.moodboards || []).slice(0, 4);
+    return (
+        <Link to="/dashboard/campaigns/new" className="group flex flex-col gap-2.5 no-underline w-[62vw] max-w-[260px] md:w-auto md:max-w-none shrink-0 snap-start md:min-h-0">
+            <div className="relative aspect-[4/5] md:aspect-auto md:flex-1 md:min-h-0 overflow-hidden rounded-[3px] bg-[var(--color-surface-2)] grid grid-cols-2 grid-rows-2 gap-[2px]">
+                {imgs.map((m) => (
+                    <img key={m.id} src={backendUrl(m.imageUrl)} alt="" loading="lazy" className="w-full h-full min-h-0 object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                ))}
+                {board && (
+                    <span className="absolute left-2 bottom-2 px-1.5 py-0.5 rounded-[2px] bg-black/55 text-white font-mono text-[9px] uppercase tracking-[0.08em] truncate max-w-[85%]">
+                        Tablero · {board}
+                    </span>
+                )}
+            </div>
+            <span className="flex flex-col gap-0.5">
+                <span className="text-[14px] text-fg group-hover:underline underline-offset-4 decoration-1">Campaña</span>
+                <span className="text-[12px] text-fg-faint">Fotos editoriales con el tablero</span>
+            </span>
+        </Link>
+    );
+}
 
 /** Tarjeta de una tool con su última pieza real: quieta hasta pasar el mouse, ahí se reproduce. */
 /** Portadas propias en la estética de Coevo (flash, oficina de noche, 35 mm), una por tool.
@@ -184,7 +211,8 @@ export function ProduccionPage() {
             {dialog}
             <section className="flex flex-col gap-3.5 md:flex-[1.5] md:min-h-0">
                 <p className={`${mono} text-fg-faint`}>Hacer algo nuevo para {activeBrand.name}</p>
-                <div className="flex md:grid gap-4 md:grid-cols-6 overflow-x-auto md:overflow-visible snap-x -mx-4 px-4 md:mx-0 md:px-0 md:flex-1 md:min-h-0">
+                <div className="flex md:grid gap-4 md:grid-cols-7 overflow-x-auto md:overflow-visible snap-x -mx-4 px-4 md:mx-0 md:px-0 md:flex-1 md:min-h-0">
+                    <CampaignCard brand={activeBrand} />
                     {ACTIONS.map((a) => <ToolCard key={a.id} a={a} preview={previews[a.id]} brandName={activeBrand.name} />)}
                     <EditorCard />
                 </div>
@@ -196,28 +224,31 @@ export function ProduccionPage() {
             <div className="grid gap-10 grid-cols-1 lg:grid-cols-3 md:flex-1 md:min-h-0">
                 <section className="flex flex-col md:min-h-0 md:overflow-y-auto">
                     <div className="flex items-baseline gap-2.5 pb-2.5 border-b border-edge">
-                        <h2 className="text-[20px] text-fg">Proyectos</h2>
+                        <h2 className="text-[20px] text-fg">Campañas</h2>
                         <span className="font-mono text-[11px] text-fg-faint">{campaigns.length || ""}</span>
                         <span className="flex-1" />
                         <button onClick={async () => {
-                            const name = await ask({ title: "Nuevo proyecto", input: "Nombre", placeholder: "Ej: Otoño · lookbook", confirm: "Crear" });
+                            const name = await ask({ title: "Nueva campaña", input: "Nombre", placeholder: "Ej: Otoño · lookbook", confirm: "Crear" });
                             if (typeof name !== "string") return;
                             const c = await createCampaign({ brandId: activeBrand.id, name, brief: "" });
                             navigate(`/dashboard/tablero/${c.id}`);
                         }} className="text-[12px] text-fg hover:underline cursor-pointer">+ Nueva</button>
                     </div>
-                    {campaigns.length === 0 && <p className="py-4 text-[13px] text-fg-faint">Un proyecto junta la idea y su tablero: moodboard, luz, locación, planos.</p>}
+                    {campaigns.length === 0 && <p className="py-4 text-[13px] text-fg-faint">Una campaña junta la idea y su tablero: moodboard, luz, locación, planos.</p>}
                     {campaigns.map((c) => {
                         const cover = (c.inputs || []).find((i) => i.type === "moodboard" || i.type === "lookfeel")?.url || (c.inputs || [])[0]?.url;
                         return (
                             <div key={c.id} className="group flex items-center border-b border-[var(--color-edge-subtle)]">
                             <Link to={`/dashboard/tablero/${c.id}`} className="flex-1 min-w-0 flex items-center gap-4 py-3 no-underline">
-                                <span className="w-12 h-[60px] shrink-0 rounded-[var(--radius-xs)] bg-[var(--color-surface-2)] overflow-hidden">
-                                    {cover && <img src={backendUrl(cover)} alt="" className="w-full h-full object-cover" />}
-                                </span>
+                                {/* Sin referencias no hay portada: un recuadro vacío no dice nada. */}
+                                {cover && (
+                                    <span className="w-12 h-[60px] shrink-0 rounded-[var(--radius-xs)] bg-[var(--color-surface-2)] overflow-hidden">
+                                        <img src={backendUrl(cover)} alt="" className="w-full h-full object-cover" />
+                                    </span>
+                                )}
                                 <span className="flex-1 min-w-0 flex flex-col gap-0.5">
                                     <span className="text-[14px] text-fg truncate">{c.name}</span>
-                                    <span className="text-[12px] text-fg-faint">{(c.inputs || []).length} referencias · {c.createdAt ? ago(c.createdAt) : ""}</span>
+                                    <span className="text-[12px] text-fg-faint">{(c.inputs || []).length ? `${c.inputs!.length} referencias` : "Sin referencias todavía"} · {c.createdAt ? ago(c.createdAt) : ""}</span>
                                 </span>
                                 <span className="text-[12px] text-fg">Abrir →</span>
                             </Link>
@@ -322,7 +353,7 @@ export function ProduccionPage() {
 
             <p className="shrink-0 text-[12px] text-fg-muted flex flex-wrap gap-x-4 gap-y-1">
                 <span className="text-fg-faint">También:</span>
-                <Link to="/dashboard/campanas" className="text-fg-muted hover:text-fg">Proyectos (vista completa)</Link>
+                <Link to="/dashboard/campanas" className="text-fg-muted hover:text-fg">Campañas (vista completa)</Link>
                 <Link to="/dashboard/content" className="text-fg-muted hover:text-fg">Todo lo producido</Link>
                 <Link to="/dashboard/generate" className="text-fg-muted hover:text-fg">Todas las tools</Link>
             </p>

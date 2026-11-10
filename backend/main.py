@@ -935,6 +935,7 @@ async def brief_from_file(file: UploadFile = File(...)):
 
 class DirectionRequest(BaseModel):
     moodboardUrl: Optional[str] = None
+    moodboardUrls: List[str] = []   # un tablero entero como moodboard (se leen hasta 8)
     lightingUrl: Optional[str] = None
     brief: str = ""
     # La campaña tiene fondo propio: el análisis no debe proponer entorno.
@@ -950,7 +951,8 @@ async def campaign_direction_endpoint(req: DirectionRequest):
     pantalla lo avise y degrade. Ver openspec/specs/campaigns.
     """
     from services import campaign_direction
-    return await campaign_direction.build_direction(req.moodboardUrl, req.lightingUrl, req.brief, req.fixedBackground)
+    return await campaign_direction.build_direction(req.moodboardUrl, req.lightingUrl, req.brief, req.fixedBackground,
+                                                   moodboard_urls=req.moodboardUrls)
 
 
 @app.post("/api/campaigns/plan")

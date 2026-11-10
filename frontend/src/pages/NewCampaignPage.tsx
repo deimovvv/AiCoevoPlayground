@@ -25,6 +25,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { SelectorPanel, SelectorTrigger } from "../components/workspace/SelectorPanel";
 import { EditOverlay } from "../components/workspace/EditOverlay";
+import { PinterestBoards, type BoardImage } from "../components/workspace/PinterestBoards";
 import { fetchSystemLighting, systemAssetUrl, type LightingPreset } from "../lib/api";
 import { useNavigate } from "react-router";
 import { ArrowLeft, Loader2, Paperclip } from "lucide-react";
@@ -240,17 +241,23 @@ const PICKER_TITLES: Record<string, string> = {
  * Sólo se muestran donde tienen sentido: un moodboard de la marca no viene de
  * un banco de presets del sistema.
  */
+const BRAND_AND_PINTEREST = [
+  { id: "presets", label: "De la marca" },
+  { id: "pinterest", label: "Pinterest" },
+];
 const PICKER_TABS: Record<string, Array<{ id: string; label: string }>> = {
+  moodboard: BRAND_AND_PINTEREST,
+  background: BRAND_AND_PINTEREST,
   lighting: [
     { id: "presets", label: "Presets" },
     { id: "mine", label: "De la marca" },
     { id: "pinterest", label: "Pinterest" },
   ],
-  pose: [
-    { id: "presets", label: "De la marca" },
-    { id: "pinterest", label: "Pinterest" },
-  ],
+  pose: BRAND_AND_PINTEREST,
 };
+
+/** Lo que vino de un tablero de Pinterest va en su pestaña; en «De la marca», lo demás. */
+const fromPinterest = (it: { source?: string }) => !!it.source && /pinterest\.|pin\.it/.test(it.source);
 
 /** Rol de cada imagen de referencia. Define QUÉ se toma de ella y qué se ignora. */
 type RefRole = "avatar" | "product" | "clothing" | "background" | "pose" | "moodboard" | "lookfeel" | "reference";
@@ -387,18 +394,6 @@ const fileToDataUrl = (f: File): Promise<string> =>
     r.readAsDataURL(f);
   });
 
-/** Estado vacío de una pestaña que todavía no tiene contenido conectado. */
-function EmptyTab({ tab }: { tab: string }) {
-  const msg = tab === "pinterest"
-    ? "Conectá una cuenta de Pinterest para traer referencias desde tus tableros."
-    : "Todavía no cargaste nada tuyo acá. Subilo desde el brand kit de la marca.";
-  return (
-    <p className="text-[11.5px] leading-relaxed py-8 px-1 text-center" style={{ color: C.ink3 }}>
-      {msg}
-    </p>
-  );
-}
-
 function Options({ label, options, value, values, onPick, onToggle, inline, render }: {
   label: string;
   options: Array<string | number>;
@@ -440,7 +435,7 @@ function Options({ label, options, value, values, onPick, onToggle, inline, rend
 
 export function NewCampaignPage() {
   const navigate = useNavigate();
-  const { activeBrand } = useBrand();
+  const { activeBrand, refreshBrands } = useBrand();
 
   const [name, setName] = useState("");
   const [brief, setBrief] = useState("");
@@ -547,6 +542,8 @@ export function NewCampaignPage() {
   };
   const [backgroundId, setBackgroundId] = useState<string | null>(null);
   const [moodboardId, setMoodboardId] = useState<string | null>(null);
+  /** Un tablero entero como moodboard (Pinterest): se lee junto. Excluye a `moodboardId`. */
+  const [moodBoard, setMoodBoard] = useState<string | null>(null);
   const [lookFeelId, setLookFeelId] = useState<string | null>(null);
   /** Iluminación — preset del SISTEMA, compartido por todas las marcas
    *  (`/api/system/lighting`). No vive en el brand kit. */
@@ -626,7 +623,11 @@ export function NewCampaignPage() {
     return null;
   };
   const brandMood = (b?.moodboards || []).find((m) => m.id === moodboardId);
-  const moodRef = pickOne(brandMood?.imageUrl, brandMood?.id ?? null, "moodboard");
+  /** Las imágenes del tablero elegido como moodboard (las primeras 8: el resto no cambia la lectura). */
+  const boardImages = moodBoard ? (b?.moodboards || []).filter((m) => m.board === moodBoard).slice(0, 8) : [];
+  const moodRef: OneRef = boardImages.length
+    ? { key: `board:${moodBoard}`, url: boardImages[0].imageUrl, file: null }
+    : pickOne(brandMood?.imageUrl, brandMood?.id ?? null, "moodboard");
   const brandLight = (b?.lookAndFeel || []).find((l) => l.id === lookFeelId);
   const lightRef = effectiveLight === "image" ? pickOne(brandLight?.imageUrl, brandLight?.id ?? null, "lookfeel") : null;
 
@@ -657,7 +658,8 @@ export function NewCampaignPage() {
     const promise = (async () => {
       const toUrl = async (r: OneRef) => (r ? r.url ?? (r.file ? await fileToDataUrl(r.file) : null) : null);
       const d = await getCampaignDirection({
-        moodboardUrl: await toUrl(moodRef),
+        moodboardUrl: boardImages.length ? null : await toUrl(moodRef),
+        moodboardUrls: boardImages.map((m) => m.imageUrl),
         lightingUrl: await toUrl(lightRef),
         brief: briefForDir,
         fixedBackground: hasBackground,
@@ -694,6 +696,8 @@ export function NewCampaignPage() {
     if (bg) out.push({ kind: "Fondo", id: bg.id, name: bg.name, thumb: bg.imageUrl ? backgroundImageUrl(bg.imageUrl) : undefined });
     const mb = (b.moodboards || []).find((x) => x.id === moodboardId);
     if (mb) out.push({ kind: "Moodboard", id: mb.id, name: mb.name, thumb: mb.imageUrl ? moodboardImageUrl(mb.imageUrl) : undefined });
+    const board = moodBoard ? (b.moodboards || []).filter((m) => m.board === moodBoard) : [];
+    if (board.length) out.push({ kind: "Moodboard", id: `board:${moodBoard}`, name: `Tablero «${moodBoard}» · ${board.length}`, thumb: moodboardImageUrl(board[0].imageUrl) });
     const lf = (b.lookAndFeel || []).find((x) => x.id === lookFeelId);
     if (lf) out.push({ kind: "Look & feel", id: lf.id, name: lf.name, thumb: lf.imageUrl ? lookAndFeelImageUrl(lf.imageUrl) : undefined });
     const po = (b.poses || []).find((x) => x.id === poseId);
@@ -713,7 +717,7 @@ export function NewCampaignPage() {
       thumb: i.preview,
     }));
     return out;
-  }, [b, clothingIds, productIds, avatarId, backgroundId, moodboardId, lookFeelId, poseId,
+  }, [b, clothingIds, productIds, avatarId, backgroundId, moodboardId, moodBoard, lookFeelId, poseId,
       savedInputs, pendingInputs]);
 
   const handleAttach = async (f: File | null | undefined) => {
@@ -815,6 +819,8 @@ export function NewCampaignPage() {
     push(po?.imageUrl, "pose", po?.name || "pose");
     const mb = (b.moodboards || []).find((m) => m.id === moodboardId);
     push(mb?.imageUrl, "moodboard", mb?.name || "moodboard");
+    // Tablero: si no se pudo leer, viaja su primera imagen (no las 8: se comerían el cap).
+    if (boardImages[0]) push(boardImages[0].imageUrl, "moodboard", `tablero ${moodBoard}`);
     const lf = (b.lookAndFeel || []).find((l) => l.id === lookFeelId);
     push(lf?.imageUrl, "lookfeel", lf?.name || "look & feel");
 
@@ -1168,18 +1174,27 @@ export function NewCampaignPage() {
                   onRemoveOwn={removeOwn} uploading={uploadingInput}
                   onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
         )}
-        {picker === "background" && (
+        {picker === "background" && pickerTab === "pinterest" && (
+          <PinterestBoards brandId={b.id} dest="locacion" items={b.backgrounds || []} thumb={backgroundImageUrl}
+                  mode="image" selectedId={backgroundId} onPickImage={mark("background", setBackgroundId)} onImported={refreshBrands} />
+        )}
+        {picker === "background" && pickerTab !== "pinterest" && (
           <Picker label="Fondo" hint="opcional"
-                  items={(b.backgrounds || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))}
+                  items={(b.backgrounds || []).filter((x) => !fromPinterest(x)).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))}
                   selectedId={backgroundId} onSingle={mark("background", setBackgroundId)}
                   ownItems={ownOf("background")} onUpload={(f) => addInputs(f, "background")}
                   onRemoveOwn={removeOwn} uploading={uploadingInput}
                   onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
         )}
-        {picker === "moodboard" && (
+        {picker === "moodboard" && pickerTab === "pinterest" && (
+          <PinterestBoards brandId={b.id} dest="moodboard" items={b.moodboards || []} thumb={moodboardImageUrl}
+                  mode="board" selectedBoard={moodBoard} onImported={refreshBrands}
+                  onPickBoard={mark("moodboard", (name: string | null) => { setMoodBoard(name); if (name) setMoodboardId(null); })} />
+        )}
+        {picker === "moodboard" && pickerTab !== "pinterest" && (
           <Picker label="Moodboard" hint="dirección"
-                  items={(b.moodboards || []).map((m) => ({ id: m.id, name: m.name, thumb: m.imageUrl ? moodboardImageUrl(m.imageUrl) : undefined }))}
-                  selectedId={moodboardId} onSingle={mark("moodboard", setMoodboardId)}
+                  items={(b.moodboards || []).filter((m) => !fromPinterest(m)).map((m) => ({ id: m.id, name: m.name, thumb: m.imageUrl ? moodboardImageUrl(m.imageUrl) : undefined }))}
+                  selectedId={moodboardId} onSingle={mark("moodboard", (id: string | null) => { setMoodboardId(id); if (id) setMoodBoard(null); })}
                   ownItems={ownOf("moodboard")} onUpload={(f) => addInputs(f, "moodboard")}
                   onRemoveOwn={removeOwn} uploading={uploadingInput}
                   onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
@@ -1199,7 +1214,7 @@ export function NewCampaignPage() {
                     onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
           ) : pickerTab === "mine" ? (
             <Picker label="Referencia de luz" hint="solo aporta la luz"
-                    items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
+                    items={(b.lookAndFeel || []).filter((l) => !fromPinterest(l)).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
                     selectedId={effectiveLight === "image" ? lookFeelId : null}
                     onSingle={mark("lookFeel", (id: string | null) => {
                       setLookFeelId(id);
@@ -1210,13 +1225,21 @@ export function NewCampaignPage() {
                     onRemoveOwn={removeOwn} uploading={uploadingInput}
                     onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
           ) : (
-            <EmptyTab tab={pickerTab} />
+            <PinterestBoards brandId={b.id} dest="luz" items={b.lookAndFeel || []} thumb={lookAndFeelImageUrl}
+                    mode="image" selectedId={effectiveLight === "image" ? lookFeelId : null} onImported={refreshBrands}
+                    onPickImage={mark("lookFeel", (id: string | null) => {
+                      setLookFeelId(id);
+                      if (id) { setLightSource("image"); setLightingId(null); } else setLightSource(null);
+                    })} />
           )
         )}
         {picker === "pose" && (
-          pickerTab === "pinterest" ? <EmptyTab tab="pinterest" /> : (
+          pickerTab === "pinterest" ? (
+            <PinterestBoards brandId={b.id} dest="pose" items={(b.poses || []) as BoardImage[]} thumb={poseImageUrl}
+                    mode="image" selectedId={poseId} onPickImage={mark("pose", setPoseId)} onImported={refreshBrands} />
+          ) : (
             <Picker label="Poses" hint="estrictas"
-                    items={(b.poses || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? poseImageUrl(x.imageUrl) : undefined }))}
+                    items={(b.poses || []).filter((x) => !fromPinterest(x)).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? poseImageUrl(x.imageUrl) : undefined }))}
                     selectedId={poseId} onSingle={mark("pose", setPoseId)}
                     ownItems={ownOf("pose")} onUpload={(f) => addInputs(f, "pose")}
                     onRemoveOwn={removeOwn} uploading={uploadingInput}

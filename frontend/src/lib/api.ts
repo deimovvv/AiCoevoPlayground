@@ -1994,6 +1994,8 @@ export interface CampaignDirection {
  *  No tira por un fallo del análisis: devuelve `{ok:false, reason}` para avisar y degradar. */
 export async function getCampaignDirection(opts: {
     moodboardUrl?: string | null;
+    /** Un tablero entero como moodboard: se leen juntas (hasta 8). */
+    moodboardUrls?: string[];
     lightingUrl?: string | null;
     brief?: string;
     /** La campaña tiene fondo propio: el análisis no propone entorno. */
@@ -2005,6 +2007,7 @@ export async function getCampaignDirection(opts: {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 moodboardUrl: opts.moodboardUrl ?? null,
+                moodboardUrls: opts.moodboardUrls ?? [],
                 lightingUrl: opts.lightingUrl ?? null,
                 brief: opts.brief ?? "",
                 fixedBackground: !!opts.fixedBackground,

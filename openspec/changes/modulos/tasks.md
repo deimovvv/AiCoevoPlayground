@@ -13,6 +13,14 @@
 - [x] 1.3 Tres con el mismo motivo proponen una regla: ya existía (Entregas → Aprendizaje → «Hacer regla»; se guarda en `brand.learnedRules`).
 - [x] 1.4 Las reglas entran al prompt de las tools (2026-11-09): `buildBrandContext` suma «BRAND RULES LEARNED…» (UGC, Video Ad, Fashion Reel, Static Ad, Carousel). Falta Ecommerce Pack, que arma su prompt aparte: va con PDP en la fase 2.
 
+## 2a · Campaña primero (pedido de Gonzalo, 2026-11-10: arrancar por Campaña, no por PDP)
+La pantalla de campaña (`NewCampaignPage`, panel + lienzo + selector al costado) ya existía; faltaba el tablero.
+- [x] C.1 En Producción, «Campaña» es la primera tarjeta y muestra el tablero de Pinterest de la marca; la lista «Proyectos» pasa a «Campañas» (sin recuadros vacíos; las corridas del Lab con marca dicen «Lab», no «sin marca»).
+- [x] C.2 Pestaña Pinterest en moodboard, fondo, luz y pose: los tableros de la marca agrupados, y pegar un link los trae a Marca (`components/workspace/PinterestBoards.tsx`). Lo de Pinterest sale de «De la marca».
+- [x] C.3 Un tablero entero es un moodboard: la Dirección creativa lee hasta 8 imágenes juntas (`campaign_direction.build_direction(moodboard_urls=…)`). Si el análisis falla, viaja sólo la primera.
+- [ ] C.4 Una sola pantalla: el tablero del proyecto (`TableroPage`) y el generador hoy son dos lugares.
+- [ ] C.5 Rechazo con motivo de moda en las piezas y lo aprobado directo a Entregas desde el lienzo.
+
 ## 2 · Un motor
 - [ ] 2.1 Formato `modulo.json` (casilleros, cadena, costo, herramientas que reemplaza) en `coevo-skills`
 - [ ] 2.2 El `modulo.json` se convierte en `graph.json` del motor de nodos (`backend/nodes/`)

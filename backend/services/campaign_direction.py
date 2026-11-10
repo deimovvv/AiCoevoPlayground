@@ -17,6 +17,7 @@ Devuelve la dirección, no genera nada. Corre una vez por combinación de
 referencias y se cachea, así que regenerar no la vuelve a pagar.
 """
 
+import asyncio
 import hashlib
 import json
 from typing import Dict, List, Optional
@@ -106,11 +107,15 @@ def _parse(raw: str) -> dict:
     }
 
 
+MAX_BOARD = 8  # imágenes de un tablero que se leen juntas; más no cambia la dirección y encarece
+
+
 async def build_direction(
     moodboard_url: Optional[str],
     lighting_url: Optional[str],
     brief: str = "",
     fixed_background: bool = False,
+    moodboard_urls: Optional[List[str]] = None,
 ) -> dict:
     """Lee las referencias y devuelve la dirección.
 
@@ -118,18 +123,19 @@ async def build_direction(
     y degrada a mandar el moodboard como imagen. Fallar en silencio fue lo que hizo
     que el análisis de pose caído se leyera como "la pose no se respeta" (2026-09).
     """
-    if not moodboard_url and not lighting_url:
+    # Un tablero entero (ej. uno de Pinterest) es un moodboard de varias imágenes leídas juntas.
+    boards = [u for u in (moodboard_urls or ([moodboard_url] if moodboard_url else [])) if u][:MAX_BOARD]
+    if not boards and not lighting_url:
         return {"ok": False, "reason": "No hay moodboard ni referencia de luz para leer."}
 
     images: List[tuple] = []   # (bytes, mime)
     labels: List[str] = []
     roles: List[tuple] = []    # (bytes, role) para la cache
     try:
-        if moodboard_url:
-            data, mime = await _fetch_image_bytes(moodboard_url)
+        for i, (data, mime) in enumerate(await asyncio.gather(*(_fetch_image_bytes(u) for u in boards))):
             images.append((data, mime))
             roles.append((data, "moodboard"))
-            labels.append(f"Image {len(images)}: MOODBOARD")
+            labels.append(f"Image {len(images)}: MOODBOARD" + (f" ({i + 1} of {len(boards)}, one board)" if len(boards) > 1 else ""))
         if lighting_url:
             data, mime = await _fetch_image_bytes(lighting_url)
             images.append((data, mime))
@@ -165,8 +171,8 @@ async def build_direction(
     result = {
         "ok": True,
         **direction,
-        "lighting_source": "reference" if lighting_url else ("moodboard" if moodboard_url else "none"),
-        "has_moodboard": bool(moodboard_url),
+        "lighting_source": "reference" if lighting_url else ("moodboard" if boards else "none"),
+        "has_moodboard": bool(boards),
     }
     _CACHE[key] = result
     return result
