@@ -58,6 +58,10 @@ function groupByMonth(list: DeliverySummary[], client: boolean) {
     }));
 }
 
+/** «Versión N: …» es la nota de qué cambiamos que deja una vuelta nueva: no es un pedido abierto. */
+const isVersionNote = (c: { byClient?: boolean; internal?: boolean; text: string }) =>
+    !c.byClient && !c.internal && /^Versión \d+/.test(c.text);
+
 function stateLabel(d: { status: DeliveryStatus; visibility: "interna" | "cliente" }, mode: Mode): string {
     if (d.status === "aprobada") return "Aprobada";
     if (mode === "cliente") return d.status === "cambios" ? "Pediste cambios" : "Para revisar";
@@ -477,17 +481,24 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                             {current.title} <Pencil size={11} className="text-fg-faint opacity-0 group-hover/t:opacity-100" />
                                         </button>
                                     )}
+                                    {/* Un solo estado, al lado del título (antes: fase, «Interna» y «Versión · nueva» en tres lugares). */}
+                                    <span className="ml-2.5 align-middle inline-flex items-center gap-1.5 text-[11px] font-normal text-fg-muted">
+                                        <span className={`w-1.5 h-1.5 rounded-full ${current.visibility === "interna" && !client ? "bg-[var(--color-edge-strong)]" : DOT[current.status]}`} />
+                                        {stateLabel(current, mode)}
+                                    </span>
                                 </h2>
                                 {!client && (
                                     <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-fg-muted">
-                                        <span className="font-mono uppercase tracking-[0.06em] text-[10px]">{PHASE[current.phase ?? ""] ?? "—"}</span>
-                                        <span className="text-fg-faint">·</span>
+                                        {PHASE[current.phase ?? ""] && <>
+                                            <span className="font-mono uppercase tracking-[0.06em] text-[10px]">{PHASE[current.phase ?? ""]}</span>
+                                            <span className="text-fg-faint">·</span>
+                                        </>}
                                         {activeBrand.strategy?.angles?.length ? (
                                             // Los ángulos salen de la estrategia de la marca (brand-strategy).
                                             <select value={current.angle ?? ""} title="El ángulo de la estrategia al que responde"
                                                 onChange={(e) => { const a = e.target.value; run(async () => { setCurrent(await setDeliveryPlan(current.id, { angle: a })); await refreshList(); }); }}
                                                 className="bg-transparent text-[11px] text-fg-muted hover:text-fg cursor-pointer outline-none">
-                                                <option value="">Sin ángulo</option>
+                                                <option value="">+ ángulo</option>
                                                 {activeBrand.strategy.angles.map((a) => <option key={a.name} value={a.name}>Ángulo: {a.name}</option>)}
                                                 {current.angle && !activeBrand.strategy.angles.some((a) => a.name === current.angle) && <option value={current.angle}>Ángulo: {current.angle}</option>}
                                             </select>
@@ -497,15 +508,17 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                     const a = await ask({ title: "Ángulo de la estrategia", input: "Ángulo", placeholder: current.angle ?? "ej. A · Institucional", confirm: "Guardar" });
                                                     if (typeof a === "string") run(async () => { setCurrent(await setDeliveryPlan(current.id, { angle: a })); await refreshList(); });
                                                 }}>
-                                                {current.angle ? `Ángulo: ${current.angle}` : "Sin ángulo"}
+                                                {current.angle ? `Ángulo: ${current.angle}` : <span className="text-fg-faint">+ ángulo</span>}
                                             </button>
                                         )}
                                         <span className="text-fg-faint">·</span>
                                         <button onClick={() => setShowPublish((v) => !v)} className="cursor-pointer hover:text-fg tabular-nums">
                                             {current.scheduledAt
                                                 ? `Sale ${new Date(current.scheduledAt).toLocaleString("es-AR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}${current.channels?.length ? ` · ${current.channels.length === 1 ? "1 red" : `${current.channels.length} redes`}` : ""}`
-                                                : "Sin fecha ni red"}
+                                                : <span className="text-fg-faint">+ fecha y red</span>}
                                         </button>
+                                        <span className="text-fg-faint">·</span>
+                                        <span className="text-fg-faint">subida por {who(current.createdBy)} el {when(current.createdAt)}{current.sentAt && <> · mandada el {when(current.sentAt)}</>}{current.approvedBy && <> · aprobó {who(current.approvedBy)}</>}</span>
                                     </p>
                                 )}
                                 {!client && showPublish && (
@@ -515,22 +528,19 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         <p className="mt-2 text-[10px] text-fg-faint">Es una propuesta: no se publica nada hasta confirmar la semana en el Plan.</p>
                                     </div>
                                 )}
+                                {/* La versión y qué cambió, en una sola línea. */}
                                 {current.round > 1 && (
-                                    <p className="mt-1.5 flex flex-wrap items-center gap-2">
-                                        <span className="h-6 px-2 inline-flex items-center rounded-[3px] bg-fg text-[var(--color-canvas)] text-[11px] font-medium">
-                                            Versión {current.round}{current.status === "en_revision" ? " · nueva" : ""}
+                                    <p className="mt-2 max-w-[760px] text-[13px] leading-snug text-fg">
+                                        <span className="mr-2 h-5 px-1.5 inline-flex items-center align-[1px] rounded-[3px] bg-fg text-[var(--color-canvas)] text-[11px] font-medium tabular-nums">
+                                            V{current.round}
                                         </span>
+                                        {current.note || <span className="text-fg-muted">Versión {current.round}</span>}
                                         {(current.history?.length ?? 0) > 0 && (
                                             <button onClick={() => { setSlide(null); setShowPrev((v) => !v); }}
-                                                className={`h-6 px-2 inline-flex items-center gap-1 rounded-[3px] border text-[11px] cursor-pointer ${showPrev ? "border-fg text-fg" : "border-edge text-fg-muted hover:text-fg"}`}>
-                                                <History size={11} /> {showPrev ? "Ocultar la versión anterior" : "Ver la versión anterior"}
+                                                className={`ml-2 inline-flex items-center gap-1 text-[11px] cursor-pointer ${showPrev ? "text-fg" : "text-fg-muted hover:text-fg"}`}>
+                                                <History size={11} /> {showPrev ? "ocultar la anterior" : "ver la anterior"}
                                             </button>
                                         )}
-                                    </p>
-                                )}
-                                {current.round > 1 && current.note && (
-                                    <p className="mt-2 max-w-[640px] text-[13px] leading-snug text-fg">
-                                        <span className="text-fg-muted">Qué cambiamos: </span>{current.note}
                                     </p>
                                 )}
                                 {(() => {
@@ -551,15 +561,12 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         </p>
                                     );
                                 })()}
-                                <p className="text-[11px] text-fg-faint mt-0.5 flex items-center gap-1.5">
-                                    <span className={`w-1.5 h-1.5 rounded-full ${current.visibility === "interna" && !client ? "bg-[var(--color-edge-strong)]" : DOT[current.status]}`} />
-                                    {stateLabel(current, mode)}
-                                    {client
-                                        ? <> · llegó el {when(current.sentAt ?? current.createdAt)}</>
-                                        : <>{" "}· subida por {who(current.createdBy)} el {when(current.createdAt)}{current.sentAt && <> · mandada el {when(current.sentAt)}</>}</>}
-                                    {current.approvedBy && <> · aprobó {who(current.approvedBy)}</>}
-                                    {current.status === "aprobada" && current.items.some((x) => x.rejected) && <> · {current.items.filter((x) => !x.rejected).length} de {current.items.length} láminas</>}
-                                </p>
+                                {(client || (current.status === "aprobada" && current.items.some((x) => x.rejected))) && (
+                                    <p className="text-[11px] text-fg-faint mt-0.5">
+                                        {client && <>Llegó el {when(current.sentAt ?? current.createdAt)}{current.approvedBy && <> · aprobó {who(current.approvedBy)}</>}</>}
+                                        {current.status === "aprobada" && current.items.some((x) => x.rejected) && <>{client ? " · " : ""}{current.items.filter((x) => !x.rejected).length} de {current.items.length} láminas</>}
+                                    </p>
+                                )}
                                 {!client && (
                                     <div className="mt-2.5">
                                         <DeliveryGroupPicker brandId={current.brandId} campaigns={campaigns} onCampaigns={setCampaigns} ask={ask} onError={setError} disabled={busy}
@@ -638,7 +645,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 <button disabled={busy} onClick={() => { setVersionItem(null); setVersionOpen(true); }}
                                     title="Reemplaza TODAS las láminas. Para corregir una sola, usá el botón de subir sobre esa lámina"
                                     className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-edge text-[12px] text-fg-muted hover:text-fg cursor-pointer disabled:opacity-50">
-                                    {progress !== null ? <><Loader2 size={12} className="animate-spin" /> {Math.round(progress * 100)}%</> : <><Upload size={12} /> Nueva versión de todo</>}
+                                    {progress !== null ? <><Loader2 size={12} className="animate-spin" /> {Math.round(progress * 100)}%</> : <><Upload size={12} /> Nueva versión</>}
                                 </button>
                             )}
                             {!client && versionOpen && (
@@ -668,8 +675,9 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             {!client && (
                                 <button disabled={busy} title="Borra la entrega entera: todas sus láminas, versiones y comentarios"
                                     onClick={async () => { if (await ask({ title: `¿Borrar la entrega entera «${current.title}»?`, body: `Se borran sus ${total} ${total === 1 ? "lámina" : "láminas"}${current.round > 1 ? `, sus ${current.round} versiones` : ""} y todos los comentarios. El proyecto no se toca. No se puede deshacer. (Para sacar una sola imagen, usá el tachito que aparece sobre esa lámina.)`, confirm: "Borrar la entrega", danger: true })) run(async () => { await deleteDelivery(current.id); open(null); await refreshList(); }); }}
-                                    className="h-8 px-2.5 flex items-center gap-1.5 text-[12px] text-fg-faint hover:text-[var(--color-error)] cursor-pointer">
-                                    <Trash2 size={12} /> Borrar entrega
+                                    aria-label="Borrar la entrega"
+                                    className="h-8 w-8 md:ml-3 flex items-center justify-center text-fg-faint hover:text-[var(--color-error)] cursor-pointer">
+                                    <Trash2 size={13} />
                                 </button>
                             )}
                             </div>
@@ -782,8 +790,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 <footer className="px-6 py-3 border-t border-edge bg-surface-0 flex items-center gap-4">
                                     <p className={`text-[12px] shrink-0 ${picking ? "text-fg" : "text-fg-faint"}`}>
                                         {picking ? `Tocá las que no van · quedan ${current.items.filter((x) => !x.rejected).length} de ${total}`
-                                        : comments.filter((c) => !c.resolvedAt).length
-                                            ? `${comments.filter((c) => !c.resolvedAt).length === 1 ? "1 comentario abierto" : `${comments.filter((c) => !c.resolvedAt).length} comentarios abiertos`} · tocá una lámina para verla y comentar`
+                                        : comments.filter((c) => !c.resolvedAt && !isVersionNote(c)).length
+                                            ? `${comments.filter((c) => !c.resolvedAt && !isVersionNote(c)).length === 1 ? "1 comentario abierto" : `${comments.filter((c) => !c.resolvedAt && !isVersionNote(c)).length} comentarios abiertos`} · tocá una lámina para verla y comentar`
                                             : "Clic en una lámina para verla grande y comentar sobre ella."}
                                     </p>
                                     {current.note && current.round <= 1 && <p className="text-[12px] text-fg-muted truncate" title={current.note}>{current.note}</p>}
@@ -798,13 +806,16 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             {comments.some((c) => !c.resolvedAt) && !asking && !commentsInView && (
                                 <button onClick={() => document.getElementById("lo-que-pidieron")?.scrollIntoView({ behavior: "smooth" })}
                                     className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-30 h-10 px-4 rounded-full bg-fg text-[var(--color-canvas)] text-[13px] shadow-[0_6px_20px_rgba(0,0,0,0.3)] cursor-pointer">
-                                    {comments.filter((c) => !c.resolvedAt).length} {comments.filter((c) => !c.resolvedAt).length === 1 ? "comentario" : "comentarios"} ↓
+                                    {comments.filter((c) => !c.resolvedAt && !isVersionNote(c)).length} {comments.filter((c) => !c.resolvedAt && !isVersionNote(c)).length === 1 ? "comentario" : "comentarios"} ↓
                                 </button>
                             )}
                             {(() => {
                                 // Lo que pidieron, sin entrar a cada lámina: abiertos, primero los del cliente.
-                                const pending = comments.filter((c) => !c.resolvedAt);
-                                if (!pending.length && !asking) return null;
+                                // «Versión N: …» es nuestra nota de qué cambiamos (newDeliveryRound), no un pedido:
+                                // va aparte, abajo, y no cuenta como algo abierto.
+                                const notes = comments.filter(isVersionNote).sort((a, b) => b.round - a.round);
+                                const pending = comments.filter((c) => !c.resolvedAt && !isVersionNote(c));
+                                if (!pending.length && !notes.length && !asking) return null;
                                 const idx = Object.fromEntries(current.items.map((it, i) => [it.id, i]));
                                 // Las láminas de las versiones anteriores, para que un comentario viejo no pierda a qué se refería.
                                 const older: Record<string, { url: string; kind: string; round: number; n: number }> = {};
@@ -891,6 +902,19 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                 );
                                             })}
                                         </ol>
+                                        {notes.length > 0 && (
+                                            <div className="px-5 pt-4 pb-5 border-t border-edge">
+                                                <p className={`${mono} text-fg-faint pb-2.5`}>Qué cambiamos en cada versión</p>
+                                                <ol className="flex flex-col gap-2">
+                                                    {notes.map((c) => (
+                                                        <li key={c.id} className="text-[12px] leading-snug text-fg-muted">
+                                                            <span className="font-mono text-[10px] text-fg-faint mr-1.5">V{c.round}</span>
+                                                            {c.text.replace(/^Versión \d+(, lámina[^:]*)?:\s*/, "")}
+                                                        </li>
+                                                    ))}
+                                                </ol>
+                                            </div>
+                                        )}
                                     </aside>
                                 );
                             })()}
