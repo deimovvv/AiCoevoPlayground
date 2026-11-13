@@ -151,7 +151,10 @@ tool("ver_entrega",
             comentarios: d.comments.map((c) => ({
                 id: c.id, lamina: c.itemId ? `${label[c.itemId] ?? "(ronda anterior)"} [${c.itemId}]` : "toda la entrega",
                 punto: c.x != null ? { x: c.x, y: c.y } : null, texto: c.text, autor: c.author, ronda: c.round,
-                de: c.internal ? "equipo" : "cliente",
+                // byClient lo decide el backend con la lista de clientes; el token de servicio no es cliente.
+                de: c.byClient ? "cliente" : "equipo",
+                // «Versión N: …»: la nota de qué cambió en esa ronda. No es un pedido: no se aplica ni se resuelve.
+                ...(!c.byClient && !c.internal && /^Versión \d+/.test(c.text) ? { nota_de_version: true } : {}),
                 resuelto: !!c.resolvedAt,
                 tipo: c.kind ?? null,
                 ...(c.audioUrl ? { nota_de_voz: c.audioUrl } : {}),
@@ -197,7 +200,8 @@ tool("nueva_ronda",
     },
     async ({ id, archivos, etiquetas, fuente, nota }) => {
         const form = filesForm({ note: nota, labels: etiquetas?.join("|") }, archivos, fuente);
-        return entregaCorta(await api(`/api/deliveries/${encodeURIComponent(id)}/round`, { method: "POST", form }));
+        const d = entregaCorta(await api(`/api/deliveries/${encodeURIComponent(id)}/round`, { method: "POST", form }));
+        return { ...d, aviso: "Quedó INTERNA: el cliente no la ve hasta que alguien del equipo la revise y la mande desde Entregas." };
     });
 
 tool("resolver_comentario",

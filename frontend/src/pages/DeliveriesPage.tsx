@@ -58,6 +58,16 @@ function groupByMonth(list: DeliverySummary[], client: boolean) {
     }));
 }
 
+/** El aviso por WhatsApp lo manda una persona desde su WhatsApp (sin número: elige el contacto).
+ *  Studio sólo arma el mensaje con el link a la entrega. Ver docs/decisions-log 2026-11-13. */
+function whatsappLink(d: { id: string; title: string; round: number; note?: string | null }, brandName: string): string {
+    const url = `${window.location.origin}/cliente/entregas?id=${encodeURIComponent(d.id)}`;
+    const text = d.round > 1
+        ? `¡Hola! Te subimos la versión ${d.round} de «${d.title}»${d.note ? ` (${d.note.trim().replace(/\.$/, "")})` : ""}. La podés ver y aprobar acá: ${url}`
+        : `¡Hola! Tenés para revisar «${d.title}» de ${brandName}. La podés ver, comentar y aprobar acá: ${url}`;
+    return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
 /** «Versión N: …» es la nota de qué cambiamos que deja una vuelta nueva: no es un pedido abierto. */
 const isVersionNote = (c: { byClient?: boolean; internal?: boolean; text: string }) =>
     !c.byClient && !c.internal && /^Versión \d+/.test(c.text);
@@ -632,6 +642,11 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             ) : (
                                 <>
                                     <Link to={`/cliente/entregas?id=${current.id}`} className="flex items-center gap-1 text-[12px] text-fg-faint hover:text-fg no-underline"><Eye size={12} /> Como la ve el cliente</Link>
+                                    {/* El mail sale solo (si hay key de Resend); WhatsApp lo manda una persona, desde el suyo. */}
+                                    <a href={whatsappLink(current, activeBrand.name)} target="_blank" rel="noreferrer" title="Abre tu WhatsApp con el mensaje y el link armados: elegís el contacto y mandás"
+                                        className="h-8 px-3 flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-fg text-[var(--color-canvas)] text-[12px] font-medium no-underline whitespace-nowrap">
+                                        Avisar por WhatsApp <ArrowRight size={12} />
+                                    </a>
                                     {current.status !== "aprobada" && (
                                         <button disabled={busy} title="Si el cliente la aprobó por otro lado (WhatsApp, reunión)"
                                             onClick={() => run(async () => { await setDeliveryStatus(current.id, "aprobada"); await reload(current.id); })}

@@ -53,6 +53,12 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 
 ---
 
+## 2026-11-13 — El aviso al cliente sale por WhatsApp, desde una persona
+
+**Contexto:** el aviso por mail existía (`mailer.py`, Resend), pero producción no tiene la key de Resend: Koxis nunca recibió nada.
+**Decisión:** en una entrega ya mandada, el botón «Avisar por WhatsApp» abre el WhatsApp de quien la manda con el mensaje y el link listos. No cuesta nada y llega de una persona, no de un sistema. El mail queda de respaldo cuando se cargue la key.
+**Antes de cambiarlo:** el WhatsApp automático (API de Meta: cobra por mensaje y pide plantillas aprobadas) se evalúa cuando haya más clientes.
+
 ## 2026-11-01 — Onboarding: nosotros proponemos, el cliente corrige
 
 **Contexto.** La primera prueba con ALGÜNA terminó en un mensaje con tareas para el cliente. Gonzalo: eso no puede ser el onboarding; el servicio es interpretar la marca y sugerir.
