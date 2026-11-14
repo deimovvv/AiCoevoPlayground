@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { REJECT_LABEL } from "../../lib/rejectReasons";
 import { Trash2 } from "lucide-react";
 import { useNavigate } from "react-router";
 import { backendUrl, getBrandLearning, updateBrand } from "../../lib/api";
@@ -6,6 +7,7 @@ import type { Brand, BrandLearning } from "../../lib/api";
 
 const KIND: Record<string, string> = {
     texto: "Texto", color: "Color", encuadre: "Encuadre", tono: "Tono", dato: "Dato", imagen: "Imagen", otro: "Otro", sin_tipo: "Sin clasificar",
+    ...REJECT_LABEL,
 };
 
 /**

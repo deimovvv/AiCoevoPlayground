@@ -2,7 +2,7 @@
 
 ## 0 · Acordar (con Gonzalo)
 - [ ] 0.1 Nombres: «playbook» para el concepto; PDP, Campaña, Motion, Casting, Talking, Retail Kit, Material Lab
-- [ ] 0.2 Lista fija de motivos de rechazo
+- [ ] 0.2 Lista fija de motivos de rechazo — propuesta en uso desde C.5 (cara, calce, prenda distinta, pose, luz, fondo); falta el OK de Gonzalo
 - [ ] 0.3 Visto bueno a la maqueta con el design system de Coevo
 
 ## 1 · Cerrar el circuito
@@ -19,7 +19,7 @@ La pantalla de campaña (`NewCampaignPage`, panel + lienzo + selector al costado
 - [x] C.2 Pestaña Pinterest en moodboard, fondo, luz y pose: los tableros de la marca agrupados, y pegar un link los trae a Marca (`components/workspace/PinterestBoards.tsx`). Lo de Pinterest sale de «De la marca».
 - [x] C.3 Un tablero entero es un moodboard: la Dirección creativa lee hasta 8 imágenes juntas (`campaign_direction.build_direction(moodboard_urls=…)`). Si el análisis falla, viaja sólo la primera.
 - [ ] C.4 Una sola pantalla: el tablero del proyecto (`TableroPage`) y el generador hoy son dos lugares.
-- [ ] C.5 Rechazo con motivo de moda en las piezas y lo aprobado directo a Entregas desde el lienzo.
+- [x] C.5 Rechazo con motivo de moda y lo aprobado directo a Entregas (2026-11-14). Debajo de cada pieza del lienzo: Aprobar, o Rechazar y elegir el motivo (cara, calce, prenda distinta, pose, luz, fondo; `lib/rejectReasons.ts`). Se guarda en la pieza (`verdict`, `rejectReason`). «Mandar N aprobadas a Entregas» crea UNA entrega interna con las piezas copiadas (`POST /api/campaigns/{id}/deliver`); cada pieza anota su `deliveryId` y no se manda dos veces. Los rechazos cuentan en Aprendizaje junto con las correcciones de Entregas: tres del mismo motivo proponen una regla, que ya entra al prompt (1.4).
 
 ## 2 · Un motor
 - [ ] 2.1 Formato `modulo.json` (casilleros, cadena, costo, herramientas que reemplaza) en `coevo-skills`

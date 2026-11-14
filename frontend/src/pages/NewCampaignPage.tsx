@@ -51,7 +51,9 @@ import {
   planCampaign, type CampaignPlan,
   getCampaignDirection, type CampaignDirection,
   briefFromFile,
+  deliverCampaign,
 } from "../lib/api";
+import { PieceVerdict } from "../components/workspace/PieceVerdict";
 import { imagesUsd, formatUsd } from "../lib/pricing";
 
 const AR_OPTIONS = ["9:16", "4:5", "1:1", "16:9"];
@@ -456,6 +458,9 @@ export function NewCampaignPage() {
   const [editing, setEditing] = useState<CampaignPiece | null>(null);
   /** Ids de piezas que están animándose ahora mismo. */
   const [animating, setAnimating] = useState<Set<string>>(new Set());
+  /** Mandar las aprobadas a Entregas (modulos C.5). */
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState<{ ok: boolean; text: string; deliveryId?: string } | null>(null);
   const [reading, setReading] = useState(false);
   /** Campos que tocó el usuario a mano: la interpretación no los pisa. */
   const touched = useRef<Set<string>>(new Set());
@@ -752,6 +757,24 @@ export function NewCampaignPage() {
       if (campaignId) updateCampaign(campaignId, { pieces: next }).catch(() => { /* la UI ya está actualizada */ });
       return next;
     });
+  };
+
+  /** Las aprobadas que todavía no están en una entrega. */
+  const toDeliver = pieces.filter((pc) => pc.verdict === "ok" && pc.url && !pc.deliveryId);
+  const sendApproved = async () => {
+    if (!campaignId || !toDeliver.length || sending) return;
+    setSending(true); setSent(null);
+    try {
+      const r = await deliverCampaign(campaignId, toDeliver.map((pc) => pc.id));
+      // El backend devuelve las piezas con `deliveryId`: se toma sólo eso, para no pisar lo que cambió acá.
+      const sentIds = new Map(r.pieces.filter((p) => p.deliveryId).map((p) => [p.id, p.deliveryId as string]));
+      setPieces((prev) => prev.map((pc) => (sentIds.has(pc.id) ? { ...pc, deliveryId: sentIds.get(pc.id) } : pc)));
+      setSent({ ok: true, text: `${r.count} ${r.count === 1 ? "pieza fue" : "piezas fueron"} a Entregas, para revisar antes de mandarlas.`, deliveryId: r.deliveryId });
+    } catch (e) {
+      setSent({ ok: false, text: e instanceof Error ? e.message : "No se pudo mandar a Entregas" });
+    } finally {
+      setSending(false);
+    }
   };
 
   /**
@@ -1317,16 +1340,33 @@ export function NewCampaignPage() {
               <span className="text-[11px] uppercase tracking-[.12em]" style={{ color: C.ink2 }}>
                 {pieces.length} {pieces.length === 1 ? "pieza" : "piezas"}
               </span>
-              {saving && progress.total > 0 && (
+              {saving && progress.total > 0 ? (
                 <span className="text-[11px] tabular-nums" style={{ color: C.ink3 }}>
                   generando {progress.done}/{progress.total}
                 </span>
+              ) : (
+                <button type="button" onClick={sendApproved} disabled={!toDeliver.length || sending || !campaignId}
+                        className="h-8 px-3 rounded-[var(--radius-sm)] text-[12px] font-medium cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                        style={{ background: C.accent, color: C.accentFg }}>
+                  {sending && <Loader2 size={12} className="animate-spin" />}
+                  {toDeliver.length ? `Mandar ${toDeliver.length} ${toDeliver.length === 1 ? "aprobada" : "aprobadas"} a Entregas` : "Aprobá piezas para mandarlas a Entregas"}
+                </button>
               )}
             </div>
+            {sent && (
+              <p className="text-[11.5px] -mt-2 mb-3" style={{ color: sent.ok ? C.ink3 : C.err }}>
+                {sent.text}{" "}
+                {sent.deliveryId && (
+                  <button type="button" onClick={() => navigate(`/dashboard/entregas?id=${encodeURIComponent(sent.deliveryId!)}`)}
+                          className="underline cursor-pointer" style={{ color: C.ink }}>Abrir la entrega</button>
+                )}
+              </p>
+            )}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
               {pieces.map((pc) => (
-                <figure key={pc.id} className="group relative rounded-[var(--radius-sm)] overflow-hidden"
-                        style={{ background: C.paper2, border: `1px solid ${C.hair}` }}>
+                <figure key={pc.id} className="rounded-[var(--radius-sm)] overflow-hidden"
+                        style={{ background: C.paper2, border: `1px solid ${pc.verdict === "ok" ? C.ink : C.hair}`, opacity: pc.verdict === "no" ? 0.55 : 1 }}>
+                  <div className="group relative">
                   {pc.url && pc.type === "video" ? (
                     <video src={pc.url} controls loop muted playsInline className="w-full h-full object-cover"
                            style={{ aspectRatio: pc.aspectRatio.replace(":", "/") }} />
@@ -1380,6 +1420,11 @@ export function NewCampaignPage() {
                                 style={{ background: "linear-gradient(to top, rgba(0,0,0,.8), transparent)" }}>
                       {pc.label}
                     </figcaption>
+                  )}
+                  </div>
+                  {pc.url && (
+                    <PieceVerdict verdict={pc.verdict} reason={pc.rejectReason} delivered={!!pc.deliveryId}
+                                  onChange={(v) => replacePiece(pc.id, v)} />
                   )}
                 </figure>
               ))}

@@ -493,6 +493,11 @@ export interface CampaignPiece {
      * primer intento. Se puede volver a cualquiera.
      */
     history?: string[];
+    /** Lo que dijo el equipo en el lienzo (modulos C.5): aprobada o rechazada con motivo de moda. */
+    verdict?: "ok" | "no" | null;
+    rejectReason?: string | null;
+    /** La entrega a la que fue, si ya se mandó. */
+    deliveryId?: string;
 }
 
 /** Input PROPIO de una campaña: una prenda, modelo o referencia subida ahí y no
@@ -4052,6 +4057,12 @@ export async function toggleDeliveryComment(id: string, commentId: string): Prom
 export async function deliverGeneration(genId: string): Promise<{ deliveryId: string; already: boolean }> {
     return editorJson(await fetch(`${API_BASE}/api/generations/${encodeURIComponent(genId)}/deliver`, { method: "POST" }),
         "No se pudo mandar a Entregas");
+}
+/** Las piezas aprobadas de una campaña → una entrega interna (modulos C.5). Devuelve las piezas con su `deliveryId`. */
+export async function deliverCampaign(campaignId: string, pieceIds: string[]): Promise<{ deliveryId: string; count: number; pieces: CampaignPiece[] }> {
+    return editorJson(await fetch(`${API_BASE}/api/campaigns/${encodeURIComponent(campaignId)}/deliver`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pieceIds }),
+    }), "No se pudo mandar a Entregas");
 }
 export async function deleteDelivery(id: string): Promise<void> {
     await editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}`, { method: "DELETE" }), "No se pudo borrar la entrega");

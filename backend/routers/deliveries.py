@@ -885,6 +885,19 @@ async def brand_learning(brand_id: str, request: Request, s: AsyncSession = Depe
         if len(e["examples"]) < 5:
             e["examples"].append({"text": c.text, "delivery": titles.get(c.delivery_id), "byClient": not c.internal,
                                   "image": _slide(c), "x": c.x, "y": c.y})
+    # Rechazos con motivo en el lienzo de Campaña (C.5): cuentan igual que una corrección de Entregas.
+    for camp in campaigns_service.load_campaigns():
+        if camp.get("brandId") != brand_id:
+            continue
+        for p in camp.get("pieces") or []:
+            if p.get("verdict") != "no" or not p.get("rejectReason"):
+                continue
+            e = kinds.setdefault(p["rejectReason"], {"kind": p["rejectReason"], "count": 0, "examples": []})
+            e["count"] += 1
+            if len(e["examples"]) < 5:
+                e["examples"].append({"text": p.get("rejectNote") or f"Rechazada en la campaña «{camp.get('name') or ''}»",
+                                      "delivery": camp.get("name"), "byClient": False,
+                                      "image": p.get("url"), "x": None, "y": None})
     angles: dict = {}
     for d in dels:
         a = angles.setdefault(d.angle or "", {"angle": d.angle, "pieces": 0, "approved": 0, "firstTime": 0, "rounds": 0, "covers": []})
@@ -965,37 +978,19 @@ def _campaign_if_exists(campaign_id: Optional[str], brand_id: str) -> Optional[s
         return None
 
 
-@router.post("/api/generations/{gen_id}/deliver")
-async def deliver_generation(gen_id: str, request: Request, s: AsyncSession = Depends(get_session)):
-    """Una corrida terminada → entrega interna para revisar, con sus piezas copiadas."""
+async def _delivery_from_urls(request: Request, s: AsyncSession, brand_id: str, title: str, media: List[str],
+                              labels: List[str], campaign_id: Optional[str], note: str) -> Delivery:
+    """Una entrega interna (ronda 1, en revisión) con las piezas COPIADAS: los links de Fal vencen."""
     import asyncio
-    from services import generations as gens_service
-    if is_client(request):
-        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
-    gen = next((g for g in gens_service.load_generations() if g.get("id") == gen_id), None)
-    if not gen:
-        raise HTTPException(status_code=404, detail="No existe esa corrida")
-    if not gen.get("brandId"):
-        raise HTTPException(status_code=400, detail="Esa corrida no es de ninguna marca (Lab suelto): no va a Entregas.")
-    done = (gen.get("metadata") or {}).get("deliveryId")
-    if done and await s.get(Delivery, done):
-        return {"deliveryId": done, "already": True}
-    _require_brand(gen["brandId"])
-    media = _generation_media(gen)
-    if not media:
-        raise HTTPException(status_code=400, detail="Esa corrida no tiene piezas para entregar.")
-
     pieces = [await _fetch_piece(request, u) for u in media]
-    d = Delivery(brand_id=gen["brandId"], title=(gen.get("title") or "Pieza")[:200],
+    d = Delivery(brand_id=brand_id, title=title[:200],
                  kind="video" if any(ext in VIDEO_EXT for _, ext in pieces) else "imagenes",
                  status="en_revision", round=1, created_by=_who(request), items=[],
-                 campaign_id=_campaign_if_exists(gen.get("campaignId"), gen["brandId"]),
-                 note=f"Salió de {gen.get('toolId')} · corrida {gen_id}")
+                 campaign_id=campaign_id, note=note)
     d.id = f"dl_{uuid.uuid4().hex[:12]}"
     folder = FILES_DIR / d.id / "r1"
     folder.mkdir(parents=True, exist_ok=True)
     try:
-        labels = [(sc.get("title") or "") for sc in gen.get("scenes") or []] if not gen.get("outputUrl") else []
         items = []
         for i, (data, ext) in enumerate(pieces):
             if ext not in IMAGE_EXT | VIDEO_EXT:
@@ -1013,8 +1008,72 @@ async def deliver_generation(gen_id: str, request: Request, s: AsyncSession = De
     except Exception:
         shutil.rmtree(FILES_DIR / d.id, ignore_errors=True)
         raise
+    return d
+
+
+@router.post("/api/generations/{gen_id}/deliver")
+async def deliver_generation(gen_id: str, request: Request, s: AsyncSession = Depends(get_session)):
+    """Una corrida terminada → entrega interna para revisar, con sus piezas copiadas."""
+    from services import generations as gens_service
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    gen = next((g for g in gens_service.load_generations() if g.get("id") == gen_id), None)
+    if not gen:
+        raise HTTPException(status_code=404, detail="No existe esa corrida")
+    if not gen.get("brandId"):
+        raise HTTPException(status_code=400, detail="Esa corrida no es de ninguna marca (Lab suelto): no va a Entregas.")
+    done = (gen.get("metadata") or {}).get("deliveryId")
+    if done and await s.get(Delivery, done):
+        return {"deliveryId": done, "already": True}
+    _require_brand(gen["brandId"])
+    media = _generation_media(gen)
+    if not media:
+        raise HTTPException(status_code=400, detail="Esa corrida no tiene piezas para entregar.")
+
+    labels = [(sc.get("title") or "") for sc in gen.get("scenes") or []] if not gen.get("outputUrl") else []
+    d = await _delivery_from_urls(request, s, gen["brandId"], gen.get("title") or "Pieza", media, labels,
+                                  _campaign_if_exists(gen.get("campaignId"), gen["brandId"]),
+                                  f"Salió de {gen.get('toolId')} · corrida {gen_id}")
     with gens_service.mutate() as all_gens:
         for g in all_gens:
             if g.get("id") == gen_id:
                 g["metadata"] = {**(g.get("metadata") or {}), "deliveryId": d.id}
     return {"deliveryId": d.id, "already": False}
+
+
+# ── De una campaña a Entregas (openspec/changes/modulos C.5) ───────────────────────────────
+# En el lienzo de Campaña cada pieza se aprueba o se rechaza con motivo. Las aprobadas se mandan juntas
+# a UNA entrega interna; cada pieza anota a qué entrega fue, así mandar otra vez sólo lleva las nuevas.
+
+class CampaignDeliverRequest(BaseModel):
+    pieceIds: List[str] = []
+
+
+@router.post("/api/campaigns/{campaign_id}/deliver")
+async def deliver_campaign(campaign_id: str, req: CampaignDeliverRequest, request: Request,
+                           s: AsyncSession = Depends(get_session)):
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    camp = campaigns_service.find_campaign(campaigns_service.load_campaigns(), campaign_id)
+    if not camp:
+        raise HTTPException(status_code=404, detail="No existe esa campaña")
+    _require_brand(camp["brandId"])
+    wanted = set(req.pieceIds)
+    chosen = [p for p in camp.get("pieces") or []
+              if p.get("url") and p.get("id") in wanted and not p.get("deliveryId")][:MAX_PIECES]
+    if not chosen:
+        raise HTTPException(status_code=400, detail="No hay piezas aprobadas nuevas para mandar.")
+    d = await _delivery_from_urls(request, s, camp["brandId"], camp.get("name") or "Campaña",
+                                  [p["url"] for p in chosen], [p.get("label") or "" for p in chosen],
+                                  _campaign_if_exists(campaign_id, camp["brandId"]),
+                                  f"Aprobadas en la campaña «{camp.get('name') or campaign_id}»")
+    # Releer antes de escribir: el lienzo pudo guardar algo mientras se copiaban las piezas.
+    items = campaigns_service.load_campaigns()
+    fresh = campaigns_service.find_campaign(items, campaign_id)
+    ids = {p["id"] for p in chosen}
+    for p in (fresh or {}).get("pieces") or []:
+        if p.get("id") in ids:
+            p["deliveryId"] = d.id
+    if fresh:
+        campaigns_service.save_campaigns(items)
+    return {"deliveryId": d.id, "count": len(chosen), "pieces": (fresh or camp).get("pieces") or []}
