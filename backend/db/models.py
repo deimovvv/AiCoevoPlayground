@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -71,6 +71,11 @@ class Delivery(Base):
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     # Dónde sale: ["instagram", "tiktok", …]. Con Postiz, cada red es un canal de la marca.
     channels: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    # Ficha de la pieza (sólo el equipo): pedido, referencias, modelo y prompts, costo, editable, voz, qué
+    # dijo el cliente — para que otra persona la retome sin preguntar. Markdown corto, ~8 líneas.
+    ficha: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Cómo le fue después de publicada: métricas, mensajes, lo que dijo el cliente. A mano hasta Meta/Postiz.
+    results: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     approved_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

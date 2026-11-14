@@ -3885,6 +3885,9 @@ export interface Delivery extends Omit<DeliverySummary, "items"> {
     template: string | null; comments: DeliveryComment[];
     /** Versiones anteriores (la más vieja primero), para comparar con la actual. */
     history?: Array<{ round: number; items: DeliveryItem[]; note: string | null; sentAt: string | null; at: string }>;
+    /** Cómo se hizo y cómo le fue. Sólo llegan en la vista del equipo. */
+    ficha?: string | null;
+    results?: string | null;
 }
 
 /** `vista: "cliente"` = sólo lo mandado al cliente y sin comentarios internos. */
@@ -4063,6 +4066,12 @@ export async function deliverCampaign(campaignId: string, pieceIds: string[]): P
     return editorJson(await fetch(`${API_BASE}/api/campaigns/${encodeURIComponent(campaignId)}/deliver`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pieceIds }),
     }), "No se pudo mandar a Entregas");
+}
+/** La ficha de la pieza y «Cómo le fue» (equipo). Lo que no se pasa no se toca. */
+export async function saveDeliveryFicha(id: string, patch: { ficha?: string; results?: string }): Promise<Delivery> {
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/ficha`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    }), "No se pudo guardar la ficha");
 }
 export async function deleteDelivery(id: string): Promise<void> {
     await editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}`, { method: "DELETE" }), "No se pudo borrar la entrega");

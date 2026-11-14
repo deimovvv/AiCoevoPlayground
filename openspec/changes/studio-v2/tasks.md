@@ -142,3 +142,4 @@
       que la skill la use en la versión siguiente. Es la observación como dato (biblioteca `ideas/la-observacion-es-dato.md`).
 - [ ] 4.1 Entregas por marca: estado, comentarios, aprobación (reusa notas del portal).
 - [ ] 4.2 Migrar clientes del portal por link a cuentas; apagar el portal.
+- [x] 4.9 Ficha de la pieza y «Cómo le fue» (2026-11-14, aviso de morph-site): dos campos de texto en la entrega (`ficha`, `results`; migración `a3c7e5f1b2d4`), `POST /api/deliveries/{id}/ficha`, sólo el equipo (el cliente no los recibe ni los escribe). En Entregas, a la vista debajo de los comentarios, se guarda al salir del campo. MCP: `ver_entrega` los da, `guardar_ficha` los escribe y `renombrar_entrega` cambia el título. Falta: Resultados con números de Meta o Postiz (O.6).

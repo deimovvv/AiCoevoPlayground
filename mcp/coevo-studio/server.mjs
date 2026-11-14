@@ -146,6 +146,8 @@ tool("ver_entrega",
         const label = Object.fromEntries((d.items || []).map((i) => [i.id, i.label]));
         return {
             ...entregaCorta(d), nota: d.note, plantilla: d.template, fuente: d.source,
+            // Cómo se hizo (para retomarla sin preguntar) y cómo le fue. Sólo el equipo; vacía = todavía no se escribió.
+            ficha: d.ficha ?? null, resultados: d.results ?? null,
             // aprobada=false: el cliente dijo «esta no». Para la etapa siguiente (ej. el video), usar sólo las aprobadas.
             laminas: d.items.map((i) => ({ id: i.id, etiqueta: i.label, tipo: i.kind, url: i.url, aprobada: !i.rejected })),
             comentarios: d.comments.map((c) => ({
@@ -202,6 +204,33 @@ tool("nueva_ronda",
         const form = filesForm({ note: nota, labels: etiquetas?.join("|") }, archivos, fuente);
         const d = entregaCorta(await api(`/api/deliveries/${encodeURIComponent(id)}/round`, { method: "POST", form }));
         return { ...d, aviso: "Quedó INTERNA: el cliente no la ve hasta que alguien del equipo la revise y la mande desde Entregas." };
+    });
+
+tool("guardar_ficha",
+    "Escribe la ficha de una pieza en su entrega, para que otra persona la retome sin preguntar. Corta, ~8 líneas en markdown: " +
+    "**Pedido** · **Referencias** · **Modelo y prompts** (o dónde están) · **Costo** · **Editable** (ruta) · **Voz** · **Qué dijo el cliente** · **Aprendido**. " +
+    "Escribirla al terminar cada ronda, sobre todo si la pieza se hizo afuera de Studio (Seedance, voces, montaje). " +
+    "`resultados` es cómo le fue después de publicada (métricas, mensajes, lo que dijo el cliente). Lo que no se pasa no se toca; \"\" lo borra. No la ve el cliente.",
+    {
+        entrega_id: z.string(),
+        ficha: z.string().optional(),
+        resultados: z.string().optional(),
+    },
+    async ({ entrega_id, ficha, resultados }) => {
+        const d = await api(`/api/deliveries/${encodeURIComponent(entrega_id)}/ficha`, { method: "POST", body: { ficha, results: resultados } });
+        return { ...entregaCorta(d), ficha: d.ficha ?? null, resultados: d.results ?? null };
+    });
+
+tool("renombrar_entrega",
+    "Cambia el título de una entrega (ej. sacarle «· prueba»). No toca el proyecto ni la etapa.",
+    { entrega_id: z.string(), titulo: z.string().min(1) },
+    async ({ entrega_id, titulo }) => {
+        const id = encodeURIComponent(entrega_id);
+        const cur = await api(`/api/deliveries/${id}`);
+        // El PATCH reescribe proyecto y etapa: se mandan los que ya tiene.
+        return entregaCorta(await api(`/api/deliveries/${id}`, {
+            method: "PATCH", body: { title: titulo, campaignId: cur.campaignId ?? null, stage: cur.stage ?? null },
+        }));
     });
 
 tool("resolver_comentario",

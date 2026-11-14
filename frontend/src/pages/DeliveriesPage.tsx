@@ -15,6 +15,7 @@ import {
     toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
     type Delivery, type DeliveryStatus, type DeliverySummary,
 } from "../lib/api";
+import { DeliveryFicha } from "../components/workspace/DeliveryFicha";
 
 /**
  * Entregas: lo que Coevo le entrega a la marca para revisar (openspec/changes/studio-v2 P.3–P.4).
@@ -930,6 +931,7 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                                 </ol>
                                             </div>
                                         )}
+                                        {!client && <DeliveryFicha key={current.id} delivery={current} onSaved={setCurrent} />}
                                     </aside>
                                 );
                             })()}

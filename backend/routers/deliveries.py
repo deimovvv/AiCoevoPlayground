@@ -229,6 +229,8 @@ async def _full(s: AsyncSession, d: Delivery, client: bool = False) -> dict:
         # Versiones anteriores para comparar; el cliente sólo ve las que se le mandaron.
         "history": [{**h, "items": [{**i, "poster": _poster(i["url"]), "preview": _preview(i["url"])} if i.get("kind") == "video" else i for i in h.get("items") or []]}
                     for h in (d.history or []) if not client or h.get("sentAt")],
+        # La ficha lleva costos y prompts: no es para el cliente.
+        **({} if client else {"ficha": d.ficha, "results": d.results}),
     }
 
 
@@ -449,6 +451,26 @@ async def set_group(delivery_id: str, req: GroupIn, request: Request, s: AsyncSe
         if not req.title.strip():
             raise HTTPException(status_code=400, detail="El título no puede quedar vacío")
         d.title = req.title.strip()[:200]
+    await s.commit()
+    await s.refresh(d)
+    return await _full(s, d)
+
+
+class FichaIn(BaseModel):
+    ficha: Optional[str] = None      # None = no se toca; "" la borra
+    results: Optional[str] = None
+
+
+@router.post("/api/deliveries/{delivery_id}/ficha")
+async def set_ficha(delivery_id: str, req: FichaIn, request: Request, s: AsyncSession = Depends(get_session)):
+    """La ficha de la pieza y «Cómo le fue» (equipo)."""
+    if is_client(request):
+        raise HTTPException(status_code=403, detail="No tenés acceso a esto.")
+    d = await _get(s, delivery_id)
+    if req.ficha is not None:
+        d.ficha = req.ficha.strip()[:8000] or None
+    if req.results is not None:
+        d.results = req.results.strip()[:8000] or None
     await s.commit()
     await s.refresh(d)
     return await _full(s, d)
