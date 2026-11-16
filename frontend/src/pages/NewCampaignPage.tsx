@@ -27,7 +27,7 @@ import { SelectorPanel, SelectorTrigger } from "../components/workspace/Selector
 import { EditOverlay } from "../components/workspace/EditOverlay";
 import { PinterestBoards, type BoardImage } from "../components/workspace/PinterestBoards";
 import { fetchSystemLighting, systemAssetUrl, type LightingPreset } from "../lib/api";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { ArrowLeft, Loader2, Paperclip } from "lucide-react";
 import { Lightbox } from "../components/Lightbox";
 import { useBrand } from "../lib/BrandContext";
@@ -42,6 +42,7 @@ import {
   createTextToImage,
   pollImageGen,
   type CampaignPiece,
+  type Campaign,
   createKlingVideo,
   pollKlingVideo,
   saveGeneration,
@@ -52,6 +53,7 @@ import {
   getCampaignDirection, type CampaignDirection,
   briefFromFile,
   deliverCampaign,
+  getCampaign,
 } from "../lib/api";
 import { PieceVerdict } from "../components/workspace/PieceVerdict";
 import { imagesUsd, formatUsd } from "../lib/pricing";
@@ -247,13 +249,13 @@ const BRAND_AND_PINTEREST = [
   { id: "presets", label: "De la marca" },
   { id: "pinterest", label: "Pinterest" },
 ];
+// Pinterest sólo donde suma (Gonzalo, 2026-11-14): el tablero entero como moodboard y una imagen
+// como pose. La luz y el fondo los saca la Dirección leyendo el moodboard.
 const PICKER_TABS: Record<string, Array<{ id: string; label: string }>> = {
   moodboard: BRAND_AND_PINTEREST,
-  background: BRAND_AND_PINTEREST,
   lighting: [
     { id: "presets", label: "Presets" },
     { id: "mine", label: "De la marca" },
-    { id: "pinterest", label: "Pinterest" },
   ],
   pose: BRAND_AND_PINTEREST,
 };
@@ -464,6 +466,8 @@ export function NewCampaignPage() {
   const [reading, setReading] = useState(false);
   /** Campos que tocó el usuario a mano: la interpretación no los pisa. */
   const touched = useRef<Set<string>>(new Set());
+  /** El brief con que se reabrió una campaña: no se vuelve a interpretar (C.4). */
+  const hydratedBrief = useRef<string | null>(null);
   /** Qué campo abrió el selector. `null` = cerrado.
    *  Antes era un booleano y el panel mostraba TODOS los pickers juntos:
    *  tocabas "Iluminación" y veías también prendas, productos, modelos… */
@@ -576,6 +580,7 @@ export function NewCampaignPage() {
   useEffect(() => {
     const text = brief.trim();
     if (!b || text.length < 15) { setPlan(null); return; }
+    if (text === hydratedBrief.current) return;   // campaña reabierta: ya se leyó cuando se hizo
     const t = setTimeout(async () => {
       setReading(true);
       try {
@@ -599,6 +604,33 @@ export function NewCampaignPage() {
     }, 900);
     return () => clearTimeout(t);
   }, [brief, b?.id]);
+
+  // ── Abrir una campaña guardada acá mismo (modulos C.4) ──────────────────────
+  // `?id=` carga lo elegido, las piezas y su veredicto: se sigue aprobando y mandando otro día.
+  // Lo cargado cuenta como «tocado»: la lectura del brief no lo pisa (y no se vuelve a leer).
+  const [params] = useSearchParams();
+  const openId = params.get("id");
+  const [opening, setOpening] = useState(!!openId);
+  useEffect(() => {
+    if (!openId) return;
+    let alive = true;
+    getCampaign(openId).then((c) => {
+      if (!alive) return;
+      ["clothing", "products", "avatar", "background", "moodboard", "lookFeel", "pose", "ratios", "lighting"].forEach((k) => touched.current.add(k));
+      hydratedBrief.current = (c.brief || "").trim();
+      setCampaignId(c.id); setName(c.name || ""); setBrief(c.brief || "");
+      setAvatarId(c.avatarId ?? null); setProductIds(c.productIds || []); setClothingIds(c.clothingIds || []);
+      setBackgroundId(c.backgroundId ?? null); setMoodboardId(c.moodboardId ?? null); setMoodBoard(c.moodBoard ?? null);
+      setLookFeelId(c.lookFeelId ?? null); setPoseId(c.poseId ?? null); setLightingId(c.lightingId ?? null);
+      if (c.lightingId) setLightSource("preset"); else if (c.lookFeelId) setLightSource("image");
+      setVariationsPerShot(c.variationsPerShot || 1);
+      if (c.aspectRatios?.length) setAspectRatios(c.aspectRatios);
+      if (c.resolution) setResolution(c.resolution);
+      setPieces(c.pieces || []); setSavedInputs(c.inputs || []);
+    }).catch((e) => setError(e instanceof Error ? e.message : "No se pudo abrir la campaña"))
+      .finally(() => alive && setOpening(false));
+    return () => { alive = false; };
+  }, [openId]);
 
   // ── Dirección creativa ─────────────────────────────────────────────────────
   // Lee el moodboard y la referencia de luz ANTES de generar y lo muestra. Funciona
@@ -874,7 +906,7 @@ export function NewCampaignPage() {
           // "Campaña sin nombre" — que es lo que se veía en todas las campañas viejas.
           name: name.trim() || brief.trim().split("\n")[0].slice(0, 60) || "Campaña sin nombre",
           brief: brief.trim(),
-          avatarId, productIds, clothingIds, backgroundId, moodboardId, lookFeelId, poseId, lightingId,
+          avatarId, productIds, clothingIds, backgroundId, moodboardId, lookFeelId, poseId, lightingId, moodBoard,
           shotPlan: "ai",
           variationsPerShot,
           aspectRatios: aspectRatios.length ? aspectRatios : ["9:16"],
@@ -882,6 +914,13 @@ export function NewCampaignPage() {
         });
         id = c.id;
         setCampaignId(id);
+      } else {
+        // Reabierta o regenerada: guardar lo elegido ahora, así la próxima vez abre igual.
+        updateCampaign(id, {
+          ...(name.trim() ? { name: name.trim() } : {}),
+          brief: brief.trim(), avatarId, productIds, clothingIds, backgroundId, moodboardId, lookFeelId, poseId,
+          lightingId, moodBoard, variationsPerShot, aspectRatios, resolution,
+        } as Partial<Campaign>).catch(() => { /* lo elegido igual se usa en esta corrida */ });
       }
 
       // Los inputs propios que se cargaron ANTES de que la campaña existiera se
@@ -1048,18 +1087,24 @@ export function NewCampaignPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Nueva campaña"
-            className="bg-transparent outline-none text-[14px] font-semibold text-fg leading-none min-w-[180px]"
+            className="bg-transparent outline-none text-[14px] font-semibold text-fg leading-none min-w-0 w-full sm:min-w-[180px]"
           />
         </div>
         <div className="flex items-center gap-3 text-[11px] text-fg-muted">
-          <span className="uppercase tracking-[.09em]">{b.name}</span>
+          {/* Planos y otras referencias del proyecto todavía se cargan en el tablero. */}
+          {campaignId && (
+            <button onClick={() => navigate(`/dashboard/tablero/${encodeURIComponent(campaignId)}`)}
+                    className="hover:text-fg underline-offset-2 hover:underline cursor-pointer">Tablero</button>
+          )}
+          <span className="uppercase tracking-[.09em] hidden sm:inline">{b.name}</span>
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
+      {/* En celular, panel y lienzo uno debajo del otro (antes el panel de 420 px se cortaba). */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
 
       {/* ── PANEL ─────────────────────────────────────────────────── */}
-      <aside className="w-[420px] shrink-0 flex flex-col h-full" style={{ background: "var(--color-surface-0)", borderRight: `1px solid ${C.hair}` }}>
+      <aside className="w-full md:w-[420px] shrink-0 flex flex-col md:h-full" style={{ background: "var(--color-surface-0)", borderRight: `1px solid ${C.hair}` }}>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
 
@@ -1197,13 +1242,9 @@ export function NewCampaignPage() {
                   onRemoveOwn={removeOwn} uploading={uploadingInput}
                   onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
         )}
-        {picker === "background" && pickerTab === "pinterest" && (
-          <PinterestBoards brandId={b.id} dest="locacion" items={b.backgrounds || []} thumb={backgroundImageUrl}
-                  mode="image" selectedId={backgroundId} onPickImage={mark("background", setBackgroundId)} onImported={refreshBrands} />
-        )}
-        {picker === "background" && pickerTab !== "pinterest" && (
+        {picker === "background" && (
           <Picker label="Fondo" hint="opcional"
-                  items={(b.backgrounds || []).filter((x) => !fromPinterest(x)).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))}
+                  items={(b.backgrounds || []).map((x) => ({ id: x.id, name: x.name, thumb: x.imageUrl ? backgroundImageUrl(x.imageUrl) : undefined }))}
                   selectedId={backgroundId} onSingle={mark("background", setBackgroundId)}
                   ownItems={ownOf("background")} onUpload={(f) => addInputs(f, "background")}
                   onRemoveOwn={removeOwn} uploading={uploadingInput}
@@ -1235,9 +1276,9 @@ export function NewCampaignPage() {
                       if (id) { setLightSource("preset"); setLookFeelId(null); } else setLightSource(null);
                     })}
                     onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
-          ) : pickerTab === "mine" ? (
+          ) : (
             <Picker label="Referencia de luz" hint="solo aporta la luz"
-                    items={(b.lookAndFeel || []).filter((l) => !fromPinterest(l)).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
+                    items={(b.lookAndFeel || []).map((l) => ({ id: l.id, name: l.name, thumb: l.imageUrl ? lookAndFeelImageUrl(l.imageUrl) : undefined }))}
                     selectedId={effectiveLight === "image" ? lookFeelId : null}
                     onSingle={mark("lookFeel", (id: string | null) => {
                       setLookFeelId(id);
@@ -1247,13 +1288,6 @@ export function NewCampaignPage() {
                     onUpload={(f) => { addInputs(f, "lookfeel"); setLightSource("image"); setLightingId(null); }}
                     onRemoveOwn={removeOwn} uploading={uploadingInput}
                     onZoom={(url, caption) => setZoom({ items: [{ url, caption }], index: 0 })} />
-          ) : (
-            <PinterestBoards brandId={b.id} dest="luz" items={b.lookAndFeel || []} thumb={lookAndFeelImageUrl}
-                    mode="image" selectedId={effectiveLight === "image" ? lookFeelId : null} onImported={refreshBrands}
-                    onPickImage={mark("lookFeel", (id: string | null) => {
-                      setLookFeelId(id);
-                      if (id) { setLightSource("image"); setLightingId(null); } else setLightSource(null);
-                    })} />
           )
         )}
         {picker === "pose" && (
@@ -1287,54 +1321,19 @@ export function NewCampaignPage() {
           quedaban lejos del botón que dispara la corrida. Mismo cambio que el Lab. */}
       <div className="flex-1 flex flex-col min-w-0">
       <main
-        className="flex-1 overflow-y-auto relative"
+        className="flex-1 min-h-[70vh] md:min-h-0 overflow-y-auto relative"
         style={{ background: "radial-gradient(ellipse 50% 30% at 50% 0%, var(--color-surface-0), var(--color-canvas) 80%)" }}
       >
         {/* Dirección creativa: qué se leyó del moodboard y la luz, ANTES de generar. */}
         {dirStatus !== "idle" && (
           <DirectionCard status={dirStatus} d={direction} onRetry={() => { void ensureDirection(true); }} />
         )}
-        {plan ? (
-          /* Lo que entendió del brief: el plan de tomas */
-          <div className="p-8 max-w-[680px]">
-            <p className="text-[15px] leading-relaxed mb-6" style={{ fontFamily: SERIF, color: C.ink }}>
-              {plan.interpretation}
-            </p>
-
-            <div className="text-[9.5px] uppercase tracking-[.1em] mb-2.5" style={{ color: C.ink3 }}>
-              {plan.shots.length} tomas
-            </div>
-            <div style={{ borderTop: `1px solid ${C.hair}` }}>
-              {plan.shots.map((sh, i) => (
-                <div key={sh.id} className="flex gap-3.5 py-2.5" style={{ borderBottom: `1px solid ${C.hair}` }}>
-                  <span className="text-[10px] font-mono tabular-nums w-4 shrink-0 pt-0.5" style={{ color: C.ink3 }}>{i + 1}</span>
-                  <div className="min-w-0">
-                    <div className="text-[13px]" style={{ color: C.ink }}>{sh.label}</div>
-                    {sh.why && <div className="text-[11.5px] mt-0.5" style={{ color: C.ink3 }}>{sh.why}</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {plan.needs_video && (
-              <p className="text-[11.5px] mt-4" style={{ color: C.ink3 }}>
-                Mencionaste video. Por ahora salen las imágenes; el reel se arma después desde Fashion Reel.
-              </p>
-            )}
-
-            {plan.assumptions.length > 0 && (
-              <div className="mt-6">
-                <div className="flex items-baseline gap-2 border-b pb-1.5 mb-2.5" style={{ borderColor: "var(--color-edge-subtle)" }}>
-                  <span className="text-[11px] font-semibold tracking-tight" style={{ color: C.ink }}>Asumimos</span>
-                </div>
-                {plan.assumptions.slice(0, 4).map((a, i) => (
-                  <p key={i} className="text-[11.5px] leading-snug mb-1" style={{ color: C.ink3 }}>· {a}</p>
-                ))}
-              </div>
-            )}
+        {opening ? (
+          <div className="h-full flex items-center justify-center text-[12px]" style={{ color: C.ink3 }}>
+            <Loader2 size={14} className="animate-spin mr-2" /> Abriendo la campaña…
           </div>
         ) : pieces.length > 0 || progress.total > 0 ? (
-          /* Piezas generadas — el resultado vive ACÁ, no en otra pantalla. */
+          /* Con piezas, mandan las piezas: antes el plan las tapaba y no se podían aprobar (C.4). */
           <div className="p-6">
             <div className="flex items-baseline justify-between mb-4">
               <span className="text-[11px] uppercase tracking-[.12em]" style={{ color: C.ink2 }}>
@@ -1434,6 +1433,45 @@ export function NewCampaignPage() {
                      style={{ aspectRatio: "4/5", background: C.paper2, border: `1px solid ${C.hair}` }} />
               ))}
             </div>
+          </div>
+        ) : plan ? (
+          /* Lo que entendió del brief: el plan de tomas */
+          <div className="p-8 max-w-[680px]">
+            <p className="text-[15px] leading-relaxed mb-6" style={{ fontFamily: SERIF, color: C.ink }}>
+              {plan.interpretation}
+            </p>
+
+            <div className="text-[9.5px] uppercase tracking-[.1em] mb-2.5" style={{ color: C.ink3 }}>
+              {plan.shots.length} tomas
+            </div>
+            <div style={{ borderTop: `1px solid ${C.hair}` }}>
+              {plan.shots.map((sh, i) => (
+                <div key={sh.id} className="flex gap-3.5 py-2.5" style={{ borderBottom: `1px solid ${C.hair}` }}>
+                  <span className="text-[10px] font-mono tabular-nums w-4 shrink-0 pt-0.5" style={{ color: C.ink3 }}>{i + 1}</span>
+                  <div className="min-w-0">
+                    <div className="text-[13px]" style={{ color: C.ink }}>{sh.label}</div>
+                    {sh.why && <div className="text-[11.5px] mt-0.5" style={{ color: C.ink3 }}>{sh.why}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {plan.needs_video && (
+              <p className="text-[11.5px] mt-4" style={{ color: C.ink3 }}>
+                Mencionaste video. Por ahora salen las imágenes; el reel se arma después desde Fashion Reel.
+              </p>
+            )}
+
+            {plan.assumptions.length > 0 && (
+              <div className="mt-6">
+                <div className="flex items-baseline gap-2 border-b pb-1.5 mb-2.5" style={{ borderColor: "var(--color-edge-subtle)" }}>
+                  <span className="text-[11px] font-semibold tracking-tight" style={{ color: C.ink }}>Asumimos</span>
+                </div>
+                {plan.assumptions.slice(0, 4).map((a, i) => (
+                  <p key={i} className="text-[11.5px] leading-snug mb-1" style={{ color: C.ink3 }}>· {a}</p>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           /* En reposo */

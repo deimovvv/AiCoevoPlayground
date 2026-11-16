@@ -119,7 +119,7 @@ export function TableroPage() {
                 <Link to="/dashboard/produccion" className="text-fg-muted hover:text-fg no-underline">← Producción</Link>
                 <span className="flex-1" />
                 {!saved && <button onClick={save} className="h-8 px-3 rounded-[4px] bg-[var(--color-action)] text-[var(--color-action-fg)] cursor-pointer">Guardar cambios</button>}
-                <button onClick={() => navigate(`/dashboard/campaigns/${c.id}`)} className="h-8 px-3 rounded-[4px] border border-edge text-fg-muted hover:text-fg cursor-pointer">Abrir en el generador</button>
+                <button onClick={() => navigate(`/dashboard/campaigns/new?id=${encodeURIComponent(c.id)}`)} className="h-8 px-3 rounded-[4px] border border-edge text-fg-muted hover:text-fg cursor-pointer">Abrir en el generador</button>
             </div>
 
             <header className="mt-8 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-12 gap-y-4 pb-8">

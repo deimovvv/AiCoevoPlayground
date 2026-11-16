@@ -62,6 +62,10 @@ def new_campaign(payload: dict) -> dict:
         "clothingIds": payload.get("clothingIds", []) or [],
         "backgroundId": payload.get("backgroundId"),
         "lookFeelId": payload.get("lookFeelId"),
+        # Preset de luz del sistema y tablero de Pinterest elegido como moodboard (modulos C.4:
+        # la campaña se reabre en el generador con lo mismo que se eligió).
+        "lightingId": payload.get("lightingId"),
+        "moodBoard": payload.get("moodBoard"),
         # "ai" = la IA decide el shot list · "manual" = estilos elegidos por el usuario.
         "shotPlan": payload.get("shotPlan", "ai"),
         "customShots": payload.get("customShots", []) or [],
@@ -101,7 +105,7 @@ _EDITABLE = {
     # De dónde salió el pedido: "agency" (lo cargamos nosotros) o "portal" (lo pidió el
     # cliente desde su link). Un pedido del cliente entra a Trabajo exigiendo acción.
     "source", "requestedBy",
-    "avatarId", "clothingIds", "backgroundId", "lookFeelId",
+    "avatarId", "clothingIds", "backgroundId", "lookFeelId", "lightingId", "moodBoard",
 }
 
 

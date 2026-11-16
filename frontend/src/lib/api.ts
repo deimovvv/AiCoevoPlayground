@@ -532,6 +532,8 @@ export interface Campaign {
     lookFeelId: string | null;
     /** Preset de iluminación del sistema (ver `/api/system/lighting`). */
     lightingId?: string | null;
+    /** Tablero de Pinterest usado entero como moodboard (modulos C.3). */
+    moodBoard?: string | null;
     shotPlan: "ai" | "manual";
     customShots: string[];
     variationsPerShot: number;
@@ -572,6 +574,7 @@ export async function createCampaign(payload: {
     lookFeelId?: string | null;
     /** Preset de iluminación del sistema (ver `/api/system/lighting`). */
     lightingId?: string | null;
+    moodBoard?: string | null;
     shotPlan?: "ai" | "manual";
     customShots?: string[];
     variationsPerShot?: number;

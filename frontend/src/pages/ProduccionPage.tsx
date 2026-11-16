@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { Trash2 } from "lucide-react";
 import { useConfirm } from "../lib/useConfirm";
 import { useBrand } from "../lib/BrandContext";
-import { backendUrl, createCampaign, deleteProject, deliverGeneration, fetchGenerations, fetchToolPreviews, listCampaigns, listDeliveries, listInbox, type Brand, type Campaign, type DeliverySummary, type Generation, type InboxItem, type ToolPreview } from "../lib/api";
+import { backendUrl, deleteProject, deliverGeneration, fetchGenerations, fetchToolPreviews, listCampaigns, listDeliveries, listInbox, type Brand, type Campaign, type DeliverySummary, type Generation, type InboxItem, type ToolPreview } from "../lib/api";
 
 /**
  * Producción (openspec/changes/studio-v2 §1): hacer algo nuevo para la marca y ver qué espera
@@ -227,19 +227,15 @@ export function ProduccionPage() {
                         <h2 className="text-[20px] text-fg">Campañas</h2>
                         <span className="font-mono text-[11px] text-fg-faint">{campaigns.length || ""}</span>
                         <span className="flex-1" />
-                        <button onClick={async () => {
-                            const name = await ask({ title: "Nueva campaña", input: "Nombre", placeholder: "Ej: Otoño · lookbook", confirm: "Crear" });
-                            if (typeof name !== "string") return;
-                            const c = await createCampaign({ brandId: activeBrand.id, name, brief: "" });
-                            navigate(`/dashboard/tablero/${c.id}`);
-                        }} className="text-[12px] text-fg hover:underline cursor-pointer">+ Nueva</button>
+                        {/* Una sola pantalla (modulos C.4): la campaña se arma y se genera en el mismo lugar. */}
+                        <button onClick={() => navigate("/dashboard/campaigns/new")} className="text-[12px] text-fg hover:underline cursor-pointer">+ Nueva</button>
                     </div>
                     {campaigns.length === 0 && <p className="py-4 text-[13px] text-fg-faint">Una campaña junta la idea y su tablero: moodboard, luz, locación, planos.</p>}
                     {campaigns.map((c) => {
                         const cover = (c.inputs || []).find((i) => i.type === "moodboard" || i.type === "lookfeel")?.url || (c.inputs || [])[0]?.url;
                         return (
                             <div key={c.id} className="group flex items-center border-b border-[var(--color-edge-subtle)]">
-                            <Link to={`/dashboard/tablero/${c.id}`} className="flex-1 min-w-0 flex items-center gap-4 py-3 no-underline">
+                            <Link to={`/dashboard/campaigns/new?id=${encodeURIComponent(c.id)}`} className="flex-1 min-w-0 flex items-center gap-4 py-3 no-underline">
                                 {/* Sin referencias no hay portada: un recuadro vacío no dice nada. */}
                                 {cover && (
                                     <span className="w-12 h-[60px] shrink-0 rounded-[var(--radius-xs)] bg-[var(--color-surface-2)] overflow-hidden">

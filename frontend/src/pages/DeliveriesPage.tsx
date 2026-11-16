@@ -942,7 +942,8 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                 const it = current.items[Math.min(slide, total - 1)];
                                 if (!it) return null;
                                 const here = comments.filter((c) => c.itemId === it.id);
-                                const general = comments.filter((c) => !c.itemId);
+                                // Las notas «Versión N: …» van en la vista general, no como comentarios de la lámina.
+                                const general = comments.filter((c) => !c.itemId && !isVersionNote(c));
                                 return (
                                     <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
                                         <div className="md:flex-1 min-w-0 md:min-h-0 flex flex-col bg-[var(--color-canvas)]">

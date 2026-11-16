@@ -104,7 +104,7 @@ start_backend() {
     else
       echo "AVISO: Docker no está corriendo — los proyectos de video por marca no van a andar (abrí Docker)."
     fi
-    exec python -m uvicorn main:app --reload --port "$BACKEND_PORT" 2>&1 \
+    STUDIO_SELF_URL="http://127.0.0.1:$BACKEND_PORT" exec python -m uvicorn main:app --reload --port "$BACKEND_PORT" 2>&1 \
       | sed -u "s/^/$(printf "${C_BACK}[backend]${C_RESET} ")/"
   ) &
   PIDS+=($!)

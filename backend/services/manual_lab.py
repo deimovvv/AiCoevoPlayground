@@ -5,6 +5,7 @@ Lightweight Gemini call that, given a free-form prompt the user is about to send
 to Nano Banana / Kling, decides whether one of the structured pipelines would
 serve them better. Non-blocking: returns either a tool_id + reason, or null.
 """
+import os
 
 import base64
 import json
@@ -220,7 +221,8 @@ async def _fetch_image_bytes(url: str) -> tuple[bytes, str]:
 
     fetch_url = url
     if url.startswith("/static/"):
-        fetch_url = f"http://127.0.0.1:8000{url}"  # no localhost: puede resolver a IPv6 y fallar
+        # no localhost: puede resolver a IPv6 y fallar. STUDIO_SELF_URL: dev.sh la pone si el 8000 está ocupado.
+        fetch_url = f"{os.getenv('STUDIO_SELF_URL', 'http://127.0.0.1:8000')}{url}"
 
     async with httpx.AsyncClient(timeout=30) as client:
         res = await client.get(fetch_url)

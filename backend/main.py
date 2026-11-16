@@ -675,6 +675,7 @@ class CampaignCreateRequest(BaseModel):
     # Preset de iluminación del SISTEMA (ver /api/system/lighting). No es un asset
     # de la marca: el id referencia data/system/lighting.json.
     lightingId: Optional[str] = None
+    moodBoard: Optional[str] = None   # nombre del tablero de Pinterest usado como moodboard
     shotPlan: str = "ai"
     customShots: list[str] = []
     variationsPerShot: int = 1
@@ -4294,7 +4295,7 @@ async def _resolve_image_bytes(image: str) -> tuple[bytes, str]:
         return _b64.b64decode(b64), mime
     url = image
     if image.startswith("/static/"):
-        url = f"http://127.0.0.1:8000{image}"
+        url = f"{os.getenv('STUDIO_SELF_URL', 'http://127.0.0.1:8000')}{image}"
     async with httpx.AsyncClient(timeout=60, follow_redirects=True) as c:
         r = await c.get(url)
     ct = r.headers.get("content-type", "image/jpeg").split(";")[0]
