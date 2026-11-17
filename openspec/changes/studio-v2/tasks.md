@@ -113,6 +113,7 @@
 - [x] 2.1 Barra superior (`TopBar.tsx`) con selector de marca y 4 secciones; sidebar fuera; tema papel + Geist por defecto; `/dashboard` → Marca (6 bloques, `MarcaPage.tsx`); Producción (`ProduccionPage.tsx`) (2026-10-19).
 - [ ] 2.2 Redirects de las rutas viejas.
 - [ ] 2.3 Vista cliente: sólo Marca (lectura + subir), Entregas, Reportes.
+- [ ] 2.4 Celular (medido 2026-11-14 a 390 px; pendiente por pedido de Gonzalo): las barras de arriba cortan «Reportes» y «Perfil» (deberían scrollear de costado), el selector «Proyectos / Plan mensual» queda partido, y el Calendario en vista Semana se rompe (el encabezado «Sin fecha» se encima). Ninguna pantalla se corre de costado: el problema es contenido cortado. Nueva campaña ya se apila (C.4).
 
 ## 3. Plantillas y Claude
 
