@@ -62,3 +62,12 @@ las herramientas los heredan.
 - Antes de afirmar que un modelo, precio o endpoint existe: verificarlo. No hacer POST de
   prueba a APIs de generación — encolan y cobran.
 - Todo cambio se commitea y pushea a `main` al terminarlo (cuenta gh `deimovvv`).
+
+<!-- equipo:inicio (lo mantiene la skill informe: informe.py equipo <repo>; no editar a mano) -->
+## Cómo trabajamos en este repo (todo el equipo, en la compu o en claude.ai/code)
+- **Al empezar:** `git pull`. Leé `informe.md` (estado, decisiones, próximo paso) y los avisos abiertos de `ESTADO.md`.
+- **Memoria:** cuando alguien dice «anotá esto», va a `informe.md` (decisión con fecha y quién, esta semana, próximo). Lo que le sirve a otro proyecto, como aviso en el `ESTADO.md` de ese proyecto. Lo aprendido usando una skill, en su `LEARNINGS.md` (repo autopoiesis).
+- **Al terminar cada cosa:** commit y push enseguida. Notas, informe y ESTADO, directo a `main`; código, en una rama.
+- **Si el push rebota:** `git pull --rebase`, juntar las dos versiones y volver a subir. Nunca `--force`.
+- **El link del informe** (`url:` en `informe.md`) se actualiza desde una compu con las skills (`informe.py build` y publicarlo en el mismo link). Desde la web alcanza con guardar `informe.md`: la próxima sesión en una compu del equipo avisa que hay que publicarlo.
+<!-- equipo:fin -->
