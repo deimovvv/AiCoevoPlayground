@@ -19,7 +19,7 @@
   Colores y letra: design system de Coevo (coevo-web/docs/design-system.md), base papel.
 -->
 <style>
-  :root { --bg: #f3f4f3; --ink: #131416; --mute: #6b6e73; --faint: #6b6e73; --second: #6b6e73; --celeste: #7fa6bc; --u: min(1vw, 1.6vh); }
+  :root { --bg: #f3f4f3; --ink: #131416; --mute: #6b6e73; --faint: #6b6e73; --second: #6b6e73; --celeste: #7fa6bc; --u: min(.85vw, 1.6vh); --t: min(1vw, 1.6vh); }
   * { box-sizing: border-box; }
   html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   a { color: inherit; }
@@ -36,7 +36,7 @@
   .site:hover { color: var(--ink); }
 
   main { position: relative; z-index: 2; text-align: center; padding: 0 20px; display: grid; justify-items: center; }
-  h1 { margin: 0; font-weight: 400; font-size: clamp(36px, calc(var(--u) * 4.5), 76px); line-height: 1.02; letter-spacing: -.045em; text-wrap: balance; }
+  h1 { margin: 0; font-weight: 400; font-size: clamp(36px, calc(var(--t) * 4.5), 76px); line-height: 1.02; letter-spacing: -.045em; text-wrap: balance; }
   h1 em { font-style: normal; color: var(--second); }
   .lead { margin: 22px 0 0; max-width: 40ch; font-size: 16px; line-height: 1.5; color: var(--mute); text-wrap: balance; }
   .enter { display: inline-flex; align-items: center; gap: 28px; height: 46px; margin-top: 30px; padding: 0 16px 0 20px; border-radius: 2px; background: var(--ink); color: var(--bg); text-decoration: none; font-size: 14px; font-weight: 500; transition: background .2s ease; }
@@ -59,6 +59,8 @@
   .media { display: block; width: 100%; aspect-ratio: var(--ar); object-fit: cover; border-radius: 2px; background: #dddee1; }
   .ficha { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--mute); white-space: nowrap; font-size: 10px; transition: color .25s ease; }
   .card:hover .ficha { color: var(--ink); }
+  .ficha .num { color: #a3a6ab; }
+  .logo { height: 17px; width: auto; display: block; transform: translateY(2px); }
 
   .strip { display: none; }
 
@@ -87,7 +89,7 @@
 <body>
 <div class="stage" id="stage">
   <header>
-    <div class="brand"><span class="word">coevo</span><span class="mono tag">Studio</span></div>
+    <div class="brand"><img class="logo" src="/puerta/img/coevo-logo.png" alt="coevo"><span class="mono tag">Studio</span></div>
     <a class="mono site" href="https://coevoagency.com">coevoagency.com</a>
   </header>
   <div class="field" id="field"></div>
@@ -103,19 +105,20 @@
 <script>
   const IMG = "/puerta/img/";
   // n: archivo · r: rubro · alt · v: tiene video · x, y: % de pantalla · w: ancho en --u · ar: proporción · d: profundidad
+  // Tres tamaños (S 8 · M 10.5 · L 13, en --u) y dos apaisadas. Dos columnas con aire parejo, nada pisado ni cortado.
   const PIEZAS = [
-    { n: "afiche",   r: "Vía pública", alt: "Afiche de Coevo con tiras para arrancar, pegado en un poste.", v: 1, x: -2.5, y: 11, w: 16, ar: "4/5", d: .9 },
-    { n: "dientes",  r: "Belleza",     alt: "Boca en primer plano con joyas en los dientes.",               x: 16,   y: 6,  w: 9,  ar: "1/1", d: .4 },
-    { n: "silla",    r: "Mueble",      alt: "Una silla que va cambiando de color.",                  v: 1, x: 20,   y: 33, w: 8.5, ar: "3/4", d: .55 },
-    { n: "gaia",     r: "Retrato",     alt: "Retrato de Gaia, identidad digital de Morph.",          v: 1, x: 6,    y: 50, w: 13, ar: "4/5", d: .75 },
-    { n: "pelo",     r: "Moda",        alt: "Modelo a contraluz con el pelo al viento.",             v: 1, x: 22,   y: 69, w: 9.5, ar: "4/5", d: .5 },
-    { n: "film",     r: "Film",        alt: "Dos mujeres trenzándose el pelo en un campo.",          v: 1, x: -1,   y: 84, w: 12, ar: "4/5", d: .35 },
-    { n: "promedio", r: "Journal",     alt: "Una mujer frente a una pared cubierta por la misma foto.", x: 38,   y: 3,  w: 15, ar: "3/2", d: .25 },
-    { n: "fosforo",  r: "Editorial",   alt: "Una mujer prende una vela con forma de sillón.",           x: 75,   y: 9,  w: 28, ar: "16/9", d: .9 },
-    { n: "faro",     r: "Auto",        alt: "Detalle del faro encendido de una camioneta negra.",       x: 72,   y: 41, w: 9,  ar: "4/5", d: .5 },
-    { n: "pelota",   r: "Campaña",     alt: "Zapato de taco sobre una pelota con el isotipo de Coevo.", x: 84,   y: 40, w: 14, ar: "4/5", d: .8 },
-    { n: "cielo",    r: "Marca",       alt: "El logo de Coevo en el cielo, visto desde un patio.",   v: 1, x: 70,   y: 68, w: 13, ar: "4/5", d: .65 },
-    { n: "sesion",   r: "Sesión",      alt: "Modelo de negro que se acerca a cámara sobre fondo blanco.", v: 1, x: 87, y: 71, w: 11, ar: "4/5", d: .4 }
+    { n: "afiche",   r: "Vía pública", alt: "Afiche de Coevo con tiras para arrancar, pegado en un poste.", v: 1, x: 4,  y: 12, w: 10.5, ar: "4/5", d: .7 },
+    { n: "dientes",  r: "Belleza",     alt: "Boca en primer plano con joyas en los dientes.",               x: 18, y: 8,  w: 8,    ar: "1/1", d: .4 },
+    { n: "silla",    r: "Mueble",      alt: "Una silla que va cambiando de color.",                  v: 1, x: 20, y: 34, w: 8,    ar: "3/4", d: .5 },
+    { n: "gaia",     r: "Retrato",     alt: "Retrato de Gaia, identidad digital de Morph.",          v: 1, x: 5,  y: 45, w: 13,   ar: "4/5", d: .8 },
+    { n: "pelo",     r: "Moda",        alt: "Modelo a contraluz con el pelo al viento.",             v: 1, x: 19, y: 63, w: 10.5, ar: "4/5", d: .55 },
+    { n: "promedio", r: "Journal",     alt: "Una mujer frente a una pared cubierta por la misma foto.", x: 4,  y: 80, w: 13,   ar: "3/2", d: .35 },
+    { n: "fosforo",  r: "Editorial",   alt: "Una mujer prende una vela con forma de sillón.",           x: 72, y: 9,  w: 15,   ar: "16/9", d: .45 },
+    { n: "faro",     r: "Auto",        alt: "Detalle del faro encendido de una camioneta negra.",       x: 87, y: 13, w: 8,    ar: "4/5", d: .4 },
+    { n: "pelota",   r: "Campaña",     alt: "Zapato de taco sobre una pelota con el isotipo de Coevo.", x: 74, y: 37, w: 10.5, ar: "4/5", d: .7 },
+    { n: "cielo",    r: "Marca",       alt: "El logo de Coevo en el cielo, visto desde un patio.",   v: 1, x: 84, y: 45, w: 13,   ar: "4/5", d: .8 },
+    { n: "sesion",   r: "Sesión",      alt: "Modelo de negro que se acerca a cámara sobre fondo blanco.", v: 1, x: 73, y: 67, w: 10.5, ar: "4/5", d: .55 },
+    { n: "film",     r: "Film",        alt: "Dos mujeres trenzándose el pelo en un campo.",          v: 1, x: 87, y: 77, w: 8,    ar: "4/5", d: .35 }
   ];
   const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const celular = matchMedia("(max-width: 860px)").matches;
@@ -138,8 +141,10 @@
       media.src = IMG + p.n + ".webp"; media.alt = p.alt;
     }
     media.className = "media";
-    const ficha = document.createElement("figcaption"); ficha.className = "ficha mono"; ficha.textContent = p.r;
-    if (p.x < 0 && !celular) ficha.style.paddingLeft = `calc(${-p.x}vw + 8px)`;   // la pieza sale de pantalla; la ficha no
+    const ficha = document.createElement("figcaption"); ficha.className = "ficha mono";
+    const num = document.createElement("span"); num.className = "num"; num.textContent = String(i + 1).padStart(2, "0");
+    const rubro = document.createElement("span"); rubro.textContent = p.r;
+    ficha.append(rubro, num);
     adentro.append(media, ficha); card.append(adentro);
     return card;
   }
@@ -163,8 +168,8 @@
       const frame = t => {
         cx += (mx - cx) * .05; cy += (my - cy) * .05;
         for (const c of cartas) {
-          const fx = Math.sin(t / 3400 + c.fase) * 5 * c.d, fy = Math.cos(t / 2800 + c.fase) * 7 * c.d;
-          c.el.style.transform = `translate3d(${(-cx * 46 * c.d + fx).toFixed(2)}px, ${(-cy * 34 * c.d + fy).toFixed(2)}px, 0)`;
+          const fx = Math.sin(t / 4200 + c.fase) * 4 * c.d, fy = Math.cos(t / 3600 + c.fase) * 5 * c.d;
+          c.el.style.transform = `translate3d(${(-cx * 22 * c.d + fx).toFixed(2)}px, ${(-cy * 16 * c.d + fy).toFixed(2)}px, 0)`;
         }
         requestAnimationFrame(frame);
       };
