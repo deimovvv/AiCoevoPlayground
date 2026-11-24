@@ -56,10 +56,10 @@ que ve **todas** las marcas como «equipo». Pasa esto:
 
 ## Lo que hay que tocar fuera del código (lo hace Gonzalo, con guía paso a paso)
 
-- **Cloudflare Access:** una regla «Bypass» para `/mcp`, `/oauth/token`, `/oauth/register` y
-  `/.well-known/oauth-*`. claude.ai llama desde la nube de Anthropic y no puede pasar el login de
-  Cloudflare; esas rutas se protegen con el token propio. `/oauth/authorize` **sigue detrás** de Access:
-  ahí entra la persona.
+- **Cloudflare Access** (corregido el 24/11, medido en producción): la app de Access cubre rutas, no el
+  dominio entero, así que `/mcp`, `/oauth/token`, `/oauth/register` y `/.well-known/oauth-*` ya llegan
+  abiertas (y Studio las traba con su token). Lo que hay que hacer es **sumar `oauth/authorize`** a la app
+  de Access de Studio, para que ahí entre la persona con su login.
 - **claude.ai:** agregar el conector (en el plan Team lo agrega el dueño una vez y cada uno se loguea).
 
 ## Riesgos

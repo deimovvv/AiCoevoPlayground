@@ -14,31 +14,25 @@ Claude a Studio con **su login de siempre** y Claude ve lo mismo que esa persona
 - Piezas: `backend/routers/oauth.py` (login), `backend/routers/mcp_remote.py` (`/mcp`),
   `backend/services/oauth.py` (tokens), `mcp/coevo-studio/http.mjs` (el MCP por HTTP; herramientas en `tools.mjs`).
 
-## Lo que hace Gonzalo una sola vez: abrir las rutas del conector en Cloudflare
+## Lo que hace Gonzalo una sola vez: que «Autorizar» pida el login
 
-claude.ai llama desde la nube de Anthropic y no puede pasar el login de Cloudflare. Hay que dejar pasar
-**sólo** estas rutas (ninguna devuelve datos sin token; la app las vuelve a trabar sola):
+Medido el 2026-11-24, ya en producción: la app de Cloudflare Access de Studio **no cubre todo el dominio**,
+cubre rutas (`/api`, `/static`, `/dashboard`, `/cliente`). Por eso el descubrimiento, `/oauth/register`,
+`/oauth/token` y `/mcp` **ya llegan a Studio sin hacer nada** (y Studio los traba solo: `/mcp` sin token da
+401). Lo único que falta es lo contrario: que `/oauth/authorize` pase por el login. Hoy Studio la corta con
+403 porque no le llega ningún mail, así que nadie puede autorizar todavía.
 
-1. Cloudflare → **Zero Trust** → **Access** → **Applications** → **Add an application** → **Self-hosted**.
-2. Nombre: `Studio · conector Claude`.
-3. En **Public hostname** agregar una línea por ruta, todas con el dominio `app.coevoagency.com`:
-   - `mcp`
-   - `oauth/token`
-   - `oauth/register`
-   - `.well-known/oauth-authorization-server`
-   - `.well-known/oauth-protected-resource`
-4. **Policy** → nombre `Abierto, lo traba la app` → **Action: Bypass** → Include: **Everyone**.
-5. Guardar. **No** agregar `oauth/authorize`: esa queda con el login.
+1. Cloudflare → **Zero Trust** → **Access** → **Applications** → la app de Studio (`app.coevoagency.com`) → **Edit**.
+2. En **Public hostnames** (donde ya están `api`, `static`, `dashboard`, `cliente`): **Add** → dominio
+   `app.coevoagency.com`, path `oauth/authorize`.
+3. **Save**. No tocar las políticas: es la misma app, con el mismo login.
 
 Para comprobar (desde cualquier compu, sin login):
 ```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://app.coevoagency.com/oauth/authorize            # 302 (al login)
+curl -s -o /dev/null -w "%{http_code}\n" -X POST https://app.coevoagency.com/mcp               # 401
 curl -s -o /dev/null -w "%{http_code}\n" https://app.coevoagency.com/.well-known/oauth-authorization-server   # 200
-curl -s -o /dev/null -w "%{http_code}\n" -X POST https://app.coevoagency.com/mcp                              # 401
-curl -s -o /dev/null -w "%{http_code}\n" https://app.coevoagency.com/api/brands                               # 302 (sigue con login)
 ```
-
-> A verificar en el primer intento: que Cloudflare tome la regla más específica (la ruta) por encima de
-> la app general de `app.coevoagency.com`. Si el `curl` de `/mcp` da 302, avisar.
 
 ## Conectar claude.ai
 
