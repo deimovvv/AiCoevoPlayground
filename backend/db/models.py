@@ -155,3 +155,50 @@ class InboxItem(Base):
     # Lo que propone el agente (services/inbox_agent.py): {status, target, why, perFile, discard} — el equipo confirma.
     proposal: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ── Conectar Claude (openspec/changes/studio-en-claude) ─────────────────────────────────────────
+# Studio hace de servidor OAuth chico para que claude.ai y Claude Code usen el MCP con el login de cada
+# persona. Los secretos (códigos y tokens) se guardan sólo como sha256: si alguien lee la base, no le sirven.
+
+class OAuthClient(Base):
+    """Una app que se registró sola (registro dinámico): claude.ai, Claude Code, etc."""
+
+    __tablename__ = "oauth_clients"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: _id("oc"))
+    name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    redirect_uris: Mapped[list] = mapped_column(JSONB, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class OAuthCode(Base):
+    """El código de un solo uso que vuelve a Claude después de «Autorizar» (dura 10 minutos)."""
+
+    __tablename__ = "oauth_codes"
+
+    code_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    client_id: Mapped[str] = mapped_column(String(40), ForeignKey("oauth_clients.id", ondelete="CASCADE"))
+    email: Mapped[str] = mapped_column(String(200))
+    redirect_uri: Mapped[str] = mapped_column(String(1000))
+    challenge: Mapped[str] = mapped_column(String(200))          # PKCE S256
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class OAuthToken(Base):
+    """Un acceso de Claude en nombre de una persona: token de 1 hora + refresh de 30 días.
+    Se corta desde Ajustes (`revoked_at`); `last_used_at` dice cuándo lo usó por última vez."""
+
+    __tablename__ = "oauth_tokens"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: _id("ot"))
+    client_id: Mapped[str] = mapped_column(String(40), ForeignKey("oauth_clients.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(200), index=True)
+    access_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    refresh_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    access_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    refresh_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

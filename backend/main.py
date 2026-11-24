@@ -45,6 +45,8 @@ from routers import semaforo as semaforo_router
 from routers import inicio as inicio_router
 from routers import importar as importar_router
 from routers import reportes as reportes_router
+from routers import oauth as oauth_router
+from routers import mcp_remote as mcp_remote_router
 from fastapi import Request
 from urllib.parse import quote
 from services import llm_router
@@ -5267,6 +5269,9 @@ app.include_router(semaforo_router.router)
 app.include_router(inicio_router.router)
 app.include_router(importar_router.router)
 app.include_router(reportes_router.router)
+# Conectar Claude (openspec/changes/studio-en-claude): login OAuth y el MCP en /mcp.
+app.include_router(oauth_router.router)
+app.include_router(mcp_remote_router.router)
 
 
 # ── Proyectos del editor (timeline.json en una carpeta) ─────────────────────
