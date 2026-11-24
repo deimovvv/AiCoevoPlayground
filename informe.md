@@ -29,6 +29,7 @@ url: https://claude.ai/artifact/5hKZbU2L4BL5Ja5ySgSPFn
 
 ## Decisiones
 <!-- AAAA-MM-DD · quién · qué se decidió · (reemplaza: …) — la más nueva arriba -->
+- 2026-11-24 · Gonzalo · Studio se usa desde cualquier Claude (claude.ai y Claude Code) con el login de cada uno: `openspec/changes/studio-en-claude`, por pasos. La nota de versión de una entrega es una frase (la ve el cliente); lo interno va en la ficha.
 - 2026-11-09 · Gonzalo · Aprobado el change `modulos`. Fase 1 hecha: lo producido va a Entregas desde Producción y las reglas aprendidas entran al prompt de las tools.
 - 2026-11-09 · Gonzalo · La herramienta es como Genera (brief, inputs al costado, resultados); los nodos son la vista del equipo. El tablero de Pinterest es clave, sobre todo para Campaña: se importa pegando el link de un tablero público (comprobado: feed .rss, 25 pines, imágenes en original) y queda en Marca. PDP carga una carpeta entera y genera de a una prenda.
 - 2026-11-09 · Gonzalo · Las pantallas usan el design system de Coevo (coevo-web/docs/design-system.md) y no muestran nombres de herramientas: se ven módulos. Se llaman playbooks: PDP, Campaña, Motion, Casting, Talking, Retail Kit, Material Lab (a confirmar). Cada uno se ve en nodos con fotos. Sin amarillo.
@@ -41,6 +42,7 @@ url: https://claude.ai/artifact/5hKZbU2L4BL5Ja5ySgSPFn
 - 2026-11-09 · Gonzalo · La Bandeja pide lo que falta en vez de hacer clasificar cada imagen a mano. Marca se lee entera y se edita en el lugar: https://claude.ai/artifact/4EeBQpPVJcCdS9M862ZvKS
 
 ## Esta semana
+- **Studio en claude.ai, paso 1 en producción (2026-11-24):** el MCP en `app.coevoagency.com/mcp` con el login de cada uno (OAuth sobre Cloudflare), sólo leer; un cliente ve sólo su marca (probado). Falta sumar `oauth/authorize` en Cloudflare (Gonzalo, guía `docs/guias/studio-en-claude.md`) y la prueba con Keyla. Avisado a autopoiesis, morph-site, alguna-web y coevo-web. También: la puerta reacomodada (tres tamaños, nada pisado) y la nota de versión corta.
 - **Tablero de Pinterest, listo en Marca (2026-11-09):** se pega el link de un tablero público; imágenes en buena calidad, sin duplicados, y «Actualizar» trae sólo los pines nuevos. Probado con un tablero real y desplegado en app.coevoagency.com. De paso se borró código muerto en Video Ad Creator (7 imports y una función sin uso): los errores de TypeScript bajaron de 14 a 7, todos viejos.
 - **Lo que está conectado y lo que no (revisado en el código, 2026-11-09):**
   - Marca → Producción: **sí.** Las 17 herramientas con pantalla leen la marca activa.
