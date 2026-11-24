@@ -539,20 +539,22 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                                         <p className="mt-2 text-[10px] text-fg-faint">Es una propuesta: no se publica nada hasta confirmar la semana en el Plan.</p>
                                     </div>
                                 )}
-                                {/* La versión y qué cambió, en una sola línea. */}
+                                {/* La versión y qué cambió: una frase, dos renglones como mucho. Lo interno va en la ficha. */}
                                 {current.round > 1 && (
-                                    <p className="mt-2 max-w-[760px] text-[13px] leading-snug text-fg">
-                                        <span className="mr-2 h-5 px-1.5 inline-flex items-center align-[1px] rounded-[3px] bg-fg text-[var(--color-canvas)] text-[11px] font-medium tabular-nums">
+                                    <div className="mt-2 max-w-[760px] flex items-start gap-2 text-[13px] leading-snug text-fg">
+                                        <span className="shrink-0 mt-px h-5 px-1.5 inline-flex items-center rounded-[3px] bg-fg text-[var(--color-canvas)] text-[11px] font-medium tabular-nums">
                                             V{current.round}
                                         </span>
-                                        {current.note || <span className="text-fg-muted">Versión {current.round}</span>}
+                                        <span className="line-clamp-2 min-w-0" title={current.note || undefined}>
+                                            {current.note || <span className="text-fg-muted">Versión {current.round}</span>}
+                                        </span>
                                         {(current.history?.length ?? 0) > 0 && (
                                             <button onClick={() => { setSlide(null); setShowPrev((v) => !v); }}
-                                                className={`ml-2 inline-flex items-center gap-1 text-[11px] cursor-pointer ${showPrev ? "text-fg" : "text-fg-muted hover:text-fg"}`}>
+                                                className={`shrink-0 mt-0.5 inline-flex items-center gap-1 text-[11px] whitespace-nowrap cursor-pointer ${showPrev ? "text-fg" : "text-fg-muted hover:text-fg"}`}>
                                                 <History size={11} /> {showPrev ? "ocultar la anterior" : "ver la anterior"}
                                             </button>
                                         )}
-                                    </p>
+                                    </div>
                                 )}
                                 {(() => {
                                     // Cambió sólo una parte: decir cuáles, y que se pueda ir directo a cada una.

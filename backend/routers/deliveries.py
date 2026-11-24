@@ -437,6 +437,7 @@ class GroupIn(BaseModel):
     campaignId: Optional[str] = None
     stage: Optional[str] = None
     title: Optional[str] = None      # si viene, renombra la entrega
+    note: Optional[str] = None       # si viene, corrige la nota de la versión actual (y su comentario «Versión N: …»)
 
 
 @router.patch("/api/deliveries/{delivery_id}")
@@ -451,6 +452,15 @@ async def set_group(delivery_id: str, req: GroupIn, request: Request, s: AsyncSe
         if not req.title.strip():
             raise HTTPException(status_code=400, detail="El título no puede quedar vacío")
         d.title = req.title.strip()[:200]
+    if req.note is not None:
+        d.note = req.note.strip() or None
+        if d.round > 1:
+            prev = (await s.execute(select(DeliveryComment).where(
+                DeliveryComment.delivery_id == d.id, DeliveryComment.round == d.round,
+                DeliveryComment.text.like(f"Versión {d.round}%")))).scalars().first()
+            if prev and d.note:
+                head = prev.text.split(":", 1)[0]
+                prev.text = f"{head}: {d.note}"[:4000]
     await s.commit()
     await s.refresh(d)
     return await _full(s, d)

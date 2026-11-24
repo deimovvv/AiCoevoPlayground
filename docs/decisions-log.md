@@ -1255,3 +1255,10 @@ especializados.
 - **No agregar entrada cuando.** Es un bugfix, refactor mecánico, o algo trivial.
 - **Formato.** Fecha YYYY-MM, título, contexto, decisión, alternativas descartadas, "qué pasó después" si aplica.
 - **Linkear.** Cuando una entrada nueva revisita una vieja, citar la fecha de la vieja.
+
+## 2026-11-24 — La nota de versión es una frase; lo interno va en la ficha
+Gonzalo vio la entrega «Reel · Pauta que vende (caso Koxis)» con una nota de seis renglones que mezclaba qué cambió,
+una propuesta de pauta y pendientes internos — y esa nota la ve el cliente. Desde hoy: en Entregas la nota ocupa
+dos renglones como mucho (el texto entero queda al pasar el mouse); el MCP rechaza notas de más de 160 caracteres
+(`nueva_ronda`, `renombrar_entrega`) y dice que lo interno va en `guardar_ficha`; y una nota se puede corregir
+(`PATCH /api/deliveries/{id}` con `note`, que también reescribe el comentario «Versión N: …»).

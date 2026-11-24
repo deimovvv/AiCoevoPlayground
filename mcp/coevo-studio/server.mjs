@@ -22,6 +22,11 @@ const tool = (name, description, schema, fn) =>
         try { return ok(await fn(args)); } catch (e) { return { isError: true, content: [{ type: "text", text: e.message }] }; }
     });
 
+// La nota de versión la ve el CLIENTE arriba de la pieza: una frase con qué cambió. Propuestas, pendientes y
+// contexto interno van en guardar_ficha (sólo equipo). Pasó el 14/11: una nota de seis renglones con pendientes.
+const NOTA = z.string().max(160, "La nota es una frase corta (hasta 160 caracteres) con qué cambió; la ve el cliente. Lo interno va en guardar_ficha.")
+    .describe("Una frase: qué cambió en esta versión (la ve el cliente). Lo interno, en guardar_ficha.");
+
 const BLOQUES = ["quien_es", "identidad_grafica", "direccion_foto_video", "caras", "catalogo", "estrategia", "reglas_aprendidas"];
 
 tool("listar_marcas",
@@ -198,7 +203,7 @@ tool("nueva_ronda",
         archivos: z.array(z.string()).min(1),
         etiquetas: z.array(z.string()).optional(),
         fuente: z.string().optional(),
-        nota: z.string().optional().describe("qué cambió en esta ronda"),
+        nota: NOTA.optional(),
     },
     async ({ id, archivos, etiquetas, fuente, nota }) => {
         const form = filesForm({ note: nota, labels: etiquetas?.join("|") }, archivos, fuente);
@@ -222,14 +227,16 @@ tool("guardar_ficha",
     });
 
 tool("renombrar_entrega",
-    "Cambia el título de una entrega (ej. sacarle «· prueba»). No toca el proyecto ni la etapa.",
-    { entrega_id: z.string(), titulo: z.string().min(1) },
-    async ({ entrega_id, titulo }) => {
+    "Cambia el título de una entrega (ej. sacarle «· prueba») y/o corrige la nota de la versión actual. No toca el proyecto ni la etapa.",
+    { entrega_id: z.string(), titulo: z.string().min(1).optional(), nota: NOTA.optional() },
+    async ({ entrega_id, titulo, nota }) => {
+        if (!titulo && nota === undefined) throw new Error("Pasá titulo, nota o los dos.");
         const id = encodeURIComponent(entrega_id);
         const cur = await api(`/api/deliveries/${id}`);
         // El PATCH reescribe proyecto y etapa: se mandan los que ya tiene.
         return entregaCorta(await api(`/api/deliveries/${id}`, {
-            method: "PATCH", body: { title: titulo, campaignId: cur.campaignId ?? null, stage: cur.stage ?? null },
+            method: "PATCH", body: { ...(titulo ? { title: titulo } : {}), ...(nota !== undefined ? { note: nota } : {}),
+                campaignId: cur.campaignId ?? null, stage: cur.stage ?? null },
         }));
     });
 
