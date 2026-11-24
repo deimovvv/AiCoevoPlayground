@@ -1262,3 +1262,12 @@ una propuesta de pauta y pendientes internos — y esa nota la ve el cliente. De
 dos renglones como mucho (el texto entero queda al pasar el mouse); el MCP rechaza notas de más de 160 caracteres
 (`nueva_ronda`, `renombrar_entrega`) y dice que lo interno va en `guardar_ficha`; y una nota se puede corregir
 (`PATCH /api/deliveries/{id}` con `note`, que también reescribe el comentario «Versión N: …»).
+
+## 2026-11-24 — Studio en claude.ai: OAuth propio sobre el login de Cloudflare, el MCP sin permisos propios
+Paso 1 de `openspec/changes/studio-en-claude`. Studio hace de servidor OAuth chico (registro dinámico, PKCE S256)
+en vez de usar un proveedor aparte: la pantalla «Autorizar» queda detrás de Cloudflare Access, así que el token
+nace del mismo login y del mismo mail que la app, sin contraseñas nuevas. El MCP remoto no tiene permisos: llama a
+la API con el token de la persona y `roles.py` decide (un cliente ve sólo su marca, también por la API directa).
+Se abren en Cloudflare sólo el descubrimiento, `/oauth/register`, `/oauth/token` y `/mcp`; la app los vuelve a
+trabar. Volver sólo a claude.ai/claude.com o a localhost. Tokens con hash, 1 h + refresh de 30 días que rota.
+Las herramientas se escriben una vez (`mcp/coevo-studio/tools.mjs`) para el local y el remoto; el remoto, sólo leer.

@@ -6,13 +6,21 @@
  *   (CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET). Nunca se imprime.
  */
 import { readFileSync, mkdirSync, writeFileSync, statSync } from "node:fs";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { homedir } from "node:os";
 import { join, basename } from "node:path";
 
 export const BASE = (process.env.COEVO_STUDIO_URL || "https://app.coevoagency.com").replace(/\/$/, "");
 const TOKEN_FILE = process.env.COEVO_STUDIO_TOKEN_FILE || join(homedir(), ".coevo-studio-token");
 
+// Remoto (http.mjs): cada pedido corre con el token de la persona y llama a la API por adentro.
+// { token, apiBase } — si no hay, es el MCP local con la llave de servicio.
+export const requestAuth = new AsyncLocalStorage();
+const apiBase = () => requestAuth.getStore()?.apiBase || BASE;
+
 function accessHeaders() {
+    const remote = requestAuth.getStore();
+    if (remote?.token) return { Authorization: `Bearer ${remote.token}` };
     if (/^https?:\/\/(127\.0\.0\.1|localhost)/.test(BASE)) return {};
     let txt;
     try { txt = readFileSync(TOKEN_FILE, "utf8"); } catch {
@@ -25,7 +33,7 @@ function accessHeaders() {
 }
 
 export async function api(path, { method = "GET", body, form } = {}) {
-    const res = await fetch(BASE + path, {
+    const res = await fetch(apiBase() + path, {
         method,
         headers: { ...accessHeaders(), ...(body ? { "Content-Type": "application/json" } : {}) },
         body: form ?? (body ? JSON.stringify(body) : undefined),

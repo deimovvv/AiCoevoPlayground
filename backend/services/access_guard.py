@@ -13,6 +13,10 @@ pública), la app no muestra nada igual.
   vale un token emitido para ESA app.
 - Abiertos (sin datos): `/api/health`, la puerta `/` y sus imágenes `/puerta/`. En la puerta, si hay
   sesión válida igual se reconoce (para mandar directo a Studio); si no, se muestra igual.
+- Conectar Claude (openspec/changes/studio-en-claude): el descubrimiento OAuth, `/oauth/register`,
+  `/oauth/token` y `/mcp` pasan sin JWT de Access (claude.ai llama desde la nube de Anthropic). `/mcp` exige
+  su propio token. Un pedido con `Authorization: Bearer stk_…` válido entra como el mail de quien lo
+  autorizó, y `roles.py` le aplica su rol como a cualquiera; si el token no sirve, 401.
 """
 
 import logging
@@ -22,11 +26,13 @@ from typing import Optional
 import jwt
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
-from starlette.responses import PlainTextResponse
+from starlette.responses import JSONResponse, PlainTextResponse
+
+from services import oauth
 
 log = logging.getLogger("access_guard")
-OPEN_PATHS = {"/api/health", "/"}
-OPEN_PREFIXES = ("/puerta/",)
+OPEN_PATHS = {"/api/health", "/", "/oauth/register", "/oauth/token", "/mcp"}
+OPEN_PREFIXES = ("/puerta/", "/.well-known/oauth-")
 
 
 class AccessGuard:
@@ -47,6 +53,18 @@ class AccessGuard:
         )
 
     async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            bearer = oauth.bearer_of(Request(scope).headers)
+            if bearer:
+                email = await oauth.email_for_token(bearer)
+                if email is None:
+                    return await JSONResponse({"detail": "El acceso de Claude venció o se cortó. Volvé a conectar."},
+                                              status_code=401, headers={"WWW-Authenticate": 'Bearer error="invalid_token"'})(scope, receive, send)
+                st = scope.setdefault("state", {})
+                st["via_token"] = True
+                if email != "local":           # «local» = token sacado en dev, sin Access: admin
+                    st["access_email"] = email
+                return await self.app(scope, receive, send)
         if not self.team or scope["type"] not in ("http", "websocket"):
             return await self.app(scope, receive, send)
         is_open = scope["path"] in OPEN_PATHS or scope["path"].startswith(OPEN_PREFIXES)

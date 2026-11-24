@@ -23,6 +23,8 @@ services:
     env_file: backend/.env
     environment:
       DATABASE_URL: postgresql+asyncpg://coevo:${DB_PASSWORD}@db:5432/coevo_studio
+      MCP_UPSTREAM: http://mcp:3001                # /mcp se reenvía al contenedor mcp (studio-en-claude)
+      STUDIO_PUBLIC_URL: https://app.coevoagency.com
     depends_on:
       db:
         condition: service_healthy
@@ -30,6 +32,15 @@ services:
       - ./backend/data:/app/backend/data          # datos y medios (hasta mudarlos a R2)
     ports:
       - "127.0.0.1:8000:8000"                      # sólo local: entra por el túnel de Cloudflare
+
+  # MCP de Studio por HTTP, para claude.ai y Claude Code (openspec/changes/studio-en-claude).
+  # Sin puertos afuera: sólo lo ve la API, que valida el token de cada persona antes de reenviar.
+  mcp:
+    build: ./mcp/coevo-studio
+    restart: unless-stopped
+    environment:
+      STUDIO_API_URL: http://api:8000
+      COEVO_STUDIO_URL: https://app.coevoagency.com
 
   # Backup diario de la base a ./backups (se suben a R2 cuando exista la cuenta de Cloudflare).
   # Backup diario: base + backend/data, 14 días en ./backups; y a Cloudflare R2 si hay claves (scripts/backup.sh).
