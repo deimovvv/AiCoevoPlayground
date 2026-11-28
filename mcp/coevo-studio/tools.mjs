@@ -156,7 +156,11 @@ tool("ver_entrega",
             // Cómo se hizo (para retomarla sin preguntar) y cómo le fue. Sólo el equipo; vacía = todavía no se escribió.
             ficha: d.ficha ?? null, resultados: d.results ?? null,
             // aprobada=false: el cliente dijo «esta no». Para la etapa siguiente (ej. el video), usar sólo las aprobadas.
-            laminas: d.items.map((i) => ({ id: i.id, etiqueta: i.label, tipo: i.kind, url: i.url, aprobada: !i.rejected })),
+            laminas: d.items.map((i) => ({
+                id: i.id, etiqueta: i.label, tipo: i.kind, url: i.url, aprobada: !i.rejected,
+                // Storyboard: el cuadro, su clip, tiempo y texto, y su estado (ok = aprobado, cambio = pide cambio, null = sin revisar).
+                ...(i.frame ? { cuadro: i.frame, clip: i.clip ?? null, tiempo: i.time ?? null, texto: i.caption ?? null, estado: i.state ?? null } : {}),
+            })),
             comentarios: d.comments.map((c) => ({
                 id: c.id, lamina: c.itemId ? `${label[c.itemId] ?? "(ronda anterior)"} [${c.itemId}]` : "toda la entrega",
                 punto: c.x != null ? { x: c.x, y: c.y } : null, texto: c.text, autor: c.author, ronda: c.round,
@@ -181,8 +185,13 @@ tool("subir_entrega",
         marca: z.string(),
         titulo: z.string(),
         archivos: z.array(z.string()).min(1).describe("rutas locales, en el orden en que se ven"),
-        tipo: z.enum(["carrusel", "video", "imagenes"]).optional(),
-        etiquetas: z.array(z.string()).optional().describe("nombre de cada lámina, mismo orden (ej. Portada)"),
+        tipo: z.enum(["carrusel", "video", "imagenes", "storyboard"]).optional(),
+        etiquetas: z.array(z.string()).optional().describe("nombre de cada lámina, mismo orden (ej. Portada). En un storyboard no hace falta: los cuadros se numeran #1, #2…"),
+        cuadros: z.array(z.object({
+            clip: z.string().optional().describe("ej. 'Clip 1 · Campera de cuero'; cuadros seguidos con el mismo clip se agrupan"),
+            tiempo: z.string().optional().describe("ej. '0,0–1,5 s'"),
+            texto: z.string().optional().describe("qué pasa en el cuadro, una frase"),
+        })).optional().describe("sólo con tipo storyboard: uno por archivo, en el mismo orden"),
         fuente: z.string().optional().describe("ruta local de la fuente editable"),
         nota: z.string().optional().describe("qué es y qué hay que mirar"),
         plantilla: z.string().optional().describe("plantilla y versión usadas, ej. 'carrusel-v1'"),
@@ -190,9 +199,12 @@ tool("subir_entrega",
         etapa: z.string().optional().describe("etapa dentro de la campaña, ej. '01 Fotos', '02 Video'"),
         angulo: z.string().optional().describe("el ángulo de la estrategia al que responde (ver_marca → estrategia → angulos[].nombre)"),
     },
-    async ({ marca, titulo, archivos, tipo = "carrusel", etiquetas, fuente, nota, plantilla, campana_id, etapa, angulo }) => {
+    async ({ marca, titulo, archivos, tipo = "carrusel", etiquetas, cuadros, fuente, nota, plantilla, campana_id, etapa, angulo }) => {
         const b = await findBrand(marca);
-        const form = filesForm({ title: titulo, kind: tipo, note: nota, template: plantilla, labels: etiquetas?.join("|"), campaignId: campana_id, stage: etapa, angle: angulo }, archivos, fuente);
+        if (cuadros && tipo !== "storyboard") throw new Error("`cuadros` va sólo con tipo storyboard.");
+        if (cuadros && cuadros.length !== archivos.length) throw new Error(`Hay ${archivos.length} archivos y ${cuadros.length} cuadros: tiene que ser uno por archivo.`);
+        const frames = cuadros ? JSON.stringify(cuadros.map((c) => ({ clip: c.clip, time: c.tiempo, caption: c.texto }))) : undefined;
+        const form = filesForm({ title: titulo, kind: tipo, note: nota, template: plantilla, labels: etiquetas?.join("|"), campaignId: campana_id, stage: etapa, angle: angulo, frames }, archivos, fuente);
         const d = await api(`/api/brands/${encodeURIComponent(b.id)}/deliveries`, { method: "POST", form });
         return { ...entregaCorta(d), ver_en: `${BASE}/dashboard/entregas?id=${d.id}` };
     });

@@ -14,6 +14,7 @@ Dos pasos (studio-v2 §11): toda entrega nace `interna` (la ve el equipo; Claude
 mandado y los comentarios no internos. Una ronda nueva vuelve a `interna`: el equipo la revisa
 antes de volver a mandarla. Hasta que haya roles (studio-v2 §3), la vista la elige la pantalla.
 """
+import json
 import re
 import shutil
 import tempfile
@@ -39,7 +40,10 @@ from services.roles import can_approve, can_see_brand, is_client
 router = APIRouter(tags=["deliveries"])
 FILES_DIR = Path(__file__).parent.parent / "data" / "deliveries"
 FILES_DIR.mkdir(parents=True, exist_ok=True)
-KINDS = {"carrusel", "video", "imagenes"}
+KINDS = {"carrusel", "video", "imagenes", "storyboard"}
+# Estado de un cuadro del storyboard (changes/storyboard-y-mesas): ok = aprobado · cambio = pide cambio.
+FRAME_STATES = {"ok", "cambio"}
+FRAME_KEYS = ("frame", "clip", "time", "caption")
 STATUSES = {"en_revision", "cambios", "aprobada"}
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 VIDEO_EXT = {".mp4", ".mov", ".webm"}
@@ -309,6 +313,30 @@ async def download_approved(brand_id: str, request: Request, entrega: Optional[s
                         background=BackgroundTask(lambda: Path(tmp.name).unlink(missing_ok=True)))
 
 
+def _parse_frames(raw: Optional[str]) -> list:
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="`frames` tiene que ser JSON: [{clip, time, caption}]")
+    if not isinstance(data, list) or not all(isinstance(f, dict) for f in data):
+        raise HTTPException(status_code=400, detail="`frames` tiene que ser una lista de {clip, time, caption}")
+    return data
+
+
+def _with_frames(items: list, frames: list) -> list:
+    """Cuadros de un storyboard: número en orden (#1, #2…) y, si vinieron, clip, tiempo y qué pasa."""
+    out = []
+    for n, it in enumerate(items, start=1):
+        f = frames[n - 1] if n - 1 < len(frames) else {}
+        out.append({**it, "frame": n, "label": f"#{n}",
+                    "clip": str(f.get("clip") or "")[:80] or None,
+                    "time": str(f.get("time") or "")[:30] or None,
+                    "caption": str(f.get("caption") or "")[:300] or None})
+    return out
+
+
 @router.post("/api/brands/{brand_id}/deliveries")
 async def create_delivery(
     brand_id: str, request: Request,
@@ -316,11 +344,13 @@ async def create_delivery(
     template: Optional[str] = Form(None), labels: Optional[str] = Form(None, description="etiquetas separadas por |"),
     campaignId: Optional[str] = Form(None), stage: Optional[str] = Form(None),
     angle: Optional[str] = Form(None, description="ángulo de la estrategia de la marca"),
+    frames: Optional[str] = Form(None, description='storyboard: JSON [{clip, time, caption}], uno por archivo y en orden'),
     files: List[UploadFile] = File(...), source: Optional[UploadFile] = File(None),
     s: AsyncSession = Depends(get_session),
 ):
     """Sube una entrega: `files` son las láminas EN ORDEN; `source`, la fuente editable.
-    `campaignId` y `stage` (ej. "01 Fotos") son opcionales: agrupan la entrega."""
+    `campaignId` y `stage` (ej. "01 Fotos") son opcionales: agrupan la entrega.
+    Un storyboard (`kind=storyboard`) numera los cuadros #1, #2… y `frames` les pone clip, tiempo y qué pasa."""
     _require_brand(brand_id)
     if kind not in KINDS:
         raise HTTPException(status_code=400, detail=f"kind debe ser uno de {sorted(KINDS)}")
@@ -333,6 +363,8 @@ async def create_delivery(
     d.id = f"dl_{uuid.uuid4().hex[:12]}"
     try:
         d.items = await _store_items(d.id, 1, files, (labels or "").split("|"))
+        if kind == "storyboard":
+            d.items = _with_frames(d.items, _parse_frames(frames))
         if source and source.filename:
             st = await _store(d.id, 1, source, SOURCE_EXT)
             d.source = {"url": st["url"], "name": st["name"]}
@@ -397,10 +429,19 @@ async def new_round(
     if ids:
         old = {i["id"]: i for i in (d.items or [])}
         new = await _store_items(d.id, nxt, files, [old[x].get("label", "") for x in ids])
-        by_old = {x: {**n, "prev": x, "changed": nxt} for x, n in zip(ids, new)}
+        # Un cuadro de storyboard conserva su número, clip, tiempo y texto; su estado vuelve a «nuevo».
+        by_old = {x: {**n, **{k: old[x][k] for k in FRAME_KEYS if k in old[x]}, "prev": x, "changed": nxt}
+                  for x, n in zip(ids, new)}
+        for x in ids:
+            if "frame" in old[x]:
+                by_old[x]["label"] = old[x].get("label", by_old[x]["label"])
         items = [by_old.get(i["id"]) or {k: v for k, v in i.items() if k not in ("changed", "prev")} for i in (d.items or [])]
     else:
         items = await _store_items(d.id, nxt, files, (labels or "").split("|"))
+        if d.kind == "storyboard":
+            # Todos los cuadros otra vez: conservan clip, tiempo y texto por posición; vuelven a «nuevo».
+            prevf = [{k: i.get(k) for k in ("clip", "time", "caption")} for i in (d.items or [])]
+            items = _with_frames(items, prevf)
     if source and source.filename:
         st = await _store(d.id, nxt, source, SOURCE_EXT)
         d.source = {"url": st["url"], "name": st["name"]}
@@ -593,6 +634,35 @@ async def toggle_item(delivery_id: str, item_id: str, request: Request, s: Async
     await s.commit()
     await s.refresh(d)
     return await _full(s, d, client=is_client(request))
+
+
+class FrameStateIn(BaseModel):
+    state: Optional[str] = None   # ok · cambio · None (vuelve a sin revisar)
+
+
+@router.post("/api/deliveries/{delivery_id}/items/{item_id}/state")
+async def set_frame_state(delivery_id: str, item_id: str, body: FrameStateIn, request: Request, s: AsyncSession = Depends(get_session)):
+    """Aprobar un cuadro o pedirle un cambio, sin tocar los demás (storyboard)."""
+    d = await _get(s, delivery_id)
+    client = is_client(request)
+    if client and (d.visibility != "cliente" or not can_see_brand(request, d.brand_id)):
+        raise HTTPException(status_code=404, detail="No existe esa entrega")
+    if client and body.state == "ok" and not can_approve(request, d.brand_id):
+        raise HTTPException(status_code=403, detail="Podés comentar, pero aprobar lo hace otra persona de tu equipo.")
+    if body.state is not None and body.state not in FRAME_STATES:
+        raise HTTPException(status_code=400, detail=f"state debe ser uno de {sorted(FRAME_STATES)} o null")
+    items = [dict(i) for i in d.items or []]
+    hit = next((i for i in items if i["id"] == item_id), None)
+    if not hit:
+        raise HTTPException(status_code=404, detail="Ese cuadro no es de la ronda actual")
+    if body.state:
+        hit["state"] = body.state
+    else:
+        hit.pop("state", None)
+    d.items = items   # reasignar: JSONB no detecta cambios internos
+    await s.commit()
+    await s.refresh(d)
+    return await _full(s, d, client=client)
 
 
 class StatusIn(BaseModel):

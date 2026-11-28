@@ -3846,6 +3846,9 @@ export interface DeliveryItem {
     changed?: number; prev?: string;
     /** Copia para ver en el navegador cuando el original no se puede (ej. ProRes con transparencia). */
     preview?: string | null;
+    /** Storyboard (changes/storyboard-y-mesas): número de cuadro, clip, tiempo, qué pasa y su estado. */
+    frame?: number; clip?: string | null; time?: string | null; caption?: string | null;
+    state?: "ok" | "cambio";
 }
 export interface DeliveryComment {
     id: string; itemId: string | null; x: number | null; y: number | null; text: string;
@@ -4276,6 +4279,13 @@ export async function setDeliveryGroup(id: string, g: { campaignId: string | nul
     }), "No se pudo guardar");
 }
 /** «Esta no» / «esta sí» en una lámina, antes de aprobar. */
+/** Storyboard: aprobar un cuadro ("ok"), pedirle un cambio ("cambio") o volverlo a sin revisar (null). */
+export async function setDeliveryFrameState(id: string, itemId: string, state: "ok" | "cambio" | null, vista?: DeliveryView): Promise<Delivery> {
+    return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}/state${vista ? `?vista=${vista}` : ""}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }),
+    }), "No se pudo cambiar el cuadro");
+}
+
 export async function toggleDeliveryItem(id: string, itemId: string, vista?: DeliveryView): Promise<Delivery> {
     return editorJson(await fetch(`${API_BASE}/api/deliveries/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}/toggle${vista ? `?vista=${vista}` : ""}`, { method: "POST" }), "No se pudo cambiar");
 }

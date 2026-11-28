@@ -10,9 +10,10 @@ import { NewVersionDialog } from "../components/workspace/NewVersionDialog";
 import { VoiceNoteButton } from "../components/workspace/VoiceNoteButton";
 import { PublishControls } from "../components/workspace/PublishControls";
 import { EntregasTabs } from "../components/workspace/EntregasTabs";
+import { StoryboardView } from "../components/workspace/StoryboardView";
 import {
     approvedZipUrl, backendUrl, listDeliveries, getDelivery, createDelivery, setDeliveryStatus, addDeliveryComment, addDeliveryCommentRefs, addDeliveryVoiceComment, setDeliveryPlan, addDeliveryItems, deleteDeliveryItem, deleteDeliveryComment, newDeliveryRound, setDeliveryCommentInternal,
-    toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, listCampaigns, type Campaign,
+    toggleDeliveryComment, deleteDelivery, sendDelivery, setDeliveryGroup, toggleDeliveryItem, setDeliveryFrameState, listCampaigns, type Campaign,
     type Delivery, type DeliveryStatus, type DeliverySummary,
 } from "../lib/api";
 import { DeliveryFicha } from "../components/workspace/DeliveryFicha";
@@ -701,7 +702,14 @@ export function DeliveriesPage({ mode = "equipo" }: { mode?: Mode }) {
                             </div>
                         </header>
 
-                        {slide === null ? (
+                        {slide === null && current.kind === "storyboard" ? (
+                            /* ── Storyboard: cuadros numerados por clip; al tocar uno se abre la lámina grande con su charla ── */
+                            <StoryboardView d={current} client={client} mayApprove={mayApprove} busy={busy}
+                                openComments={comments.reduce<Record<string, number>>((acc, c) => { if (c.itemId && !c.resolvedAt) acc[c.itemId] = (acc[c.itemId] ?? 0) + 1; return acc; }, {})}
+                                onOpen={(i) => { setSlide(i); setDraft(null); }}
+                                onState={(itemId, st) => run(async () => { setCurrent(await setDeliveryFrameState(current.id, itemId, st, vista)); await refreshList(); })}
+                                onReplace={client ? undefined : (itemId) => { setVersionItem(itemId); setVersionOpen(true); }} />
+                        ) : slide === null ? (
                             /* ── Vista 1: la pieza entera, como en el canvas, + lo que pidieron ── */
                             <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
                             <div className="md:flex-1 min-w-0 md:overflow-auto bg-[var(--color-canvas)] flex flex-col">
