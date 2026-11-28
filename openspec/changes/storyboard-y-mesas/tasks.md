@@ -7,7 +7,7 @@
 - [ ] 1.4 (hecho: ver grande, descargar un cuadro y guías 9:16 y 4:5; falta «Descargar todo» antes de aprobar) Ver grande (flechas, tira, Esc), descargar un cuadro, «Descargar todo» (reusar `deliveries/aprobadas`) y guías 9:16 y 4:5
 - [x] 1.5 (2026-11-28; el mismo componente, en modo cliente) Vista del cliente: los mismos cuadros, sin mesas ni variantes; puede aprobar y comentar por cuadro
 - [x] 1.6 (2026-11-28) MCP: `subir_entrega` acepta `tipo: "storyboard"` con `cuadros: [{numero, clip, tiempo, texto}]`; `ver_entrega` devuelve el estado y los comentarios de cada cuadro
-- [ ] 1.7 Prueba: subir el storyboard del video con modelo de Koxis (9 cuadros) y aprobar y comentar desde la vista del cliente
+- [ ] 1.7 (2026-11-28, local: subido el de Koxis por la API, estados, comentario y reemplazo del #6 andan; falta la vista del cliente y probarlo en producción) Prueba: subir el storyboard del video con modelo de Koxis (9 cuadros) y aprobar y comentar desde la vista del cliente
 
 ## 2 · Reemplazar un cuadro y sus variantes
 - [ ] 2.1 `item.variants: [{url, source, author, at, mesaItemId?}]`: al reemplazar, la imagen en uso pasa a variantes y no sube la ronda de toda la entrega

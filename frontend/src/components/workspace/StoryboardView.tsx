@@ -72,7 +72,7 @@ export function StoryboardView({ d, client, mayApprove, busy, openComments, onOp
             {groupsOf(items).map((g, k) => (
                 <section key={k} className="mt-6">
                     {g.clip && <h3 className="text-[13px] font-medium text-fg mb-2.5">{g.clip}</h3>}
-                    <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(260px,1fr))]">
+                    <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(260px,1fr))]">
                         {g.list.map(({ it, i }) => {
                             const isNew = d.round > 1 && it.changed === d.round;
                             const n = openComments[it.id] ?? 0;
