@@ -50,6 +50,7 @@ por acá. Lo que el sistema hace está en `openspec/specs/`; lo propuesto, en
 | Circuito de una pieza | Ángulo + fase por pieza; Plan (calendario, propuesta hasta confirmar); voz y escritos se clasifican solos; regla = la decide una persona | 2026-10-31 · `changes/brand-integrations` |
 | Cómo funciona Studio | **Recordar** (Marca), **mostrar** (Entregas), **aprender** (Plan). Lo que no entra ahí va a una skill. Producción queda, a revisar. Es descripción, no venta: la frase que vende vive en `coevo-web` | 2026-10-31 · `docs/producto/operacion.md` §1b |
 | Rol de Studio | Casa de la marca + vitrina del cliente; se produce en el taller (Claude). Sin canvas propio (salvo video); la crew es relato, no pantalla | 2026-10-18 · `changes/studio-v2` |
+| Campaña y storyboard | Campaña = espacio de trabajo con **mesas** (el Lab adentro, sin canvas nodal); storyboard = entrega con cuadros numerados; el número de cuadro une mesa y storyboard; Claude trabaja desde el chat de cada uno | 2026-11-28 · `changes/storyboard-y-mesas` |
 
 ---
 
@@ -1271,3 +1272,25 @@ la API con el token de la persona y `roles.py` decide (un cliente ve sólo su ma
 Se abren en Cloudflare sólo el descubrimiento, `/oauth/register`, `/oauth/token` y `/mcp`; la app los vuelve a
 trabar. Volver sólo a claude.ai/claude.com o a localhost. Tokens con hash, 1 h + refresh de 30 días que rota.
 Las herramientas se escriben una vez (`mcp/coevo-studio/tools.mjs`) para el local y el remoto; el remoto, sólo leer.
+
+## 2026-11-28 — Campaña con mesas y storyboard en Entregas; Claude trabaja desde el chat de cada uno
+
+**Contexto.** Gonzalo miró Piko Club, que tiene un canvas por proyecto, un storyboard numerado atado al canvas
+y reviews para el cliente. Le gustó la vista de storyboard, pero Piko es pago y no lo quiere usar.
+
+**Decisión** (`openspec/changes/storyboard-y-mesas`, con boceto):
+- El **storyboard es una entrega** (`kind: storyboard`): cuadros numerados con aprobación y charla por cuadro.
+  Usa las rondas, los comentarios por lámina y las reglas aprendidas que ya existen.
+- La **campaña es el espacio de trabajo**. Sus **mesas** son por persona o por escena, y todos ven todas.
+  Nuestro canvas es la mesa: el Lab abierto dentro de la campaña. **No hay canvas nodal.** Esto sigue lo
+  decidido el 2026-10-18 («sin canvas propio»): la mesa es una grilla, no un editor nodal.
+- **El número de cuadro es el puente.** Lo generado «para el #5» queda atado a ese cuadro. El storyboard
+  muestra las variantes del #5 y lleva a la mesa donde se generó. «Reemplazar» ordena así: primero lo
+  marcado para el cuadro, después las ★ y al final el resto.
+- **Agéntico.** En la mesa manda «Con Claude» (lo que se pidió y lo que hizo) más las recetas. «A mano»
+  (elegir el modelo) queda como segunda pestaña. Claude trabaja desde el claude.ai o el Claude Code de
+  cada uno, con el conector. **No hay chat adentro de Studio** por ahora: se piensa cuando se piense
+  cómo venderlo.
+
+**Descartado.** Usar Piko (es pago y parte la memoria en dos lugares). Un canvas nodal propio (caro, y no
+lo necesitamos). Mostrar «todas las generadas de la campaña» sin orden (son miles).

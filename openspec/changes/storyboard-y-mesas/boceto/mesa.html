@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mesa · Saco verde</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--canvas:#eceeed;--s0:#f3f4f3;--s1:#fafafa;--s2:#e7e9e8;--fg:#131416;--fg2:#2a2c2f;--mut:#5f6267;--faint:#6b6e73;--edge:#d3dadd;--edge2:#e2e7e9;--edgeS:#a9bcc6;--warm:#7fa6bc;--warmS:#5f8aa2;--warmM:rgba(127,166,188,.18);--brand:#c95f5f;--ok:#2f9e6e}
+*{box-sizing:border-box;margin:0}
+body{background:var(--canvas);color:var(--fg);font:14px/1.45 "Instrument Sans",system-ui,sans-serif;letter-spacing:-.01em}
+a{color:inherit}
+.mono{font-family:"Geist Mono",monospace;font-size:11px;letter-spacing:.02em}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.top{height:52px;display:flex;align-items:center;gap:28px;padding:0 20px;border-bottom:1px solid var(--edge);background:var(--s1)}
+.logo{font-weight:600;font-size:17px;letter-spacing:-.04em}
+.brandpick{display:flex;align-items:center;gap:8px;border:1px solid var(--edge);border-radius:6px;padding:4px 10px 4px 5px}
+.brandpick b{width:22px;height:22px;border-radius:4px;background:var(--fg);color:#fff;display:grid;place-items:center;font-size:11px}
+.nav{display:flex;gap:22px;color:var(--mut)}.nav .on{color:var(--fg);box-shadow:inset 0 -2px 0 var(--fg);padding-bottom:15px;margin-bottom:-17px}
+.head{padding:20px 24px 0;display:flex;justify-content:space-between;align-items:flex-end}
+.crumb{color:var(--mut)}
+h1{font-weight:400;font-size:28px;letter-spacing:-.035em;margin-top:6px}
+.ctabs{display:flex;gap:22px;padding:0 24px;margin-top:14px;border-bottom:1px solid var(--edge);color:var(--mut)}
+.ctabs a{padding:10px 0;text-decoration:none}.ctabs .on{color:var(--fg);box-shadow:inset 0 -2px 0 var(--fg)}
+.ctabs small{color:var(--faint);margin-left:4px}
+.btn{border:1px solid var(--edge);border-radius:6px;padding:7px 12px;background:var(--s1)}
+.btn.p{background:var(--fg);color:#fafafa;border-color:var(--fg)}
+.av{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10px;font-weight:600;color:#fff}
+.lay{display:grid;grid-template-columns:360px 1fr;min-height:calc(100vh - 52px)}
+.lab{border-right:1px solid var(--edge);background:var(--s1);padding:16px 18px;display:flex;flex-direction:column;gap:16px;position:sticky;top:0;height:calc(100vh - 52px);overflow:auto}
+.lab .back{color:var(--mut);font-size:13px}
+.lab h2{font-weight:400;font-size:22px;letter-spacing:-.03em}
+.lab label{display:block;font:500 11px "Geist Mono",monospace;letter-spacing:.06em;color:var(--faint);margin-bottom:6px}
+.refs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.refs div{position:relative}.refs img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:5px;display:block;border:1px solid var(--edge)}
+.refs span{position:absolute;left:3px;bottom:3px;background:rgba(19,20,22,.75);color:#fff;border-radius:3px;padding:0 4px;font-size:10px}
+.refs .add{border:1px dashed var(--edgeS);border-radius:5px;display:grid;place-items:center;color:var(--mut);aspect-ratio:1}
+.ta{border:1px solid var(--edge);border-radius:6px;background:#fff;padding:10px 12px;min-height:96px;color:var(--fg2);font-size:13.5px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sel{border:1px solid var(--edge);border-radius:6px;background:#fff;padding:7px 10px;display:flex;justify-content:space-between;font-size:13px}
+.sel span{color:var(--faint)}
+.for{display:flex;gap:6px}.for b{flex:1;text-align:center;border:1px solid var(--edge);border-radius:6px;padding:6px;font-weight:400;background:#fff;cursor:pointer}
+.for b.on{background:var(--fg);color:#fff;border-color:var(--fg)}
+.gen{background:var(--fg);color:#fafafa;border-radius:6px;padding:11px;text-align:center;font-weight:500}
+.hint{font-size:12px;color:var(--mut)}
+.tabs2{display:flex;border:1px solid var(--edge);border-radius:6px;overflow:hidden}.tabs2 b{flex:1;text-align:center;padding:6px;font-weight:400;background:#fff}.tabs2 b.on{background:var(--fg);color:#fff}
+.log{display:flex;flex-direction:column;gap:10px}
+.lg{font-size:13.5px;line-height:1.45;border-radius:8px;padding:9px 11px}.lg .mono{display:block;color:var(--faint);margin-bottom:3px}
+.lg.you{background:var(--s2)}.lg.ai{background:#fff;border:1px solid var(--edge)}.lg.ai .mono{color:var(--warmS)}.lg a{color:var(--warmS)}
+.rec{display:flex;flex-wrap:wrap;gap:6px}.rec b{font-weight:400;border:1px solid var(--edge);border-radius:99px;padding:4px 10px;background:#fff;font-size:12.5px;cursor:pointer}.rec b:hover{border-color:var(--fg)}
+.grp{margin-top:22px;scroll-margin-top:16px}.grp h3{font-weight:500;font-size:15px;display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.grp h3 .mono{color:var(--faint)}.grp h3 img{width:64px;height:36px;object-fit:cover;border-radius:4px;border:2px solid var(--fg)}
+.grp h3 small{font-weight:400;color:var(--mut);font-size:12.5px}
+.grp.hl{animation:hl 1.6s}@keyframes hl{0%{background:var(--warmM)}100%{background:transparent}}
+.g.inuse{outline:2px solid var(--fg);outline-offset:-1px}.g .use{position:absolute;bottom:34px;left:6px;background:var(--fg);color:#fff;border-radius:4px;padding:1px 6px}
+/* mesas */
+.mesas{border-right:1px solid var(--edge);background:var(--s1);padding:14px 10px}
+.mesas h5{font-weight:500;font-size:11px;color:var(--faint);font-family:"Geist Mono",monospace;letter-spacing:.06em;padding:6px 8px}
+.m{display:flex;gap:10px;align-items:center;padding:8px;border-radius:6px;cursor:pointer}
+.m:hover{background:var(--s0)}.m.on{background:var(--s2)}
+.m .th{width:40px;height:40px;border-radius:5px;object-fit:cover;flex:none;background:var(--s2)}
+.m .t{flex:1;min-width:0}.m .t b{display:block;font-weight:500;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m .t span{font-size:12px;color:var(--mut)}
+.m .cn{font-size:11px;color:var(--faint)}
+.new{margin:8px;border:1px dashed var(--edgeS);border-radius:6px;padding:8px;color:var(--mut);text-align:center}
+/* mesa abierta */
+.main{padding:18px 24px 40px}
+.mh{display:flex;justify-content:space-between;align-items:flex-start;gap:20px}
+.mh h2{font-weight:400;font-size:22px;letter-spacing:-.03em}
+.who{display:flex;gap:6px;align-items:center;color:var(--mut);margin-top:4px}
+/* tira del storyboard */
+.slots{display:flex;gap:10px;margin-top:16px;padding:12px;border:1px solid var(--edge);border-radius:8px;background:var(--s1);align-items:center}
+.slots .lbl{width:110px;color:var(--mut);font-size:12.5px}
+.slot{width:190px;border:1px solid var(--edge);border-radius:6px;overflow:hidden;position:relative;background:#fff}
+.slot img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}
+.slot .n{position:absolute;top:6px;left:6px;background:rgba(19,20,22,.78);color:#fff;border-radius:4px;padding:1px 6px}
+.slot .s{padding:5px 8px;font-size:12px;color:var(--mut)}
+.slot.drop{outline:2px solid var(--warm);outline-offset:1px}
+.slots a{margin-left:auto;color:var(--warmS);text-decoration:none;font-size:13px}
+/* pedir */
+.ask{margin-top:14px;display:flex;gap:8px}
+.ask .inp{flex:1;border:1px solid var(--edge);border-radius:6px;padding:9px 12px;background:#fff;color:var(--faint)}
+.filters{display:flex;gap:6px;margin-top:16px;align-items:center;color:var(--mut)}
+a.chip{text-decoration:none}
+.chip{border:1px solid var(--edge);border-radius:99px;padding:3px 10px;background:var(--s1);font-size:12.5px;cursor:pointer}
+.chip.on{background:var(--fg);color:#fff;border-color:var(--fg)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+.g{position:relative;border:1px solid var(--edge);border-radius:7px;overflow:hidden;background:#fff}
+.g img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block}
+.g .meta{padding:6px 8px;display:flex;justify-content:space-between;font-size:11.5px;color:var(--mut)}
+.tag{position:absolute;top:6px;left:6px;border-radius:4px;padding:1px 6px;background:rgba(235,243,248,.95);color:var(--warmS)}
+.star{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(250,250,250,.92);border:1px solid var(--edge);display:grid;place-items:center;font-size:13px;color:var(--faint)}
+.star.on{color:#d39b1e;border-color:#e6c46b}
+.ga{position:absolute;left:6px;right:6px;bottom:34px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
+.g:hover .ga{opacity:1}
+.ga button{background:rgba(250,250,250,.95);border:1px solid var(--edge);border-radius:5px;padding:3px 7px;font-size:12px}
+.ga button:hover{border-color:var(--fg)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--fg);color:#fafafa;border-radius:6px;padding:8px 14px;font-size:13px;opacity:0;transition:opacity .2s}
+.toast.on{opacity:1}
+.note{position:fixed;left:16px;bottom:14px;background:var(--fg);color:#fafafa;border-radius:6px;padding:6px 10px;font-size:12px;opacity:.9}
+</style></head>
+<body>
+<div class="top">
+  <span class="logo">coevo</span><span class="brandpick"><b>K</b>Koxis</span>
+  <nav class="nav"><span>Marca</span><span class="on">Producción</span><span>Entregas</span><span>Bandeja</span><span>Reportes</span></nav>
+</div>
+<div class="lay">
+  <aside class="lab">
+    <a class="back" href="campana.html">← Campaña otoño</a>
+    <div><h2>Saco verde</h2><div class="who"><span class="av" style="background:#131416">G</span>Mesa de Gonzalo · cuadros #4–#6</div></div>
+    <div class="tabs2"><b class="on">Con Claude</b><b>A mano</b></div>
+    <div class="log">
+      <div class="lg you"><span class="mono">VOS · 11:02</span>El saco tiene que tapar el bolsillo del jean. Tres opciones del #5.</div>
+      <div class="lg ai"><span class="mono">CLAUDE · 11:04</span>Leí la memoria de Koxis y usé la foto de catálogo del saco (68 cm). Generé 3 con Nano Banana 2 y descarté una porque cortaba la cara. Dejé 2 en <a href="#c5">#5</a>.</div>
+      <div class="lg you"><span class="mono">VOS · 11:10</span>La segunda. Hacela también en 9:16.</div>
+      <div class="lg ai"><span class="mono">CLAUDE · 11:12</span>Listo, en <a href="#c5">#5</a> como 9:16. ¿La pongo en el storyboard?</div>
+    </div>
+    <div><label>RECETAS</label><div class="rec"><b>Opciones de un cuadro</b><b>Variar la luz</b><b>Mismo plano en 9:16 y 4:5</b><b>Revisar contra la marca</b><b>Animar el cuadro</b></div></div>
+    <p class="hint">Esto lo hace el Claude de cada uno (claude.ai o Claude Code) con el conector de Studio. La mesa muestra lo que hizo.</p>
+  </aside>
+  <main class="main">
+    <div class="slots">
+      <div class="lbl">En el storyboard</div>
+      <div class="slot" data-n="4"><img src="img/4.jpg"><span class="n mono">#4</span><div class="s">✓ aprobado</div></div>
+      <div class="slot" data-n="5"><img src="img/5.jpg"><span class="n mono">#5</span><div class="s" style="color:var(--brand)">pide cambio</div></div>
+      <div class="slot" data-n="6"><img src="img/6.jpg"><span class="n mono">#6</span><div class="s">nuevo</div></div>
+      <a href="index.html">Abrir storyboard →</a>
+    </div>
+    <div class="filters"><span style="margin-right:4px">Ir a:</span><a class="chip" href="#c4">#4 · 4</a><a class="chip" href="#c5">#5 · 7</a><a class="chip" href="#c6">#6 · 4</a><a class="chip" href="#c0">Sin cuadro · 3</a><span class="chip" style="margin-left:auto">★ Sólo elegidas</span></div>
+    <div id="groups"></div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<div class="note">Boceto · nombres y conteos de ejemplo</div>
+<script>
+const groups=[[4,"Camina hacia cámara",[["4",1,"en uso · ronda 1"],["m7",0,"Gonzalo · ayer"],["m9",1,"Claude · 20/11"],["m2",0,"Claude · 20/11"]]],
+ [5,"Medio caminando, gira a cámara",[["5",0,"en uso · ronda 2"],["m3",1,"Claude · hoy 11:04"],["m4",1,"Claude · hoy 11:12 · 9:16"],["m1",0,"Gonzalo · hoy"],["m8",0,"Claude · ayer"],["c1",0,"Claude · ayer"],["c2",0,"ronda 1 · descartada"]]],
+ [6,"Pose, mano en el bolsillo",[["6",0,"en uso · nuevo"],["m6",1,"Gonzalo · ayer"],["m5",0,"Gonzalo · ayer"],["m9",0,"Claude · 20/11"]]],
+ [0,"Sin cuadro todavía",[["m2",0,"prueba de luz"],["m10",0,"otra campera"],["m11",0,"detalle"]]]];
+function draw(){document.getElementById('groups').innerHTML=groups.map(([n,t,l])=>`<section class="grp" id="c${n}"><h3>${n?`<img src="img/${l[0][0]}.jpg"><span>#${n}</span>`:'<span>Sin cuadro</span>'}<small>${t}</small><span class="mono">${l.length} variantes</span>${n?`<a href="index.html" style="margin-left:auto;font-weight:400;font-size:13px;color:var(--warmS)">ver en el storyboard →</a>`:''}</h3>
+ <div class="grid">${l.map(([im,s,w],i)=>`<div class="g ${n&&i==0?'inuse':''}"><img src="img/${im}.jpg">${n&&i==0?'<span class="use mono">EN EL STORYBOARD</span>':''}<span class="star ${s?'on':''}">★</span>
+ <div class="ga">${n?`<button onclick="put('${im}',${n})">→ usar en #${n}</button>`:'<button onclick="put(\''+im+'\',4)">→ #4</button><button onclick="put(\''+im+'\',5)">→ #5</button><button onclick="put(\''+im+'\',6)">→ #6</button>'}<button>⤢</button><button>↓</button></div>
+ <div class="meta"><span>${w}</span></div></div>`).join('')}</div></section>`).join('')}
+function put(im,n){const s=document.querySelector(`.slot[data-n="${n}"]`);s.querySelector('img').src=`img/${im}.jpg`;s.querySelector('.s').textContent='nuevo · v3';s.querySelector('.s').style.color='var(--warmS)';
+ s.classList.add('drop');setTimeout(()=>s.classList.remove('drop'),900);const t=document.getElementById('toast');t.textContent=`Puesta en el #${n} del storyboard. La anterior queda como variante.`;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2200)}
+draw();
+function hl(){const g=document.querySelector(location.hash);if(g){g.scrollIntoView();g.classList.remove('hl');void g.offsetWidth;g.classList.add('hl')}}
+window.addEventListener('hashchange',hl);if(location.hash)setTimeout(hl,50);
+</script>
+</body></html>

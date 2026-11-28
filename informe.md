@@ -42,6 +42,7 @@ url: https://claude.ai/artifact/5hKZbU2L4BL5Ja5ySgSPFn
 - 2026-11-09 · Gonzalo · La Bandeja pide lo que falta en vez de hacer clasificar cada imagen a mano. Marca se lee entera y se edita en el lugar: https://claude.ai/artifact/4EeBQpPVJcCdS9M862ZvKS
 
 ## Esta semana
+- **Storyboard y mesas, propuesto (2026-11-28):** después de mirar Piko, la campaña pasa a tener mesas (el Lab adentro, por persona o escena) y el storyboard es una entrega con cuadros numerados, variantes por cuadro y «Ir a la mesa». Claude trabaja desde el chat de cada uno. Boceto y pasos en `openspec/changes/storyboard-y-mesas/`.
 - **Studio en claude.ai, paso 1 en producción (2026-11-24):** el MCP en `app.coevoagency.com/mcp` con el login de cada uno (OAuth sobre Cloudflare), sólo leer; un cliente ve sólo su marca (probado). Falta sumar `oauth/authorize` en Cloudflare (Gonzalo, guía `docs/guias/studio-en-claude.md`) y la prueba con Keyla. Avisado a autopoiesis, morph-site, alguna-web y coevo-web. También: la puerta reacomodada (tres tamaños, nada pisado) y la nota de versión corta.
 - **Tablero de Pinterest, listo en Marca (2026-11-09):** se pega el link de un tablero público; imágenes en buena calidad, sin duplicados, y «Actualizar» trae sólo los pines nuevos. Probado con un tablero real y desplegado en app.coevoagency.com. De paso se borró código muerto en Video Ad Creator (7 imports y una función sin uso): los errores de TypeScript bajaron de 14 a 7, todos viejos.
 - **Lo que está conectado y lo que no (revisado en el código, 2026-11-09):**
